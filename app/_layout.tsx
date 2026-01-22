@@ -1,7 +1,12 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StripeProvider } from '@stripe/stripe-react-native';
+
+// Clé publique Stripe (pk_test_...)
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAADXPGuQCW6AdnBnxp0i1WHQ0Vr7FWPIiD3XBM4zmfoGuEHpWb9Aqf6jU5Zu7DrrkbgsQmwuVcjlsPiXGjveUV00vTHMxKJ2";
 
 function RootLayoutNav() {
   const { user, isBooting } = useAuth();
@@ -23,11 +28,9 @@ function RootLayoutNav() {
     });
 
     if (!user && !inAuthGroup) {
-      // Pas de user → forcer login
       console.log('➡️ REDIRECT TO LOGIN (no user)');
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
-      // User connecté mais sur auth → forcer dashboard
       console.log('➡️ REDIRECT TO DASHBOARD (user logged)');
       router.replace('/(tabs)/dashboard');
     } else {
@@ -49,8 +52,19 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <GestureHandlerRootView style={styles.container}>
+      {/* ✅ STRIPE PROVIDER SANS merchantIdentifier */}
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </StripeProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

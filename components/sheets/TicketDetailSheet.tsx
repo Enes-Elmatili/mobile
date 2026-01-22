@@ -72,7 +72,7 @@ export default function TicketDetailSheet({
         </View>
 
         {/* ==================== URGENT BADGE ==================== */}
-        {ticket.urgent && (
+        {!!ticket.urgent && (
           <View style={styles.urgentContainer}>
             <Ionicons name="alert-circle" size={20} color="#FF3B30" />
             <Text style={styles.urgentText}>Demande urgente</Text>
@@ -91,28 +91,29 @@ export default function TicketDetailSheet({
           {/* Catégorie et sous-catégorie */}
           {(ticket.category || ticket.subcategory) && (
             <View style={styles.categoryRow}>
-              {ticket.category && (
+              {!!ticket.category && (
                 <View style={styles.categoryBadge}>
                   <Text style={styles.categoryText}>
                     {ticket.category.name || 'Catégorie'}
                   </Text>
                 </View>
               )}
-              {ticket.subcategory && (
-                <>
+              {/* Correction ici : suppression du Fragment <> potentiellement buggé */}
+              {!!ticket.subcategory && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="chevron-forward" size={16} color="#999" />
-                  <View style={styles.categoryBadge}>
+                  <View style={[styles.categoryBadge, { marginLeft: 8 }]}>
                     <Text style={styles.categoryText}>
                       {ticket.subcategory.name}
                     </Text>
                   </View>
-                </>
+                </View>
               )}
             </View>
           )}
 
           {/* Description */}
-          {ticket.description && (
+          {!!ticket.description && (
             <View style={styles.descriptionContainer}>
               <Text style={styles.label}>Description</Text>
               <Text style={styles.description}>{ticket.description}</Text>
@@ -120,7 +121,7 @@ export default function TicketDetailSheet({
           )}
 
           {/* Client Info */}
-          {ticket.clientInfo && (
+          {!!ticket.clientInfo && (
             <View style={styles.infoBox}>
               <Ionicons name="information-circle-outline" size={18} color="#007AFF" />
               <Text style={styles.infoText}>{ticket.clientInfo}</Text>
@@ -138,22 +139,22 @@ export default function TicketDetailSheet({
           <Text style={styles.address}>{ticket.address}</Text>
           
           {/* Coordonnées GPS */}
-          {(ticket.lat && ticket.lng) && (
+          {(ticket.lat && ticket.lng) ? (
             <View style={styles.coordsContainer}>
               <Text style={styles.coordsLabel}>Coordonnées GPS</Text>
               <Text style={styles.coordsValue}>
-                {ticket.lat.toFixed(6)}, {ticket.lng.toFixed(6)}
+                {Number(ticket.lat).toFixed(6)}, {Number(ticket.lng).toFixed(6)}
               </Text>
             </View>
-          )}
+          ) : null}
 
           {/* Bouton Carte */}
-          {ticket.lat && ticket.lng && (
+          {(ticket.lat && ticket.lng) ? (
             <TouchableOpacity style={styles.mapButton} onPress={openMap}>
               <Ionicons name="map-outline" size={18} color="#fff" />
               <Text style={styles.mapButtonText}>Ouvrir dans Maps</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* ==================== DATE SOUHAITÉE ==================== */}
@@ -164,7 +165,7 @@ export default function TicketDetailSheet({
               <Text style={styles.cardTitle}>Date souhaitée</Text>
             </View>
 
-            {ticket.preferredTimeStart && (
+            {!!ticket.preferredTimeStart && (
               <View style={styles.dateRow}>
                 <View style={styles.dateIcon}>
                   <Ionicons name="calendar" size={16} color="#007AFF" />
@@ -189,7 +190,7 @@ export default function TicketDetailSheet({
               </View>
             )}
 
-            {ticket.preferredTimeEnd && (
+            {!!ticket.preferredTimeEnd && (
               <View style={[styles.dateRow, { marginTop: 12 }]}>
                 <View style={styles.dateIcon}>
                   <Ionicons name="calendar" size={16} color="#007AFF" />
@@ -217,7 +218,7 @@ export default function TicketDetailSheet({
         )}
 
         {/* ==================== PRESTATAIRE ==================== */}
-        {ticket.provider && (
+        {!!ticket.provider && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="person-outline" size={22} color="#007AFF" />
@@ -232,25 +233,25 @@ export default function TicketDetailSheet({
                 <Text style={styles.providerName}>
                   {ticket.provider.name || 'Prestataire'}
                 </Text>
-                {ticket.provider.city && (
+                {!!ticket.provider.city && (
                   <View style={styles.providerLocationRow}>
                     <Ionicons name="location" size={14} color="#666" />
                     <Text style={styles.providerCity}>{ticket.provider.city}</Text>
                   </View>
                 )}
-                {ticket.providerDistanceKm !== null && ticket.providerDistanceKm !== undefined && (
+                {ticket.providerDistanceKm != null && (
                   <View style={styles.distanceRow}>
                     <Ionicons name="navigate" size={14} color="#007AFF" />
                     <Text style={styles.distanceText}>
-                      À {ticket.providerDistanceKm.toFixed(1)} km
+                      À {Number(ticket.providerDistanceKm).toFixed(1)} km
                     </Text>
                   </View>
                 )}
-                {ticket.provider.avgRating && (
+                {!!ticket.provider.avgRating && (
                   <View style={styles.ratingRow}>
                     <Ionicons name="star" size={14} color="#FFD700" />
                     <Text style={styles.ratingText}>
-                      {ticket.provider.avgRating.toFixed(1)} / 5
+                      {Number(ticket.provider.avgRating).toFixed(1)} / 5
                     </Text>
                   </View>
                 )}
@@ -260,7 +261,7 @@ export default function TicketDetailSheet({
         )}
 
         {/* ==================== CONTRAT ==================== */}
-        {ticket.contractUrl && (
+        {!!ticket.contractUrl && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="document-text-outline" size={22} color="#007AFF" />

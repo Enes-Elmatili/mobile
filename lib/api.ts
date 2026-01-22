@@ -1,9 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.129.179:3000/api';
+// Récupère l'URL depuis app.config.js
+const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.129.179:3000/api';
+
+// Debug log
+console.log('🌐 API_BASE_URL:', API_BASE_URL);
 
 // Types
-
 export interface ApiResponse<T = any> {
   ok?: boolean;
   data?: T;
@@ -26,6 +30,14 @@ class ApiClient {
 
   private async getHeaders(): Promise<Record<string, string>> {
     const token = await AsyncStorage.getItem('auth_token');
+    
+    // 🔍 DEBUG CRITIQUE : Affiche le token pour vérifier s'il existe
+    console.log('🔑 Token from storage:', token ? `${token.slice(0, 30)}...` : '❌ NULL');
+    
+    if (!token) {
+      console.warn('⚠️ API Request sent WITHOUT Token! (User ID will be missing on server)');
+    }
+
     return {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -35,6 +47,7 @@ class ApiClient {
   async request<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
     const headers = await this.getHeaders();
+
     const config: RequestInit = {
       method: options.method || 'GET',
       headers: { ...headers, ...options.headers },
@@ -44,20 +57,37 @@ class ApiClient {
       config.body = JSON.stringify(options.body);
     }
 
-    console.log(`📡 API ${config.method} ${endpoint}`);
+    console.log(`📡 API ${config.method} ${url}`);
+
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      const text = await response.text(); // Read raw text first to avoid JSON parse crash
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        // Log the actual HTML/Text response to debug
+        console.error(`❌ API NON-JSON RESPONSE at ${url}`);
+        console.error(`📄 Content preview: ${text.slice(0, 500)}`); // Show first 500 chars
+        
+        const error: any = new Error(`API returned invalid JSON (Status: ${response.status}). Likely server error or HTML.`);
+        error.status = response.status;
+        throw error;
+      }
 
       if (!response.ok) {
         console.error(`❌ API ERROR ${response.status}:`, data);
-        throw new Error(data.error || data.message || `HTTP ${response.status}`);
+        const error: any = new Error(data.error || data.message || `HTTP ${response.status}`);
+        error.status = response.status; // Attach status for AuthContext check
+        throw error;
       }
 
       console.log(`✅ API SUCCESS ${config.method} ${endpoint}`);
       return data;
     } catch (error: any) {
       console.error(`❌ API REQUEST FAILED:`, error.message);
+      // We re-throw so the caller can handle it (or AuthContext can ignore 500s)
       throw error;
     }
   }
@@ -96,25 +126,30 @@ class ApiClient {
   requests = {
     // Liste via dashboard (route qui fonctionne)
     list: async (params?: { page?: number; limit?: number }) => {
-      const dashboard = await this.request('/client/dashboard');
+      const dashboard = await this.request<any>('/client/dashboard');
       return {
         data: dashboard.requests || [],
         total: dashboard.requests?.length || 0,
       };
     },
-
-    // ✅ Détails d'une request (corrigé)
+    // Détails d'une request
     get: (id: string) => this.request(`/requests/${id}`),
-
     // Créer une request
     create: (data: any) => this.post('/requests', data),
-
     // Actions sur les requests
     accept: (id: string) => this.post(`/requests/${id}/accept`),
     decline: (id: string) => this.post(`/requests/${id}/refuse`),
     start: (id: string) => this.post(`/requests/${id}/start`),
     complete: (id: string) => this.post(`/requests/${id}/complete`),
     cancel: (id: string) => this.post(`/requests/${id}/cancel`),
+  };
+
+  // ==================== TAXONOMIES ====================
+  // Ajout pour gérer proprement les catégories
+  taxonomies = {
+    list: () => this.request('/categories'),
+    get: (id: string) => this.request(`/categories/${id}`),
+    subcategories: (categoryId: string) => this.request(`/categories/${categoryId}/subcategories`),
   };
 
   // ==================== DASHBOARD ====================
@@ -189,9 +224,15 @@ class ApiClient {
     create: (data: any) => this.post('/contracts', data),
   };
 
+  // ✅ CORRECTION : Ajout de la méthode intent
   payments = {
     list: () => this.request('/payments'),
     get: (id: string) => this.request(`/payments/${id}`),
+    intent: async (requestId: string) => {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
+      return this.post('/payments/intent', { requestId });
+    },
     create: (data: any) => this.post('/payments', data),
   };
 

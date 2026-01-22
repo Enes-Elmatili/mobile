@@ -82,11 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('📡 REFRESH ME CALL');
       const res = await api.user.me();
+
       console.log('📥 ME RESPONSE:', JSON.stringify(res, null, 2));
 
       // ✅ TON BACKEND RENVOIE { data: { ... } }
       const userData = res?.data || res?.user || res;
-
       console.log('🔍 Extracted userData:', userData);
 
       if (userData && userData.email && userData.id) {
@@ -94,11 +94,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ USER LOADED:', userData.email, 'Roles:', userData.roles);
       } else {
         console.warn('⚠️ ME response sans user valide. userData:', userData);
+        // We only sign out if the server explicitly returned success but no data (logic error)
         await signOut();
       }
     } catch (e: any) {
       console.error('❌ REFRESH ME ERROR:', e.message || e);
-      await signOut();
+      
+      // FIX: Only sign out on 401 (Unauthorized)
+      // If it's a 500 or JSON parse error (HTML response), keep the local token active
+      if (e.status === 401 || e.message?.includes('401')) {
+         console.log('🔒 Token expired or invalid (401). Signing out.');
+         await signOut();
+      } else {
+         console.warn('⚠️ Server error during refresh. Keeping local session.');
+      }
     }
   }, [signOut]);
 
