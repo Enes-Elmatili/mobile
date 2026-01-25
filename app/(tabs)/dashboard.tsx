@@ -16,6 +16,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import ProviderDashboard from '../../components/providers/ProviderDashboard';
 
 interface DashboardData {
   me: {
@@ -48,6 +49,9 @@ export default function Dashboard() {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['50%', '90%'], []);
 
+  // 🆕 Vérifier si l'utilisateur est un prestataire
+  const isProvider = user?.roles?.includes('PROVIDER');
+
   const loadDashboard = React.useCallback(async () => {
     try {
       console.log('📡 Loading dashboard...');
@@ -64,8 +68,13 @@ export default function Dashboard() {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadDashboard();
-    }, [loadDashboard])
+      // Ne charger le dashboard client que si ce n'est pas un provider
+      if (!isProvider) {
+        loadDashboard();
+      } else {
+        setLoading(false);
+      }
+    }, [loadDashboard, isProvider])
   );
 
   const onRefresh = () => {
@@ -98,6 +107,12 @@ export default function Dashboard() {
     []
   );
 
+  // 🆕 Si prestataire, afficher le dashboard prestataire
+  if (isProvider) {
+    return <ProviderDashboard />;
+  }
+
+  // Dashboard CLIENT (code existant)
   if (loading || !data) {
     return (
       <SafeAreaView style={styles.centerContainer}>

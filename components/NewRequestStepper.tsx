@@ -1,3 +1,5 @@
+// app/(tabs)/request/NewRequestStepper.tsx
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
@@ -7,48 +9,30 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
-  Dimensions,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useStripe } from '@stripe/stripe-react-native';
+import { io, Socket } from 'socket.io-client';
+
 import { api } from '../lib/api';
 import { computePrice } from '../../backend/services/priceService';
 
-// --- CONFIGURATION ---
+// Vues du flow
+import { RequestSearchingView } from './request/RequestSearchingView';
+import { RequestOngoingView } from './request/RequestOngoingView';
+import { RequestCompletedView } from './request/RequestCompletedView';
+import { RequestRatingView } from './request/RequestRatingView';
+
+// --- CONFIG ---
+
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-const MAP_STYLE_ID = '32bfe39492798016ac5c9afb';
-const { width } = Dimensions.get('window');
-
-// --- INTERFACES ---
-type SeedChoices = Record<string, string[]>;
-type SeedMultiChoice = Record<string, string[]> | null;
-
-interface SeedSubcategory {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string | null;
-  choices?: SeedChoices | null;
-  multiChoice?: SeedMultiChoice;
-  openQuestions?: any;
-  remarque?: string | null;
-}
-
-interface Category {
-  id: number;
-  name: string;
-  icon?: string | null;
-  price: number;
-  description?: string | null;
-  subcategories?: SeedSubcategory[];
-}
 
 const DEFAULT_REGION = {
   latitude: 50.8503,
@@ -59,498 +43,506 @@ const DEFAULT_REGION = {
 
 function extractArrayPayload(response: any): any[] {
   if (Array.isArray(response)) return response;
-  if (response && Array.isArray(response.data)) return response.data;
+  if (response?.data && Array.isArray(response.data)) return response.data;
   if (response?.data?.data && Array.isArray(response.data.data)) return response.data.data;
   return [];
 }
 
 export default function NewRequestStepper() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapView | null>(null);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+
+  // --- ETATS ---
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  // --- STATE ---
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Données formulaire
+  const [categories, setCategories] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [subcategoryId, setSubcategoryId] = useState<number | null>(null);
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState<{ address: string; lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{
+    address: string;
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [timeOption, setTimeOption] = useState<'now' | 'later' | null>(null);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
-  const [estimatedPrice, setEstimatedPrice] = useState<any>(null);
+  const [estimatedPrice, setEstimatedPrice] = useState<any | null>(null);
+
+  // Suivi demande (Live)
+  const [currentRequest, setCurrentRequest] = useState<any | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [eta, setEta] = useState('5 min');
 
   const STEP_COUNT = 4;
 
   const selectedCategory = useMemo(
     () => categories.find((c) => c.id === categoryId) || null,
-    [categories, categoryId]
+    [categories, categoryId],
   );
 
-  const selectedSubcategory = useMemo(() => {
-    if (!selectedCategory?.subcategories?.length || !subcategoryId) return null;
-    return selectedCategory.subcategories.find((s) => s.id === subcategoryId) || null;
-  }, [selectedCategory, subcategoryId]);
+  const selectedSubcategory = useMemo(
+    () =>
+      selectedCategory?.subcategories?.find((s: any) => s.id === subcategoryId) || null,
+    [selectedCategory, subcategoryId],
+  );
 
   const progressPct = Math.round((step / STEP_COUNT) * 100);
 
-  // --- EFFET INITIAL : Chargement des catégories ---
+  // --- CHARGEMENT INITIAL ---
+
   useEffect(() => {
     let mounted = true;
-    async function fetchCategories() {
+    (async () => {
       try {
-        setCategoriesLoading(true);
         const response = await api.request('/categories');
-        const rawData = extractArrayPayload(response);
-        const mappedCats: Category[] = rawData.map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          icon: c.icon ?? null,
-          price: typeof c.price === 'number' ? c.price : 0,
-          description: c.description ?? null,
-          subcategories: Array.isArray(c.subcategories) ? c.subcategories : [],
-        }));
-        if (mounted) setCategories(mappedCats);
+        if (mounted) setCategories(extractArrayPayload(response));
       } catch (e) {
-        console.error('❌ Erreur chargement catégories:', e);
-        Alert.alert('Erreur', 'Impossible de charger les services. Vérifiez votre connexion.');
-      } finally {
-        if (mounted) setCategoriesLoading(false);
+        console.error(e);
       }
-    }
-    fetchCategories();
+    })();
+
     return () => {
       mounted = false;
     };
   }, []);
 
-  // Reset subcategory quand on change de catégorie
-  useEffect(() => {
-    setSubcategoryId(null);
-  }, [categoryId]);
+  // --- CALCUL PRIX ---
 
-  // --- EFFETS PRIX ---
   useEffect(() => {
     if (!selectedCategory) return;
-    const date =
-      timeOption === 'now'
-        ? new Date()
-        : scheduledDate && scheduledTime
-        ? new Date(`${scheduledDate}T${scheduledTime}`)
-        : new Date();
+    const date = timeOption === 'now' ? new Date() : new Date(); // à affiner si tu gères le planning
+
     try {
-      const baseRate = selectedCategory.price || 0;
       const priceDetails = computePrice({
-        baseRate,
+        baseRate: selectedCategory.price || 0,
         hours: 1,
         isUrgent: timeOption === 'now',
         requestDate: date,
         distanceKm: 0,
       });
       setEstimatedPrice(priceDetails);
-    } catch (_e) {
-      // fallback
-    }
-  }, [selectedCategory, timeOption, scheduledDate, scheduledTime]);
+    } catch (_e) {}
+  }, [selectedCategory, timeOption]);
 
-  // --- HANDLERS ---
-  const handlePrev = () => {
-    if (step > 1) setStep(step - 1);
-  };
+  // --- WEBSOCKET LIVE ---
 
-  const handleNext = () => {
-    if (step === 1) {
-      if (!categoryId) return Alert.alert('Attention', 'Sélectionnez une catégorie');
-      if ((selectedCategory?.subcategories?.length || 0) > 0 && !subcategoryId) {
-        return Alert.alert('Attention', 'Sélectionnez une sous-catégorie');
-      }
-    }
-    if (step === 2 && !location) return Alert.alert('Attention', 'Sélectionnez une adresse');
-    if (step === 3 && !timeOption) return Alert.alert('Attention', 'Choisissez une heure');
-    if (step < STEP_COUNT) setStep(step + 1);
-  };
+  useEffect(() => {
+    if (!currentRequest?.id) return;
 
-  const handlePlaceSelect = (_data: any, details: any) => {
-    if (!details) return;
-    const { geometry, formatted_address } = details;
-    const newLoc = {
-      address: formatted_address,
-      lat: geometry.location.lat,
-      lng: geometry.location.lng,
+    const SOCKET_URL =
+      process.env.EXPO_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3000';
+
+    console.log('🔌 Connexion WebSocket req:', currentRequest.id);
+
+    const newSocket = io(SOCKET_URL, {
+      transports: ['websocket'],
+      auth: { requestId: currentRequest.id },
+    });
+
+    newSocket.on('connect', () => {
+      newSocket.emit('join_request', currentRequest.id);
+    });
+
+    newSocket.on('request_status_update', (data: any) => {
+      console.log('📡 Status:', data.status);
+      setCurrentRequest((prev: any) => ({
+        ...prev,
+        status: data.status,
+        provider: data.provider || prev?.provider,
+      }));
+    });
+
+    newSocket.on('provider_accepted', (data: any) => {
+      setCurrentRequest((prev: any) => ({
+        ...prev,
+        status: 'ACCEPTED',
+        provider: data.provider,
+      }));
+      setEta(data.eta || '5 min');
+    });
+
+    newSocket.on('service_completed', (data: any) => {
+      setCurrentRequest((prev: any) => ({
+        ...prev,
+        status: 'COMPLETED',
+        finalPrice: data.finalPrice,
+      }));
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
     };
-    setLocation(newLoc);
-    mapRef.current?.animateToRegion({
-      latitude: newLoc.lat,
-      longitude: newLoc.lng,
-      latitudeDelta: 0.005,
-      longitudeDelta: 0.005,
-    });
+  }, [currentRequest?.id]);
+
+  // --- ACTIONS ---
+
+  const handleCancelSearch = async () => {
+    if (!currentRequest?.id) return;
+
+    Alert.alert('Annuler', 'Arrêter la recherche ?', [
+      { text: 'Non', style: 'cancel' },
+      {
+        text: 'Oui',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.request(`/requests/${currentRequest.id}`, {
+              method: 'PATCH',
+              body: { status: 'CANCELLED' },
+            });
+            setCurrentRequest(null);
+            router.replace('/(tabs)/dashboard');
+          } catch (e) {
+            console.error(e);
+          }
+        },
+      },
+    ]);
   };
 
-  const handleMapPress = (event: any) => {
-    const { latitude, longitude } = event.nativeEvent.coordinate;
-    setLocation({
-      address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
-      lat: latitude,
-      lng: longitude,
-    });
+  const handleSubmitRating = async (rating: number, comment: string) => {
+    if (!currentRequest?.id) return;
+    try {
+      await api.request(`/requests/${currentRequest.id}/rating`, {
+        method: 'POST',
+        body: { rating, comment },
+      });
+      Alert.alert('Merci !', 'Votre avis a été enregistré.');
+      setCurrentRequest(null);
+      router.replace('/(tabs)/dashboard');
+    } catch (_e) {
+      Alert.alert('Erreur', "Impossible d'enregistrer votre avis.");
+    }
   };
 
-  // --- ✅ SUBMIT PATCHÉ AVEC LOGS ---
   const handleSubmit = async () => {
-    if (!selectedCategory || !location) return;
+    if (!selectedCategory || !location || !timeOption) {
+      Alert.alert('Info', 'Complétez le service, l’adresse et le moment.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const serviceType = selectedSubcategory?.slug || selectedSubcategory?.name || selectedCategory.name;
-      const titleBase = selectedSubcategory?.name || selectedCategory.name;
+      // 1. Création de la Request (PENDING_PAYMENT)
+      const serviceType = selectedSubcategory?.name || selectedCategory.name;
+      const price =
+        estimatedPrice ? parseFloat(estimatedPrice.finalTotal) : selectedCategory.price;
 
-      const payload: any = {
-        title: `${titleBase} - ${description.substring(0, 30) || 'Service'}`,
-        description: description || `Service de ${titleBase}`,
+      const payload = {
+        title: serviceType,
+        description: description || `Service de ${serviceType}`,
         serviceType,
         categoryId: selectedCategory.id,
-        ...(subcategoryId ? { subcategoryId } : {}),
-        price: estimatedPrice ? parseFloat(estimatedPrice.finalTotal) : selectedCategory.price,
+        price,
         address: location.address,
         lat: location.lat,
         lng: location.lng,
-        scheduledFor:
-          timeOption === 'now'
-            ? new Date().toISOString()
-            : new Date(`${scheduledDate}T${scheduledTime}`).toISOString(),
         urgent: timeOption === 'now',
+        scheduledFor: new Date().toISOString(),
+        status: 'PENDING_PAYMENT',
       };
 
-      console.log('📤 Création demande (Pending Payment)...', payload);
-      const requestResponse = await api.requests.create(payload);
+      const reqRes = await api.request('/requests', { method: 'POST', body: payload });
+      const requestId = reqRes.id || reqRes.data?.id;
 
-      const requestId = requestResponse.id || requestResponse.data?.id || requestResponse.request?.id;
       if (!requestId) {
-        console.error('DEBUG RESPONSE:', JSON.stringify(requestResponse));
-        throw new Error("Impossible de récupérer l'ID de la demande créée.");
+        throw new Error('Request ID manquant après création.');
       }
 
-      console.log('✅ Demande créée avec ID:', requestId);
+      // 2. Stripe Intent (backend lit la request => source de vérité)
+      const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(
+        requestId,
+      );
 
-      // ✅ AJOUTÉ : Logs détaillés
-      console.log('💳 Initialisation Stripe Payment Intent...');
-      const intentResponse = await api.post('/payments/intent', { requestId });
-      
-      console.log('🔍 STRIPE RESPONSE:', JSON.stringify(intentResponse, null, 2));
-      
-      const { paymentIntent, ephemeralKey, customer, amount } = intentResponse;
-
-      if (!paymentIntent || !ephemeralKey || !customer) {
-        throw new Error('Réponse Stripe incomplète');
-      }
-
-      console.log('💰 Montant à payer:', amount / 100, '€');
-
-      // ✅ MODIFIÉ : Configuration améliorée
+      // 3. Init Payment Sheet
       const { error: initError } = await initPaymentSheet({
-        merchantDisplayName: 'Fixed',
+        merchantDisplayName: 'Mosaic',
         customerId: customer,
         customerEphemeralKeySecret: ephemeralKey,
         paymentIntentClientSecret: paymentIntent,
-        allowsDelayedPaymentMethods: false, // ✅ Changé
-        appearance: {
-          colors: {
-            primary: '#000000',
-          },
-        },
-        defaultBillingDetails: {
-          name: 'Client',
-        },
+        returnURL: 'mosaic://stripe-redirect',
+        defaultBillingDetails: { address: { country: 'BE' } },
       });
 
-      if (initError) {
-        console.error('❌ Erreur init Payment Sheet:', initError);
-        throw new Error(initError.message);
-      }
+      if (initError) throw new Error(initError.message);
 
-      console.log('✅ Payment Sheet initialisé avec succès');
+      // 4. Présentation
+      const { error: payError } = await presentPaymentSheet();
 
-      // ✅ AJOUTÉ : Délai avant présentation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      console.log('🎨 Ouverture du Payment Sheet...');
-      const { error: paymentError } = await presentPaymentSheet();
-
-      if (paymentError) {
-        console.log("⚠️ Paiement annulé par l'utilisateur:", paymentError.code);
-        Alert.alert(
-          'Paiement non terminé',
-          'La demande est enregistrée en brouillon.',
-          [{ text: 'Accueil', onPress: () => router.push('/(tabs)/dashboard') }]
-        );
-      } else {
-        console.log('✅ Paiement Stripe réussi !');
-        
-        try {
-          await api.post('/payments/success', { requestId });
-          console.log('✅ Validation backend OK');
-        } catch (e) {
-          console.warn('⚠️ Validation backend échouée', e);
+      if (payError) {
+        if (payError.code !== 'Canceled') {
+          Alert.alert('Erreur paiement', payError.message);
         }
-
-        Alert.alert('Succès', 'Votre demande est publiée et payée !', [
-          {
-            text: 'Voir ma demande',
-            onPress: () => {
-              try {
-                router.push({ pathname: '/request/[id]', params: { id: requestId } });
-              } catch (e) {
-                router.push('/(tabs)/requests');
-              }
-            },
-          },
-        ]);
+        setLoading(false);
+        return;
       }
-    } catch (error: any) {
-      console.error('❌ Erreur complète:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de finaliser la demande');
+
+      // 5. Validation côté API => request devient PUBLISHED + sockets providers
+      await api.request('/payments/success', {
+        method: 'POST',
+        body: { requestId },
+      });
+
+      setCurrentRequest({
+        id: requestId,
+        status: 'PUBLISHED',
+        estimatedPrice: price,
+        serviceType: payload.serviceType,
+        address: payload.address,
+      });
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert('Erreur', e?.message || 'Une erreur est survenue.');
     } finally {
       setLoading(false);
     }
   };
 
-  // --- RENDERERS ---
-  const renderStep2FullMap = () => (
-    <View style={styles.fullScreenMapContainer}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={{ flex: 1 }}
-        initialRegion={DEFAULT_REGION}
-        onPress={handleMapPress}
-        customMapStyle={[]}
-      >
-        {location && <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />}
-      </MapView>
+  // --- RENDU DES VUES LIVE (SEARCH / ONGOING / COMPLETED / RATING) ---
 
-      <View style={styles.floatingAutocompleteWrapper}>
-        <GooglePlacesAutocomplete
-          placeholder="Rechercher une adresse"
-          onPress={handlePlaceSelect}
-          query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr' }}
-          fetchDetails
-          styles={{
-            container: styles.placesInputContainer,
-            textInput: styles.placesInput,
-            listView: styles.placesListView,
-          }}
-        />
-      </View>
+  if (currentRequest) {
+    switch (currentRequest.status) {
+      case 'PUBLISHED':
+        return (
+          <RequestSearchingView
+            request={currentRequest}
+            serviceType={currentRequest.serviceType}
+            estimatedPrice={currentRequest.estimatedPrice}
+            onCancel={handleCancelSearch}
+          />
+        );
+      case 'ACCEPTED':
+      case 'ONGOING':
+        return (
+          <RequestOngoingView
+            request={currentRequest}
+            provider={currentRequest.provider}
+            eta={eta}
+            onContact={() => console.log('Call')}
+          />
+        );
+      case 'COMPLETED':
+        return (
+          <RequestCompletedView
+            finalPrice={currentRequest.finalPrice || currentRequest.price}
+            onRate={() =>
+              setCurrentRequest((p: any) => ({ ...p, status: 'RATING_PENDING' }))
+            }
+          />
+        );
+      case 'RATING_PENDING':
+      case 'RATED':
+        return (
+          <RequestRatingView provider={currentRequest.provider} onSubmit={handleSubmitRating} />
+        );
+      default:
+        break;
+    }
+  }
 
-      {location && (
-        <View style={styles.bottomLocationCard}>
-          <View style={styles.locationInfoRow}>
-            <View style={styles.locationIconBg}>
-              <Ionicons name="location" size={24} color="#000" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.locationTitle}>Lieu d'intervention</Text>
-              <Text style={styles.locationAddress}>{location.address}</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.confirmLocationButton} onPress={handleNext}>
-            <Text style={styles.confirmLocationText}>Confirmer cette adresse</Text>
+  // --- UI STEPPER (Formulaire) ---
+
+  const handleNext = () => setStep((s) => Math.min(STEP_COUNT, s + 1));
+  const handlePrev = () => setStep((s) => Math.max(1, s - 1));
+
+  const currentTitle =
+    step === 1
+      ? 'Choisissez un service'
+      : step === 2
+      ? 'Où avez-vous besoin d’aide ?'
+      : step === 3
+      ? 'Quand ?'
+      : 'Confirmation & paiement';
+
+  const mainButtonDisabled =
+    loading ||
+    (step === 1 && !categoryId) ||
+    (step === 2 && !location) ||
+    (step === 3 && !timeOption);
+
+  if (step === 2) {
+    // MAP FULLSCREEN
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handlePrev}>
+            <Ionicons name="arrow-back" size={24} />
           </TouchableOpacity>
+          <Text style={styles.title}>Adresse de la prestation</Text>
+          <View style={{ width: 24 }} />
         </View>
-      )}
-    </View>
-  );
+
+        <View style={{ flex: 1 }}>
+          <GooglePlacesAutocomplete
+            placeholder="Adresse..."
+            onPress={(data, details = null) => {
+              const lat = details?.geometry.location.lat || 0;
+              const lng = details?.geometry.location.lng || 0;
+              setLocation({ address: data.description, lat, lng });
+              mapRef.current?.animateToRegion({
+                latitude: lat,
+                longitude: lng,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              });
+            }}
+            query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr' }}
+            fetchDetails
+            styles={{
+              container: {
+                position: 'absolute',
+                top: 50,
+                left: 20,
+                right: 20,
+                zIndex: 100,
+              },
+              listView: { backgroundColor: 'white' },
+            }}
+          />
+
+          <MapView
+            ref={mapRef}
+            style={StyleSheet.absoluteFillObject}
+            initialRegion={DEFAULT_REGION}
+            provider={PROVIDER_GOOGLE}
+          >
+            {location && (
+              <Marker
+                coordinate={{
+                  latitude: location.lat,
+                  longitude: location.lng,
+                }}
+              />
+            )}
+          </MapView>
+
+          {location && (
+            <TouchableOpacity style={styles.floatingBtn} onPress={handleNext}>
+              <Text style={styles.btnText}>Confirmer l'adresse</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        {/* HEADER */}
-        {step !== 2 && (
-          <View style={styles.header}>
-            <TouchableOpacity onPress={step > 1 ? handlePrev : () => router.back()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-              {step === 1 ? 'Service' : step === 3 ? 'Horaire' : 'Confirmation'}
-            </Text>
-            <View style={{ width: 24 }} />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={step === 1 ? () => router.back() : handlePrev}>
+          <Ionicons name="arrow-back" size={24} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginHorizontal: 16 }}>
+          <Text style={styles.title}>{currentTitle}</Text>
+          <View style={{ height: 4, backgroundColor: '#eee', borderRadius: 2, marginTop: 8 }}>
+            <View
+              style={{
+                height: '100%',
+                width: `${progressPct}%`,
+                backgroundColor: 'black',
+                borderRadius: 2,
+              }}
+            />
           </View>
+        </View>
+        <Text>{`${step}/${STEP_COUNT}`}</Text>
+      </View>
+
+      {/* Contenu */}
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 120 }}>
+        {step === 1 && (
+          <>
+            <Text style={styles.bigTitle}>Quel service ?</Text>
+            {categories.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                onPress={() => setCategoryId(c.id)}
+                style={[
+                  styles.card,
+                  categoryId === c.id && styles.cardActive,
+                ]}
+              >
+                <View>
+                  <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{c.name}</Text>
+                  <Text style={{ color: '#666', marginTop: 4 }}>{c.price}€/h</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
         )}
 
-        {/* PROGRESS */}
-        {step !== 2 && (
-          <View style={styles.progressBg}>
-            <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
-          </View>
-        )}
-
-        {/* CONTENU */}
-        {step === 2 ? (
-          renderStep2FullMap()
-        ) : (
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.stepContent}>
-              {/* Step 1 */}
-              {step === 1 && (
-                <>
-                  <Text style={styles.bigTitle}>Quel service ?</Text>
-                  {categoriesLoading ? (
-                    <ActivityIndicator size="large" color="#000" />
-                  ) : (
-                    categories.map((cat) => (
-                      <TouchableOpacity
-                        key={cat.id}
-                        onPress={() => setCategoryId(cat.id)}
-                        style={[styles.catCard, categoryId === cat.id && styles.catCardActive]}
-                      >
-                        <Text style={{ fontSize: 32, marginRight: 16 }}>{cat.icon || '🧩'}</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.catName}>{cat.name}</Text>
-                          {!!cat.description && <Text style={styles.catDesc}>{cat.description}</Text>}
-                        </View>
-                        <Text style={styles.catPrice}>{cat.price}€</Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
-
-                  {!categoriesLoading && categories.length === 0 && (
-                    <Text style={{ textAlign: 'center', color: '#999' }}>
-                      Aucun service disponible pour le moment.
-                    </Text>
-                  )}
-
-                  {/* Subcategories */}
-                  {selectedCategory?.subcategories?.length ? (
-                    <>
-                      <Text style={[styles.bigTitle, { marginTop: 24 }]}>Choisis une sous-catégorie</Text>
-                      {selectedCategory.subcategories.map((sub) => {
-                        const active = subcategoryId === sub.id;
-                        return (
-                          <TouchableOpacity
-                            key={sub.id}
-                            onPress={() => setSubcategoryId(sub.id)}
-                            style={[styles.subCard, active && styles.subCardActive]}
-                          >
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.subName}>{sub.name}</Text>
-                              {!!sub.description && (
-                                <Text style={styles.subDesc}>{sub.description}</Text>
-                              )}
-                            </View>
-                            {active && <Ionicons name="checkmark-circle" size={24} color="#000" />}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </>
-                  ) : null}
-
-                  {(categoryId || subcategoryId) && (
-                    <TextInput
-                      placeholder="Décrivez votre besoin (optionnel)"
-                      value={description}
-                      onChangeText={setDescription}
-                      style={styles.descInput}
-                      multiline
-                    />
-                  )}
-                </>
-              )}
-
-              {/* Step 3 */}
-              {step === 3 && (
-                <>
-                  <Text style={styles.bigTitle}>Quand ?</Text>
-                  <TouchableOpacity
-                    onPress={() => setTimeOption('now')}
-                    style={[styles.timeOption, timeOption === 'now' && styles.timeOptionActive]}
-                  >
-                    <Ionicons name="flash" size={28} color={timeOption === 'now' ? '#000' : '#666'} />
-                    <Text style={styles.timeText}>Tout de suite</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setTimeOption('later')}
-                    style={[styles.timeOption, timeOption === 'later' && styles.timeOptionActive]}
-                  >
-                    <Ionicons name="calendar" size={28} color={timeOption === 'later' ? '#000' : '#666'} />
-                    <Text style={styles.timeText}>Planifier</Text>
-                  </TouchableOpacity>
-
-                  {timeOption === 'later' && (
-                    <>
-                      <TextInput
-                        placeholder="Date (YYYY-MM-DD)"
-                        value={scheduledDate}
-                        onChangeText={setScheduledDate}
-                        style={styles.input}
-                      />
-                      <TextInput
-                        placeholder="Heure (HH:mm)"
-                        value={scheduledTime}
-                        onChangeText={setScheduledTime}
-                        style={styles.input}
-                      />
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Step 4 */}
-              {step === 4 && (
-                <>
-                  <Text style={styles.bigTitle}>Récapitulatif</Text>
-                  <View style={styles.summaryBox}>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Catégorie</Text>
-                      <Text style={styles.summaryVal}>{selectedCategory?.name}</Text>
-                    </View>
-                    {selectedSubcategory && (
-                      <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Sous-catégorie</Text>
-                        <Text style={styles.summaryVal}>{selectedSubcategory.name}</Text>
-                      </View>
-                    )}
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Lieu</Text>
-                      <Text style={styles.summaryVal}>{location?.address}</Text>
-                    </View>
-                    <View style={styles.divider} />
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Total à payer</Text>
-                      <Text style={styles.summaryValPrice}>
-                        {estimatedPrice?.finalTotal ?? selectedCategory?.price ?? 0}€
-                      </Text>
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-          </ScrollView>
-        )}
-
-        {/* FOOTER */}
-        {step !== 2 && (
-          <View style={styles.footer}>
+        {step === 3 && (
+          <>
+            <Text style={styles.bigTitle}>Quand ?</Text>
             <TouchableOpacity
-              style={styles.mainBtn}
-              onPress={step === STEP_COUNT ? handleSubmit : handleNext}
-              disabled={loading}
+              onPress={() => setTimeOption('now')}
+              style={[styles.card, timeOption === 'now' && styles.cardActive]}
             >
-              <Text style={styles.mainBtnText}>
-                {loading
-                  ? 'Traitement...'
-                  : step === 4
-                  ? `Payer (${estimatedPrice?.finalTotal ?? selectedCategory?.price ?? 0}€)`
-                  : 'Continuer'}
-              </Text>
+              <Ionicons name="flash" size={24} color="#FFD700" />
+              <Text style={{ marginLeft: 10, fontWeight: 'bold' }}>Tout de suite (Urgent)</Text>
             </TouchableOpacity>
-          </View>
+
+            <TouchableOpacity
+              onPress={() => setTimeOption('later')}
+              style={[styles.card, timeOption === 'later' && styles.cardActive]}
+            >
+              <Ionicons name="time-outline" size={24} color="#333" />
+              <Text style={{ marginLeft: 10, fontWeight: 'bold' }}>Planifier plus tard</Text>
+            </TouchableOpacity>
+          </>
         )}
+
+        {step === 4 && (
+          <>
+            <Text style={styles.bigTitle}>Récapitulatif</Text>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryText}>
+                Service : {selectedCategory?.name || '—'}
+              </Text>
+              <Text style={styles.summaryText}>
+                Lieu : {location?.address || '—'}
+              </Text>
+              <View style={styles.divider} />
+              <Text style={styles.totalPrice}>
+                {estimatedPrice?.finalTotal || selectedCategory?.price || 0}€
+              </Text>
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Footer */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      >
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.mainBtn,
+              mainButtonDisabled && { opacity: 0.4 },
+            ]}
+            onPress={step === STEP_COUNT ? handleSubmit : handleNext}
+            disabled={mainButtonDisabled}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnText}>
+                {step === STEP_COUNT ? 'Payer' : 'Continuer'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -558,113 +550,40 @@ export default function NewRequestStepper() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
-  backBtn: { padding: 4 },
-  progressBg: { height: 4, backgroundColor: '#F0F0F0' },
-  progressFill: { height: '100%', backgroundColor: '#000' },
-  scrollContent: { padding: 20, paddingBottom: 100 },
-  stepContent: { gap: 16 },
-  bigTitle: { fontSize: 28, fontWeight: '700', marginBottom: 10 },
-  catCard: {
+  header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginBottom: 12,
-    backgroundColor: '#fff',
+    alignItems: 'center',
   },
-  catCardActive: { borderColor: '#000', backgroundColor: '#F9F9F9', borderWidth: 2 },
-  catName: { fontSize: 16, fontWeight: '600' },
-  catDesc: { fontSize: 12, color: '#666' },
-  catPrice: { fontSize: 16, fontWeight: '700' },
-  subCard: {
+  title: { fontWeight: 'bold', fontSize: 16 },
+  content: { padding: 20 },
+  bigTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 20 },
+  card: {
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 12,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#fff',
   },
-  subCardActive: { borderColor: '#000', backgroundColor: '#F9F9F9', borderWidth: 2 },
-  subName: { fontSize: 14, fontWeight: '700' },
-  subDesc: { fontSize: 12, color: '#666', marginTop: 2 },
-  descInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    padding: 12,
-    height: 80,
-    textAlignVertical: 'top',
-    marginTop: 10,
-  },
-  fullScreenMapContainer: { flex: 1, position: 'relative' },
-  floatingAutocompleteWrapper: { position: 'absolute', top: 50, left: 20, right: 20, zIndex: 100 },
-  placesInputContainer: { backgroundColor: 'transparent', borderTopWidth: 0, borderBottomWidth: 0 },
-  placesInput: {
-    height: 50,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingLeft: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-    fontSize: 16,
-  },
-  placesListView: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  bottomLocationCard: {
+  cardActive: { borderColor: 'black', borderWidth: 2, backgroundColor: '#f9f9f9' },
+  floatingBtn: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  locationInfoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  locationIconBg: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#F0F0F0',
-    borderRadius: 20,
-    justifyContent: 'center',
+    backgroundColor: 'black',
+    padding: 18,
+    borderRadius: 12,
     alignItems: 'center',
-    marginRight: 12,
   },
-  locationTitle: { fontSize: 12, color: '#666', textTransform: 'uppercase', fontWeight: '600' },
-  locationAddress: { fontSize: 16, fontWeight: '600', color: '#000' },
-  confirmLocationButton: { backgroundColor: '#000', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
-  confirmLocationText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  timeOption: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', marginTop: 10 },
-  timeOptionActive: { borderColor: '#000', backgroundColor: '#F9F9F9', borderWidth: 2 },
-  timeText: { fontSize: 18, fontWeight: '600', marginLeft: 16 },
-  input: { borderWidth: 1, borderColor: '#E0E0E0', padding: 16, borderRadius: 12, fontSize: 16 },
-  summaryBox: { backgroundColor: '#F9F9F9', padding: 20, borderRadius: 16 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  summaryLabel: { fontSize: 14, color: '#666' },
-  summaryVal: { fontSize: 14, fontWeight: '600', maxWidth: '60%', textAlign: 'right' },
-  summaryValPrice: { fontSize: 18, fontWeight: '700', color: '#000' },
-  divider: { height: 1, backgroundColor: '#E0E0E0', marginVertical: 12 },
-  footer: { padding: 20, borderTopWidth: 1, borderColor: '#F0F0F0' },
-  mainBtn: { backgroundColor: '#000', padding: 18, borderRadius: 12, alignItems: 'center' },
-  mainBtnText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  footer: { padding: 20, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff' },
+  mainBtn: { backgroundColor: 'black', padding: 18, borderRadius: 12, alignItems: 'center' },
+  btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  summaryBox: { backgroundColor: '#f9f9f9', padding: 20, borderRadius: 12 },
+  summaryText: { fontSize: 16, marginBottom: 10 },
+  divider: { height: 1, backgroundColor: '#ddd', marginVertical: 10 },
+  totalPrice: { fontSize: 24, fontWeight: 'bold', textAlign: 'right' },
 });

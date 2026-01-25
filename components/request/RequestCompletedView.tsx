@@ -1,98 +1,48 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-interface RequestCompletedViewProps {
-  finalPrice: string;
-  onClose: () => void;
-}
+export function RequestCompletedView({ finalPrice, onRate }: { finalPrice: number, onRate: () => void }) {
+  const fadeAnim = new Animated.Value(0);
+  const scaleAnim = new Animated.Value(0.5);
 
-export function RequestCompletedView({ finalPrice, onClose }: RequestCompletedViewProps) {
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true })
+    ]).start();
+  }, []);
+
   return (
     <View style={styles.container}>
-      <View style={styles.iconContainer}>
-        <Ionicons name="checkmark" size={40} color="#fff" />
-      </View>
-      
-      <Text style={styles.title}>Service terminé</Text>
-      <Text style={styles.subtitle}>Merci d'avoir utilisé notre service</Text>
+      <Animated.View style={[styles.iconContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <Ionicons name="checkmark-circle" size={100} color="#34C759" />
+      </Animated.View>
 
-      <View style={styles.priceContainer}>
-        <Text style={styles.priceLabel}>Total</Text>
-        <Text style={styles.priceValue}>{finalPrice}€</Text>
+      <Text style={styles.title}>Mission Terminée !</Text>
+      <Text style={styles.subtitle}>Le prestataire a indiqué avoir fini le travail.</Text>
+
+      <View style={styles.billCard}>
+        <Text style={styles.billLabel}>Montant final</Text>
+        <Text style={styles.billAmount}>{finalPrice}€</Text>
       </View>
 
-      <TouchableOpacity style={styles.mainButton} onPress={onClose}>
-        <Text style={styles.buttonText}>Noter le prestataire</Text>
+      <TouchableOpacity onPress={onRate} style={styles.btn}>
+        <Text style={styles.btnText}>Noter la prestation</Text>
+        <Ionicons name="star" size={18} color="white" style={{marginLeft: 8}} />
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 20,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#27AE60', // Vert succès Uber/UberEats
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#545454',
-    marginBottom: 32,
-  },
-  priceContainer: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#F0F0F0',
-    marginBottom: 24,
-  },
-  priceLabel: {
-    fontSize: 18,
-    color: '#000',
-  },
-  priceValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-  },
-  mainButton: {
-    width: '100%',
-    backgroundColor: '#000',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: 'white' },
+  iconContainer: { marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
+  subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 40 },
+  billCard: { backgroundColor: '#F5F5F5', padding: 30, borderRadius: 20, width: '100%', alignItems: 'center', marginBottom: 40 },
+  billLabel: { fontSize: 14, color: '#666', textTransform: 'uppercase' },
+  billAmount: { fontSize: 40, fontWeight: 'bold', color: '#000', marginTop: 5 },
+  btn: { flexDirection: 'row', backgroundColor: 'black', paddingVertical: 18, paddingHorizontal: 40, borderRadius: 30, alignItems: 'center' },
+  btnText: { color: 'white', fontSize: 18, fontWeight: 'bold' }
 });

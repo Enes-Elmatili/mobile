@@ -1,7 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function TabLayout() {
+  const { user } = useAuth();
+  const isProvider = user?.roles?.includes('PROVIDER');
+
   return (
     <Tabs
       screenOptions={{
@@ -18,6 +22,7 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* DASHBOARD - Différent selon le rôle */}
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -27,15 +32,33 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      {/* MISSIONS - Seulement pour les prestataires */}
       <Tabs.Screen
         name="missions"
         options={{
           title: 'Missions',
+          href: isProvider ? undefined : null, // Masquer si client
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="briefcase-outline" size={size} color={color} />
           ),
         }}
       />
+
+      {/* DOCUMENTS - Seulement pour les clients */}
+      {!isProvider && (
+        <Tabs.Screen
+          name="documents"
+          options={{
+            title: 'Documents',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="document-text-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+
+      {/* PROFIL - Pour tout le monde */}
       <Tabs.Screen
         name="profile"
         options={{

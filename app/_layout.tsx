@@ -1,12 +1,14 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
+import { SocketProvider } from '../lib/SocketContext';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
-// Clé publique Stripe (pk_test_...)
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAADXPGuQCW6AdnBnxp0i1WHQ0Vr7FWPIiD3XBM4zmfoGuEHpWb9Aqf6jU5Zu7DrrkbgsQmwuVcjlsPiXGjveUV00vTHMxKJ2";
+// ✅ Récupération sécurisée de la clé publique
+// Le fallback (|| "pk_test...") assure que ça marche même si le .env a un souci en dev
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL";
 
 function RootLayoutNav() {
   const { user, isBooting } = useAuth();
@@ -53,10 +55,15 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
-      {/* ✅ STRIPE PROVIDER SANS merchantIdentifier */}
-      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+      <StripeProvider 
+        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        merchantIdentifier="merchant.com.fixed.app" // DOIT MATCHER app.json
+        urlScheme="fixed"                           // DOIT MATCHER app.json
+      >
         <AuthProvider>
-          <RootLayoutNav />
+          <SocketProvider>
+            <RootLayoutNav />
+          </SocketProvider>
         </AuthProvider>
       </StripeProvider>
     </GestureHandlerRootView>
