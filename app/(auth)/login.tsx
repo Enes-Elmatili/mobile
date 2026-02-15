@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router'; // Ajout du router
 import { useAuth } from '../../lib/auth/AuthContext';
-import { api } from '../../lib/api';
+import { api } from '@/lib/api';
 
 export default function Login() {
   const router = useRouter(); // Hook router

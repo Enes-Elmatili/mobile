@@ -1,41 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  Switch,
+  FlatList,
+  Animated,
+  Vibration,
   Alert,
+  StatusBar,
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { io, Socket } from 'socket.io-client';
+import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
 
-interface ProviderStats {
-  id: string;
-  name: string;
-  status: 'ONLINE' | 'READY' | 'OFFLINE' | 'BUSY';
-  jobsCompleted: number;
-  avgRating: number;
-  totalRatings: number;
-  rankScore: number;
-  premium: boolean;
-}
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface WalletData {
   balance: number;
   pendingAmount: number;
   totalEarnings: number;
-  transactions: Array<{
-    id: string;
-    amount: number;
-    type: string;
-    createdAt: string;
-  }>;
+}
+
+interface ProviderStats {
+  jobsCompleted: number;
+  avgRating: number;
+  rankScore: number;
 }
 
 interface IncomingRequest {
@@ -46,334 +42,591 @@ interface IncomingRequest {
   address: string;
   urgent: boolean;
   distance?: number;
+  clientId?: string; // ✅ Add clientId to the interface
   client: {
     name: string;
   };
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function ProviderDashboard() {
   const router = useRouter();
   const { user } = useAuth();
-
-  const [provider, setProvider] = useState<ProviderStats | null>(null);
+  const { socket, isConnected } = useSocket();
+  
+  // Animation refs
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  
+  // State
   const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [stats, setStats] = useState<ProviderStats>({
+    jobsCompleted: 0,
+    avgRating: 5.0,
+    rankScore: 100,
+  });
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
 
-  // Charger les données du prestataire
-  const loadProviderData = async () => {
+  // ============================================================================
+  // ANIMATIONS
+  // ============================================================================
+
+  useEffect(() => {
+    // Fade in on mount
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Pulse when searching
+    if (incomingRequests.length === 0 && isOnline) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [incomingRequests.length, isOnline]);
+
+  // ============================================================================
+  // DATA LOADING
+  // ============================================================================
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // 1. Stats du prestataire
-      const providerResponse = await api.get('/provider/me');
-      setProvider(providerResponse);
-
-      // 2. Wallet
+      // Load wallet
       const walletResponse = await api.get('/wallet');
-      setWallet(walletResponse);
+      setWallet({
+        balance: walletResponse.balance || 0,
+        pendingAmount: walletResponse.pendingAmount || 0,
+        totalEarnings: walletResponse.totalEarnings || 0,
+      });
 
+      // Load user info from /me
+      const meResponse = await api.get('/me');
+      const userData = meResponse.data || meResponse;
+      
+      // Extract stats (adapt based on your backend response)
+      setStats({
+        jobsCompleted: userData.jobsCompleted || 0,
+        avgRating: userData.avgRating || 5.0,
+        rankScore: userData.rankScore || 100,
+      });
+
+      console.log('✅ Provider data loaded');
     } catch (error) {
-      console.error('❌ Erreur chargement données:', error);
+      console.error('❌ Error loading data:', error);
       Alert.alert('Erreur', 'Impossible de charger vos données');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    loadProviderData();
   }, []);
 
-  // WebSocket pour recevoir les demandes
   useEffect(() => {
-    if (!provider?.id) return;
+    loadData();
+  }, [loadData]);
 
-    const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3000';
-    
-    console.log('🔌 Connexion Socket.io prestataire:', provider.id);
-    
-    const newSocket = io(SOCKET_URL, {
-      transports: ['websocket'],
-    });
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
 
-    newSocket.on('connect', () => {
-      console.log('✅ Prestataire connecté:', newSocket.id);
+  // ============================================================================
+  // SOCKET.IO LISTENERS
+  // ============================================================================
+
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+
+    console.log('🔌 Setting up socket listeners for provider:', user.id);
+
+    // Register as provider when socket connects
+    if (socket.connected) {
+      socket.emit('provider:register', { providerId: user.id });
+      console.log('📡 Emitted provider:register');
+    }
+
+    // Listen for new requests (backend sends full request object)
+    const handleNewRequest = (data: any) => {
+      console.log('🔔 New request received:', data);
+      Vibration.vibrate([0, 100, 50, 100]);
       
-      // Rejoindre en tant que prestataire
-      newSocket.emit('provider:join', { providerId: provider.id });
-    });
-
-    // Recevoir nouvelles demandes
-    newSocket.on('new_request', (data: IncomingRequest) => {
-      console.log('🔔 Nouvelle demande reçue:', data);
+      // Transform backend data to match our interface
+      const request: IncomingRequest = {
+        requestId: data.requestId || data.id,
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        address: data.location?.address || data.address || 'Adresse non spécifiée',
+        urgent: data.urgent || data.priority === 'recent',
+        distance: data.distance,
+        clientId: data.clientId || data.client?.id, // ✅ Extract client ID
+        client: {
+          name: data.client?.name || 'Client',
+        },
+      };
       
-      setIncomingRequests((prev) => [data, ...prev]);
-      
-      // Notification sonore/visuelle
-      Alert.alert(
-        '🔔 Nouvelle demande !',
-        `${data.title}\n${data.price}€ - ${data.address}`,
-        [
-          { text: 'Ignorer', style: 'cancel' },
-          { text: 'Voir', onPress: () => handleViewRequest(data) },
-        ]
-      );
-    });
+      setIncomingRequests((prev) => {
+        if (prev.some(r => r.requestId === request.requestId)) return prev;
+        return [request, ...prev];
+      });
+    };
 
-    newSocket.on('disconnect', () => {
-      console.log('🔌 Socket déconnecté');
-    });
+    // Listen for claimed requests (backend sends just requestId)
+    const handleRequestClaimed = (requestId: string | number) => {
+      const id = String(requestId);
+      console.log('⚠️ Request claimed by another provider:', id);
+      setIncomingRequests((prev) => prev.filter(r => r.requestId !== id));
+    };
 
-    setSocket(newSocket);
+    // Listen for expired requests
+    const handleRequestExpired = (requestId: string | number) => {
+      const id = String(requestId);
+      console.log('⏰ Request expired:', id);
+      setIncomingRequests((prev) => prev.filter(r => r.requestId !== id));
+    };
+
+    // Listen for status updates
+    const handleStatusUpdate = (data: { providerId: string; status: string }) => {
+      if (data.providerId === user.id) {
+        console.log('✅ Status updated:', data.status);
+        setIsOnline(data.status === 'ONLINE' || data.status === 'READY');
+      }
+    };
+
+    socket.on('new_request', handleNewRequest);
+    socket.on('request:claimed', handleRequestClaimed);
+    socket.on('request:expired', handleRequestExpired);
+    socket.on('provider:status_update', handleStatusUpdate);
 
     return () => {
-      newSocket.disconnect();
+      socket.off('new_request', handleNewRequest);
+      socket.off('request:claimed', handleRequestClaimed);
+      socket.off('request:expired', handleRequestExpired);
+      socket.off('provider:status_update', handleStatusUpdate);
     };
-  }, [provider?.id]);
+  }, [socket, user?.id]);
 
-  // Changer de statut
-  const handleStatusChange = async (newStatus: 'ONLINE' | 'OFFLINE') => {
-    if (!provider) return;
+  // ============================================================================
+  // ACTIONS
+  // ============================================================================
 
-    try {
-      await api.post('/provider/status', { status: newStatus });
-      
-      setProvider({ ...provider, status: newStatus });
-      
-      // Émettre via Socket.io
-      socket?.emit('provider:set_status', {
-        providerId: provider.id,
-        status: newStatus,
+  const handleStatusChange = useCallback(() => {
+    if (!user?.id) return;
+
+    const newStatus = !isOnline;
+    const statusValue = newStatus ? 'READY' : 'OFFLINE'; // Backend uses READY not ONLINE
+    
+    setIsOnline(newStatus);
+    Vibration.vibrate(50);
+
+    // Emit to socket (backend expects this exact format)
+    if (socket) {
+      socket.emit('provider:set_status', {
+        providerId: user.id,
+        status: statusValue,
       });
-
-      console.log(`✅ Statut changé: ${newStatus}`);
-    } catch (error) {
-      console.error('❌ Erreur changement statut:', error);
-      Alert.alert('Erreur', 'Impossible de changer votre statut');
+      console.log('📡 Emitted provider:set_status:', statusValue);
     }
-  };
 
-  // Voir une demande
-  const handleViewRequest = (request: IncomingRequest) => {
-    router.push({
-      pathname: '/request/[id]',
-      params: { id: request.requestId },
-    });
-  };
+    // Clear requests when going offline
+    if (!newStatus) {
+      setIncomingRequests([]);
+    }
 
-  // Accepter une demande
-  const handleAcceptRequest = async (requestId: string) => {
+    // Optional: Update backend via REST (backend already does this via socket)
+    // api.post('/providers/status', { status: statusValue })
+    //   .catch(err => console.error('Status update failed:', err));
+  }, [isOnline, socket, user?.id]);
+
+  const handleAcceptRequest = useCallback(async (request: IncomingRequest) => {
+    if (!user?.id) return;
+
     try {
-      await api.post(`/requests/${requestId}/accept`);
+      // Check if we have the clientId
+      if (!request.clientId) {
+        console.warn('⚠️ Missing clientId in request, will try to get from API');
+      }
+
+      // Emit to socket FIRST (backend handles DB update)
+      if (socket) {
+        socket.emit('provider:accept', {
+          requestId: request.requestId,
+          providerId: user.id,
+          clientId: request.clientId, // ✅ Send the actual client ID
+        });
+        console.log('📡 Emitted provider:accept:', { 
+          requestId: request.requestId, 
+          providerId: user.id, 
+          clientId: request.clientId 
+        });
+      }
+
+      // Haptic feedback
+      Vibration.vibrate([0, 100]);
       
-      Alert.alert('Succès', 'Demande acceptée !');
+      // Remove from local list immediately (optimistic update)
+      setIncomingRequests((prev) => prev.filter(r => r.requestId !== request.requestId));
       
-      // Retirer de la liste
-      setIncomingRequests((prev) => prev.filter((r) => r.requestId !== requestId));
+      // Show success alert and navigate to ongoing screen
+      Alert.alert(
+        '✅ Mission acceptée',
+        'Le client a été notifié. Vous pouvez maintenant voir les détails et démarrer la navigation.',
+        [
+          {
+            text: 'Voir la mission',
+            onPress: () => {
+              // Navigate to ongoing screen to see mission details
+              router.push(`/request/${request.requestId}/ongoing`);
+            }
+          },
+          {
+            text: 'Plus tard',
+            style: 'cancel',
+            onPress: () => {
+              // Stay on dashboard
+            }
+          }
+        ]
+      );
       
-      // Rediriger vers la demande
-      router.push({
-        pathname: '/request/[id]',
-        params: { id: requestId },
-      });
+      // Wait for socket confirmation
+      const handleAcceptConfirm = (data: any) => {
+        if (data.requestId === request.requestId) {
+          console.log('✅ Provider accept confirmed by server');
+          socket?.off('provider:accept_confirmed', handleAcceptConfirm);
+        }
+      };
+      
+      socket?.on('provider:accept_confirmed', handleAcceptConfirm);
+      
+      // Cleanup after 5 seconds
+      setTimeout(() => {
+        socket?.off('provider:accept_confirmed', handleAcceptConfirm);
+      }, 5000);
     } catch (error: any) {
-      console.error('❌ Erreur acceptation:', error);
+      console.error('❌ Error accepting request:', error);
       Alert.alert('Erreur', error.message || 'Impossible d\'accepter la demande');
+      
+      // Re-add to list on error
+      setIncomingRequests((prev) => {
+        if (prev.some(r => r.requestId === request.requestId)) return prev;
+        return [request, ...prev];
+      });
     }
-  };
+  }, [socket, user?.id, router]);
 
-  // Refuser une demande
-  const handleDeclineRequest = async (requestId: string) => {
+  const handleDeclineRequest = useCallback(async (requestId: string) => {
     try {
       await api.post(`/requests/${requestId}/refuse`);
-      
-      // Retirer de la liste
-      setIncomingRequests((prev) => prev.filter((r) => r.requestId !== requestId));
+      setIncomingRequests((prev) => prev.filter(r => r.requestId !== requestId));
     } catch (error) {
-      console.error('❌ Erreur refus:', error);
+      console.error('❌ Error declining request:', error);
     }
-  };
+  }, []);
 
-  const isOnline = provider?.status === 'ONLINE' || provider?.status === 'READY';
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Chargement...</Text>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <View style={styles.loadingPulse} />
+        </Animated.View>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => {
-          setRefreshing(true);
-          loadProviderData();
-        }} />
-      }
-    >
-      {/* Header - Statut */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Bonjour,</Text>
-          <Text style={styles.name}>{provider?.name || 'Prestataire'}</Text>
-        </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      <FlatList
+        data={incomingRequests}
+        keyExtractor={(item) => item.requestId}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFF" />
+        }
+        ListHeaderComponent={
+          <>
+            {/* HERO HEADER */}
+            <LinearGradient colors={['#000000', '#1A1A1A']} style={styles.heroHeader}>
+              <Animated.View 
+                style={[
+                  styles.heroContent,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{
+                      translateY: slideAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-20, 0],
+                      }),
+                    }],
+                  },
+                ]}
+              >
+                {/* Status Indicator */}
+                <View style={styles.statusIndicator}>
+                  <View style={[styles.statusDot, isConnected && styles.statusDotConnected]} />
+                  <Text style={styles.statusText}>
+                    {isConnected ? 'Connecté' : 'Déconnecté'}
+                  </Text>
+                </View>
 
-        <View style={styles.statusToggle}>
-          <Text style={[styles.statusText, isOnline && styles.statusTextActive]}>
-            {isOnline ? 'En ligne' : 'Hors ligne'}
-          </Text>
-          <Switch
-            value={isOnline}
-            onValueChange={(value) => handleStatusChange(value ? 'ONLINE' : 'OFFLINE')}
-            trackColor={{ false: '#767577', true: '#34C759' }}
-            thumbColor={isOnline ? '#fff' : '#f4f3f4'}
-          />
-        </View>
-      </View>
+                {/* Greeting */}
+                <Text style={styles.heroGreeting}>Bonjour,</Text>
+                <Text style={styles.heroName}>{user?.name || user?.email?.split('@')[0]}</Text>
 
-      {/* Wallet Card */}
-      <TouchableOpacity
-        style={styles.walletCard}
-        onPress={() => router.push('/wallet')}
-      >
-        <View style={styles.walletHeader}>
-          <Ionicons name="wallet" size={28} color="#fff" />
-          <Text style={styles.walletLabel}>Mon portefeuille</Text>
-        </View>
+                {/* Giant Status Toggle */}
+                <TouchableOpacity
+                  style={[styles.statusToggle, isOnline && styles.statusToggleActive]}
+                  onPress={handleStatusChange}
+                  activeOpacity={0.9}
+                >
+                  <View style={[styles.statusToggleIndicator, isOnline && styles.statusToggleIndicatorActive]} />
+                  <Text style={[styles.statusToggleText, isOnline && styles.statusToggleTextActive]}>
+                    {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
+                  </Text>
+                  <Ionicons 
+                    name={isOnline ? 'checkmark-circle' : 'pause-circle'} 
+                    size={28} 
+                    color={isOnline ? '#34C759' : '#666'} 
+                  />
+                </TouchableOpacity>
+              </Animated.View>
+            </LinearGradient>
 
-        <Text style={styles.walletBalance}>{wallet?.balance || 0}€</Text>
+            {/* WALLET MEGA CARD */}
+            <Animated.View style={[styles.walletContainer, { opacity: fadeAnim }]}>
+              <TouchableOpacity
+                style={styles.walletCard}
+                onPress={() => router.push('/wallet')}
+                activeOpacity={0.95}
+              >
+                <LinearGradient colors={['#FFFFFF', '#F5F5F5']} style={styles.walletGradient}>
+                  <View style={styles.walletHeader}>
+                    <View style={styles.walletIconContainer}>
+                      <Ionicons name="wallet-outline" size={32} color="#000" />
+                    </View>
+                    <Text style={styles.walletLabel}>Solde disponible</Text>
+                  </View>
 
-        <View style={styles.walletStats}>
-          <View>
-            <Text style={styles.walletStatLabel}>Gains totaux</Text>
-            <Text style={styles.walletStatValue}>{wallet?.totalEarnings || 0}€</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.walletStatLabel}>En attente</Text>
-            <Text style={styles.walletStatValue}>{wallet?.pendingAmount || 0}€</Text>
-          </View>
-        </View>
+                  <Text style={styles.walletBalance}>
+                    {(wallet?.balance || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  </Text>
 
-        <TouchableOpacity style={styles.withdrawButton}>
-          <Text style={styles.withdrawButtonText}>Retirer</Text>
-          <Ionicons name="arrow-forward" size={16} color="#000" />
-        </TouchableOpacity>
-      </TouchableOpacity>
+                  <View style={styles.walletStats}>
+                    <View style={styles.walletStat}>
+                      <Text style={styles.walletStatLabel}>Total gagné</Text>
+                      <Text style={styles.walletStatValue}>
+                        {(wallet?.totalEarnings || 0).toLocaleString('fr-FR')} €
+                      </Text>
+                    </View>
+                    <View style={styles.walletStat}>
+                      <Text style={styles.walletStatLabel}>En attente</Text>
+                      <Text style={styles.walletStatValue}>
+                        {(wallet?.pendingAmount || 0).toLocaleString('fr-FR')} €
+                      </Text>
+                    </View>
+                  </View>
 
-      {/* Statistiques */}
-      <View style={styles.statsGrid}>
-        <View style={styles.statCard}>
-          <Ionicons name="checkmark-circle" size={32} color="#34C759" />
-          <Text style={styles.statValue}>{provider?.jobsCompleted || 0}</Text>
-          <Text style={styles.statLabel}>Courses</Text>
-        </View>
+                  <View style={styles.walletAction}>
+                    <Text style={styles.walletActionText}>Retirer</Text>
+                    <Ionicons name="arrow-forward" size={24} color="#000" />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
 
-        <View style={styles.statCard}>
-          <Ionicons name="star" size={32} color="#FFB800" />
-          <Text style={styles.statValue}>{provider?.avgRating.toFixed(1) || '0.0'}</Text>
-          <Text style={styles.statLabel}>Note moyenne</Text>
-        </View>
+            {/* STATS PILLS */}
+            <Animated.View style={[styles.statsContainer, { opacity: fadeAnim }]}>
+              <View style={styles.statPill}>
+                <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+                <View style={styles.statPillContent}>
+                  <Text style={styles.statPillValue}>{stats.jobsCompleted}</Text>
+                  <Text style={styles.statPillLabel}>Courses</Text>
+                </View>
+              </View>
 
-        <View style={styles.statCard}>
-          <Ionicons name="trophy" size={32} color="#FF9500" />
-          <Text style={styles.statValue}>{provider?.rankScore.toFixed(0) || '0'}</Text>
-          <Text style={styles.statLabel}>Rang</Text>
-        </View>
-      </View>
+              <View style={styles.statPill}>
+                <Ionicons name="star" size={24} color="#FFB800" />
+                <View style={styles.statPillContent}>
+                  <Text style={styles.statPillValue}>{stats.avgRating.toFixed(1)}</Text>
+                  <Text style={styles.statPillLabel}>Note</Text>
+                </View>
+              </View>
 
-      {/* Demandes entrantes */}
-      {incomingRequests.length > 0 && (
-        <View style={styles.requestsSection}>
-          <Text style={styles.sectionTitle}>
-            🔔 Nouvelles demandes ({incomingRequests.length})
-          </Text>
+              <View style={styles.statPill}>
+                <Ionicons name="trophy" size={24} color="#FF9500" />
+                <View style={styles.statPillContent}>
+                  <Text style={styles.statPillValue}>{stats.rankScore.toFixed(0)}</Text>
+                  <Text style={styles.statPillLabel}>Rang</Text>
+                </View>
+              </View>
+            </Animated.View>
 
-          {incomingRequests.map((request) => (
-            <View key={request.requestId} style={styles.requestCard}>
-              {request.urgent && (
-                <View style={styles.urgentBadge}>
-                  <Ionicons name="flash" size={12} color="#fff" />
-                  <Text style={styles.urgentText}>URGENT</Text>
+            {/* FEED TITLE */}
+            <Text style={styles.feedTitle}>
+              {incomingRequests.length > 0 
+                ? `${incomingRequests.length} Mission${incomingRequests.length > 1 ? 's' : ''} disponible${incomingRequests.length > 1 ? 's' : ''}`
+                : 'Missions'
+              }
+            </Text>
+
+            {/* EMPTY STATES */}
+            {!isOnline ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons name="power" size={64} color="#000" />
+                </View>
+                <Text style={styles.emptyTitle}>Mode hors ligne</Text>
+                <Text style={styles.emptyDescription}>
+                  Passez en ligne pour recevoir des missions
+                </Text>
+              </View>
+            ) : incomingRequests.length === 0 ? (
+              <Animated.View style={[styles.emptyState, { transform: [{ scale: pulseAnim }] }]}>
+                <View style={styles.scanningContainer}>
+                  <View style={styles.scanningRing} />
+                  <View style={[styles.scanningRing, styles.scanningRingDelay]} />
+                  <Ionicons name="navigate-circle" size={64} color="#000" />
+                </View>
+                <Text style={styles.emptyTitle}>Recherche active</Text>
+                <Text style={styles.emptyDescription}>
+                  Nous cherchons des missions près de vous...
+                </Text>
+              </Animated.View>
+            ) : null}
+          </>
+        }
+        renderItem={({ item }) => (
+          <Animated.View
+            style={[
+              styles.requestCard,
+              { opacity: fadeAnim },
+            ]}
+          >
+            {item.urgent && (
+              <View style={styles.urgentBadge}>
+                <Ionicons name="flash" size={16} color="#FFF" />
+                <Text style={styles.urgentText}>URGENT</Text>
+              </View>
+            )}
+
+            <Text style={styles.requestTitle}>{item.title}</Text>
+            <Text style={styles.requestDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
+
+            <View style={styles.requestMeta}>
+              <View style={styles.requestMetaItem}>
+                <Ionicons name="location" size={18} color="#666" />
+                <Text style={styles.requestMetaText} numberOfLines={1}>
+                  {item.address}
+                </Text>
+              </View>
+              
+              {item.distance && (
+                <View style={styles.requestMetaItem}>
+                  <Ionicons name="navigate" size={18} color="#666" />
+                  <Text style={styles.requestMetaText}>
+                    {item.distance.toFixed(1)} km
+                  </Text>
                 </View>
               )}
+            </View>
 
-              <Text style={styles.requestTitle}>{request.title}</Text>
-              <Text style={styles.requestDesc} numberOfLines={2}>
-                {request.description}
-              </Text>
+            <View style={styles.requestFooter}>
+              <Text style={styles.requestPrice}>{item.price} €</Text>
 
-              <View style={styles.requestInfo}>
-                <View style={styles.requestInfoItem}>
-                  <Ionicons name="location" size={16} color="#666" />
-                  <Text style={styles.requestInfoText}>{request.address}</Text>
-                </View>
+              <View style={styles.requestActions}>
+                <TouchableOpacity
+                  style={styles.declineButton}
+                  onPress={() => handleDeclineRequest(item.requestId)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={24} color="#FF3B30" />
+                </TouchableOpacity>
 
-                <View style={styles.requestInfoItem}>
-                  <Ionicons name="person" size={16} color="#666" />
-                  <Text style={styles.requestInfoText}>{request.client.name}</Text>
-                </View>
-              </View>
-
-              <View style={styles.requestFooter}>
-                <Text style={styles.requestPrice}>{request.price}€</Text>
-
-                <View style={styles.requestActions}>
-                  <TouchableOpacity
-                    style={styles.declineButton}
-                    onPress={() => handleDeclineRequest(request.requestId)}
-                  >
-                    <Ionicons name="close" size={20} color="#FF3B30" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.acceptButton}
-                    onPress={() => handleAcceptRequest(request.requestId)}
-                  >
-                    <Text style={styles.acceptButtonText}>Accepter</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={styles.acceptButton}
+                  onPress={() => handleAcceptRequest(item)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.acceptButtonText}>ACCEPTER</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#FFF" />
+                </TouchableOpacity>
               </View>
             </View>
-          ))}
-        </View>
-      )}
+          </Animated.View>
+        )}
+        ListFooterComponent={
+          <Animated.View style={[styles.quickActionsContainer, { opacity: fadeAnim }]}>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push('/(tabs)/missions')}
+            >
+              <Ionicons name="time-outline" size={28} color="#000" />
+              <Text style={styles.quickActionText}>Historique</Text>
+            </TouchableOpacity>
 
-      {/* Actions rapides */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/history')}
-        >
-          <Ionicons name="time" size={24} color="#000" />
-          <Text style={styles.actionButtonText}>Historique</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push('/wallet')}
+            >
+              <Ionicons name="bar-chart-outline" size={28} color="#000" />
+              <Text style={styles.quickActionText}>Gains</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/earnings')}
-        >
-          <Ionicons name="bar-chart" size={24} color="#000" />
-          <Text style={styles.actionButtonText}>Gains</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/profile')}
-        >
-          <Ionicons name="settings" size={24} color="#000" />
-          <Text style={styles.actionButtonText}>Profil</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push('/(tabs)/profile')}
+            >
+              <Ionicons name="settings-outline" size={28} color="#000" />
+              <Text style={styles.quickActionText}>Profil</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        }
+        contentContainerStyle={styles.listContent}
+      />
+    </View>
   );
 }
+
+// ============================================================================
+// STYLES - BASE 44 DESIGN SYSTEM
+// ============================================================================
 
 const styles = StyleSheet.create({
   container: {
@@ -384,186 +637,342 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
+  loadingPulse: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF',
+  },
+  listContent: {
+    paddingBottom: 40,
+  },
+
+  // HERO HEADER
+  heroHeader: {
     paddingTop: 60,
-    backgroundColor: '#fff',
+    paddingBottom: 32,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  greeting: {
-    fontSize: 14,
-    color: '#666',
+  heroContent: {
+    gap: 8,
   },
-  name: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-    marginTop: 4,
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginBottom: 8,
   },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF3B30',
+    marginRight: 8,
+  },
+  statusDotConnected: {
+    backgroundColor: '#34C759',
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  heroGreeting: {
+    fontSize: 18,
+    color: '#999',
+    fontWeight: '500',
+  },
+  heroName: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#FFF',
+    marginBottom: 24,
+  },
+
+  // STATUS TOGGLE
   statusToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    gap: 16,
   },
-  statusText: {
-    fontSize: 14,
+  statusToggleActive: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+  },
+  statusToggleIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#666',
+  },
+  statusToggleIndicatorActive: {
+    backgroundColor: '#34C759',
+  },
+  statusToggleText: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '800',
     color: '#666',
-    fontWeight: '600',
+    letterSpacing: 1,
   },
-  statusTextActive: {
+  statusToggleTextActive: {
     color: '#34C759',
   },
+
+  // WALLET CARD
+  walletContainer: {
+    paddingHorizontal: 24,
+    marginTop: -40,
+    marginBottom: 24,
+  },
   walletCard: {
-    margin: 20,
-    padding: 20,
-    backgroundColor: '#000',
-    borderRadius: 16,
+    borderRadius: 32,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  walletGradient: {
+    padding: 28,
   },
   walletHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
+    marginBottom: 20,
+  },
+  walletIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   walletLabel: {
     fontSize: 16,
-    color: '#fff',
+    color: '#666',
     fontWeight: '600',
   },
   walletBalance: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 20,
+    fontSize: 56,
+    fontWeight: '900',
+    color: '#000',
+    marginBottom: 24,
   },
   walletStats: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    paddingTop: 20,
+    gap: 24,
+    paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.2)',
+    borderTopColor: '#E5E5E5',
+    marginBottom: 24,
+  },
+  walletStat: {
+    flex: 1,
   },
   walletStatLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    color: '#999',
+    fontWeight: '600',
     marginBottom: 4,
   },
   walletStatValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#000',
   },
-  withdrawButton: {
+  walletAction: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    paddingVertical: 18,
+    borderRadius: 24,
+    gap: 12,
+  },
+  walletActionText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+
+  // STATS PILLS
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    gap: 12,
+    marginBottom: 32,
+  },
+  statPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 16,
+    borderRadius: 24,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statPillContent: {
+    flex: 1,
+  },
+  statPillValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000',
+  },
+  statPillLabel: {
+    fontSize: 11,
+    color: '#999',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  // FEED
+  feedTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#000',
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+
+  // EMPTY STATE
+  emptyState: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 24,
   },
-  withdrawButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
+  scanningContainer: {
+    width: 140,
+    height: 140,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  requestsSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 16,
-  },
-  requestCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 24,
     position: 'relative',
   },
-  urgentBadge: {
+  scanningRing: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: '#FF3B30',
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-    alignItems: 'center',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 3,
+    borderColor: '#000',
+    opacity: 0.3,
   },
-  urgentText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
+  scanningRingDelay: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    opacity: 0.2,
   },
-  requestTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '900',
     color: '#000',
     marginBottom: 8,
   },
-  requestDesc: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+  emptyDescription: {
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  requestInfo: {
-    gap: 8,
+
+  // REQUEST CARD
+  requestCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 32,
+    padding: 24,
+    marginHorizontal: 24,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  requestInfoItem: {
+  urgentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: 16,
   },
-  requestInfoText: {
+  urgentText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 1,
+  },
+  requestTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000',
+    marginBottom: 8,
+  },
+  requestDescription: {
+    fontSize: 15,
+    color: '#666',
+    fontWeight: '500',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  requestMeta: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  requestMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  requestMetaText: {
     fontSize: 14,
     color: '#666',
+    fontWeight: '600',
+    flex: 1,
   },
   requestFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 16,
+    justifyContent: 'space-between',
+    paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
   },
   requestPrice: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 40,
+    fontWeight: '900',
     color: '#000',
   },
   requestActions: {
@@ -571,43 +980,54 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   declineButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#FFF0F0',
     justifyContent: 'center',
     alignItems: 'center',
   },
   acceptButton: {
-    backgroundColor: '#000',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 22,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#000',
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+    borderRadius: 28,
+    gap: 10,
   },
   acceptButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 0.5,
   },
-  quickActions: {
+
+  // QUICK ACTIONS
+  quickActionsContainer: {
+    marginHorizontal: 24,
+    marginTop: 24,
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 12,
-    marginBottom: 40,
+    backgroundColor: '#FFF',
+    borderRadius: 28,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  actionButton: {
+  quickAction: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 20,
+    gap: 6,
   },
-  actionButtonText: {
+  quickActionText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#000',
   },
 });

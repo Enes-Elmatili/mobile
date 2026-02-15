@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +10,7 @@ import {
   RefreshControl,
   Platform,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -18,9 +18,11 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import ProviderDashboard from '../../components/providers/ProviderDashboard';
+import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
 
 const { width } = Dimensions.get('window');
+
+/* ================= TYPES ================= */
 
 interface DashboardData {
   me: {
@@ -45,25 +47,27 @@ interface DashboardData {
   }[];
 }
 
+/* ================= COMPONENT ================= */
+
 export default function Dashboard() {
   const router = useRouter();
   const { user } = useAuth();
-  const [data, setData] = React.useState<DashboardData | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [refreshing, setRefreshing] = React.useState(false);
-  const [selectedRequest, setSelectedRequest] = React.useState<any>(null);
-  const [loadingDetails, setLoadingDetails] = React.useState(false);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['50%', '85%'], []);
 
-  // --- CHARGEMENT DES DONNÉES ---
-  const loadDashboard = React.useCallback(async () => {
+  const loadDashboard = useCallback(async () => {
     try {
-      const response = await api.request('/client/dashboard');
-      setData(response);
+      // ✅ PATCH: Utilisation de api.get pour correspondre à ton helper api.ts
+      const response = await api.get('/client/dashboard');
+      setData(response.data || response);
     } catch (error) {
-      console.error('❌ Dashboard load error:', error);
+      console.error('Dashboard load error:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -71,7 +75,7 @@ export default function Dashboard() {
   }, []);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       loadDashboard();
     }, [loadDashboard])
   );
@@ -85,9 +89,8 @@ export default function Dashboard() {
     setLoadingDetails(true);
     bottomSheetRef.current?.expand();
     try {
-      // On récupère les détails via l'API
-      const details = await api.request(`/requests/${requestId}`);
-      setSelectedRequest(details);
+      const details = await api.get(`/requests/${requestId}`);
+      setSelectedRequest(details.request || details);
     } catch (error) {
       console.error('Error loading request details:', error);
     } finally {
@@ -95,7 +98,7 @@ export default function Dashboard() {
     }
   };
 
-  const renderBackdrop = React.useCallback(
+  const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
     ),
@@ -114,7 +117,7 @@ export default function Dashboard() {
     return statusMap[status] || { label: status, color: '#6B7280', bgColor: '#F3F4F6', icon: 'help-circle' };
   };
 
-  // Switch vers Dashboard Prestataire si nécessaire
+  // ✅ Redirection si Provider
   if (user?.roles?.includes('PROVIDER')) {
     return <ProviderDashboard />;
   }
@@ -129,6 +132,7 @@ export default function Dashboard() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -138,63 +142,57 @@ export default function Dashboard() {
         <View style={styles.profileCard}>
           <View style={styles.profileHeader}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={32} color="#666" />
+              <Ionicons name="person" size={28} color="#000" />
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{data?.me.name || data?.me.email.split('@')[0]}</Text>
+              <Text style={styles.profileName}>Bonjour, {data?.me?.name || user?.email?.split('@')[0]}</Text>
               <View style={styles.locationRow}>
-                <Ionicons name="location" size={14} color="#666" />
-                <Text style={styles.profileLocation}>{data?.me.city || 'Bruxelles'}, Belgique</Text>
+                <Ionicons name="location" size={14} color="#6B7280" />
+                <Text style={styles.profileLocation}>{data?.me?.city || 'Bruxelles'}, BE</Text>
               </View>
             </View>
           </View>
 
-          {/* BOUTON CRÉER : Pointe vers ton Stepper */}
           <TouchableOpacity 
             style={styles.createBtn} 
             onPress={() => router.push('/request/NewRequestStepper')}
           >
             <Ionicons name="add" size={24} color="#fff" />
-            <Text style={styles.createBtnText}>Créer une nouvelle demande</Text>
+            <Text style={styles.createBtnText}>Nouvelle demande</Text>
           </TouchableOpacity>
         </View>
 
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="flash" size={20} color="#1D4ED8" />
-            </View>
-            <Text style={styles.statValue}>{data?.stats.activeRequests || 0}</Text>
             <Text style={styles.statLabel}>Actives</Text>
+            <Text style={styles.statValue}>{data?.stats?.activeRequests || 0}</Text>
           </View>
 
           <View style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="checkmark-done" size={20} color="#15803D" />
-            </View>
-            <Text style={styles.statValue}>{data?.stats.completedRequests || 0}</Text>
             <Text style={styles.statLabel}>Terminées</Text>
+            <Text style={styles.statValue}>{data?.stats?.completedRequests || 0}</Text>
           </View>
 
           <View style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="trending-up" size={20} color="#B45309" />
-            </View>
-            <Text style={styles.statValue}>{data?.stats.totalSpent || 0}€</Text>
             <Text style={styles.statLabel}>Dépenses</Text>
+            <Text style={styles.statValue}>{data?.stats?.totalSpent || 0}€</Text>
           </View>
         </View>
 
         {/* Historique Section */}
         <View style={styles.sectionHeader}>
-          <Ionicons name="time" size={22} color="#000" />
-          <Text style={styles.sectionTitle}>Historique des services</Text>
+          <Text style={styles.sectionTitle}>Mes Services</Text>
+          <TouchableOpacity onPress={onRefresh}>
+             <Ionicons name="refresh" size={20} color="#6B7280" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.historyContainer}>
           {!data?.requests || data.requests.length === 0 ? (
-            <Text style={styles.emptyText}>Aucune demande récente</Text>
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Aucune mission trouvée</Text>
+            </View>
           ) : (
             data.requests.map((request, index) => {
               const status = getStatusInfo(request.status);
@@ -207,10 +205,11 @@ export default function Dashboard() {
                   <View style={styles.historyLeft}>
                     <Text style={styles.requestTitle} numberOfLines={1}>{request.title}</Text>
                     <Text style={styles.requestDate}>
-                      {new Date(request.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                      {new Date(request.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
                     </Text>
                   </View>
                   <View style={styles.historyRight}>
+                    {/* ✅ FIX: CHANGÉ <div> PAR <View> */}
                     <View style={[styles.statusBadgeSmall, { backgroundColor: status.bgColor }]}>
                       <Text style={[styles.statusTextSmall, { color: status.color }]}>{status.label}</Text>
                     </View>
@@ -222,14 +221,12 @@ export default function Dashboard() {
           )}
         </View>
 
-        {/* Notifications */}
-        <View style={styles.sectionHeader}>
-          <Ionicons name="notifications" size={22} color="#000" />
-          <Text style={styles.sectionTitle}>Notifications</Text>
-        </View>
+        {/* Notifications Card */}
         <View style={styles.notifCard}>
-          <Ionicons name="notifications-off-outline" size={32} color="#CCC" />
-          <Text style={styles.emptyNotifText}>Aucune notification pour le moment</Text>
+          <View style={styles.notifIcon}>
+            <Ionicons name="notifications" size={20} color="#000" />
+          </View>
+          <Text style={styles.notifText}>Vous n&apos;avez pas de nouvelles notifications.</Text>
         </View>
 
       </ScrollView>
@@ -250,20 +247,19 @@ export default function Dashboard() {
               <Text style={styles.sheetTitle}>{selectedRequest.title}</Text>
               
               <View style={styles.sheetSection}>
-                <Text style={styles.sheetLabel}>Description</Text>
-                <Text style={styles.sheetValue}>{selectedRequest.description || 'Pas de description'}</Text>
+                <Text style={styles.sheetLabel}>Détails de la mission</Text>
+                <Text style={styles.sheetValue}>{selectedRequest.description || 'Aucune description.'}</Text>
               </View>
 
               <View style={styles.sheetSection}>
-                <Text style={styles.sheetLabel}>Statut actuel</Text>
+                <Text style={styles.sheetLabel}>État actuel</Text>
                 <View style={[styles.statusBadgeLarge, { backgroundColor: getStatusInfo(selectedRequest.status).bgColor }]}>
                   <Text style={[styles.statusTextLarge, { color: getStatusInfo(selectedRequest.status).color }]}>
-                    {getStatusInfo(selectedRequest.status).label}
+                    {getStatusInfo(selectedRequest.status).label.toUpperCase()}
                   </Text>
                 </View>
               </View>
 
-              {/* Bouton de suivi si la mission est en cours */}
               {selectedRequest.status === 'ONGOING' && (
                 <TouchableOpacity
                   style={styles.actionBtn}
@@ -272,7 +268,7 @@ export default function Dashboard() {
                     router.push(`/request/${selectedRequest.id}/ongoing`);
                   }}
                 >
-                  <Text style={styles.actionBtnText}>Suivre l'intervention</Text>
+                  <Text style={styles.actionBtnText}>Suivre l&apos;intervention</Text>
                   <Ionicons name="map" size={20} color="#fff" />
                 </TouchableOpacity>
               )}
@@ -285,51 +281,52 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#F8F9FB' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { padding: 20 },
+  scrollContent: { padding: 16 },
   profileCard: {
     backgroundColor: '#fff',
     borderRadius: 24,
-    padding: 24,
-    marginBottom: 20,
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 }, android: { elevation: 3 } }),
+    padding: 20,
+    marginBottom: 16,
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 }, android: { elevation: 2 } }),
   },
   profileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   profileInfo: { flex: 1 },
-  profileName: { fontSize: 22, fontWeight: 'bold', color: '#111' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  profileLocation: { fontSize: 14, color: '#6B7280', marginLeft: 4 },
-  createBtn: { backgroundColor: '#000', flexDirection: 'row', height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  createBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginLeft: 8 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
-  statCard: { backgroundColor: '#fff', width: (width - 60) / 3, padding: 16, borderRadius: 20, alignItems: 'center', elevation: 2 },
-  statIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  statValue: { fontSize: 18, fontWeight: 'bold', color: '#111' },
-  statLabel: { fontSize: 11, color: '#6B7280' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, marginTop: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 8, color: '#111' },
-  historyContainer: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden', marginBottom: 20 },
-  historyItem: { flexDirection: 'row', padding: 20, alignItems: 'center' },
-  borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  profileName: { fontSize: 20, fontWeight: '800', color: '#111' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  profileLocation: { fontSize: 13, color: '#6B7280', marginLeft: 4 },
+  createBtn: { backgroundColor: '#000', flexDirection: 'row', height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  createBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 },
+  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
+  statCard: { backgroundColor: '#fff', width: (width - 48) / 3, padding: 16, borderRadius: 18, elevation: 1 },
+  statValue: { fontSize: 20, fontWeight: 'bold', color: '#111', marginTop: 4 },
+  statLabel: { fontSize: 11, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
+  historyContainer: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden', marginBottom: 20, elevation: 1 },
+  historyItem: { flexDirection: 'row', padding: 18, alignItems: 'center' },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
   historyLeft: { flex: 1 },
-  requestTitle: { fontSize: 16, fontWeight: '600', color: '#111', marginBottom: 4 },
-  requestDate: { fontSize: 13, color: '#9CA3AF' },
+  requestTitle: { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 4 },
+  requestDate: { fontSize: 12, color: '#9CA3AF' },
   historyRight: { alignItems: 'flex-end' },
-  statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, marginBottom: 4 },
-  statusTextSmall: { fontSize: 10, fontWeight: 'bold' },
-  requestPrice: { fontSize: 16, fontWeight: 'bold', color: '#111' },
-  notifCard: { backgroundColor: '#fff', borderRadius: 24, padding: 40, alignItems: 'center', justifyContent: 'center' },
-  emptyNotifText: { color: '#9CA3AF', marginTop: 12, fontSize: 14 },
-  emptyText: { textAlign: 'center', padding: 30, color: '#9CA3AF' },
+  statusBadgeSmall: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 6 },
+  statusTextSmall: { fontSize: 9, fontWeight: 'bold' },
+  requestPrice: { fontSize: 15, fontWeight: '800', color: '#000' },
+  notifCard: { backgroundColor: '#F3F4F6', borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center' },
+  notifIcon: { marginRight: 12 },
+  notifText: { flex: 1, color: '#6B7280', fontSize: 13 },
+  emptyContainer: { padding: 40, alignItems: 'center' },
+  emptyText: { color: '#9CA3AF', fontSize: 14 },
   sheetContent: { flex: 1, padding: 24 },
-  sheetTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  sheetTitle: { fontSize: 22, fontWeight: '800', marginBottom: 20 },
   sheetSection: { marginBottom: 20 },
-  sheetLabel: { fontSize: 12, fontWeight: 'bold', color: '#999', textTransform: 'uppercase', marginBottom: 8 },
-  sheetValue: { fontSize: 16, color: '#111', lineHeight: 24 },
-  statusBadgeLarge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, alignSelf: 'flex-start' },
-  statusTextLarge: { fontSize: 12, fontWeight: 'bold' },
-  actionBtn: { backgroundColor: '#000', flexDirection: 'row', height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  sheetLabel: { fontSize: 11, fontWeight: 'bold', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 },
+  sheetValue: { fontSize: 15, color: '#374151', lineHeight: 22 },
+  statusBadgeLarge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignSelf: 'flex-start' },
+  statusTextLarge: { fontSize: 11, fontWeight: '900' },
+  actionBtn: { backgroundColor: '#000', flexDirection: 'row', height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   actionBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginRight: 8 },
 });

@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../../lib/api';
+import { api } from '@/lib/api';
 import TicketDetailSheet from '../../components/sheets/TicketDetailSheet';
 
 export default function Documents() {

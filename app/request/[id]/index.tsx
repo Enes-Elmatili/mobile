@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { api } from '../../lib/api';
+import { api } from '@/lib/api';
 
 export default function Wallet() {
   const router = useRouter();

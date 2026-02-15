@@ -1,13 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { tokenStorage } from './storage';
 
-// Récupère l'URL depuis app.config.js
 const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.129.179:3000/api';
 
-// Debug log
 console.log('🌐 API_BASE_URL:', API_BASE_URL);
 
-// Types
 export interface ApiResponse<T = any> {
   ok?: boolean;
   data?: T;
@@ -15,7 +12,7 @@ export interface ApiResponse<T = any> {
   [key: string]: any;
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: any;
   headers?: Record<string, string>;
@@ -23,19 +20,23 @@ interface RequestOptions {
 
 class ApiClient {
   private baseURL: string;
+  private isRefreshing: boolean = false;
+  private refreshPromise: Promise<string | null> | null = null;
+  private pendingRequests: (() => void)[] = [];
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
   }
 
   private async getHeaders(): Promise<Record<string, string>> {
-    const token = await AsyncStorage.getItem('auth_token');
+    const token = await tokenStorage.getToken();
     
-    // 🔍 DEBUG CRITIQUE : Affiche le token pour vérifier s'il existe
-    console.log('🔑 Token from storage:', token ? `${token.slice(0, 30)}...` : '❌ NULL');
+    if (__DEV__) {
+      console.log('🔐 Token status:', token ? `Present (${token.slice(0, 10)}...)` : '❌ NULL');
+    }
     
     if (!token) {
-      console.warn('⚠️ API Request sent WITHOUT Token! (User ID will be missing on server)');
+      console.warn('⚠️ API Request sent WITHOUT Token!');
     }
 
     return {
@@ -45,7 +46,61 @@ class ApiClient {
     };
   }
 
-  async request<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  // 🆕 TOKEN REFRESH with request queueing
+  private async refreshAccessToken(): Promise<string | null> {
+    if (this.isRefreshing) {
+      return new Promise((resolve) => {
+        this.pendingRequests.push(() => resolve(tokenStorage.getCachedToken()));
+      });
+    }
+
+    this.isRefreshing = true;
+    
+    try {
+      const currentToken = await tokenStorage.getToken();
+      if (!currentToken) {
+        console.log('❌ No token available for refresh');
+        return null;
+      }
+
+      console.log('🔄 Refreshing access token...');
+      
+      const response = await fetch(`${this.baseURL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentToken}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.log('❌ Refresh failed:', errorData.error || response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (!data.token) {
+        console.log('❌ No token in refresh response');
+        return null;
+      }
+      
+      await tokenStorage.setToken(data.token);
+      console.log('✅ Token refreshed successfully');
+      return data.token;
+    } catch (error) {
+      console.error('❌ Token refresh error:', error);
+      return null;
+    } finally {
+      this.isRefreshing = false;
+      this.pendingRequests.forEach(cb => cb());
+      this.pendingRequests = [];
+    }
+  }
+
+  async request<T = any>(endpoint: string, options: RequestOptions = {}, retryCount = 0): Promise<T> {
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
     const headers = await this.getHeaders();
 
@@ -62,25 +117,40 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      const text = await response.text(); // Read raw text first to avoid JSON parse crash
+      const text = await response.text();
 
       let data;
       try {
         data = JSON.parse(text);
-      } catch (parseError) {
-        // Log the actual HTML/Text response to debug
+      } catch {
         console.error(`❌ API NON-JSON RESPONSE at ${url}`);
-        console.error(`📄 Content preview: ${text.slice(0, 500)}`); // Show first 500 chars
+        console.error(`📄 Content preview: ${text.slice(0, 500)}`);
         
-        const error: any = new Error(`API returned invalid JSON (Status: ${response.status}). Likely server error or HTML.`);
+        const error: any = new Error(`API returned invalid JSON (Status: ${response.status})`);
         error.status = response.status;
         throw error;
+      }
+
+      // 🔧 FIX: Handle 401 with retry logic
+      if (response.status === 401 && retryCount === 0) {
+        console.log('🔐 Got 401, attempting token refresh...');
+        
+        const newToken = await this.refreshAccessToken();
+        
+        if (newToken) {
+          console.log('🔄 Retrying request with new token...');
+          return this.request(endpoint, options, retryCount + 1);
+        } else {
+          console.log('❌ Token refresh failed, clearing session...');
+          await tokenStorage.removeToken();
+        }
       }
 
       if (!response.ok) {
         console.error(`❌ API ERROR ${response.status}:`, data);
         const error: any = new Error(data.error || data.message || `HTTP ${response.status}`);
-        error.status = response.status; // Attach status for AuthContext check
+        error.status = response.status;
+        error.data = data;
         throw error;
       }
 
@@ -88,36 +158,54 @@ class ApiClient {
       return data;
     } catch (error: any) {
       console.error(`❌ API REQUEST FAILED:`, error.message);
-      // We re-throw so the caller can handle it (or AuthContext can ignore 500s)
       throw error;
     }
   }
 
-  private post<T = any>(endpoint: string, body?: any): Promise<T> {
-    return this.request(endpoint, { method: 'POST', body });
-  }
-
-  private put<T = any>(endpoint: string, body?: any): Promise<T> {
-    return this.request(endpoint, { method: 'PUT', body });
-  }
-
-  private delete<T = any>(endpoint: string): Promise<T> {
-    return this.request(endpoint, { method: 'DELETE' });
-  }
+  // 🆕 PUBLIC HTTP METHODS
+  get = <T = any>(endpoint: string): Promise<T> => this.request(endpoint, { method: 'GET' });
+  
+  post = <T = any>(endpoint: string, body?: any): Promise<T> => 
+    this.request(endpoint, { method: 'POST', body });
+  
+  put = <T = any>(endpoint: string, body?: any): Promise<T> => 
+    this.request(endpoint, { method: 'PUT', body });
+  
+  patch = <T = any>(endpoint: string, body?: any): Promise<T> => 
+    this.request(endpoint, { method: 'PATCH', body });
+  
+  delete = <T = any>(endpoint: string): Promise<T> => 
+    this.request(endpoint, { method: 'DELETE' });
 
   // ==================== AUTH ====================
   auth = {
-    login: (email: string, password: string) =>
-      this.post('/auth/login', { email, password }),
-    signup: (email: string, password: string, name?: string) =>
-      this.post('/auth/signup', { email, password, name }),
-    logout: () => this.post('/auth/logout'),
+    login: async (email: string, password: string) => {
+      const result = await this.post('/auth/login', { email, password });
+      if (result.token) {
+        await tokenStorage.setToken(result.token);
+      }
+      return result;
+    },
+    signup: async (email: string, password: string, name?: string) => {
+      const result = await this.post('/auth/signup', { email, password, name });
+      if (result.token) {
+        await tokenStorage.setToken(result.token);
+      }
+      return result;
+    },
+    logout: async () => {
+      try {
+        await this.post('/auth/logout');
+      } finally {
+        await tokenStorage.removeToken();
+      }
+    },
     refresh: () => this.post('/auth/refresh'),
   };
 
   // ==================== USER ====================
   user = {
-    me: () => this.request('/me'),
+    me: () => this.request('/auth/me'),
     get: (id: string) => this.request(`/users/${id}`),
     list: () => this.request('/users'),
     update: (id: string, data: any) => this.put(`/users/${id}`, data),
@@ -125,7 +213,6 @@ class ApiClient {
 
   // ==================== REQUESTS (CLIENT) ====================
   requests = {
-    // Liste via dashboard (route qui fonctionne)
     list: async (params?: { page?: number; limit?: number }) => {
       const dashboard = await this.request<any>('/client/dashboard');
       return {
@@ -133,11 +220,8 @@ class ApiClient {
         total: dashboard.requests?.length || 0,
       };
     },
-    // Détails d'une request
     get: (id: string) => this.request(`/requests/${id}`),
-    // Créer une request
     create: (data: any) => this.post('/requests', data),
-    // Actions sur les requests
     accept: (id: string) => this.post(`/requests/${id}/accept`),
     decline: (id: string) => this.post(`/requests/${id}/refuse`),
     start: (id: string) => this.post(`/requests/${id}/start`),
@@ -146,7 +230,6 @@ class ApiClient {
   };
 
   // ==================== TAXONOMIES ====================
-  // Ajout pour gérer proprement les catégories
   taxonomies = {
     list: () => this.request('/categories'),
     get: (id: string) => this.request(`/categories/${id}`),
@@ -225,14 +308,19 @@ class ApiClient {
     create: (data: any) => this.post('/contracts', data),
   };
 
-  // ✅ CORRECTION : Ajout de la méthode intent
+  // ==================== PAYMENTS ====================
   payments = {
     list: () => this.request('/payments'),
     get: (id: string) => this.request(`/payments/${id}`),
     intent: async (requestId: string) => {
-      const token = await AsyncStorage.getItem('auth_token');
+      const token = await tokenStorage.getToken();
       if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
       return this.post('/payments/intent', { requestId });
+    },
+    // ✅ FIXED: Added missing success method
+    success: async (requestId: string) => {
+      console.log(`✅ Confirming payment success for request ${requestId}`);
+      return this.post('/payments/success', { requestId });
     },
     create: (data: any) => this.post('/payments', data),
   };
@@ -250,14 +338,14 @@ class ApiClient {
     create: (plan: string) => this.post('/subscription', { plan }),
     cancel: () => this.delete('/subscription'),
   };
+
+  storage = tokenStorage;
 }
 
-// Instance singleton
 export const api = new ApiClient(API_BASE_URL);
 
-// Legacy client pour compatibilité (AuthContext, login.tsx)
 export async function client(endpoint: string, method = 'GET', body?: any) {
   return api.request(endpoint, { method: method as any, body });
 }
 
-export type { RequestOptions };
+export { tokenStorage } from './storage';

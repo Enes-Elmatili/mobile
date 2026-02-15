@@ -11,7 +11,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { api } from '../../lib/api';
+import { api } from '@/lib/api';
 
 export default function Signup() {
   const router = useRouter();

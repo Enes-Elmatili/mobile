@@ -39,7 +39,9 @@
           "merchantIdentifier": "merchant.com.fixed.app",
           "enableGooglePay": true
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-router"
     ],
     "extra": {
       "apiUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api",
