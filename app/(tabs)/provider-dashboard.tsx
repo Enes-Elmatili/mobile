@@ -19,13 +19,21 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
 
 // ============================================================================
+// UTILS
+// ============================================================================
+
+/** Convertit des centimes en euros formatés : 21250 → "212,50 €" */
+const formatEuros = (cents: number): string =>
+  (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
 interface WalletData {
-  balance: number;
-  pendingAmount: number;
-  totalEarnings: number;
+  balance: number;       // en centimes (ex: 183078 = 1830,78 €)
+  pendingAmount: number; // en centimes
+  totalEarnings: number; // en centimes
 }
 
 interface ProviderStats {
@@ -38,11 +46,11 @@ interface IncomingRequest {
   requestId: string;
   title: string;
   description: string;
-  price: number;
+  price: number; // en euros (ex: 250)
   address: string;
   urgent: boolean;
   distance?: number;
-  clientId?: string; // ✅ Add clientId to the interface
+  clientId?: string;
   client: {
     name: string;
   };
@@ -79,7 +87,6 @@ export default function ProviderDashboard() {
   // ============================================================================
 
   useEffect(() => {
-    // Fade in on mount
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -94,7 +101,6 @@ export default function ProviderDashboard() {
       }),
     ]).start();
 
-    // Pulse when searching
     if (incomingRequests.length === 0 && isOnline) {
       Animated.loop(
         Animated.sequence([
@@ -121,7 +127,7 @@ export default function ProviderDashboard() {
     try {
       setLoading(true);
 
-      // Load wallet
+      // Load wallet — la balance arrive en centimes depuis le backend
       const walletResponse = await api.get('/wallet');
       setWallet({
         balance: walletResponse.balance || 0,
@@ -133,7 +139,6 @@ export default function ProviderDashboard() {
       const meResponse = await api.get('/me');
       const userData = meResponse.data || meResponse;
       
-      // Extract stats (adapt based on your backend response)
       setStats({
         jobsCompleted: userData.jobsCompleted || 0,
         avgRating: userData.avgRating || 5.0,
@@ -168,27 +173,24 @@ export default function ProviderDashboard() {
 
     console.log('🔌 Setting up socket listeners for provider:', user.id);
 
-    // Register as provider when socket connects
     if (socket.connected) {
       socket.emit('provider:register', { providerId: user.id });
       console.log('📡 Emitted provider:register');
     }
 
-    // Listen for new requests (backend sends full request object)
     const handleNewRequest = (data: any) => {
       console.log('🔔 New request received:', data);
       Vibration.vibrate([0, 100, 50, 100]);
       
-      // Transform backend data to match our interface
       const request: IncomingRequest = {
         requestId: data.requestId || data.id,
         title: data.title,
         description: data.description,
-        price: data.price,
+        price: data.price, // en euros, pas en centimes
         address: data.location?.address || data.address || 'Adresse non spécifiée',
         urgent: data.urgent || data.priority === 'recent',
         distance: data.distance,
-        clientId: data.clientId || data.client?.id, // ✅ Extract client ID
+        clientId: data.clientId || data.client?.id,
         client: {
           name: data.client?.name || 'Client',
         },
@@ -200,21 +202,18 @@ export default function ProviderDashboard() {
       });
     };
 
-    // Listen for claimed requests (backend sends just requestId)
     const handleRequestClaimed = (requestId: string | number) => {
       const id = String(requestId);
       console.log('⚠️ Request claimed by another provider:', id);
       setIncomingRequests((prev) => prev.filter(r => r.requestId !== id));
     };
 
-    // Listen for expired requests
     const handleRequestExpired = (requestId: string | number) => {
       const id = String(requestId);
       console.log('⏰ Request expired:', id);
       setIncomingRequests((prev) => prev.filter(r => r.requestId !== id));
     };
 
-    // Listen for status updates
     const handleStatusUpdate = (data: { providerId: string; status: string }) => {
       if (data.providerId === user.id) {
         console.log('✅ Status updated:', data.status);
@@ -243,12 +242,11 @@ export default function ProviderDashboard() {
     if (!user?.id) return;
 
     const newStatus = !isOnline;
-    const statusValue = newStatus ? 'READY' : 'OFFLINE'; // Backend uses READY not ONLINE
+    const statusValue = newStatus ? 'READY' : 'OFFLINE';
     
     setIsOnline(newStatus);
     Vibration.vibrate(50);
 
-    // Emit to socket (backend expects this exact format)
     if (socket) {
       socket.emit('provider:set_status', {
         providerId: user.id,
@@ -257,31 +255,24 @@ export default function ProviderDashboard() {
       console.log('📡 Emitted provider:set_status:', statusValue);
     }
 
-    // Clear requests when going offline
     if (!newStatus) {
       setIncomingRequests([]);
     }
-
-    // Optional: Update backend via REST (backend already does this via socket)
-    // api.post('/providers/status', { status: statusValue })
-    //   .catch(err => console.error('Status update failed:', err));
   }, [isOnline, socket, user?.id]);
 
   const handleAcceptRequest = useCallback(async (request: IncomingRequest) => {
     if (!user?.id) return;
 
     try {
-      // Check if we have the clientId
       if (!request.clientId) {
         console.warn('⚠️ Missing clientId in request, will try to get from API');
       }
 
-      // Emit to socket FIRST (backend handles DB update)
       if (socket) {
         socket.emit('provider:accept', {
           requestId: request.requestId,
           providerId: user.id,
-          clientId: request.clientId, // ✅ Send the actual client ID
+          clientId: request.clientId,
         });
         console.log('📡 Emitted provider:accept:', { 
           requestId: request.requestId, 
@@ -290,35 +281,24 @@ export default function ProviderDashboard() {
         });
       }
 
-      // Haptic feedback
       Vibration.vibrate([0, 100]);
-      
-      // Remove from local list immediately (optimistic update)
       setIncomingRequests((prev) => prev.filter(r => r.requestId !== request.requestId));
       
-      // Show success alert and navigate to ongoing screen
       Alert.alert(
         '✅ Mission acceptée',
         'Le client a été notifié. Vous pouvez maintenant voir les détails et démarrer la navigation.',
         [
           {
             text: 'Voir la mission',
-            onPress: () => {
-              // Navigate to ongoing screen to see mission details
-              router.push(`/request/${request.requestId}/ongoing`);
-            }
+            onPress: () => router.push(`/request/${request.requestId}/ongoing`),
           },
           {
             text: 'Plus tard',
             style: 'cancel',
-            onPress: () => {
-              // Stay on dashboard
-            }
-          }
+          },
         ]
       );
       
-      // Wait for socket confirmation
       const handleAcceptConfirm = (data: any) => {
         if (data.requestId === request.requestId) {
           console.log('✅ Provider accept confirmed by server');
@@ -327,16 +307,12 @@ export default function ProviderDashboard() {
       };
       
       socket?.on('provider:accept_confirmed', handleAcceptConfirm);
-      
-      // Cleanup after 5 seconds
       setTimeout(() => {
         socket?.off('provider:accept_confirmed', handleAcceptConfirm);
       }, 5000);
     } catch (error: any) {
       console.error('❌ Error accepting request:', error);
       Alert.alert('Erreur', error.message || 'Impossible d\'accepter la demande');
-      
-      // Re-add to list on error
       setIncomingRequests((prev) => {
         if (prev.some(r => r.requestId === request.requestId)) return prev;
         return [request, ...prev];
@@ -396,7 +372,6 @@ export default function ProviderDashboard() {
                   },
                 ]}
               >
-                {/* Status Indicator */}
                 <View style={styles.statusIndicator}>
                   <View style={[styles.statusDot, isConnected && styles.statusDotConnected]} />
                   <Text style={styles.statusText}>
@@ -404,11 +379,9 @@ export default function ProviderDashboard() {
                   </Text>
                 </View>
 
-                {/* Greeting */}
                 <Text style={styles.heroGreeting}>Bonjour,</Text>
                 <Text style={styles.heroName}>{user?.name || user?.email?.split('@')[0]}</Text>
 
-                {/* Giant Status Toggle */}
                 <TouchableOpacity
                   style={[styles.statusToggle, isOnline && styles.statusToggleActive]}
                   onPress={handleStatusChange}
@@ -442,21 +415,24 @@ export default function ProviderDashboard() {
                     <Text style={styles.walletLabel}>Solde disponible</Text>
                   </View>
 
+                  {/* ✅ FIX: balance en centimes → diviser par 100 */}
                   <Text style={styles.walletBalance}>
-                    {(wallet?.balance || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    {formatEuros(wallet?.balance || 0)}
                   </Text>
 
                   <View style={styles.walletStats}>
                     <View style={styles.walletStat}>
                       <Text style={styles.walletStatLabel}>Total gagné</Text>
+                      {/* ✅ FIX: totalEarnings en centimes → diviser par 100 */}
                       <Text style={styles.walletStatValue}>
-                        {(wallet?.totalEarnings || 0).toLocaleString('fr-FR')} €
+                        {formatEuros(wallet?.totalEarnings || 0)}
                       </Text>
                     </View>
                     <View style={styles.walletStat}>
                       <Text style={styles.walletStatLabel}>En attente</Text>
+                      {/* ✅ FIX: pendingAmount en centimes → diviser par 100 */}
                       <Text style={styles.walletStatValue}>
-                        {(wallet?.pendingAmount || 0).toLocaleString('fr-FR')} €
+                        {formatEuros(wallet?.pendingAmount || 0)}
                       </Text>
                     </View>
                   </View>
@@ -531,12 +507,7 @@ export default function ProviderDashboard() {
           </>
         }
         renderItem={({ item }) => (
-          <Animated.View
-            style={[
-              styles.requestCard,
-              { opacity: fadeAnim },
-            ]}
-          >
+          <Animated.View style={[styles.requestCard, { opacity: fadeAnim }]}>
             {item.urgent && (
               <View style={styles.urgentBadge}>
                 <Ionicons name="flash" size={16} color="#FFF" />
@@ -568,7 +539,10 @@ export default function ProviderDashboard() {
             </View>
 
             <View style={styles.requestFooter}>
-              <Text style={styles.requestPrice}>{item.price} €</Text>
+              {/* ✅ FIX: price vient du backend en euros (Float), pas en centimes */}
+              <Text style={styles.requestPrice}>
+                {(item.price || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+              </Text>
 
               <View style={styles.requestActions}>
                 <TouchableOpacity
@@ -625,7 +599,7 @@ export default function ProviderDashboard() {
 }
 
 // ============================================================================
-// STYLES - BASE 44 DESIGN SYSTEM
+// STYLES
 // ============================================================================
 
 const styles = StyleSheet.create({

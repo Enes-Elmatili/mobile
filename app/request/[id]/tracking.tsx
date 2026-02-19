@@ -19,6 +19,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyBmOMr3I4f7uQ-u5Qz7xRVHV6yCJDH8MYE';
+
 export default function RequestTracking() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -40,14 +42,31 @@ export default function RequestTracking() {
   const loadRequestDetails = async () => {
     try {
       const response = await api.get(`/requests/${id}`);
-      setRequest(response.data || response);
+      const requestData = response.data || response;
+      setRequest(requestData);
+      
+      console.log('📍 [TRACKING] Request loaded:', requestData);
       
       // Set initial provider location if available
-      if (response.provider?.lat && response.provider?.lng) {
+      if (requestData.provider?.lat && requestData.provider?.lng) {
         setProviderLocation({
-          latitude: response.provider.lat,
-          longitude: response.provider.lng,
+          latitude: requestData.provider.lat,
+          longitude: requestData.provider.lng,
         });
+        console.log('📍 [TRACKING] Provider location set from request');
+        
+        // Calculate initial ETA using Google API
+        if (requestData.lat && requestData.lng) {
+          await fetchETAFromGoogle(
+            requestData.provider.lat,
+            requestData.provider.lng,
+            requestData.lat,
+            requestData.lng
+          );
+        }
+      } else {
+        console.log('⏱️ [TRACKING] No initial provider location, waiting for GPS update...');
+        setEta('En attente de localisation...');
       }
     } catch (error) {
       console.error('Error loading request:', error);
@@ -57,20 +76,85 @@ export default function RequestTracking() {
     }
   };
 
+  // Calculate distance using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Fetch ETA from Google Directions API
+  const fetchETAFromGoogle = async (originLat: number, originLng: number, destLat: number, destLng: number) => {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_MAPS_API_KEY}`;
+      
+      console.log('📍 [TRACKING] Fetching ETA from Google...');
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === 'OK' && data.routes && data.routes.length > 0) {
+        const leg = data.routes[0].legs[0];
+        const etaText = leg.duration.text;
+        console.log('✅ [TRACKING] Google ETA:', etaText);
+        setEta(etaText);
+        return etaText;
+      } else {
+        throw new Error(`Google API error: ${data.status}`);
+      }
+    } catch (error) {
+      console.error('❌ [TRACKING] Error fetching Google ETA:', error);
+      // Fallback calculation
+      const dist = calculateDistance(originLat, originLng, destLat, destLng);
+      const roadDist = dist * 1.4;
+      const avgSpeed = 30;
+      const durationHours = roadDist / avgSpeed;
+      const etaMinutes = Math.ceil(durationHours * 60);
+      const etaText = etaMinutes === 1 ? '1 min' : `${etaMinutes} mins`;
+      
+      console.log('⚠️ [TRACKING] Using fallback ETA:', etaText);
+      setEta(etaText);
+      return etaText;
+    }
+  };
+
   // Listen for provider location updates
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('❌ [TRACKING] Socket not connected!');
+      return;
+    }
 
-    const handleLocationUpdate = (data: any) => {
+    const handleLocationUpdate = async (data: any) => {
       if (data.requestId === Number(id)) {
-        console.log('📍 Provider location update:', data);
+        console.log('📍 [TRACKING] Provider location update:', {
+          lat: data.lat,
+          lng: data.lng,
+          eta: data.eta
+        });
+        
         setProviderLocation({
           latitude: data.lat,
           longitude: data.lng,
         });
         
-        // Update ETA if provided
-        if (data.eta) {
+        // Update ETA - prefer Google calculation over provider's simple calculation
+        if (request?.lat && request?.lng) {
+          // Always recalculate with Google API for accuracy
+          await fetchETAFromGoogle(
+            data.lat,
+            data.lng,
+            request.lat,
+            request.lng
+          );
+        } else if (data.eta) {
+          // Fallback to provider's ETA if we can't calculate
+          console.log('⏱️ [TRACKING] Using provider ETA:', data.eta);
           setEta(data.eta);
         }
 
@@ -86,12 +170,13 @@ export default function RequestTracking() {
       }
     };
 
+    console.log('👂 [TRACKING] Listening for provider location updates on request', id);
     socket.on('provider:location_update', handleLocationUpdate);
 
     return () => {
       socket.off('provider:location_update', handleLocationUpdate);
     };
-  }, [socket, id]);
+  }, [socket, id, request]);
 
   // Pulse animation for provider marker
   useEffect(() => {

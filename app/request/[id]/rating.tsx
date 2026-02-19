@@ -1,7 +1,7 @@
 // app/request/[id]/rating.tsx
 // Client rates the provider after mission completion
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,6 +24,25 @@ export default function RatingScreen() {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [request, setRequest] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load request to get providerId
+  useEffect(() => {
+    loadRequest();
+  }, [id]);
+
+  const loadRequest = async () => {
+    try {
+      const response = await api.get(`/requests/${id}`);
+      setRequest(response.data || response);
+    } catch (error) {
+      console.error('Error loading request:', error);
+      Alert.alert('Erreur', 'Impossible de charger la mission');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmitRating = async () => {
     if (rating === 0) {
@@ -30,9 +50,24 @@ export default function RatingScreen() {
       return;
     }
 
+    if (!request?.providerId) {
+      Alert.alert('Erreur', 'Provider introuvable');
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await api.post(`/requests/${id}/rate`, {
+      
+      console.log('⭐ Submitting rating:', {
+        providerId: request.providerId,
+        requestId: Number(id),
+        rating,
+        comment
+      });
+
+      await api.post('/ratings', {
+        providerId: request.providerId,
+        requestId: Number(id),
         rating,
         comment,
       });
@@ -47,12 +82,21 @@ export default function RatingScreen() {
           }
         ]
       );
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible d\'envoyer l\'évaluation');
+    } catch (error: any) {
+      console.error('❌ Rating error:', error);
+      Alert.alert('Erreur', error.message || 'Impossible d\'envoyer l\'évaluation');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,6 +182,12 @@ export default function RatingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#FFF',
   },
   content: {

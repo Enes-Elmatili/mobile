@@ -20,7 +20,7 @@ import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyBmOMr3I4f7uQ-u5Qz7xRVHV6yCJDH8MYE'; // Remplacez par votre clé
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s';
 
 export default function MissionOngoing() {
   const { id } = useLocalSearchParams();
@@ -61,34 +61,57 @@ export default function MissionOngoing() {
     try {
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_MAPS_API_KEY}`;
       
+      console.log('📍 Fetching route from Google...');
       const response = await fetch(url);
       const data = await response.json();
+
+      console.log('📊 Google API response status:', data.status);
+
+      if (data.status !== 'OK') {
+        console.error('❌ Google API error:', data.status, data.error_message);
+        throw new Error(`Google API error: ${data.status}`);
+      }
 
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         const leg = route.legs[0];
 
         // Extract distance and duration
-        setDistance(leg.distance.text);
-        setDuration(leg.duration.text);
+        const distanceText = leg.distance.text;
+        const durationText = leg.duration.text;
+        
+        setDistance(distanceText);
+        setDuration(durationText);
 
         // Decode polyline
         const points = decodePolyline(route.overview_polyline.points);
         setRouteCoordinates(points);
 
-        console.log('📏 Route calculated:', leg.distance.text, '/', leg.duration.text);
+        console.log('✅ Route calculated:', distanceText, '/', durationText);
 
         return {
-          distance: leg.distance.text,
-          duration: leg.duration.text,
+          distance: distanceText,
+          duration: durationText,
         };
+      } else {
+        throw new Error('No routes found');
       }
     } catch (error) {
-      console.error('Error fetching route:', error);
+      console.error('❌ Error fetching route:', error);
       // Fallback to straight line distance
       const dist = calculateDistance(originLat, originLng, destLat, destLng);
-      setDistance(`${dist.toFixed(1)} km`);
-      setDuration(`${Math.ceil(dist * 3)} min`);
+      const distText = `${dist.toFixed(1)} km`;
+      const durText = `${Math.ceil(dist * 3)} min`;
+      
+      setDistance(distText);
+      setDuration(durText);
+      
+      console.log('⚠️ Using fallback calculation:', distText, '/', durText);
+      
+      return {
+        distance: distText,
+        duration: durText,
+      };
     }
   };
 
@@ -221,25 +244,42 @@ export default function MissionOngoing() {
   };
 
   const handleCompleteMission = () => {
-    Alert.alert(
-      'Terminer la mission',
-      'Confirmer que la mission est terminée ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: async () => {
-            try {
-              await api.post(`/requests/${id}/complete`);
-              // Navigate to earnings screen
-              router.push(`/request/${id}/earnings`);
-            } catch (error) {
-              Alert.alert('Erreur', 'Impossible de terminer');
-            }
+      Alert.alert(
+        'Terminer la mission',
+        'Confirmer que la mission est terminée ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Confirmer',
+            onPress: async () => {
+              try {
+                console.log(`🚀 [COMPLETION] Tentative de clôture de la mission ${id}...`);
+                
+                // Appel à l'API corrigée
+                const response = await api.post(`/requests/${id}/complete`);
+                
+                console.log('✅ [COMPLETION] Mission terminée avec succès:', response.data);
+
+                // Alerte de succès avant redirection
+                Alert.alert(
+                  'Félicitations !', 
+                  `Mission terminée. Gains : ${response.data?.earnings || request?.price * 0.85}€`,
+                  [{ 
+                    text: 'OK', 
+                    onPress: () => router.push(`/request/${id}/earnings`) 
+                  }]
+                );
+                
+              } catch (error: any) {
+                console.error('❌ [COMPLETION] Erreur lors de la clôture:', error.response?.data || error.message);
+                
+                const errorMsg = error.response?.data?.message || "Une erreur est survenue lors de la validation.";
+                Alert.alert('Erreur', errorMsg);
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
   };
 
   if (loading || !myLocation) {

@@ -29,7 +29,9 @@ export default function EarningsScreen() {
   const loadRequestDetails = async () => {
     try {
       const response = await api.get(`/requests/${id}`);
-      setRequest(response.data || response);
+      const requestData = response.data || response;
+      console.log('💰 [EARNINGS] Request loaded:', requestData);
+      setRequest(requestData);
     } catch (error) {
       console.error('Error loading request:', error);
     } finally {
@@ -45,9 +47,19 @@ export default function EarningsScreen() {
     );
   }
 
-  const basePrice = request?.price || 0;
-  const platformFee = basePrice * 0.15; // 15% commission
-  const earnings = basePrice - platformFee;
+  if (!request) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Impossible de charger les détails</Text>
+      </View>
+    );
+  }
+
+  const basePrice = Number(request?.price) || 0;
+  const platformFee = Math.round(basePrice * 0.15 * 100) / 100; // 15% commission
+  const earnings = Math.round((basePrice - platformFee) * 100) / 100;
+
+  console.log('💰 [EARNINGS] Calculation:', { basePrice, platformFee, earnings });
 
   return (
     <SafeAreaView style={styles.container}>

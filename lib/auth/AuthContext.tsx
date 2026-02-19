@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { api, tokenStorage } from '../api';
@@ -33,27 +34,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<UserData | null>(null);
 
-  // 🆕 Subscribe to token changes from storage
+  // Subscribe to token changes from storage
   useEffect(() => {
     const unsubscribe = tokenStorage.subscribe((newToken) => {
       console.log('🔄 Token storage updated:', newToken ? 'exists' : 'null');
       setToken(newToken);
     });
-    
     return unsubscribe;
   }, []);
 
   const signOut = useCallback(async () => {
     console.log('🚪 SIGNOUT');
-    await api.auth.logout();
     setUser(null);
+    await tokenStorage.removeToken(); // Vide le token AVANT l'appel API
+    await api.auth.logout().catch(() => {}); // Ignore si session déjà expirée
   }, []);
 
+  // Ref pour éviter la dépendance cyclique refreshMe → signOut → refreshMe
+  const signOutRef = useRef(signOut);
+  useEffect(() => {
+    signOutRef.current = signOut;
+  }, [signOut]);
+
   const refreshMe = useCallback(async () => {
+    // Guard : ne rien faire si pas de token
+    const currentToken = await tokenStorage.getToken();
+    if (!currentToken) {
+      console.log('⏭️ refreshMe: no token, skipping');
+      return;
+    }
+
     try {
       console.log('📡 REFRESH ME CALL');
       const res = await api.user.me();
-
       console.log('📥 ME RESPONSE:', JSON.stringify(res, null, 2));
 
       const userData = res?.user;
@@ -64,21 +77,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ USER LOADED:', userData.email, 'Roles:', userData.roles);
       } else {
         console.warn('⚠️ ME response sans user valide. userData:', userData);
-        await signOut();
+        await signOutRef.current();
       }
     } catch (e: any) {
       console.error('❌ REFRESH ME ERROR:', e.message || e);
-      
+
       if (e.status === 401) {
         console.log('🔒 Token expired and refresh failed. Signing out.');
-        await signOut();
+        await signOutRef.current();
       } else if (e.status >= 500) {
         console.warn('⚠️ Server error during refresh. Keeping local session.');
       }
     }
-  }, [signOut]);
+  }, []); // Pas de dépendance sur signOut grâce au ref
 
-  // Boot: read token from secure storage
+  // Ref pour éviter que refreshMe dans les deps du useEffect cause des boucles
+  const refreshMeRef = useRef(refreshMe);
+  useEffect(() => {
+    refreshMeRef.current = refreshMe;
+  }, [refreshMe]);
+
+  // Boot : lecture du token depuis le secure storage
   useEffect(() => {
     let cancelled = false;
 
@@ -103,13 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     bootUp();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Token change → refresh /me
+  // Token change → refresh /me (un seul déclenchement)
   useEffect(() => {
     if (isBooting) {
       console.log('⏳ Waiting for boot...');
@@ -117,12 +135,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (token) {
-      refreshMe();
+      refreshMeRef.current();
     } else {
       console.log('❌ No token, clearing user');
       setUser(null);
     }
-  }, [isBooting, token, refreshMe]);
+  }, [token, isBooting]); // refreshMe retiré des deps, géré via ref
 
   const signIn = useCallback(async (newToken: string) => {
     console.log('🔐 SIGNIN:', newToken.slice(0, 20) + '...');

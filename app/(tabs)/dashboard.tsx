@@ -106,16 +106,20 @@ export default function Dashboard() {
   );
 
   const getStatusInfo = (status: string) => {
-    const statusMap: Record<string, { label: string; color: string; bgColor: string; icon: any }> = {
-      DONE: { label: 'Terminé', color: '#15803D', bgColor: '#DCFCE7', icon: 'checkmark-circle' },
-      CANCELLED: { label: 'Annulé', color: '#B91C1C', bgColor: '#FEE2E2', icon: 'close-circle' },
-      ONGOING: { label: 'En cours', color: '#1D4ED8', bgColor: '#DBEAFE', icon: 'time' },
-      PUBLISHED: { label: 'Recherche', color: '#B45309', bgColor: '#FEF3C7', icon: 'radio' },
-      ACCEPTED: { label: 'Accepté', color: '#7E22CE', bgColor: '#F3E8FF', icon: 'hand-left' },
-      PENDING_PAYMENT: { label: 'Paiement', color: '#BE185D', bgColor: '#FCE7F3', icon: 'card' },
-    };
-    return statusMap[status] || { label: status, color: '#6B7280', bgColor: '#F3F4F6', icon: 'help-circle' };
+  // ✅ On s'assure que status est une string et on gère les imprévus
+  const s = (status || 'PENDING').toUpperCase();
+  
+  const statusMap: Record<string, { label: string; color: string; bgColor: string; icon: any }> = {
+    DONE: { label: 'Terminé', color: '#15803D', bgColor: '#DCFCE7', icon: 'checkmark-circle' },
+    CANCELLED: { label: 'Annulé', color: '#B91C1C', bgColor: '#FEE2E2', icon: 'close-circle' },
+    ONGOING: { label: 'En cours', color: '#1D4ED8', bgColor: '#DBEAFE', icon: 'time' },
+    PUBLISHED: { label: 'Recherche', color: '#B45309', bgColor: '#FEF3C7', icon: 'radio' },
+    ACCEPTED: { label: 'Accepté', color: '#7E22CE', bgColor: '#F3E8FF', icon: 'hand-left' },
+    PENDING_PAYMENT: { label: 'Paiement', color: '#BE185D', bgColor: '#FCE7F3', icon: 'card' },
   };
+
+  return statusMap[s] || { label: s, color: '#6B7280', bgColor: '#F3F4F6', icon: 'help-circle' };
+};
 
   // ✅ Redirection si Provider
   if (user?.roles?.includes('PROVIDER')) {
