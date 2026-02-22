@@ -1,7 +1,7 @@
 // app/request/[id]/tracking.tsx
 // Client view - Track provider arriving (like Uber)
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,43 +19,138 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyBmOMr3I4f7uQ-u5Qz7xRVHV6yCJDH8MYE';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
+// ============================================================================
+// UTILS
+// ============================================================================
+
+const formatEuros = (amount: number): string =>
+  amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const fallbackETA = (originLat: number, originLng: number, destLat: number, destLng: number): string => {
+  const dist = calculateDistance(originLat, originLng, destLat, destLng);
+  const minutes = Math.ceil((dist * 1.4 / 30) * 60);
+  return minutes <= 1 ? '1 min' : `${minutes} mins`;
+};
+
+// ============================================================================
+// VALID STATES — statuts trackables depuis la vue client
+// ============================================================================
+
+const TRACKABLE_STATUSES = ['ACCEPTED', 'ONGOING'];
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export default function RequestTracking() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { socket } = useSocket();
   const mapRef = useRef<MapView>(null);
-  
+
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [providerLocation, setProviderLocation] = useState<any>(null);
+  const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [eta, setEta] = useState('Calcul en cours...');
-  
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load request details
-  useEffect(() => {
-    loadRequestDetails();
-  }, [id]);
+  // ============================================================================
+  // ETA
+  // ============================================================================
 
-  const loadRequestDetails = async () => {
+  const fetchETAFromGoogle = useCallback(async (
+    originLat: number,
+    originLng: number,
+    destLat: number,
+    destLng: number
+  ): Promise<void> => {
+    try {
+      if (!GOOGLE_MAPS_API_KEY) throw new Error('No API key');
+
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_MAPS_API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === 'OK' && data.routes?.length > 0) {
+        const etaText = data.routes[0].legs[0].duration.text;
+        console.log('✅ [TRACKING] Google ETA:', etaText);
+        setEta(etaText);
+      } else {
+        throw new Error(`Google API: ${data.status}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ [TRACKING] Google ETA fallback:', error);
+      setEta(fallbackETA(originLat, originLng, destLat, destLng));
+    }
+  }, []);
+
+  // ============================================================================
+  // LOAD REQUEST — avec guard de statut
+  // ============================================================================
+
+  const loadRequestDetails = useCallback(async () => {
     try {
       const response = await api.get(`/requests/${id}`);
       const requestData = response.data || response;
+      const status = (requestData?.status || '').toUpperCase();
+
+      console.log('📍 [TRACKING] Request loaded:', requestData?.id, 'status:', status);
+
+      // ── GUARD : si la mission n'est plus trackable, on redirige proprement ──
+      if (!TRACKABLE_STATUSES.includes(status)) {
+        console.warn(`⚠️ [TRACKING] Mission ${id} est en statut "${status}" — non trackable, redirection`);
+
+        if (status === 'DONE' || status === 'PENDING_PAYMENT') {
+          Alert.alert(
+            'Mission terminée',
+            'Cette mission a été complétée avec succès.',
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+          );
+        } else if (status === 'CANCELLED' || status === 'EXPIRED') {
+          Alert.alert(
+            'Mission annulée',
+            'Cette mission a été annulée ou a expiré.',
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+          );
+        } else if (status === 'PUBLISHED') {
+          // Encore en recherche — revenir au dashboard pour voir le badge
+          Alert.alert(
+            'Recherche en cours',
+            'Aucun prestataire n\'a encore accepté cette mission.',
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+          );
+        } else {
+          Alert.alert(
+            'Mission non disponible',
+            `Statut: ${status}`,
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+          );
+        }
+        return;
+      }
+
       setRequest(requestData);
-      
-      console.log('📍 [TRACKING] Request loaded:', requestData);
-      
-      // Set initial provider location if available
+
       if (requestData.provider?.lat && requestData.provider?.lng) {
         setProviderLocation({
           latitude: requestData.provider.lat,
           longitude: requestData.provider.lng,
         });
-        console.log('📍 [TRACKING] Provider location set from request');
-        
-        // Calculate initial ETA using Google API
+
         if (requestData.lat && requestData.lng) {
           await fetchETAFromGoogle(
             requestData.provider.lat,
@@ -65,144 +160,148 @@ export default function RequestTracking() {
           );
         }
       } else {
-        console.log('⏱️ [TRACKING] No initial provider location, waiting for GPS update...');
         setEta('En attente de localisation...');
       }
     } catch (error) {
-      console.error('Error loading request:', error);
-      Alert.alert('Erreur', 'Impossible de charger les détails de la mission');
+      console.error('❌ [TRACKING] Error loading request:', error);
+      Alert.alert('Erreur', 'Impossible de charger les détails de la mission', [
+        { text: 'Retour', onPress: () => router.back() },
+      ]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, fetchETAFromGoogle, router]);
 
-  // Calculate distance using Haversine formula
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Earth radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  // Fetch ETA from Google Directions API
-  const fetchETAFromGoogle = async (originLat: number, originLng: number, destLat: number, destLng: number) => {
-    try {
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_MAPS_API_KEY}`;
-      
-      console.log('📍 [TRACKING] Fetching ETA from Google...');
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.status === 'OK' && data.routes && data.routes.length > 0) {
-        const leg = data.routes[0].legs[0];
-        const etaText = leg.duration.text;
-        console.log('✅ [TRACKING] Google ETA:', etaText);
-        setEta(etaText);
-        return etaText;
-      } else {
-        throw new Error(`Google API error: ${data.status}`);
-      }
-    } catch (error) {
-      console.error('❌ [TRACKING] Error fetching Google ETA:', error);
-      // Fallback calculation
-      const dist = calculateDistance(originLat, originLng, destLat, destLng);
-      const roadDist = dist * 1.4;
-      const avgSpeed = 30;
-      const durationHours = roadDist / avgSpeed;
-      const etaMinutes = Math.ceil(durationHours * 60);
-      const etaText = etaMinutes === 1 ? '1 min' : `${etaMinutes} mins`;
-      
-      console.log('⚠️ [TRACKING] Using fallback ETA:', etaText);
-      setEta(etaText);
-      return etaText;
-    }
-  };
-
-  // Listen for provider location updates
   useEffect(() => {
-    if (!socket) {
-      console.log('❌ [TRACKING] Socket not connected!');
-      return;
+    loadRequestDetails();
+  }, [loadRequestDetails]);
+
+  // ============================================================================
+  // SOCKET — join room + écoute location update
+  // ============================================================================
+
+  const destRef = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (request?.lat && request?.lng) {
+      destRef.current = { lat: request.lat, lng: request.lng };
     }
+  }, [request]);
+
+  useEffect(() => {
+    if (!socket || !id) return;
+
+    socket.emit('join:request', { requestId: id });
+    console.log('🔌 [TRACKING] Joined room for request:', id);
 
     const handleLocationUpdate = async (data: any) => {
-      if (data.requestId === Number(id)) {
-        console.log('📍 [TRACKING] Provider location update:', {
-          lat: data.lat,
-          lng: data.lng,
-          eta: data.eta
-        });
-        
-        setProviderLocation({
-          latitude: data.lat,
-          longitude: data.lng,
-        });
-        
-        // Update ETA - prefer Google calculation over provider's simple calculation
-        if (request?.lat && request?.lng) {
-          // Always recalculate with Google API for accuracy
-          await fetchETAFromGoogle(
-            data.lat,
-            data.lng,
-            request.lat,
-            request.lng
-          );
-        } else if (data.eta) {
-          // Fallback to provider's ETA if we can't calculate
-          console.log('⏱️ [TRACKING] Using provider ETA:', data.eta);
-          setEta(data.eta);
-        }
+      if (String(data.requestId) !== String(id)) return;
 
-        // Center map on provider
-        if (mapRef.current) {
-          mapRef.current.animateToRegion({
-            latitude: data.lat,
-            longitude: data.lng,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          });
-        }
+      console.log('📍 [TRACKING] Provider location update:', data);
+
+      const newLocation = { latitude: data.lat, longitude: data.lng };
+      setProviderLocation(newLocation);
+
+      if (destRef.current) {
+        await fetchETAFromGoogle(
+          data.lat,
+          data.lng,
+          destRef.current.lat,
+          destRef.current.lng
+        );
+      } else if (data.eta) {
+        setEta(data.eta);
+      }
+
+      mapRef.current?.animateToRegion({
+        latitude: data.lat,
+        longitude: data.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    };
+
+    const handleRequestStarted = (data: any) => {
+      if (String(data.id || data.requestId) === String(id)) {
+        console.log('🚀 [TRACKING] Mission démarrée !');
+        // Mettre à jour le statut local sans recharger
+        setRequest((prev: any) => prev ? { ...prev, status: 'ONGOING' } : prev);
+        Alert.alert('Mission démarrée', 'Le prestataire est arrivé et a démarré la mission !');
       }
     };
 
-    console.log('👂 [TRACKING] Listening for provider location updates on request', id);
+    const handleRequestCompleted = (data: any) => {
+      if (String(data.requestId) === String(id)) {
+        console.log('✅ [TRACKING] Mission terminée');
+        Alert.alert(
+          'Mission terminée',
+          'La mission a été complétée avec succès.',
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+        );
+      }
+    };
+
+    const handleRequestCancelled = (data: any) => {
+      if (String(data.requestId || data.id) === String(id)) {
+        console.warn('🚫 [TRACKING] Mission annulée');
+        Alert.alert(
+          'Mission annulée',
+          'Cette mission a été annulée.',
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+        );
+      }
+    };
+
     socket.on('provider:location_update', handleLocationUpdate);
+    socket.on('request:started', handleRequestStarted);
+    socket.on('request:completed', handleRequestCompleted);
+    socket.on('request:cancelled', handleRequestCancelled);
 
     return () => {
+      socket.emit('leave:request', { requestId: id });
       socket.off('provider:location_update', handleLocationUpdate);
+      socket.off('request:started', handleRequestStarted);
+      socket.off('request:completed', handleRequestCompleted);
+      socket.off('request:cancelled', handleRequestCancelled);
     };
-  }, [socket, id, request]);
+  }, [socket, id, fetchETAFromGoogle, router]);
 
-  // Pulse animation for provider marker
+  // ============================================================================
+  // ANIMATIONS
+  // ============================================================================
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
       ])
     ).start();
   }, []);
 
+  // ============================================================================
+  // ACTIONS
+  // ============================================================================
+
   const handleCallProvider = () => {
     if (request?.provider?.phone) {
       Linking.openURL(`tel:${request.provider.phone}`);
+    } else {
+      Alert.alert('Numéro indisponible', "Le numéro du prestataire n'est pas disponible.");
     }
   };
 
   const handleCancelRequest = () => {
+    const status = (request?.status || '').toUpperCase();
+
+    // Impossible d'annuler une mission déjà ONGOING
+    if (status === 'ONGOING') {
+      Alert.alert(
+        'Annulation impossible',
+        'La mission est déjà en cours. Contactez le prestataire directement.'
+      );
+      return;
+    }
+
     Alert.alert(
       'Annuler la mission',
       'Êtes-vous sûr de vouloir annuler cette mission ?',
@@ -214,10 +313,16 @@ export default function RequestTracking() {
           onPress: async () => {
             try {
               await api.post(`/requests/${id}/cancel`);
-              Alert.alert('Annulé', 'La mission a été annulée');
-              router.back();
-            } catch (error) {
-              Alert.alert('Erreur', "Impossible d'annuler la mission");
+              Alert.alert('Annulé', 'La mission a été annulée', [
+                { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
+              ]);
+            } catch (error: any) {
+              // Si INVALID_STATE, la mission a déjà changé d'état — on rafraîchit
+              if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
+                await loadRequestDetails();
+              } else {
+                Alert.alert('Erreur', "Impossible d'annuler la mission");
+              }
             }
           },
         },
@@ -225,18 +330,28 @@ export default function RequestTracking() {
     );
   };
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#000" />
+        <Text style={styles.loadingText}>Chargement...</Text>
       </View>
     );
   }
+
+  // Si request est null après chargement, c'est qu'on a redirigé (guard)
+  if (!request) return null;
 
   const clientLocation = {
     latitude: request?.lat || 50.8503,
     longitude: request?.lng || 4.3517,
   };
+
+  const status = (request?.status || '').toUpperCase();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -252,16 +367,12 @@ export default function RequestTracking() {
         }}
         showsUserLocation
       >
-        {/* Client location marker */}
-        <Marker
-          coordinate={clientLocation}
-          title="Votre position"
-          pinColor="#4CAF50"
-        />
+        {/* Client location */}
+        <Marker coordinate={clientLocation} title="Votre position" pinColor="#4CAF50" />
 
-        {/* Provider location marker */}
+        {/* Provider location */}
         {providerLocation && (
-          <Marker coordinate={providerLocation}>
+          <Marker coordinate={providerLocation} title={request?.provider?.name || 'Prestataire'}>
             <Animated.View style={[styles.providerMarker, { transform: [{ scale: pulseAnim }] }]}>
               <Ionicons name="car" size={24} color="#FFF" />
             </Animated.View>
@@ -274,12 +385,17 @@ export default function RequestTracking() {
         <Ionicons name="arrow-back" size={24} color="#000" />
       </TouchableOpacity>
 
-      {/* Provider info card */}
+      {/* Info card */}
       <View style={styles.infoCard}>
         {/* ETA */}
         <View style={styles.etaContainer}>
-          <Text style={styles.etaLabel}>Arrivée estimée</Text>
+          <Text style={styles.etaLabel}>
+            {status === 'ONGOING' ? 'Mission en cours' : 'Arrivée estimée'}
+          </Text>
           <Text style={styles.etaTime}>{eta}</Text>
+          {!providerLocation && (
+            <Text style={styles.etaSubLabel}>En attente de la position du prestataire...</Text>
+          )}
         </View>
 
         {/* Provider details */}
@@ -304,33 +420,36 @@ export default function RequestTracking() {
         <View style={styles.missionDetails}>
           <Text style={styles.missionTitle}>{request?.serviceType}</Text>
           <Text style={styles.missionAddress}>{request?.address}</Text>
-          <Text style={styles.missionPrice}>{request?.price}€</Text>
+          <Text style={styles.missionPrice}>{formatEuros(request?.price || 0)}</Text>
         </View>
 
-        {/* Actions */}
-        <View style={styles.actions}>
+        {/* Actions — annulation seulement si ACCEPTED (pas ONGOING) */}
+        {status === 'ACCEPTED' && (
           <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRequest}>
             <Text style={styles.cancelButtonText}>Annuler la mission</Text>
           </TouchableOpacity>
-        </View>
+        )}
+
+        {status === 'ONGOING' && (
+          <View style={styles.ongoingBanner}>
+            <Ionicons name="time-outline" size={16} color="#1D4ED8" />
+            <Text style={styles.ongoingBannerText}>Mission en cours — le prestataire est sur place</Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
 }
 
+// ============================================================================
+// STYLES
+// ============================================================================
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  map: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 16, color: '#666', fontWeight: '500' },
+  map: { flex: 1 },
   backButton: {
     position: 'absolute',
     top: 60,
@@ -374,20 +493,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  etaContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  etaLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  etaTime: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#000',
-  },
+  etaContainer: { alignItems: 'center', marginBottom: 24 },
+  etaLabel: { fontSize: 14, color: '#666', marginBottom: 4 },
+  etaTime: { fontSize: 32, fontWeight: '900', color: '#000' },
+  etaSubLabel: { fontSize: 12, color: '#999', marginTop: 4, fontStyle: 'italic' },
   providerDetails: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -397,66 +506,33 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
   },
   providerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 56, height: 56, borderRadius: 28,
     backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+    justifyContent: 'center', alignItems: 'center', marginRight: 16,
   },
-  providerInfo: {
-    flex: 1,
-  },
-  providerName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 4,
-  },
-  providerRating: {
-    fontSize: 14,
-    color: '#666',
-  },
+  providerInfo: { flex: 1 },
+  providerName: { fontSize: 18, fontWeight: '700', color: '#000', marginBottom: 4 },
+  providerRating: { fontSize: 14, color: '#666' },
   callButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  missionDetails: {
-    marginBottom: 20,
-  },
-  missionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 8,
-  },
-  missionAddress: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  missionPrice: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#000',
-  },
-  actions: {
-    gap: 12,
-  },
+  missionDetails: { marginBottom: 20 },
+  missionTitle: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 8 },
+  missionAddress: { fontSize: 14, color: '#666', marginBottom: 8 },
+  missionPrice: { fontSize: 20, fontWeight: '900', color: '#000' },
   cancelButton: {
     backgroundColor: '#FEE2E2',
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#DC2626',
+  cancelButtonText: { fontSize: 16, fontWeight: '700', color: '#DC2626' },
+  ongoingBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#DBEAFE', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12,
   },
+  ongoingBannerText: { fontSize: 13, fontWeight: '600', color: '#1D4ED8', flex: 1 },
 });

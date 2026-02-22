@@ -1,5 +1,5 @@
 // app/request/[id]/earnings.tsx
-// Provider sees their earnings after mission completion
+// Provider voit ses gains après mission — montant = star de l'écran
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -9,7 +9,8 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
+  Animated,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -18,20 +19,29 @@ import { api } from '@/lib/api';
 export default function EarningsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  
+
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState<any>(null);
 
-  useEffect(() => {
-    loadRequestDetails();
-  }, [id]);
+  // Animations
+  const checkAnim = useRef(new Animated.Value(0)).current;
+  const priceAnim = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(40)).current;
+
+  useEffect(() => { loadRequestDetails(); }, [id]);
 
   const loadRequestDetails = async () => {
     try {
       const response = await api.get(`/requests/${id}`);
-      const requestData = response.data || response;
-      console.log('💰 [EARNINGS] Request loaded:', requestData);
-      setRequest(requestData);
+      setRequest(response.data || response);
+      // Lancer animations après chargement
+      Animated.sequence([
+        Animated.spring(checkAnim, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }),
+        Animated.parallel([
+          Animated.spring(priceAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
+          Animated.timing(slideUp, { toValue: 0, duration: 350, useNativeDriver: true }),
+        ]),
+      ]).start();
     } catch (error) {
       console.error('Error loading request:', error);
     } finally {
@@ -41,7 +51,7 @@ export default function EarningsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={s.loading}>
         <ActivityIndicator size="large" color="#000" />
       </View>
     );
@@ -49,274 +59,175 @@ export default function EarningsScreen() {
 
   if (!request) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Impossible de charger les détails</Text>
+      <View style={s.loading}>
+        <Text style={s.loadError}>Impossible de charger les détails</Text>
       </View>
     );
   }
 
   const basePrice = Number(request?.price) || 0;
-  const platformFee = Math.round(basePrice * 0.15 * 100) / 100; // 15% commission
-  const earnings = Math.round((basePrice - platformFee) * 100) / 100;
+  const commission = Math.round(basePrice * 0.15 * 100) / 100;
+  const net = Math.round((basePrice - commission) * 100) / 100;
 
-  console.log('💰 [EARNINGS] Calculation:', { basePrice, platformFee, earnings });
+  const rows = [
+    { label: 'Prix de la mission', value: `${basePrice.toFixed(2)} €`, highlight: false },
+    { label: 'Commission (15%)', value: `−${commission.toFixed(2)} €`, highlight: false, negative: true },
+  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Success Icon */}
-        <View style={styles.successIcon}>
-          <View style={styles.successCircle}>
-            <Ionicons name="checkmark" size={64} color="#FFF" />
-          </View>
-        </View>
+    <SafeAreaView style={s.root}>
+      {/* ── Zone succès — fond sombre ── */}
+      <View style={s.heroZone}>
+        {/* Checkmark animé */}
+        <Animated.View style={[s.checkCircle, {
+          transform: [{ scale: checkAnim }],
+          opacity: checkAnim,
+        }]}>
+          <Ionicons name="checkmark" size={40} color="#FFF" />
+        </Animated.View>
 
-        {/* Title */}
-        <Text style={styles.title}>Mission terminée !</Text>
-        <Text style={styles.subtitle}>Votre paiement a été traité</Text>
+        <Text style={s.heroLabel}>Mission terminée</Text>
 
-        {/* Earnings Card */}
-        <View style={styles.earningsCard}>
-          <View style={styles.earningsHeader}>
-            <Text style={styles.earningsLabel}>Vos gains</Text>
-            <Text style={styles.earningsAmount}>{earnings.toFixed(2)}€</Text>
-          </View>
+        {/* Prix net = star */}
+        <Animated.Text style={[s.heroPrice, {
+          transform: [{ scale: priceAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }],
+          opacity: priceAnim,
+        }]}>
+          {net.toFixed(2)} €
+        </Animated.Text>
 
-          <View style={styles.divider} />
+        <Text style={s.heroSub}>sur votre solde dans 2–3 jours ouvrés</Text>
+      </View>
 
-          {/* Breakdown */}
-          <View style={styles.breakdown}>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Prix de la mission</Text>
-              <Text style={styles.breakdownValue}>{basePrice.toFixed(2)}€</Text>
+      {/* ── Zone détail — fond blanc ── */}
+      <Animated.View style={[s.detailZone, { transform: [{ translateY: slideUp }] }]}>
+
+        {/* Calcul compact */}
+        <View style={s.calcCard}>
+          <Text style={s.calcTitle}>Détail du paiement</Text>
+          {rows.map((row, i) => (
+            <View key={i} style={[s.calcRow, i < rows.length - 1 && s.calcRowBorder]}>
+              <Text style={[s.calcLabel, row.negative && s.calcLabelNeg]}>{row.label}</Text>
+              <Text style={[s.calcValue, row.negative && s.calcValueNeg]}>{row.value}</Text>
             </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Commission plateforme (15%)</Text>
-              <Text style={styles.breakdownValue}>-{platformFee.toFixed(2)}€</Text>
+          ))}
+          <View style={s.calcTotal}>
+            <Text style={s.calcTotalLabel}>Total net</Text>
+            <Text style={s.calcTotalValue}>{net.toFixed(2)} €</Text>
+          </View>
+        </View>
+
+        {/* Détails mission compact */}
+        <View style={s.missionCard}>
+          {[
+            { icon: 'construct-outline', text: request?.serviceType },
+            { icon: 'location-outline', text: request?.address },
+            { icon: 'person-outline', text: request?.client?.name },
+          ].filter(r => r.text).map((row, i) => (
+            <View key={i} style={[s.missionRow, i < 2 && s.missionRowBorder]}>
+              <Ionicons name={row.icon as any} size={15} color="#888" />
+              <Text style={s.missionText} numberOfLines={1}>{row.text}</Text>
             </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.breakdownRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{earnings.toFixed(2)}€</Text>
-          </View>
+          ))}
         </View>
 
-        {/* Mission Details */}
-        <View style={styles.detailsCard}>
-          <Text style={styles.detailsTitle}>Détails de la mission</Text>
-          
-          <View style={styles.detailRow}>
-            <Ionicons name="construct" size={20} color="#666" />
-            <Text style={styles.detailText}>{request?.serviceType}</Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Ionicons name="location" size={20} color="#666" />
-            <Text style={styles.detailText}>{request?.address}</Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Ionicons name="person" size={20} color="#666" />
-            <Text style={styles.detailText}>{request?.client?.name}</Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Ionicons name="calendar" size={20} color="#666" />
-            <Text style={styles.detailText}>
-              {new Date(request?.createdAt).toLocaleDateString('fr-FR')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Payment Info */}
-        <View style={styles.paymentInfo}>
-          <Ionicons name="information-circle-outline" size={20} color="#666" />
-          <Text style={styles.paymentInfoText}>
-            Le paiement sera versé sur votre compte bancaire sous 2-3 jours ouvrés
-          </Text>
-        </View>
-
-        {/* Actions */}
+        {/* ── Actions ── */}
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={s.primaryBtn}
           onPress={() => router.push('/(tabs)/dashboard')}
+          activeOpacity={0.88}
         >
-          <Text style={styles.primaryButtonText}>Retour au tableau de bord</Text>
+          <Text style={s.primaryBtnText}>Retour au tableau de bord</Text>
+          <Ionicons name="arrow-forward" size={18} color="#FFF" />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => router.push('/(tabs)/dashboard')}
+          style={s.secondaryBtn}
+          onPress={() => router.push('/wallet')}
         >
-          <Text style={styles.secondaryButtonText}>Voir mes gains totaux</Text>
+          <Text style={s.secondaryBtnText}>Voir mes gains totaux</Text>
         </TouchableOpacity>
-      </ScrollView>
+
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
+// Fix: useRef n'est pas importé automatiquement
+import { useRef } from 'react';
+
+// ============================================================================
+// STYLES
+// ============================================================================
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#111' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  loadError: { fontSize: 15, color: '#888' },
+
+  // Hero zone (fond sombre)
+  heroZone: {
+    alignItems: 'center', paddingTop: 40, paddingBottom: 40, paddingHorizontal: 24,
+    gap: 10,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    padding: 24,
-  },
-  successIcon: {
-    alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 32,
-  },
-  successCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#000',
-    textAlign: 'center',
+  checkCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: '#34C759',
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 8,
+    shadowColor: '#34C759', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 32,
+  heroLabel: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5 },
+  heroPrice: {
+    fontSize: 64, fontWeight: '900', color: '#FFF',
+    letterSpacing: -2, lineHeight: 72,
   },
-  earningsCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  earningsHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  earningsLabel: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
-  },
-  earningsAmount: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#4CAF50',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 20,
-  },
-  breakdown: {
-    gap: 12,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  breakdownLabel: {
-    fontSize: 15,
-    color: '#666',
-  },
-  breakdownValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-  },
-  totalLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000',
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#000',
-  },
-  detailsCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  detailsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  detailText: {
-    fontSize: 15,
-    color: '#666',
+  heroSub: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.35)', textAlign: 'center' },
+
+  // Detail zone (fond blanc, arrondis haut)
+  detailZone: {
     flex: 1,
-  },
-  paymentInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20, paddingTop: 24,
+    paddingBottom: Platform.OS === 'ios' ? 0 : 20,
     gap: 12,
-    backgroundColor: '#EFF6FF',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 24,
   },
-  paymentInfoText: {
-    fontSize: 14,
-    color: '#1E40AF',
-    flex: 1,
+
+  // Calcul
+  calcCard: {
+    backgroundColor: '#F7F7F7', borderRadius: 20,
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4,
+    marginBottom: 4,
   },
-  primaryButton: {
-    backgroundColor: '#000',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 12,
+  calcTitle: { fontSize: 13, fontWeight: '700', color: '#888', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
+  calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  calcRowBorder: { borderBottomWidth: 1, borderBottomColor: '#EBEBEB' },
+  calcLabel: { fontSize: 14, fontWeight: '500', color: '#555' },
+  calcLabelNeg: { color: '#888' },
+  calcValue: { fontSize: 14, fontWeight: '700', color: '#111' },
+  calcValueNeg: { color: '#888' },
+  calcTotal: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 14, borderTopWidth: 1.5, borderTopColor: '#E5E7EB', marginTop: 4,
   },
-  primaryButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFF',
+  calcTotalLabel: { fontSize: 15, fontWeight: '700', color: '#111' },
+  calcTotalValue: { fontSize: 20, fontWeight: '900', color: '#111' },
+
+  // Mission
+  missionCard: {
+    backgroundColor: '#F7F7F7', borderRadius: 20, overflow: 'hidden', marginBottom: 8,
   },
-  secondaryButton: {
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+  missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13 },
+  missionRowBorder: { borderBottomWidth: 1, borderBottomColor: '#EBEBEB' },
+  missionText: { fontSize: 14, fontWeight: '500', color: '#444', flex: 1 },
+
+  // Boutons
+  primaryBtn: {
+    backgroundColor: '#111', borderRadius: 16, height: 54,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  secondaryButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#000',
-  },
+  primaryBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  secondaryBtn: { alignItems: 'center', paddingVertical: 14 },
+  secondaryBtnText: { fontSize: 15, fontWeight: '600', color: '#888' },
 });

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
+// app/(tabs)/profile.tsx — Provider Profile Hub
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +8,7 @@ import {
   SafeAreaView,
   Alert,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -14,13 +16,171 @@ import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 
+// ============================================================================
+// AVATAR WITH INITIALS + CAMERA BADGE
+// ============================================================================
+
+function ProviderAvatar({ name, size = 80 }: { name: string; size?: number }) {
+  const initials = name
+    .split(' ')
+    .map(w => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  const palette = ['#6366F1', '#EC4899', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6'];
+  const bg = palette[name.charCodeAt(0) % palette.length];
+
+  return (
+    <View style={[av.wrapper, { width: size, height: size, borderRadius: size / 2 }]}>
+      <View style={[av.circle, { backgroundColor: bg, borderRadius: size / 2 }]}>
+        <Text style={[av.initials, { fontSize: size * 0.34 }]}>{initials}</Text>
+      </View>
+      <TouchableOpacity
+        style={av.badge}
+        activeOpacity={0.8}
+        onPress={() => Alert.alert('Info', 'Modification de photo en développement')}
+      >
+        <Ionicons name="camera" size={11} color="#FFF" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const av = StyleSheet.create({
+  wrapper: { position: 'relative' },
+  circle: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  initials: { color: '#FFF', fontWeight: '800', letterSpacing: 1 },
+  badge: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: '#172247',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2.5, borderColor: '#FFF',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4 },
+      android: { elevation: 3 },
+    }),
+  },
+});
+
+// ============================================================================
+// STAT BADGE
+// ============================================================================
+
+function StatBadge({
+  icon, iconColor, iconBg, value, label,
+}: {
+  icon: string; iconColor: string; iconBg: string; value: string; label: string;
+}) {
+  return (
+    <View style={sb.wrap}>
+      <View style={[sb.iconBox, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon as any} size={16} color={iconColor} />
+      </View>
+      <Text style={sb.value}>{value}</Text>
+      <Text style={sb.label}>{label}</Text>
+    </View>
+  );
+}
+
+const sb = StyleSheet.create({
+  wrap: { flex: 1, alignItems: 'center', gap: 4 },
+  iconBox: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+  },
+  value: { fontSize: 16, fontWeight: '800', color: '#111' },
+  label: { fontSize: 10, color: '#9CA3AF', fontWeight: '500', textAlign: 'center' },
+});
+
+// ============================================================================
+// MENU SECTION
+// ============================================================================
+
+type MenuItem = {
+  icon: string;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  sublabel?: string;
+  onPress: () => void;
+  danger?: boolean;
+};
+
+function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
+  return (
+    <View style={ms.wrap}>
+      {!!title && <Text style={ms.title}>{title}</Text>}
+      <View style={ms.card}>
+        {items.map((item, i) => (
+          <React.Fragment key={i}>
+            <TouchableOpacity style={ms.row} onPress={item.onPress} activeOpacity={0.7}>
+              <View style={[ms.iconBox, { backgroundColor: item.iconBg }]}>
+                <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
+              </View>
+              <View style={ms.content}>
+                <Text style={[ms.label, item.danger && ms.labelDanger]}>{item.label}</Text>
+                {item.sublabel ? <Text style={ms.sublabel}>{item.sublabel}</Text> : null}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={item.danger ? '#FCA5A5' : '#D1D5DB'} />
+            </TouchableOpacity>
+            {i < items.length - 1 && <View style={ms.divider} />}
+          </React.Fragment>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const ms = StyleSheet.create({
+  wrap: { marginBottom: 8 },
+  title: {
+    fontSize: 11, fontWeight: '700', color: '#9CA3AF',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+    marginBottom: 8, paddingHorizontal: 4,
+  },
+  card: {
+    backgroundColor: '#FFF', borderRadius: 18, overflow: 'hidden',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 2 },
+    }),
+  },
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 13, gap: 12,
+  },
+  iconBox: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  content: { flex: 1 },
+  label: { fontSize: 15, fontWeight: '600', color: '#111' },
+  labelDanger: { color: '#DC2626' },
+  sublabel: { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
+  divider: { height: 1, backgroundColor: '#F9FAFB', marginLeft: 64 },
+});
+
+// ============================================================================
+// MAIN SCREEN
+// ============================================================================
+
 export default function Profile() {
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const [showSettings, setShowSettings] = useState(false);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['40%', '70%'], []);
+
+  const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
+  const email = user?.email || '';
+  const roles = user?.roles?.join(' · ') || 'Prestataire';
+
+  // Stats — à connecter à l'API
+  const stats = { rating: '4,9', missions: '127', earnings: '2 840 €', acceptance: '94%' };
+
+  const wip = (label: string) => () =>
+    Alert.alert(label, 'Fonctionnalité en développement');
 
   const handleLogout = () => {
     Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
@@ -36,79 +196,128 @@ export default function Profile() {
     ]);
   };
 
-  const handleSettingsPress = () => {
-    bottomSheetRef.current?.expand();
-  };
-
-  const renderBackdrop = React.useCallback(
+  const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />
     ),
     []
   );
 
-  const settingsOptions = [
+  const accountItems: MenuItem[] = [
     {
-      icon: 'person-outline',
-      label: 'Modifier le profil',
-      onPress: () => {
-        bottomSheetRef.current?.close();
-        // router.push('/edit-profile');
-        Alert.alert('Info', 'Fonctionnalité en développement');
-      },
+      icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF',
+      label: 'Informations personnelles', sublabel: 'Nom, téléphone, adresse',
+      onPress: wip('Informations personnelles'),
     },
     {
-      icon: 'notifications-outline',
-      label: 'Notifications',
-      onPress: () => {
-        bottomSheetRef.current?.close();
-        Alert.alert('Info', 'Fonctionnalité en développement');
-      },
+      icon: 'card-outline', iconColor: '#8B5CF6', iconBg: '#EDE9FE',
+      label: 'Coordonnées bancaires', sublabel: 'IBAN pour recevoir vos gains',
+      onPress: wip('Coordonnées bancaires'),
     },
     {
-      icon: 'lock-closed-outline',
-      label: 'Confidentialité',
-      onPress: () => {
-        bottomSheetRef.current?.close();
-        Alert.alert('Info', 'Fonctionnalité en développement');
-      },
-    },
-    {
-      icon: 'help-circle-outline',
-      label: 'Aide et support',
-      onPress: () => {
-        bottomSheetRef.current?.close();
-        Alert.alert('Info', 'Fonctionnalité en développement');
-      },
+      icon: 'shield-checkmark-outline', iconColor: '#059669', iconBg: '#ECFDF5',
+      label: 'Documents légaux', sublabel: 'Assurance, immatriculation',
+      onPress: wip('Documents légaux'),
     },
   ];
 
+  const prefItems: MenuItem[] = [
+    {
+      icon: 'notifications-outline', iconColor: '#F59E0B', iconBg: '#FFFBEB',
+      label: 'Notifications', sublabel: 'Alertes missions, rappels',
+      onPress: wip('Notifications'),
+    },
+    {
+      icon: 'lock-closed-outline', iconColor: '#6B7280', iconBg: '#F3F4F6',
+      label: 'Confidentialité',
+      onPress: wip('Confidentialité'),
+    },
+  ];
+
+  const supportItems: MenuItem[] = [
+    {
+      icon: 'help-circle-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF',
+      label: 'Aide et support',
+      onPress: wip('Aide et support'),
+    },
+    {
+      icon: 'chatbubble-ellipses-outline', iconColor: '#10B981', iconBg: '#ECFDF5',
+      label: 'Nous contacter',
+      onPress: wip('Nous contacter'),
+    },
+    {
+      icon: 'document-text-outline', iconColor: '#9CA3AF', iconBg: '#F3F4F6',
+      label: 'Conditions générales',
+      onPress: wip('CGU'),
+    },
+  ];
+
+  const dangerItems: MenuItem[] = [
+    {
+      icon: 'log-out-outline', iconColor: '#DC2626', iconBg: '#FEF2F2',
+      label: 'Déconnexion',
+      danger: true,
+      onPress: handleLogout,
+    },
+  ];
+
+  const sheetItems = [
+    { icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Modifier le profil' },
+    { icon: 'notifications-outline', iconColor: '#F59E0B', iconBg: '#FFFBEB', label: 'Notifications' },
+    { icon: 'lock-closed-outline', iconColor: '#6B7280', iconBg: '#F3F4F6', label: 'Confidentialité' },
+    { icon: 'help-circle-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Aide et support' },
+  ];
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profil</Text>
-        <TouchableOpacity onPress={handleSettingsPress}>
-          <Ionicons name="settings-outline" size={24} color="#111827" />
+    <SafeAreaView style={s.root}>
+      {/* Header */}
+      <View style={s.header}>
+        <Text style={s.headerTitle}>Profil</Text>
+        <TouchableOpacity
+          style={s.settingsBtn}
+          onPress={() => bottomSheetRef.current?.expand()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="settings-outline" size={20} color="#172247" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#9CA3AF" />
-        </View>
-        <Text style={styles.name}>{user?.email}</Text>
-        <Text style={styles.roles}>{user?.roles?.join(' • ') || 'Client'}</Text>
-      </View>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-      <TouchableOpacity style={styles.logout} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={24} color="#DC2626" />
-        <Text style={styles.logoutText}>Déconnexion</Text>
-      </TouchableOpacity>
+        {/* Identity Card */}
+        <View style={s.identityCard}>
+          <ProviderAvatar name={displayName} size={82} />
+          <View style={s.identityInfo}>
+            <Text style={s.identityName}>{displayName}</Text>
+            <Text style={s.identityEmail}>{email}</Text>
+            <View style={s.rolesPill}>
+              <Ionicons name="briefcase-outline" size={11} color="#172247" />
+              <Text style={s.rolesText}>{roles}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Stats Row */}
+        <View style={s.statsCard}>
+          <StatBadge icon="star" iconColor="#F59E0B" iconBg="#FFFBEB" value={stats.rating} label="Note" />
+          <View style={s.statsDivider} />
+          <StatBadge icon="checkmark-circle-outline" iconColor="#059669" iconBg="#ECFDF5" value={stats.missions} label="Missions" />
+          <View style={s.statsDivider} />
+          <StatBadge icon="cash-outline" iconColor="#8B5CF6" iconBg="#EDE9FE" value={stats.earnings} label="Ce mois" />
+          <View style={s.statsDivider} />
+          <StatBadge icon="trending-up-outline" iconColor="#3B82F6" iconBg="#EFF6FF" value={stats.acceptance} label="Taux accept." />
+        </View>
+
+        {/* Menus */}
+        <View style={s.sections}>
+          <MenuSection title="Mon compte" items={accountItems} />
+          <MenuSection title="Préférences" items={prefItems} />
+          <MenuSection title="Support" items={supportItems} />
+          <MenuSection items={dangerItems} />
+        </View>
+
+        <Text style={s.version}>Version 1.0.0</Text>
+      </ScrollView>
 
       {/* Bottom Sheet */}
       <BottomSheet
@@ -118,20 +327,25 @@ export default function Profile() {
         enablePanDownToClose
         backdropComponent={renderBackdrop}
       >
-        <BottomSheetView style={styles.bottomSheetContent}>
-          <Text style={styles.sheetTitle}>Paramètres</Text>
+        <BottomSheetView style={s.sheetContent}>
+          <View style={s.sheetHandle} />
+          <Text style={s.sheetTitle}>Paramètres</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {settingsOptions.map((option, index) => (
+            {sheetItems.map((item, i) => (
               <TouchableOpacity
-                key={index}
-                style={styles.settingItem}
-                onPress={option.onPress}
+                key={i}
+                style={s.sheetRow}
+                activeOpacity={0.7}
+                onPress={() => {
+                  bottomSheetRef.current?.close();
+                  Alert.alert('Info', 'Fonctionnalité en développement');
+                }}
               >
-                <View style={styles.settingLeft}>
-                  <Ionicons name={option.icon as any} size={24} color="#111827" />
-                  <Text style={styles.settingLabel}>{option.label}</Text>
+                <View style={[s.sheetIcon, { backgroundColor: item.iconBg }]}>
+                  <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                <Text style={s.sheetLabel}>{item.label}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -141,80 +355,80 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+// ============================================================================
+// STYLES
+// ============================================================================
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F8F9FB' },
+
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
   },
-  title: { fontSize: 24, fontWeight: '700', color: '#111827' },
-  card: {
-    backgroundColor: '#fff',
-    margin: 20,
-    padding: 40,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+  headerTitle: { fontSize: 26, fontWeight: '800', color: '#111' },
+  settingsBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center',
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+
+  scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 48 },
+
+  identityCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFF', borderRadius: 20,
+    padding: 20, gap: 16, marginBottom: 12,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } },
+      android: { elevation: 3 },
+    }),
   },
-  name: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  roles: { fontSize: 16, color: '#6B7280' },
-  logout: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    margin: 20,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
+  identityInfo: { flex: 1, gap: 3 },
+  identityName: { fontSize: 20, fontWeight: '800', color: '#111' },
+  identityEmail: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
+  rolesPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#EEF2FF', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+    alignSelf: 'flex-start', marginTop: 4,
   },
-  logoutText: { color: '#DC2626', fontSize: 16, fontWeight: '600', marginLeft: 12 },
-  bottomSheetContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  sheetTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
+  rolesText: { fontSize: 11, fontWeight: '700', color: '#172247' },
+
+  statsCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFF', borderRadius: 20,
+    paddingVertical: 16, paddingHorizontal: 12,
     marginBottom: 20,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } },
+      android: { elevation: 3 },
+    }),
   },
-  settingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  statsDivider: { width: 1, height: 40, backgroundColor: '#F3F4F6' },
+
+  sections: { gap: 16 },
+
+  version: {
+    textAlign: 'center', fontSize: 12, color: '#D1D5DB',
+    marginTop: 24, fontWeight: '500',
   },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+
+  sheetContent: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
+  sheetHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 20,
   },
-  settingLabel: {
-    fontSize: 16,
-    color: '#111827',
-    marginLeft: 16,
-    fontWeight: '500',
+  sheetTitle: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 16 },
+  sheetRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 13,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
   },
+  sheetIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sheetLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111' },
 });

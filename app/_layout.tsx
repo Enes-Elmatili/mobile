@@ -1,47 +1,69 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import { SocketProvider } from '../lib/SocketContext';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
-// ✅ Récupération sécurisée de la clé publique
-// Le fallback (|| "pk_test...") assure que ça marche même si le .env a un souci en dev
 const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL";
+
+// ✅ Routes qui font partie d'un flow mission
+// Le layout ne doit JAMAIS rediriger quand l'utilisateur est sur ces routes
+const MISSION_FLOW_ROUTES = [
+  'ongoing',
+  'tracking',
+  'earnings',
+  'NewRequestStepper',
+];
 
 function RootLayoutNav() {
   const { user, isBooting } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
-    if (isBooting) {
-      console.log('🔄 BOOT IN PROGRESS...');
+    if (isBooting) return;
+
+    const currentPath = segments.join('/');
+    const inAuthGroup = segments[0] === '(auth)';
+
+    // ✅ GUARD : Ne jamais interrompre un flow mission
+    const isOnMissionFlow = MISSION_FLOW_ROUTES.some(route =>
+      currentPath.includes(route)
+    );
+
+    if (isOnMissionFlow) {
+      console.log('🚫 [LAYOUT] Mission flow active, skipping redirect:', currentPath);
       return;
     }
 
-    const inAuthGroup = segments[0] === '(auth)';
-
-    console.log('🔍 NAVIGATION CHECK:', {
+    console.log('🔍 [LAYOUT] Navigation check:', {
       user: user?.email || 'null',
       inAuthGroup,
-      segments: segments.join('/'),
+      path: currentPath,
     });
 
     if (!user && !inAuthGroup) {
-      console.log('➡️ REDIRECT TO LOGIN (no user)');
+      console.log('➡️ [LAYOUT] Redirect to login');
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
-      console.log('➡️ REDIRECT TO DASHBOARD (user logged)');
-      router.replace('/(tabs)/dashboard');
+      // ✅ Seulement rediriger vers dashboard une fois après login
+      if (!hasRedirected.current) {
+        hasRedirected.current = true;
+        console.log('➡️ [LAYOUT] Redirect to dashboard (post-login)');
+        router.replace('/(tabs)/dashboard');
+      }
     } else {
-      console.log('✅ No redirect needed');
+      // ✅ Reset le flag quand on est sur auth (= on s'est déconnecté)
+      if (inAuthGroup) hasRedirected.current = false;
+      console.log('✅ [LAYOUT] No redirect needed');
     }
-  }, [user, isBooting, segments, router]);
+  }, [user, isBooting, segments]);
 
   if (isBooting) {
-    console.log('⏳ Showing boot spinner...');
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#172247" />
@@ -55,10 +77,10 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
-      <StripeProvider 
+      <StripeProvider
         publishableKey={STRIPE_PUBLISHABLE_KEY}
-        merchantIdentifier="merchant.com.fixed.app" // DOIT MATCHER app.json
-        urlScheme="fixed"                           // DOIT MATCHER app.json
+        merchantIdentifier="merchant.com.fixed.app"
+        urlScheme="fixed"
       >
         <AuthProvider>
           <SocketProvider>
@@ -71,7 +93,5 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
 });

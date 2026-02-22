@@ -211,14 +211,12 @@ class ApiClient {
     update: (id: string, data: any) => this.put(`/users/${id}`, data),
   };
 
-  // ==================== REQUESTS (CLIENT) ====================
+  // ==================== REQUESTS (CLIENT + PROVIDER) ====================
   requests = {
+    // GET /requests — retourne les demandes du client OU les missions du provider
+    // Le backend détecte automatiquement le rôle via le token JWT
     list: async (params?: { page?: number; limit?: number }) => {
-      const dashboard = await this.request<any>('/client/dashboard');
-      return {
-        data: dashboard.requests || [],
-        total: dashboard.requests?.length || 0,
-      };
+      return this.request<any>('/requests');
     },
     get: (id: string) => this.request(`/requests/${id}`),
     create: (data: any) => this.post('/requests', data),

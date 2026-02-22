@@ -1,28 +1,57 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/exhaustive-deps */
+// app/(tabs)/provider-dashboard.tsx
+// Mode "Dispatch" — Google Maps dark plein écran + pop-up mission avec timer
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Animated,
   Vibration,
-  Alert,
   StatusBar,
-  RefreshControl,
+  Platform,
+  Dimensions,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
+import Constants from 'expo-constants';
+
+const { width, height } = Dimensions.get('window');
+const TIMER_DURATION = 15;
+
+// ─── Google Maps dark style (Uber driver aesthetic) ────────────────────────
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#0a0a0a' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#444444' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0a0a' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212121' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#333333' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#222222' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f1f1f' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#050505' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#1a1a1a' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
+  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#333333' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#3a3a3a' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0d0d0d' }] },
+];
 
 // ============================================================================
 // UTILS
 // ============================================================================
 
-/** Convertit des centimes en euros formatés : 21250 → "212,50 €" */
 const formatEuros = (cents: number): string =>
   (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
@@ -31,9 +60,9 @@ const formatEuros = (cents: number): string =>
 // ============================================================================
 
 interface WalletData {
-  balance: number;       // en centimes (ex: 183078 = 1830,78 €)
-  pendingAmount: number; // en centimes
-  totalEarnings: number; // en centimes
+  balance: number;
+  pendingAmount: number;
+  totalEarnings: number;
 }
 
 interface ProviderStats {
@@ -46,554 +75,719 @@ interface IncomingRequest {
   requestId: string;
   title: string;
   description: string;
-  price: number; // en euros (ex: 250)
+  price: number;
   address: string;
   urgent: boolean;
   distance?: number;
   clientId?: string;
-  client: {
-    name: string;
-  };
+  client: { name: string };
+  latitude?: number;
+  longitude?: number;
 }
+
+// ============================================================================
+// RADAR PULSE (affiché au centre de la carte quand online)
+// ============================================================================
+
+function RadarPulse() {
+  const ring1 = useRef(new Animated.Value(0)).current;
+  const ring2 = useRef(new Animated.Value(0)).current;
+  const ring3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const pulse = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      ).start();
+    pulse(ring1, 0);
+    pulse(ring2, 600);
+    pulse(ring3, 1200);
+  }, []);
+
+  const ring = (anim: Animated.Value) => ({
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 3] }) }],
+    opacity: anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.2, 0] }),
+  });
+
+  return (
+    <View style={radar.wrap}>
+      <Animated.View style={[radar.ring, ring(ring1)]} />
+      <Animated.View style={[radar.ring, ring(ring2)]} />
+      <Animated.View style={[radar.ring, ring(ring3)]} />
+      <View style={radar.core}>
+        <Ionicons name="navigate-circle" size={44} color="#FFF" />
+      </View>
+    </View>
+  );
+}
+
+const radar = StyleSheet.create({
+  wrap: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center' },
+  ring: {
+    position: 'absolute',
+    width: 80, height: 80, borderRadius: 40,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)',
+  },
+  core: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+});
+
+// ============================================================================
+// INCOMING JOB CARD
+// ============================================================================
+
+function IncomingJobCard({
+  request,
+  onAccept,
+  onDecline,
+}: {
+  request: IncomingRequest;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  const slideUp  = useRef(new Animated.Value(400)).current;
+  const timerAnim = useRef(new Animated.Value(1)).current;
+  const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
+
+  useEffect(() => {
+    Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 11, useNativeDriver: true }).start();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) { clearInterval(interval); onDecline(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    Animated.timing(timerAnim, {
+      toValue: 0,
+      duration: TIMER_DURATION * 1000,
+      useNativeDriver: false,
+    }).start();
+    return () => clearInterval(interval);
+  }, []);
+
+  const netPrice = request.price * 0.85;
+  const timerColor = timerAnim.interpolate({
+    inputRange: [0, 0.33, 1],
+    outputRange: ['#FF3B30', '#FF9500', '#34C759'],
+  });
+
+  return (
+    <Animated.View style={[jc.wrap, { transform: [{ translateY: slideUp }] }]}>
+      <View style={jc.timerTrack}>
+        <Animated.View style={[jc.timerFill, {
+          width: timerAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+          backgroundColor: timerColor,
+        }]} />
+      </View>
+
+      <View style={jc.header}>
+        <View style={jc.headerLeft}>
+          {request.urgent && (
+            <View style={jc.urgentPill}>
+              <Ionicons name="flash" size={11} color="#FFF" />
+              <Text style={jc.urgentText}>URGENT</Text>
+            </View>
+          )}
+          <Text style={jc.title} numberOfLines={2}>{request.title}</Text>
+        </View>
+        <View style={jc.priceBlock}>
+          <Text style={jc.priceLabel}>Net</Text>
+          <Text style={jc.price}>{netPrice.toFixed(0)}€</Text>
+          <Text style={jc.priceGross}>({request.price}€ brut)</Text>
+        </View>
+      </View>
+
+      <View style={jc.metas}>
+        <View style={jc.meta}>
+          <Ionicons name="location-outline" size={14} color="#888" />
+          <Text style={jc.metaText} numberOfLines={1}>{request.address}</Text>
+        </View>
+        {request.distance !== undefined && (
+          <View style={jc.meta}>
+            <Ionicons name="navigate-outline" size={14} color="#888" />
+            <Text style={jc.metaText}>{request.distance.toFixed(1)} km · ~{Math.round(request.distance * 3)} min</Text>
+          </View>
+        )}
+        <View style={jc.meta}>
+          <Ionicons name="person-outline" size={14} color="#888" />
+          <Text style={jc.metaText}>{request.client.name}</Text>
+        </View>
+      </View>
+
+      <View style={jc.footer}>
+        <View style={jc.timerCircle}>
+          <Text style={[jc.timerNum, timeLeft <= 5 && jc.timerUrgent]}>{timeLeft}</Text>
+        </View>
+        <TouchableOpacity style={jc.declineBtn} onPress={onDecline} activeOpacity={0.7}>
+          <Ionicons name="close" size={22} color="#FF3B30" />
+        </TouchableOpacity>
+        <TouchableOpacity style={jc.acceptBtn} onPress={onAccept} activeOpacity={0.88}>
+          <Text style={jc.acceptText}>Accepter</Text>
+          <Ionicons name="arrow-forward" size={18} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+}
+
+const jc = StyleSheet.create({
+  wrap: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 0, paddingHorizontal: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: -8 },
+    elevation: 20,
+  },
+  timerTrack: { height: 4, backgroundColor: '#F0F0F0', borderRadius: 2, marginBottom: 20, overflow: 'hidden' },
+  timerFill: { height: '100%', borderRadius: 2 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 16 },
+  headerLeft: { flex: 1, gap: 6 },
+  urgentPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#FF3B30', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start',
+  },
+  urgentText: { fontSize: 10, fontWeight: '900', color: '#FFF', letterSpacing: 0.5 },
+  title: { fontSize: 18, fontWeight: '800', color: '#111', lineHeight: 24 },
+  priceBlock: { alignItems: 'flex-end' },
+  priceLabel: { fontSize: 10, fontWeight: '600', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 },
+  price: { fontSize: 38, fontWeight: '900', color: '#111', lineHeight: 44, letterSpacing: -1 },
+  priceGross: { fontSize: 11, color: '#ADADAD', fontWeight: '500' },
+  metas: { gap: 8, marginBottom: 20 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaText: { fontSize: 13, color: '#555', fontWeight: '500', flex: 1 },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  timerCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+  },
+  timerNum: { fontSize: 16, fontWeight: '800', color: '#111' },
+  timerUrgent: { color: '#FF3B30' },
+  declineBtn: {
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#FECACA',
+  },
+  acceptBtn: {
+    flex: 1, height: 50, backgroundColor: '#111',
+    borderRadius: 16, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  acceptText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+});
+
+// ============================================================================
+// WALLET PILL
+// ============================================================================
+
+function WalletPill({ wallet, onPress }: { wallet: WalletData | null; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={wp.wrap} onPress={onPress} activeOpacity={0.85}>
+      <Ionicons name="wallet-outline" size={16} color="#FFF" />
+      <Text style={wp.balance}>{formatEuros(wallet?.balance || 0)}</Text>
+      <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" />
+    </TouchableOpacity>
+  );
+}
+
+const wp = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+  },
+  balance: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+});
+
+// ============================================================================
+// STATS ROW — données réelles depuis /provider/dashboard
+// ============================================================================
+
+function StatsRow({ stats, loading }: { stats: ProviderStats; loading: boolean }) {
+  const items = [
+    { icon: 'checkmark-circle-outline', value: loading ? '—' : String(stats.jobsCompleted), label: 'Missions' },
+    { icon: 'star-outline',             value: loading ? '—' : stats.avgRating.toFixed(1),   label: 'Note' },
+    { icon: 'trophy-outline',           value: loading ? '—' : String(Math.round(stats.rankScore)), label: 'Rang' },
+  ];
+  return (
+    <View style={srow.wrap}>
+      {items.map((item, i) => (
+        <View key={i} style={srow.pill}>
+          <Ionicons name={item.icon as any} size={14} color="rgba(255,255,255,0.7)" />
+          <Text style={srow.value}>{item.value}</Text>
+          <Text style={srow.label}>{item.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const srow = StyleSheet.create({
+  wrap: { flexDirection: 'row', gap: 8 },
+  pill: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  value: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  label: { fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.45)' },
+});
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export default function ProviderDashboard() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const { socket, isConnected } = useSocket();
-  
-  // Animation refs
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  
-  // State
-  const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [stats, setStats] = useState<ProviderStats>({
-    jobsCompleted: 0,
-    avgRating: 5.0,
-    rankScore: 100,
-  });
-  const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [isOnline, setIsOnline] = useState(false);
 
-  // ============================================================================
-  // ANIMATIONS
-  // ============================================================================
+// ============================================================================
+// ISLAND STATUS — Dynamic Island style, opaque noir, centré en haut
+// ============================================================================
+
+function IslandStatus({
+  isOnline,
+  isConnected,
+  onToggle,
+}: {
+  isOnline: boolean;
+  isConnected: boolean;
+  onToggle: () => void;
+}) {
+  const glowAnim  = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    if (incomingRequests.length === 0 && isOnline) {
+    if (isOnline) {
+      // Glow pulse en boucle quand online
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.08,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
         ])
       ).start();
+    } else {
+      glowAnim.stopAnimation();
+      glowAnim.setValue(0);
     }
-  }, [incomingRequests.length, isOnline]);
+  }, [isOnline]);
 
-  // ============================================================================
-  // DATA LOADING
-  // ============================================================================
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      // Load wallet — la balance arrive en centimes depuis le backend
-      const walletResponse = await api.get('/wallet');
-      setWallet({
-        balance: walletResponse.balance || 0,
-        pendingAmount: walletResponse.pendingAmount || 0,
-        totalEarnings: walletResponse.totalEarnings || 0,
-      });
-
-      // Load user info from /me
-      const meResponse = await api.get('/me');
-      const userData = meResponse.data || meResponse;
-      
-      setStats({
-        jobsCompleted: userData.jobsCompleted || 0,
-        avgRating: userData.avgRating || 5.0,
-        rankScore: userData.rankScore || 100,
-      });
-
-      console.log('✅ Provider data loaded');
-    } catch (error) {
-      console.error('❌ Error loading data:', error);
-      Alert.alert('Erreur', 'Impossible de charger vos données');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+    ]).start();
+    onToggle();
   };
 
-  // ============================================================================
-  // SOCKET.IO LISTENERS
-  // ============================================================================
+  const dotOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+  const dotScale   = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] });
 
+  return (
+    <View style={island.wrapper}>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <TouchableOpacity
+          style={[island.pill, isOnline && island.pillOnline]}
+          onPress={handlePress}
+          activeOpacity={1}
+        >
+          {/* Dot animé */}
+          <View style={island.dotWrap}>
+            {isOnline && (
+              <Animated.View style={[island.dotGlow, { opacity: dotOpacity, transform: [{ scale: dotScale }] }]} />
+            )}
+            <View style={[island.dot, isOnline ? island.dotOnline : island.dotOffline]} />
+          </View>
+
+          {/* Label */}
+          <Text style={[island.label, isOnline && island.labelOnline]}>
+            {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
+          </Text>
+
+          {/* Icône droite */}
+          <Ionicons
+            name={isOnline ? 'radio-outline' : 'power-outline'}
+            size={14}
+            color={isOnline ? '#34C759' : '#555'}
+          />
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+}
+
+const island = StyleSheet.create({
+  wrapper: { alignItems: 'center' },
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#111111',
+    paddingHorizontal: 18, paddingVertical: 11,
+    borderRadius: 30,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+  },
+  pillOnline: {
+    borderColor: 'rgba(52,199,89,0.25)',
+    shadowColor: '#34C759', shadowOpacity: 0.2,
+  },
+  dotWrap:  { width: 10, height: 10, alignItems: 'center', justifyContent: 'center' },
+  dotGlow:  { position: 'absolute', width: 16, height: 16, borderRadius: 8, backgroundColor: '#34C759' },
+  dot:      { width: 7, height: 7, borderRadius: 4 },
+  dotOnline:  { backgroundColor: '#34C759' },
+  dotOffline: { backgroundColor: '#444' },
+  label:      { fontSize: 12, fontWeight: '800', color: '#444', letterSpacing: 1 },
+  labelOnline: { color: '#34C759' },
+});
+
+export default function ProviderDashboard() {
+  const router   = useRouter();
+  const { user } = useAuth();
+  const { socket, isConnected } = useSocket();
+
+  const mapRef   = useRef<MapView>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const [location, setLocation]           = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationError, setLocationError] = useState(false);
+  const [wallet, setWallet]               = useState<WalletData | null>(null);
+  const [stats, setStats]                 = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
+  const [statsLoading, setStatsLoading]   = useState(true);
+  const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [isOnline, setIsOnline]           = useState(false);
+
+  // ── Fade in ──
+  useEffect(() => {
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+  }, []);
+
+  // ── Géolocalisation ──
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { setLocationError(true); return; }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      setLocation(coords);
+
+      // Centrer la carte sur la position du provider
+      mapRef.current?.animateToRegion({
+        ...coords,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      }, 800);
+
+      // Tracking continu pour update le socket
+      Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 30 },
+        (l) => {
+          const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
+          setLocation(c);
+          if (socket && isOnline && user?.id) {
+            socket.emit('provider:location', { providerId: user.id, ...c });
+          }
+        }
+      );
+    })();
+  }, []);
+
+  // ── Data depuis /provider/dashboard (stats réelles) ──
+  const loadData = useCallback(async () => {
+    // Appels indépendants — si l'un échoue, l'autre continue
+    const results = await Promise.allSettled([
+      api.wallet.balance(),   // GET /wallet
+      api.user.me(),          // GET /auth/me — contient jobsCompleted, avgRating, rankScore
+    ]);
+
+    // Wallet
+    if (results[0].status === 'fulfilled') {
+      const walletRes = results[0].value as any;
+      setWallet({
+        balance:       walletRes.balance       || 0,
+        pendingAmount: walletRes.pendingAmount  || 0,
+        totalEarnings: walletRes.totalEarnings  || 0,
+      });
+    } else {
+      console.warn('Wallet load failed:', (results[0] as PromiseRejectedResult).reason?.message);
+    }
+
+    // Stats depuis /auth/me
+    if (results[1].status === 'fulfilled') {
+      const meRes = results[1].value as any;
+      const u = meRes.user || meRes.data || meRes;
+      setStats({
+        jobsCompleted: u.jobsCompleted ?? u.completedMissions ?? u.totalCompleted ?? 0,
+        avgRating:     u.avgRating     ?? u.averageRating      ?? u.rating        ?? 5.0,
+        rankScore:     u.rankScore     ?? u.rank               ?? u.score         ?? 0,
+      });
+    } else {
+      console.warn('Stats load failed:', (results[1] as PromiseRejectedResult).reason?.message);
+    }
+
+    setStatsLoading(false);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ── Socket ──
   useEffect(() => {
     if (!socket || !user?.id) return;
 
-    console.log('🔌 Setting up socket listeners for provider:', user.id);
-
-    if (socket.connected) {
-      socket.emit('provider:register', { providerId: user.id });
-      console.log('📡 Emitted provider:register');
-    }
+    if (socket.connected) socket.emit('provider:register', { providerId: user.id });
 
     const handleNewRequest = (data: any) => {
-      console.log('🔔 New request received:', data);
-      Vibration.vibrate([0, 100, 50, 100]);
-      
-      const request: IncomingRequest = {
-        requestId: data.requestId || data.id,
-        title: data.title,
+      Vibration.vibrate([0, 200, 100, 200]);
+      const req: IncomingRequest = {
+        requestId:   data.requestId || data.id,
+        title:       data.title,
         description: data.description,
-        price: data.price, // en euros, pas en centimes
-        address: data.location?.address || data.address || 'Adresse non spécifiée',
-        urgent: data.urgent || data.priority === 'recent',
-        distance: data.distance,
-        clientId: data.clientId || data.client?.id,
-        client: {
-          name: data.client?.name || 'Client',
-        },
+        price:       data.price,
+        address:     data.location?.address || data.address || 'Adresse inconnue',
+        urgent:      data.urgent || false,
+        distance:    data.distance,
+        clientId:    data.clientId || data.client?.id,
+        client:      { name: data.client?.name || 'Client' },
+        latitude:    data.location?.latitude  || data.latitude,
+        longitude:   data.location?.longitude || data.longitude,
       };
-      
-      setIncomingRequests((prev) => {
-        if (prev.some(r => r.requestId === request.requestId)) return prev;
-        return [request, ...prev];
-      });
-    };
+      setIncomingRequests(prev =>
+        prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]
+      );
 
-    const handleRequestClaimed = (requestId: string | number) => {
-      const id = String(requestId);
-      console.log('⚠️ Request claimed by another provider:', id);
-      setIncomingRequests((prev) => prev.filter(r => r.requestId !== id));
-    };
-
-    const handleRequestExpired = (requestId: string | number) => {
-      const id = String(requestId);
-      console.log('⏰ Request expired:', id);
-      setIncomingRequests((prev) => prev.filter(r => r.requestId !== id));
-    };
-
-    const handleStatusUpdate = (data: { providerId: string; status: string }) => {
-      if (data.providerId === user.id) {
-        console.log('✅ Status updated:', data.status);
-        setIsOnline(data.status === 'ONLINE' || data.status === 'READY');
+      // Zoomer sur le marker de la mission entrante
+      if (req.latitude && req.longitude) {
+        mapRef.current?.animateToRegion({
+          latitude:      req.latitude,
+          longitude:     req.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        }, 600);
       }
     };
 
-    socket.on('new_request', handleNewRequest);
-    socket.on('request:claimed', handleRequestClaimed);
-    socket.on('request:expired', handleRequestExpired);
+    const removeRequest = (id: string | number) =>
+      setIncomingRequests(prev => prev.filter(r => r.requestId !== String(id)));
+
+    const handleStatusUpdate = (data: { providerId: string; status: string }) => {
+      if (data.providerId === user.id) setIsOnline(['ONLINE', 'READY'].includes(data.status));
+    };
+
+    socket.on('new_request',           handleNewRequest);
+    socket.on('request:claimed',       removeRequest);
+    socket.on('request:expired',       removeRequest);
     socket.on('provider:status_update', handleStatusUpdate);
 
     return () => {
-      socket.off('new_request', handleNewRequest);
-      socket.off('request:claimed', handleRequestClaimed);
-      socket.off('request:expired', handleRequestExpired);
+      socket.off('new_request',            handleNewRequest);
+      socket.off('request:claimed',        removeRequest);
+      socket.off('request:expired',        removeRequest);
       socket.off('provider:status_update', handleStatusUpdate);
     };
   }, [socket, user?.id]);
 
-  // ============================================================================
-  // ACTIONS
-  // ============================================================================
-
-  const handleStatusChange = useCallback(() => {
+  // ── Toggle En ligne ──
+  const handleToggleOnline = useCallback(() => {
     if (!user?.id) return;
-
-    const newStatus = !isOnline;
-    const statusValue = newStatus ? 'READY' : 'OFFLINE';
-    
-    setIsOnline(newStatus);
+    const next = !isOnline;
+    setIsOnline(next);
     Vibration.vibrate(50);
+    if (socket) socket.emit('provider:set_status', { providerId: user.id, status: next ? 'READY' : 'OFFLINE' });
+    if (!next) setIncomingRequests([]);
 
-    if (socket) {
-      socket.emit('provider:set_status', {
-        providerId: user.id,
-        status: statusValue,
-      });
-      console.log('📡 Emitted provider:set_status:', statusValue);
+    // Recentrer sur la position du provider quand il passe online
+    if (next && location) {
+      mapRef.current?.animateToRegion({
+        ...location,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      }, 600);
     }
+  }, [isOnline, socket, user?.id, location]);
 
-    if (!newStatus) {
-      setIncomingRequests([]);
-    }
-  }, [isOnline, socket, user?.id]);
-
-  const handleAcceptRequest = useCallback(async (request: IncomingRequest) => {
+  // ── Accept / Decline ──
+  const handleAccept = useCallback(async (request: IncomingRequest) => {
     if (!user?.id) return;
-
-    try {
-      if (!request.clientId) {
-        console.warn('⚠️ Missing clientId in request, will try to get from API');
-      }
-
-      if (socket) {
-        socket.emit('provider:accept', {
-          requestId: request.requestId,
-          providerId: user.id,
-          clientId: request.clientId,
-        });
-        console.log('📡 Emitted provider:accept:', { 
-          requestId: request.requestId, 
-          providerId: user.id, 
-          clientId: request.clientId 
-        });
-      }
-
-      Vibration.vibrate([0, 100]);
-      setIncomingRequests((prev) => prev.filter(r => r.requestId !== request.requestId));
-      
-      Alert.alert(
-        '✅ Mission acceptée',
-        'Le client a été notifié. Vous pouvez maintenant voir les détails et démarrer la navigation.',
-        [
-          {
-            text: 'Voir la mission',
-            onPress: () => router.push(`/request/${request.requestId}/ongoing`),
-          },
-          {
-            text: 'Plus tard',
-            style: 'cancel',
-          },
-        ]
-      );
-      
-      const handleAcceptConfirm = (data: any) => {
-        if (data.requestId === request.requestId) {
-          console.log('✅ Provider accept confirmed by server');
-          socket?.off('provider:accept_confirmed', handleAcceptConfirm);
-        }
-      };
-      
-      socket?.on('provider:accept_confirmed', handleAcceptConfirm);
-      setTimeout(() => {
-        socket?.off('provider:accept_confirmed', handleAcceptConfirm);
-      }, 5000);
-    } catch (error: any) {
-      console.error('❌ Error accepting request:', error);
-      Alert.alert('Erreur', error.message || 'Impossible d\'accepter la demande');
-      setIncomingRequests((prev) => {
-        if (prev.some(r => r.requestId === request.requestId)) return prev;
-        return [request, ...prev];
+    if (socket) {
+      socket.emit('provider:accept', {
+        requestId:  request.requestId,
+        providerId: user.id,
+        clientId:   request.clientId,
       });
     }
+    Vibration.vibrate(100);
+    setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
+    router.push(`/request/${request.requestId}/ongoing`);
   }, [socket, user?.id, router]);
 
-  const handleDeclineRequest = useCallback(async (requestId: string) => {
-    try {
-      await api.post(`/requests/${requestId}/refuse`);
-      setIncomingRequests((prev) => prev.filter(r => r.requestId !== requestId));
-    } catch (error) {
-      console.error('❌ Error declining request:', error);
-    }
+  const handleDecline = useCallback(async (requestId: string) => {
+    try { await api.post(`/requests/${requestId}/refuse`); } catch { /* silent */ }
+    setIncomingRequests(prev => prev.filter(r => r.requestId !== requestId));
   }, []);
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  const activeJob = incomingRequests[0] || null;
 
-  if (loading && !refreshing) {
+  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <View style={styles.loadingPulse} />
-        </Animated.View>
+      <View style={s.loadingScreen}>
+        <StatusBar barStyle="light-content" />
+        <Ionicons name="navigate-circle" size={48} color="rgba(255,255,255,0.3)" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
-      <FlatList
-        data={incomingRequests}
-        keyExtractor={(item) => item.requestId}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFF" />
-        }
-        ListHeaderComponent={
-          <>
-            {/* HERO HEADER */}
-            <LinearGradient colors={['#000000', '#1A1A1A']} style={styles.heroHeader}>
-              <Animated.View 
-                style={[
-                  styles.heroContent,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{
-                      translateY: slideAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-20, 0],
-                      }),
-                    }],
-                  },
-                ]}
-              >
-                <View style={styles.statusIndicator}>
-                  <View style={[styles.statusDot, isConnected && styles.statusDotConnected]} />
-                  <Text style={styles.statusText}>
-                    {isConnected ? 'Connecté' : 'Déconnecté'}
-                  </Text>
-                </View>
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-                <Text style={styles.heroGreeting}>Bonjour,</Text>
-                <Text style={styles.heroName}>{user?.name || user?.email?.split('@')[0]}</Text>
-
-                <TouchableOpacity
-                  style={[styles.statusToggle, isOnline && styles.statusToggleActive]}
-                  onPress={handleStatusChange}
-                  activeOpacity={0.9}
-                >
-                  <View style={[styles.statusToggleIndicator, isOnline && styles.statusToggleIndicatorActive]} />
-                  <Text style={[styles.statusToggleText, isOnline && styles.statusToggleTextActive]}>
-                    {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
-                  </Text>
-                  <Ionicons 
-                    name={isOnline ? 'checkmark-circle' : 'pause-circle'} 
-                    size={28} 
-                    color={isOnline ? '#34C759' : '#666'} 
-                  />
-                </TouchableOpacity>
-              </Animated.View>
-            </LinearGradient>
-
-            {/* WALLET MEGA CARD */}
-            <Animated.View style={[styles.walletContainer, { opacity: fadeAnim }]}>
-              <TouchableOpacity
-                style={styles.walletCard}
-                onPress={() => router.push('/wallet')}
-                activeOpacity={0.95}
-              >
-                <LinearGradient colors={['#FFFFFF', '#F5F5F5']} style={styles.walletGradient}>
-                  <View style={styles.walletHeader}>
-                    <View style={styles.walletIconContainer}>
-                      <Ionicons name="wallet-outline" size={32} color="#000" />
-                    </View>
-                    <Text style={styles.walletLabel}>Solde disponible</Text>
-                  </View>
-
-                  {/* ✅ FIX: balance en centimes → diviser par 100 */}
-                  <Text style={styles.walletBalance}>
-                    {formatEuros(wallet?.balance || 0)}
-                  </Text>
-
-                  <View style={styles.walletStats}>
-                    <View style={styles.walletStat}>
-                      <Text style={styles.walletStatLabel}>Total gagné</Text>
-                      {/* ✅ FIX: totalEarnings en centimes → diviser par 100 */}
-                      <Text style={styles.walletStatValue}>
-                        {formatEuros(wallet?.totalEarnings || 0)}
-                      </Text>
-                    </View>
-                    <View style={styles.walletStat}>
-                      <Text style={styles.walletStatLabel}>En attente</Text>
-                      {/* ✅ FIX: pendingAmount en centimes → diviser par 100 */}
-                      <Text style={styles.walletStatValue}>
-                        {formatEuros(wallet?.pendingAmount || 0)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.walletAction}>
-                    <Text style={styles.walletActionText}>Retirer</Text>
-                    <Ionicons name="arrow-forward" size={24} color="#000" />
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* STATS PILLS */}
-            <Animated.View style={[styles.statsContainer, { opacity: fadeAnim }]}>
-              <View style={styles.statPill}>
-                <Ionicons name="checkmark-circle" size={24} color="#34C759" />
-                <View style={styles.statPillContent}>
-                  <Text style={styles.statPillValue}>{stats.jobsCompleted}</Text>
-                  <Text style={styles.statPillLabel}>Courses</Text>
-                </View>
+      {/* ── Google Maps dark plein écran ── */}
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={StyleSheet.absoluteFill}
+        customMapStyle={DARK_MAP_STYLE}
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        showsScale={false}
+        pitchEnabled={false}
+        toolbarEnabled={false}
+        initialRegion={{
+          latitude:       location?.latitude  ?? 48.8566,
+          longitude:      location?.longitude ?? 2.3522,
+          latitudeDelta:  0.04,
+          longitudeDelta: 0.04,
+        }}
+      >
+        {/* Markers des missions entrantes */}
+        {incomingRequests.map(req =>
+          req.latitude && req.longitude ? (
+            <Marker
+              key={req.requestId}
+              coordinate={{ latitude: req.latitude, longitude: req.longitude }}
+              title={req.title}
+              description={req.address}
+            >
+              <View style={s.missionMarker}>
+                <Ionicons name="flash" size={14} color="#FFF" />
               </View>
+            </Marker>
+          ) : null
+        )}
+      </MapView>
 
-              <View style={styles.statPill}>
-                <Ionicons name="star" size={24} color="#FFB800" />
-                <View style={styles.statPillContent}>
-                  <Text style={styles.statPillValue}>{stats.avgRating.toFixed(1)}</Text>
-                  <Text style={styles.statPillLabel}>Note</Text>
-                </View>
-              </View>
+      {/* ── Overlay UI au-dessus de la carte ── */}
+      <Animated.View style={[s.overlay, { opacity: fadeAnim }]}>
 
-              <View style={styles.statPill}>
-                <Ionicons name="trophy" size={24} color="#FF9500" />
-                <View style={styles.statPillContent}>
-                  <Text style={styles.statPillValue}>{stats.rankScore.toFixed(0)}</Text>
-                  <Text style={styles.statPillLabel}>Rang</Text>
-                </View>
-              </View>
-            </Animated.View>
+        {/* ── Island Status — Dynamic Island style, opaque, centré en haut ── */}
+        <IslandStatus
+          isOnline={isOnline}
+          isConnected={isConnected}
+          onToggle={handleToggleOnline}
+        />
 
-            {/* FEED TITLE */}
-            <Text style={styles.feedTitle}>
-              {incomingRequests.length > 0 
-                ? `${incomingRequests.length} Mission${incomingRequests.length > 1 ? 's' : ''} disponible${incomingRequests.length > 1 ? 's' : ''}`
-                : 'Missions'
-              }
+        {/* ── Hero Card — îlot opaque, gains en star ── */}
+        <View style={s.heroCard}>
+
+          {/* Salut discret */}
+          <Text style={s.heroGreeting}>
+            {user?.name || user?.email?.split('@')[0]}
+          </Text>
+
+          {/* Gains = héros absolu */}
+          <TouchableOpacity onPress={() => router.push('/wallet')} activeOpacity={0.85}>
+            <Text style={s.earningsCaption}>gains nets · ce mois</Text>
+            <Text style={s.earningsHero}>
+              {statsLoading ? '—' : formatEuros(wallet?.totalEarnings || 0)}
             </Text>
-
-            {/* EMPTY STATES */}
-            {!isOnline ? (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
-                  <Ionicons name="power" size={64} color="#000" />
-                </View>
-                <Text style={styles.emptyTitle}>Mode hors ligne</Text>
-                <Text style={styles.emptyDescription}>
-                  Passez en ligne pour recevoir des missions
-                </Text>
-              </View>
-            ) : incomingRequests.length === 0 ? (
-              <Animated.View style={[styles.emptyState, { transform: [{ scale: pulseAnim }] }]}>
-                <View style={styles.scanningContainer}>
-                  <View style={styles.scanningRing} />
-                  <View style={[styles.scanningRing, styles.scanningRingDelay]} />
-                  <Ionicons name="navigate-circle" size={64} color="#000" />
-                </View>
-                <Text style={styles.emptyTitle}>Recherche active</Text>
-                <Text style={styles.emptyDescription}>
-                  Nous cherchons des missions près de vous...
-                </Text>
-              </Animated.View>
-            ) : null}
-          </>
-        }
-        renderItem={({ item }) => (
-          <Animated.View style={[styles.requestCard, { opacity: fadeAnim }]}>
-            {item.urgent && (
-              <View style={styles.urgentBadge}>
-                <Ionicons name="flash" size={16} color="#FFF" />
-                <Text style={styles.urgentText}>URGENT</Text>
+            {!statsLoading && (wallet?.pendingAmount || 0) > 0 && (
+              <View style={s.pendingPill}>
+                <Text style={s.pendingText}>+{formatEuros(wallet?.pendingAmount || 0)} en attente</Text>
               </View>
             )}
+          </TouchableOpacity>
 
-            <Text style={styles.requestTitle}>{item.title}</Text>
-            <Text style={styles.requestDescription} numberOfLines={2}>
-              {item.description}
-            </Text>
+          {/* KPIs — séparateurs verticaux, fond neutre */}
+          <View style={s.kpiRow}>
+            <View style={s.kpiItem}>
+              <Text style={s.kpiValue}>{statsLoading ? '—' : stats.jobsCompleted}</Text>
+              <Text style={s.kpiLabel}>Missions</Text>
+            </View>
+            <View style={s.kpiSep} />
+            <View style={s.kpiItem}>
+              <Text style={s.kpiValue}>{statsLoading ? '—' : stats.avgRating.toFixed(1)}</Text>
+              <Text style={s.kpiLabel}>Note</Text>
+            </View>
+            <View style={s.kpiSep} />
+            <View style={s.kpiItem}>
+              <Text style={s.kpiValue}>{statsLoading ? '—' : `#${Math.round(stats.rankScore)}`}</Text>
+              <Text style={s.kpiLabel}>Rang</Text>
+            </View>
+            <View style={s.kpiSep} />
+            <TouchableOpacity style={s.kpiItem} onPress={() => router.push('/wallet')} activeOpacity={0.8}>
+              <Text style={s.kpiValue}>{statsLoading ? '—' : formatEuros(wallet?.balance || 0)}</Text>
+              <Text style={s.kpiLabel}>Solde</Text>
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.requestMeta}>
-              <View style={styles.requestMetaItem}>
-                <Ionicons name="location" size={18} color="#666" />
-                <Text style={styles.requestMetaText} numberOfLines={1}>
-                  {item.address}
+        </View>
+
+        {/* Zone centrale — radar ou icône offline */}
+        <View style={s.centerZone}>
+          {isOnline ? (
+            <>
+              <RadarPulse />
+              <View style={s.scanBadge}>
+                <Text style={s.scanText}>
+                  {incomingRequests.length > 0
+                    ? `${incomingRequests.length} mission${incomingRequests.length > 1 ? 's' : ''} disponible${incomingRequests.length > 1 ? 's' : ''}`
+                    : 'Recherche active...'}
                 </Text>
               </View>
-              
-              {item.distance && (
-                <View style={styles.requestMetaItem}>
-                  <Ionicons name="navigate" size={18} color="#666" />
-                  <Text style={styles.requestMetaText}>
-                    {item.distance.toFixed(1)} km
-                  </Text>
-                </View>
-              )}
+            </>
+          ) : (
+            <View style={s.offlineBadge}>
+              <Ionicons name="power-outline" size={20} color="rgba(255,255,255,0.5)" />
+              <Text style={s.offlineText}>Hors ligne</Text>
             </View>
+          )}
+        </View>
 
-            <View style={styles.requestFooter}>
-              {/* ✅ FIX: price vient du backend en euros (Float), pas en centimes */}
-              <Text style={styles.requestPrice}>
-                {(item.price || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-              </Text>
+        {/* Bouton recenter */}
+        <TouchableOpacity
+          style={s.recenterBtn}
+          onPress={() => location && mapRef.current?.animateToRegion({
+            ...location, latitudeDelta: 0.04, longitudeDelta: 0.04,
+          }, 600)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="locate" size={20} color="#FFF" />
+        </TouchableOpacity>
 
-              <View style={styles.requestActions}>
-                <TouchableOpacity
-                  style={styles.declineButton}
-                  onPress={() => handleDeclineRequest(item.requestId)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={24} color="#FF3B30" />
-                </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.acceptButton}
-                  onPress={() => handleAcceptRequest(item)}
-                  activeOpacity={0.9}
-                >
-                  <Text style={styles.acceptButtonText}>ACCEPTER</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        )}
-        ListFooterComponent={
-          <Animated.View style={[styles.quickActionsContainer, { opacity: fadeAnim }]}>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.push('/(tabs)/missions')}
-            >
-              <Ionicons name="time-outline" size={28} color="#000" />
-              <Text style={styles.quickActionText}>Historique</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.push('/wallet')}
-            >
-              <Ionicons name="bar-chart-outline" size={28} color="#000" />
-              <Text style={styles.quickActionText}>Gains</Text>
-            </TouchableOpacity>
+      </Animated.View>
 
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.push('/(tabs)/profile')}
-            >
-              <Ionicons name="settings-outline" size={28} color="#000" />
-              <Text style={styles.quickActionText}>Profil</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        }
-        contentContainerStyle={styles.listContent}
-      />
+      {/* Pop-up mission */}
+      {activeJob && (
+        <IncomingJobCard
+          request={activeJob}
+          onAccept={() => handleAccept(activeJob)}
+          onDecline={() => handleDecline(activeJob.requestId)}
+        />
+      )}
     </View>
   );
 }
@@ -602,406 +796,100 @@ export default function ProviderDashboard() {
 // STYLES
 // ============================================================================
 
-const styles = StyleSheet.create({
-  container: {
+const s = StyleSheet.create({
+  root:        { flex: 1, backgroundColor: '#0A0A0A' },
+  loadingScreen: { flex: 1, backgroundColor: '#0A0A0A', justifyContent: 'center', alignItems: 'center' },
+
+  // Overlay transparent par-dessus la carte
+  overlay: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
-  },
-  loadingPulse: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF',
-  },
-  listContent: {
-    paddingBottom: 40,
+    paddingTop: Platform.OS === 'ios' ? 60 : 48,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 16 : 12,
+    gap: 14,
   },
 
-  // HERO HEADER
-  heroHeader: {
-    paddingTop: 60,
-    paddingBottom: 32,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-  heroContent: {
-    gap: 8,
-  },
-  statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FF3B30',
-    marginRight: 8,
-  },
-  statusDotConnected: {
-    backgroundColor: '#34C759',
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#999',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    // ── Hero Card ──
+  heroCard: {
+    backgroundColor: '#111111',
+    borderRadius: 22,
+    padding: 20,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 20, shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   },
   heroGreeting: {
-    fontSize: 18,
-    color: '#999',
-    fontWeight: '500',
+    fontSize: 12, fontWeight: '600',
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 0.3,
   },
-  heroName: {
-    fontSize: 42,
-    fontWeight: '900',
-    color: '#FFF',
-    marginBottom: 24,
+  earningsCaption: {
+    fontSize: 10, fontWeight: '600',
+    color: 'rgba(255,255,255,0.25)',
+    letterSpacing: 1, textTransform: 'uppercase',
+    marginBottom: 2,
   },
-
-  // STATUS TOGGLE
-  statusToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    borderRadius: 28,
-    gap: 16,
+  earningsHero: {
+    fontSize: 46, fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -2, lineHeight: 52,
   },
-  statusToggleActive: {
-    backgroundColor: 'rgba(52, 199, 89, 0.15)',
-  },
-  statusToggleIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#666',
-  },
-  statusToggleIndicatorActive: {
-    backgroundColor: '#34C759',
-  },
-  statusToggleText: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#666',
-    letterSpacing: 1,
-  },
-  statusToggleTextActive: {
-    color: '#34C759',
-  },
-
-  // WALLET CARD
-  walletContainer: {
-    paddingHorizontal: 24,
-    marginTop: -40,
-    marginBottom: 24,
-  },
-  walletCard: {
-    borderRadius: 32,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  walletGradient: {
-    padding: 28,
-  },
-  walletHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  walletIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  walletLabel: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  walletBalance: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: '#000',
-    marginBottom: 24,
-  },
-  walletStats: {
-    flexDirection: 'row',
-    gap: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    marginBottom: 24,
-  },
-  walletStat: {
-    flex: 1,
-  },
-  walletStatLabel: {
-    fontSize: 13,
-    color: '#999',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  walletStatValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#000',
-  },
-  walletAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#000',
-    paddingVertical: 18,
-    borderRadius: 24,
-    gap: 12,
-  },
-  walletActionText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFF',
-  },
-
-  // STATS PILLS
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    gap: 12,
-    marginBottom: 32,
-  },
-  statPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    padding: 16,
-    borderRadius: 24,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statPillContent: {
-    flex: 1,
-  },
-  statPillValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#000',
-  },
-  statPillLabel: {
-    fontSize: 11,
-    color: '#999',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-
-  // FEED
-  feedTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#000',
-    paddingHorizontal: 24,
-    marginBottom: 20,
-  },
-
-  // EMPTY STATE
-  emptyState: {
-    paddingVertical: 60,
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  scanningContainer: {
-    width: 140,
-    height: 140,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    position: 'relative',
-  },
-  scanningRing: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 3,
-    borderColor: '#000',
-    opacity: 0.3,
-  },
-  scanningRingDelay: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    opacity: 0.2,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#000',
-    marginBottom: 8,
-  },
-  emptyDescription: {
-    fontSize: 16,
-    color: '#999',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // REQUEST CARD
-  requestCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 32,
-    padding: 24,
-    marginHorizontal: 24,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  urgentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  pendingPill: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FF3B30',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-    marginBottom: 16,
+    backgroundColor: 'rgba(255,149,0,0.12)',
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(255,149,0,0.25)',
+    marginTop: 6,
   },
-  urgentText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#FFF',
-    letterSpacing: 1,
+  pendingText: { fontSize: 11, fontWeight: '600', color: '#FF9500' },
+  kpiRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
-  requestTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#000',
-    marginBottom: 8,
+  kpiItem:  { flex: 1, alignItems: 'center', gap: 3 },
+  kpiSep:   { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.08)' },
+  kpiValue: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+  kpiLabel: { fontSize: 10, fontWeight: '500', color: 'rgba(255,255,255,0.3)', letterSpacing: 0.3 },
+
+  centerZone: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
+
+  scanBadge: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  requestDescription: {
-    fontSize: 15,
-    color: '#666',
-    fontWeight: '500',
-    lineHeight: 22,
-    marginBottom: 16,
+  scanText: { fontSize: 14, fontWeight: '700', color: '#FFF', textAlign: 'center' },
+
+  offlineBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  requestMeta: {
-    gap: 10,
-    marginBottom: 20,
-  },
-  requestMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  requestMetaText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-    flex: 1,
-  },
-  requestFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  requestPrice: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: '#000',
-  },
-  requestActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  declineButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFF0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  acceptButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    borderRadius: 28,
-    gap: 10,
-  },
-  acceptButtonText: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#FFF',
-    letterSpacing: 0.5,
+  offlineText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.45)' },
+
+  recenterBtn: {
+    position: 'absolute',
+    right: 20,
+    bottom: Platform.OS === 'ios' ? 110 : 96,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
 
-  // QUICK ACTIONS
-  quickActionsContainer: {
-    marginHorizontal: 24,
-    marginTop: 24,
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: '#FFF',
-    borderRadius: 28,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
+
+
+  missionMarker: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#FFF',
+    shadowColor: '#FF3B30', shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
     elevation: 8,
-  },
-  quickAction: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 20,
-    gap: 6,
-  },
-  quickActionText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#000',
   },
 });

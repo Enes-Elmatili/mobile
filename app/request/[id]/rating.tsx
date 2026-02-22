@@ -1,7 +1,7 @@
 // app/request/[id]/rating.tsx
-// Client rates the provider after mission completion
+// Client note le prestataire — chips compliments, étoiles animées, zéro formulaire lourd
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,24 +12,140 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Animated,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 
+// ============================================================================
+// CHIPS COMPLIMENTS
+// ============================================================================
+
+const COMPLIMENTS = [
+  { id: 'quality', icon: '✨', label: 'Top qualité' },
+  { id: 'polite', icon: '😊', label: 'Super poli' },
+  { id: 'fast', icon: '⚡', label: 'Rapide' },
+  { id: 'material', icon: '🔧', label: 'Bon matos' },
+  { id: 'punctual', icon: '⏰', label: 'Ponctuel' },
+  { id: 'clean', icon: '🧹', label: 'Chantier propre' },
+  { id: 'pro', icon: '🎯', label: 'Très pro' },
+  { id: 'recommend', icon: '💬', label: 'Je recommande' },
+];
+
+const RATING_LABELS: Record<number, string> = {
+  1: 'Très mauvais',
+  2: 'Mauvais',
+  3: 'Correct',
+  4: 'Bien',
+  5: 'Excellent',
+};
+
+// ============================================================================
+// STAR — animée au tap
+// ============================================================================
+
+function Star({ filled, onPress }: { filled: boolean; onPress: () => void }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 1.4, duration: 80, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }),
+    ]).start();
+    onPress();
+  };
+
+  return (
+    <TouchableOpacity onPress={handlePress} activeOpacity={1}>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Ionicons
+          name={filled ? 'star' : 'star-outline'}
+          size={44}
+          color={filled ? '#FFB800' : '#E5E7EB'}
+        />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ============================================================================
+// COMPLIMENT CHIP
+// ============================================================================
+
+function ComplimentChip({
+  chip,
+  selected,
+  onPress,
+}: {
+  chip: typeof COMPLIMENTS[0];
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.93, duration: 60, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 220, friction: 8 }),
+    ]).start();
+    onPress();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={[cc.chip, selected && cc.chipSelected]}
+        onPress={handlePress}
+        activeOpacity={1}
+      >
+        <Text style={cc.emoji}>{chip.icon}</Text>
+        <Text style={[cc.label, selected && cc.labelSelected]}>{chip.label}</Text>
+        {selected && <Ionicons name="checkmark-circle" size={14} color="#FFF" />}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+const cc = StyleSheet.create({
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: '#F5F5F5', borderRadius: 20,
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  chipSelected: { backgroundColor: '#111', borderColor: '#111' },
+  emoji: { fontSize: 15 },
+  label: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  labelSelected: { color: '#FFF' },
+});
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
 export default function RatingScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  
+
   const [rating, setRating] = useState(0);
+  const [selectedCompliments, setSelectedCompliments] = useState<string[]>([]);
   const [comment, setComment] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load request to get providerId
+  const slideUp = useRef(new Animated.Value(30)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     loadRequest();
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideUp, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
   }, [id]);
 
   const loadRequest = async () => {
@@ -38,52 +154,43 @@ export default function RatingScreen() {
       setRequest(response.data || response);
     } catch (error) {
       console.error('Error loading request:', error);
-      Alert.alert('Erreur', 'Impossible de charger la mission');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmitRating = async () => {
+  const toggleCompliment = (chipId: string) => {
+    setSelectedCompliments(prev =>
+      prev.includes(chipId) ? prev.filter(c => c !== chipId) : [...prev, chipId]
+    );
+  };
+
+  const handleSubmit = async () => {
     if (rating === 0) {
-      Alert.alert('Note requise', 'Veuillez donner une note');
+      Alert.alert('Note requise', 'Donnez au moins une étoile');
       return;
     }
-
     if (!request?.providerId) {
-      Alert.alert('Erreur', 'Provider introuvable');
+      Alert.alert('Erreur', 'Prestataire introuvable');
       return;
     }
 
     try {
       setSubmitting(true);
-      
-      console.log('⭐ Submitting rating:', {
-        providerId: request.providerId,
-        requestId: Number(id),
-        rating,
-        comment
-      });
+      const complimentLabels = COMPLIMENTS
+        .filter(c => selectedCompliments.includes(c.id))
+        .map(c => c.label)
+        .join(', ');
 
       await api.post('/ratings', {
         providerId: request.providerId,
         requestId: Number(id),
         rating,
-        comment,
+        comment: [complimentLabels, comment].filter(Boolean).join(' — '),
       });
 
-      Alert.alert(
-        '✅ Merci !',
-        'Votre évaluation a été envoyée',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.push('/(tabs)/dashboard')
-          }
-        ]
-      );
+      router.replace('/(tabs)/dashboard');
     } catch (error: any) {
-      console.error('❌ Rating error:', error);
       Alert.alert('Erreur', error.message || 'Impossible d\'envoyer l\'évaluation');
     } finally {
       setSubmitting(false);
@@ -92,180 +199,219 @@ export default function RatingScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={s.loading}>
         <ActivityIndicator size="large" color="#000" />
       </View>
     );
   }
 
+  const providerName = request?.provider?.name || 'le prestataire';
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="close" size={28} color="#000" />
+    <SafeAreaView style={s.root}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
+            <Ionicons name="close" size={20} color="#111" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={s.skipBtn}>
+            <Text style={s.skipText}>Plus tard</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Comment s'est passée votre expérience ?</Text>
-          <Text style={styles.subtitle}>Votre avis nous aide à améliorer le service</Text>
+        {/* ── Prestataire ── */}
+        <Animated.View style={[s.providerBlock, { opacity: fadeAnim, transform: [{ translateY: slideUp }] }]}>
+          {/* Avatar initiales */}
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>
+              {providerName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+            </Text>
+          </View>
+          <Text style={s.providerLabel}>Votre mission avec</Text>
+          <Text style={s.providerName}>{providerName}</Text>
+          {request?.serviceType && (
+            <View style={s.serviceTag}>
+              <Text style={s.serviceTagText}>{request.serviceType}</Text>
+            </View>
+          )}
+        </Animated.View>
+
+        {/* ── Étoiles ── */}
+        <View style={s.starsBlock}>
+          <View style={s.stars}>
+            {[1, 2, 3, 4, 5].map(star => (
+              <Star key={star} filled={rating >= star} onPress={() => setRating(star)} />
+            ))}
+          </View>
+          {rating > 0 && (
+            <Text style={s.ratingLabel}>{RATING_LABELS[rating]}</Text>
+          )}
         </View>
 
-        {/* Stars */}
-        <View style={styles.starsContainer}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <TouchableOpacity
-              key={star}
-              onPress={() => setRating(star)}
-              style={styles.starButton}
-            >
-              <Ionicons
-                name={rating >= star ? 'star' : 'star-outline'}
-                size={48}
-                color={rating >= star ? '#FFB800' : '#D1D5DB'}
-              />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Rating label */}
-        {rating > 0 && (
-          <Text style={styles.ratingLabel}>
-            {rating === 1 && 'Très mauvais'}
-            {rating === 2 && 'Mauvais'}
-            {rating === 3 && 'Moyen'}
-            {rating === 4 && 'Bon'}
-            {rating === 5 && 'Excellent'}
-          </Text>
+        {/* ── Chips compliments — apparaissent dès qu'une étoile est choisie ── */}
+        {rating >= 4 && (
+          <Animated.View style={[s.section, { opacity: fadeAnim }]}>
+            <Text style={s.sectionTitle}>Ce qui vous a plu ?</Text>
+            <View style={s.chipsWrap}>
+              {COMPLIMENTS.map(chip => (
+                <ComplimentChip
+                  key={chip.id}
+                  chip={chip}
+                  selected={selectedCompliments.includes(chip.id)}
+                  onPress={() => toggleCompliment(chip.id)}
+                />
+              ))}
+            </View>
+          </Animated.View>
         )}
 
-        {/* Comment */}
-        <View style={styles.commentContainer}>
-          <Text style={styles.commentLabel}>Commentaire (optionnel)</Text>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Partagez votre expérience..."
-            value={comment}
-            onChangeText={setComment}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
+        {rating > 0 && rating < 4 && (
+          <Animated.View style={[s.section, { opacity: fadeAnim }]}>
+            <Text style={s.sectionTitle}>Ce qui n'a pas fonctionné ?</Text>
+            <View style={s.chipsWrap}>
+              {[
+                { id: 'late', icon: '⏰', label: 'En retard' },
+                { id: 'quality', icon: '⚠️', label: 'Mauvaise qualité' },
+                { id: 'rude', icon: '😞', label: 'Peu aimable' },
+                { id: 'messy', icon: '🗑️', label: 'Chantier sale' },
+              ].map(chip => (
+                <ComplimentChip
+                  key={chip.id}
+                  chip={chip}
+                  selected={selectedCompliments.includes(chip.id)}
+                  onPress={() => toggleCompliment(chip.id)}
+                />
+              ))}
+            </View>
+          </Animated.View>
+        )}
 
-        {/* Submit button */}
-        <TouchableOpacity
-          style={[styles.submitButton, rating === 0 && styles.submitButtonDisabled]}
-          onPress={handleSubmitRating}
-          disabled={rating === 0 || submitting}
-        >
-          <Text style={styles.submitButtonText}>
-            {submitting ? 'Envoi...' : 'Envoyer l\'évaluation'}
-          </Text>
-        </TouchableOpacity>
+        {/* ── Note texte collapsible ── */}
+        {rating > 0 && (
+          <View style={s.section}>
+            <TouchableOpacity
+              style={s.noteToggle}
+              onPress={() => setNoteOpen(p => !p)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#888" />
+              <Text style={s.noteToggleText}>Ajouter un commentaire</Text>
+            </TouchableOpacity>
+            {noteOpen && (
+              <TextInput
+                style={s.noteInput}
+                placeholder="Décrivez votre expérience..."
+                placeholderTextColor="#ADADAD"
+                value={comment}
+                onChangeText={setComment}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                autoFocus
+              />
+            )}
+          </View>
+        )}
 
-        {/* Skip button */}
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={() => router.push('/(tabs)/dashboard')}
-        >
-          <Text style={styles.skipButtonText}>Plus tard</Text>
-        </TouchableOpacity>
+        <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* ── CTA fixe en bas ── */}
+      <View style={s.footer}>
+        <TouchableOpacity
+          style={[s.submitBtn, (rating === 0 || submitting) && s.submitBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={rating === 0 || submitting}
+          activeOpacity={0.88}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Text style={s.submitBtnText}>
+                {rating === 0 ? 'Donnez une note d\'abord' : 'Envoyer l\'évaluation'}
+              </Text>
+              {rating > 0 && <Ionicons name="arrow-forward" size={18} color="#FFF" />}
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF',
+// ============================================================================
+// STYLES
+// ============================================================================
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#FFF' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scroll: { paddingHorizontal: 20, paddingBottom: 120 },
+
+  // Header
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
+  closeBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-  },
-  content: {
-    padding: 24,
-  },
-  header: {
-    alignItems: 'flex-end',
-    marginBottom: 32,
-  },
-  titleContainer: {
-    marginBottom: 48,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#000',
+  skipBtn: { paddingHorizontal: 12, paddingVertical: 8 },
+  skipText: { fontSize: 14, fontWeight: '600', color: '#9CA3AF' },
+
+  // Prestataire
+  providerBlock: { alignItems: 'center', paddingVertical: 24, gap: 8 },
+  avatar: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: '#111', alignItems: 'center', justifyContent: 'center',
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
+  avatarText: { fontSize: 24, fontWeight: '800', color: '#FFF' },
+  providerLabel: { fontSize: 13, fontWeight: '500', color: '#9CA3AF' },
+  providerName: { fontSize: 22, fontWeight: '800', color: '#111' },
+  serviceTag: {
+    backgroundColor: '#F5F5F5', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 5, marginTop: 4,
   },
-  starsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    marginBottom: 24,
+  serviceTagText: { fontSize: 12, fontWeight: '600', color: '#555' },
+
+  // Étoiles
+  starsBlock: { alignItems: 'center', marginBottom: 8 },
+  stars: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  ratingLabel: { fontSize: 17, fontWeight: '700', color: '#111' },
+
+  // Section chips
+  section: { marginTop: 24 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+
+  // Note toggle
+  noteToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  noteToggleText: { fontSize: 13, fontWeight: '500', color: '#888' },
+  noteInput: {
+    backgroundColor: '#F7F7F7', borderRadius: 14,
+    padding: 14, fontSize: 15, color: '#111',
+    minHeight: 90, marginTop: 10,
+    borderWidth: 1.5, borderColor: '#EBEBEB',
   },
-  starButton: {
-    padding: 8,
+
+  // Footer CTA
+  footer: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    borderTopWidth: 1, borderTopColor: '#F3F4F6',
   },
-  ratingLabel: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#000',
-    textAlign: 'center',
-    marginBottom: 32,
+  submitBtn: {
+    backgroundColor: '#111', borderRadius: 16, height: 56,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
-  commentContainer: {
-    marginBottom: 32,
-  },
-  commentLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
-  },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    minHeight: 120,
-    backgroundColor: '#F9FAFB',
-  },
-  submitButton: {
-    backgroundColor: '#000',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
-  submitButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  skipButton: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
+  submitBtnDisabled: { backgroundColor: '#D1D5DB' },
+  submitBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 });

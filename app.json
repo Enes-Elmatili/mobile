@@ -5,32 +5,33 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic", 
     "scheme": "fixed",
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000" 
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false, 
       "bundleIdentifier": "com.fixed.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "FIXED a besoin de votre position pour trouver les prestataires les plus proches.",
+        "NSLocationAlwaysUsageDescription": "FIXED utilise votre position pour suivre l'arrivée de votre prestataire en temps réel."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
-      "package": "com.fixed.app"
-    },
-    "web": {
-      "favicon": "./assets/images/favicon.png"
+      "package": "com.fixed.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
     },
     "plugins": [
       [
@@ -41,12 +42,16 @@
         }
       ],
       "expo-secure-store",
-      "expo-router"
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Autoriser FIXED à utiliser votre position."
+        }
+      ]
     ],
     "extra": {
-      "apiUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api",
-      "environment": "development",
-      "enableLogs": true,
+      "apiUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api", 
       "eas": {
         "projectId": "d6938f3f-e8b0-4b3f-9ddd-d781ef02754a"
       }
