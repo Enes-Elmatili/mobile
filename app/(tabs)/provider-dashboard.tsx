@@ -23,6 +23,7 @@ import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 const TIMER_DURATION = 15;
@@ -454,6 +455,7 @@ export default function ProviderDashboard() {
   const router   = useRouter();
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
+  const insets = useSafeAreaInsets();
 
   const mapRef   = useRef<MapView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -689,7 +691,7 @@ export default function ProviderDashboard() {
       </MapView>
 
       {/* ── Overlay UI au-dessus de la carte ── */}
-      <Animated.View style={[s.overlay, { opacity: fadeAnim }]}>
+      <Animated.View style={[s.overlay, { opacity: fadeAnim, paddingTop: insets.top + 10 }]}>
 
         {/* ── Island Status — Dynamic Island style, opaque, centré en haut ── */}
         <IslandStatus
@@ -803,7 +805,6 @@ const s = StyleSheet.create({
   // Overlay transparent par-dessus la carte
   overlay: {
     flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 60 : 48,
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 16 : 12,
     gap: 14,
