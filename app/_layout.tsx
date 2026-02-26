@@ -6,8 +6,7 @@ import { SocketProvider } from '../lib/SocketContext';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
-
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL";
+import config from '../lib/config';
 
 // ✅ Routes qui font partie d'un flow mission
 // Le layout ne doit JAMAIS rediriger quand l'utilisateur est sur ces routes
@@ -15,6 +14,7 @@ const MISSION_FLOW_ROUTES = [
   'ongoing',
   'tracking',
   'earnings',
+  'rating',
   'NewRequestStepper',
 ];
 
@@ -78,7 +78,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
       <StripeProvider
-        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        publishableKey={config.stripePublishableKey}
         merchantIdentifier="merchant.com.fixed.app"
         urlScheme="fixed"
       >

@@ -4,9 +4,10 @@ import { io, Socket } from 'socket.io-client';
 import { useAuth } from './auth/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { Alert, Vibration } from 'react-native';
+import { Vibration } from 'react-native';
+import config from './config';
 
-const SOCKET_URL = 'https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev';
+const SOCKET_URL = config.socketUrl;
 
 interface SocketContextType {
   socket: Socket | null;
@@ -148,7 +149,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 1️⃣ CLIENT: Provider accepted your request
     newSocket.on('provider:accepted', (data) => {
       console.log('🎉 [CLIENT] Provider accepted your request!', data);
-      
+
       // Vérifier que c'est bien un client (pas un provider)
       if (user.roles?.includes('PROVIDER')) {
         console.log('⚠️ Ignoring provider:accepted because user is a PROVIDER');
@@ -156,24 +157,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       Vibration.vibrate([0, 100, 50, 100, 50, 100]);
-      
-      Alert.alert(
-        '✅ Mission acceptée !',
-        `${data.provider?.name || 'Un professionnel'} a accepté votre demande et arrive bientôt.\n\n📞 ${data.provider?.phone || ''}`,
-        [
-          {
-            text: 'Suivre en temps réel',
-            onPress: () => {
-              console.log('📍 Navigating to tracking for request:', data.requestId);
-              router.push(`/request/${data.requestId}/tracking`);
-            }
-          },
-          {
-            text: 'Plus tard',
-            style: 'cancel'
-          }
-        ]
-      );
+      console.log('📍 Navigating to tracking for request:', data.requestId);
+      router.push(`/request/${data.requestId}/tracking`);
     });
 
     // 2️⃣ CLIENT: Request was published successfully
@@ -194,39 +179,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 2️⃣ COMPLETION: Request marked as completed
     newSocket.on('request:completed', (data) => {
       console.log('🏁 [COMPLETION] Request completed:', data);
-      
+
       Vibration.vibrate([0, 100, 50, 100]);
-      
+
       // Different flow for client vs provider
       if (user.roles?.includes('PROVIDER')) {
-        // Provider sees earnings
-        Alert.alert(
-          '🏁 Mission terminée',
-          'Bravo ! Consultez vos gains.',
-          [
-            {
-              text: 'Voir mes gains',
-              onPress: () => router.push(`/request/${data.requestId}/earnings`)
-            }
-          ]
-        );
+        router.push(`/request/${data.requestId}/earnings`);
       } else {
-        // Client goes to rating
-        Alert.alert(
-          '🏁 Mission terminée',
-          'Merci d\'évaluer le service reçu.',
-          [
-            {
-              text: 'Évaluer',
-              onPress: () => router.push(`/request/${data.requestId}/rating`)
-            },
-            {
-              text: 'Plus tard',
-              style: 'cancel',
-              onPress: () => router.push('/(tabs)/dashboard')
-            }
-          ]
-        );
+        router.push(`/request/${data.requestId}/rating`);
       }
     });
 

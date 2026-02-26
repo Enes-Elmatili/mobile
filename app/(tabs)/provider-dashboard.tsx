@@ -352,24 +352,27 @@ const srow = StyleSheet.create({
 
 
 // ============================================================================
-// ISLAND STATUS — Dynamic Island style, opaque noir, centré en haut
+// FLOATING ISLAND HEADER — Online toggle (left) + Wallet (right)
 // ============================================================================
 
-function IslandStatus({
+function FloatingIslandHeader({
   isOnline,
   isConnected,
+  wallet,
   onToggle,
+  onWalletPress,
 }: {
   isOnline: boolean;
   isConnected: boolean;
+  wallet: WalletData | null;
   onToggle: () => void;
+  onWalletPress: () => void;
 }) {
   const glowAnim  = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (isOnline) {
-      // Glow pulse en boucle quand online
       Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
@@ -382,9 +385,9 @@ function IslandStatus({
     }
   }, [isOnline]);
 
-  const handlePress = () => {
+  const handleTogglePress = () => {
     Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 0.96, duration: 80, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
     ]).start();
     onToggle();
@@ -394,60 +397,91 @@ function IslandStatus({
   const dotScale   = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] });
 
   return (
-    <View style={island.wrapper}>
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <TouchableOpacity
-          style={[island.pill, isOnline && island.pillOnline]}
-          onPress={handlePress}
-          activeOpacity={1}
-        >
-          {/* Dot animé */}
-          <View style={island.dotWrap}>
-            {isOnline && (
-              <Animated.View style={[island.dotGlow, { opacity: dotOpacity, transform: [{ scale: dotScale }] }]} />
-            )}
-            <View style={[island.dot, isOnline ? island.dotOnline : island.dotOffline]} />
-          </View>
+    <Animated.View style={[island.container, { transform: [{ scale: scaleAnim }] }]}>
+      {/* Left — Online toggle */}
+      <TouchableOpacity
+        style={island.toggleSide}
+        onPress={handleTogglePress}
+        activeOpacity={0.8}
+      >
+        <View style={island.dotWrap}>
+          {isOnline && (
+            <Animated.View style={[island.dotGlow, { opacity: dotOpacity, transform: [{ scale: dotScale }] }]} />
+          )}
+          <View style={[island.dot, isOnline ? island.dotOnline : island.dotOffline]} />
+        </View>
+        <Text style={[island.toggleLabel, isOnline && island.toggleLabelOnline]}>
+          {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
+        </Text>
+        <Ionicons
+          name={isOnline ? 'radio-outline' : 'power-outline'}
+          size={13}
+          color={isOnline ? '#34C759' : '#555'}
+        />
+      </TouchableOpacity>
 
-          {/* Label */}
-          <Text style={[island.label, isOnline && island.labelOnline]}>
-            {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
-          </Text>
+      {/* Divider */}
+      <View style={island.divider} />
 
-          {/* Icône droite */}
-          <Ionicons
-            name={isOnline ? 'radio-outline' : 'power-outline'}
-            size={14}
-            color={isOnline ? '#34C759' : '#555'}
-          />
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+      {/* Right — Wallet */}
+      <TouchableOpacity
+        style={island.walletSide}
+        onPress={onWalletPress}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="wallet-outline" size={14} color="rgba(255,255,255,0.7)" />
+        <Text style={island.walletBalance}>{formatEuros(wallet?.balance || 0)}</Text>
+        <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.3)" />
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 const island = StyleSheet.create({
-  wrapper: { alignItems: 'center' },
-  pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#111111',
-    paddingHorizontal: 18, paddingVertical: 11,
     borderRadius: 30,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
+    overflow: 'hidden',
   },
-  pillOnline: {
-    borderColor: 'rgba(52,199,89,0.25)',
-    shadowColor: '#34C759', shadowOpacity: 0.2,
+  toggleSide: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  divider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  walletSide: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
   dotWrap:  { width: 10, height: 10, alignItems: 'center', justifyContent: 'center' },
   dotGlow:  { position: 'absolute', width: 16, height: 16, borderRadius: 8, backgroundColor: '#34C759' },
   dot:      { width: 7, height: 7, borderRadius: 4 },
   dotOnline:  { backgroundColor: '#34C759' },
   dotOffline: { backgroundColor: '#444' },
-  label:      { fontSize: 12, fontWeight: '800', color: '#444', letterSpacing: 1 },
-  labelOnline: { color: '#34C759' },
+  toggleLabel:      { fontSize: 12, fontWeight: '800', color: '#444', letterSpacing: 0.8, flex: 1 },
+  toggleLabelOnline: { color: '#34C759' },
+  walletBalance: { fontSize: 14, fontWeight: '800', color: '#FFF' },
 });
 
 export default function ProviderDashboard() {
@@ -691,11 +725,13 @@ export default function ProviderDashboard() {
       {/* ── Overlay UI au-dessus de la carte ── */}
       <Animated.View style={[s.overlay, { opacity: fadeAnim }]}>
 
-        {/* ── Island Status — Dynamic Island style, opaque, centré en haut ── */}
-        <IslandStatus
+        {/* ── Floating Island Header — Online toggle + Wallet ── */}
+        <FloatingIslandHeader
           isOnline={isOnline}
           isConnected={isConnected}
+          wallet={wallet}
           onToggle={handleToggleOnline}
+          onWalletPress={() => router.push('/wallet')}
         />
 
         {/* ── Hero Card — îlot opaque, gains en star ── */}
