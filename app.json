@@ -51,7 +51,9 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api", 
+      "apiUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api",
+      "socketUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev",
+      "stripePublishableKey": "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL",
       "eas": {
         "projectId": "d6938f3f-e8b0-4b3f-9ddd-d781ef02754a"
       }
