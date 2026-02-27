@@ -1,6 +1,6 @@
 // components/sheets/TicketDetailSheet.tsx — Client Detail Sheet
 // Design system identique à MissionDetail (missions.tsx)
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,13 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { useRouter } from 'expo-router';
+import { api } from '../../lib/api';
 
 // ============================================================================
 // TYPES
@@ -78,6 +81,9 @@ const av = StyleSheet.create({
 // ============================================================================
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose }: TicketDetailSheetProps) {
+  const router = useRouter();
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+
   const renderBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} pressBehavior="close" />
@@ -93,6 +99,44 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose }: Ticket
     if (url) Linking.openURL(url);
   };
 
+  const handleInvoice = async () => {
+    if (!ticket?.id) return;
+    try {
+      setInvoiceLoading(true);
+      const res = await api.documents.getInvoice(String(ticket.id));
+      const url = res?.url || res?.data?.url || res?.downloadUrl || res?.data?.downloadUrl;
+      if (url) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Facture', 'Le lien de téléchargement n\'est pas encore disponible.');
+      }
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de récupérer la facture');
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  const handleRate = () => {
+    if (!ticket?.id) return;
+    onClose();
+    router.push(`/request/${ticket.id}/rating`);
+  };
+
+  const handleReorder = () => {
+    if (!ticket) return;
+    onClose();
+    router.push({
+      pathname: '/request/NewRequestStepper',
+      params: {
+        categoryId: ticket.category?.id || ticket.categoryId || '',
+        subcategoryId: ticket.subcategory?.id || ticket.subcategoryId || '',
+        description: ticket.description || '',
+        address: ticket.address || '',
+      },
+    });
+  };
+
   if (!isVisible || !ticket) return null;
 
   const cfg = getStatus(ticket.status);
@@ -100,6 +144,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose }: Ticket
   const hasCoords = !!(ticket.lat && ticket.lng);
   const address = ticket.address || '';
   const isDone = ticket.status === 'DONE';
+  const isCancelled = ticket.status === 'CANCELLED';
   const providerName = ticket.provider?.name || 'Prestataire';
 
   return (
@@ -203,10 +248,15 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose }: Ticket
                   {isDone && (
                     <TouchableOpacity
                       style={sd.invoiceLink}
-                      onPress={() => Alert.alert('Facture', 'Fonctionnalité en développement')}
+                      onPress={handleInvoice}
+                      disabled={invoiceLoading}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="download-outline" size={13} color="#7C3AED" />
+                      {invoiceLoading ? (
+                        <ActivityIndicator size={12} color="#7C3AED" />
+                      ) : (
+                        <Ionicons name="download-outline" size={13} color="#7C3AED" />
+                      )}
                       <Text style={sd.invoiceLinkText}>Voir la facture</Text>
                     </TouchableOpacity>
                   )}
@@ -399,12 +449,37 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose }: Ticket
             )}
             {isDone && (
               <TouchableOpacity
-                style={sd.invoiceBtn}
-                onPress={() => Alert.alert('Facture', 'Fonctionnalité en développement')}
+                style={sd.rateBtn}
+                onPress={handleRate}
                 activeOpacity={0.85}
               >
-                <Ionicons name="receipt-outline" size={18} color="#7C3AED" />
+                <Ionicons name="star-outline" size={18} color="#F59E0B" />
+                <Text style={sd.rateBtnText}>Évaluer le prestataire</Text>
+              </TouchableOpacity>
+            )}
+            {isDone && (
+              <TouchableOpacity
+                style={sd.invoiceBtn}
+                onPress={handleInvoice}
+                disabled={invoiceLoading}
+                activeOpacity={0.85}
+              >
+                {invoiceLoading ? (
+                  <ActivityIndicator size={18} color="#7C3AED" />
+                ) : (
+                  <Ionicons name="receipt-outline" size={18} color="#7C3AED" />
+                )}
                 <Text style={sd.invoiceBtnText}>Facture Peppol</Text>
+              </TouchableOpacity>
+            )}
+            {(isDone || isCancelled) && (
+              <TouchableOpacity
+                style={sd.reorderBtn}
+                onPress={handleReorder}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="refresh-outline" size={18} color="#059669" />
+                <Text style={sd.reorderBtnText}>Refaire cette demande</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -545,12 +620,24 @@ const sd = StyleSheet.create({
     backgroundColor: '#172247', borderRadius: 16, paddingVertical: 15,
   },
   navBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  rateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#FFFBEB', borderRadius: 16, paddingVertical: 15,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  rateBtnText: { fontSize: 15, fontWeight: '700', color: '#B45309' },
   invoiceBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#EDE9FE', borderRadius: 16, paddingVertical: 15,
     borderWidth: 1, borderColor: '#DDD6FE',
   },
   invoiceBtnText: { fontSize: 15, fontWeight: '700', color: '#7C3AED' },
+  reorderBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#ECFDF5', borderRadius: 16, paddingVertical: 15,
+    borderWidth: 1, borderColor: '#A7F3D0',
+  },
+  reorderBtnText: { fontSize: 15, fontWeight: '700', color: '#059669' },
   supportBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#FEF2F2', borderRadius: 16, paddingVertical: 15,

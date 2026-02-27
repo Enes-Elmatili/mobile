@@ -1,5 +1,5 @@
 // app/(tabs)/profile.tsx — Provider Profile Hub
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,13 @@ import {
   Alert,
   ScrollView,
   Platform,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useRouter } from 'expo-router';
+import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 
@@ -166,21 +169,79 @@ const ms = StyleSheet.create({
 // ============================================================================
 
 export default function Profile() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshMe } = useAuth();
   const router = useRouter();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const editSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['40%', '70%'], []);
+  const editSnapPoints = useMemo(() => ['65%'], []);
 
   const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
   const email = user?.email || '';
   const roles = user?.roles?.join(' · ') || 'Prestataire';
 
-  // Stats — à connecter à l'API
-  const stats = { rating: '4,9', missions: '127', earnings: '2 840 €', acceptance: '94%' };
+  // ── Real stats from API ──
+  const [stats, setStats] = useState({ rating: '—', missions: '—', earnings: '—', acceptance: '—' });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const isProvider = user.roles?.includes('PROVIDER');
+    const fetchStats = isProvider ? api.dashboard.provider : api.dashboard.client;
+
+    fetchStats()
+      .then((res: any) => {
+        const d = res.data || res;
+        setStats({
+          rating: d.avgRating != null ? Number(d.avgRating).toFixed(1).replace('.', ',') : '—',
+          missions: String(d.totalMissions ?? d.totalRequests ?? '—'),
+          earnings: d.totalEarnings != null
+            ? Number(d.totalEarnings).toLocaleString('fr-FR') + ' €'
+            : '—',
+          acceptance: d.acceptanceRate != null ? d.acceptanceRate + '%' : '—',
+        });
+      })
+      .catch(() => {})
+      .finally(() => setStatsLoading(false));
+  }, [user]);
+
+  // ── Profile edit state ──
+  const [editName, setEditName] = useState(displayName);
+  const [editPhone, setEditPhone] = useState((user as any)?.phone || '');
+  const [saving, setSaving] = useState(false);
 
   const wip = (label: string) => () =>
     Alert.alert(label, 'Fonctionnalité en développement');
+
+  const handleOpenEditProfile = () => {
+    setEditName(displayName);
+    setEditPhone((user as any)?.phone || '');
+    editSheetRef.current?.expand();
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    if (!editName.trim()) {
+      Alert.alert('Erreur', 'Le nom ne peut pas être vide');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.user.update(user.id, {
+        name: editName.trim(),
+        phone: editPhone.trim() || undefined,
+      });
+      await refreshMe();
+      editSheetRef.current?.close();
+      Alert.alert('Profil mis à jour', 'Vos informations ont été enregistrées.');
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de mettre à jour le profil');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
@@ -207,7 +268,7 @@ export default function Profile() {
     {
       icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF',
       label: 'Informations personnelles', sublabel: 'Nom, téléphone, adresse',
-      onPress: wip('Informations personnelles'),
+      onPress: handleOpenEditProfile,
     },
     {
       icon: 'card-outline', iconColor: '#8B5CF6', iconBg: '#EDE9FE',
@@ -262,10 +323,10 @@ export default function Profile() {
   ];
 
   const sheetItems = [
-    { icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Modifier le profil' },
-    { icon: 'notifications-outline', iconColor: '#F59E0B', iconBg: '#FFFBEB', label: 'Notifications' },
-    { icon: 'lock-closed-outline', iconColor: '#6B7280', iconBg: '#F3F4F6', label: 'Confidentialité' },
-    { icon: 'help-circle-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Aide et support' },
+    { icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Modifier le profil', onPress: handleOpenEditProfile },
+    { icon: 'notifications-outline', iconColor: '#F59E0B', iconBg: '#FFFBEB', label: 'Notifications', onPress: wip('Notifications') },
+    { icon: 'lock-closed-outline', iconColor: '#6B7280', iconBg: '#F3F4F6', label: 'Confidentialité', onPress: wip('Confidentialité') },
+    { icon: 'help-circle-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Aide et support', onPress: wip('Aide et support') },
   ];
 
   return (
@@ -299,13 +360,21 @@ export default function Profile() {
 
         {/* Stats Row */}
         <View style={s.statsCard}>
-          <StatBadge icon="star" iconColor="#F59E0B" iconBg="#FFFBEB" value={stats.rating} label="Note" />
-          <View style={s.statsDivider} />
-          <StatBadge icon="checkmark-circle-outline" iconColor="#059669" iconBg="#ECFDF5" value={stats.missions} label="Missions" />
-          <View style={s.statsDivider} />
-          <StatBadge icon="cash-outline" iconColor="#8B5CF6" iconBg="#EDE9FE" value={stats.earnings} label="Ce mois" />
-          <View style={s.statsDivider} />
-          <StatBadge icon="trending-up-outline" iconColor="#3B82F6" iconBg="#EFF6FF" value={stats.acceptance} label="Taux accept." />
+          {statsLoading ? (
+            <View style={{ flex: 1, alignItems: 'center', paddingVertical: 8 }}>
+              <ActivityIndicator size="small" color="#172247" />
+            </View>
+          ) : (
+            <>
+              <StatBadge icon="star" iconColor="#F59E0B" iconBg="#FFFBEB" value={stats.rating} label="Note" />
+              <View style={s.statsDivider} />
+              <StatBadge icon="checkmark-circle-outline" iconColor="#059669" iconBg="#ECFDF5" value={stats.missions} label="Missions" />
+              <View style={s.statsDivider} />
+              <StatBadge icon="cash-outline" iconColor="#8B5CF6" iconBg="#EDE9FE" value={stats.earnings} label="Ce mois" />
+              <View style={s.statsDivider} />
+              <StatBadge icon="trending-up-outline" iconColor="#3B82F6" iconBg="#EFF6FF" value={stats.acceptance} label="Taux accept." />
+            </>
+          )}
         </View>
 
         {/* Menus */}
@@ -319,7 +388,7 @@ export default function Profile() {
         <Text style={s.version}>Version 1.0.0</Text>
       </ScrollView>
 
-      {/* Bottom Sheet */}
+      {/* Settings Bottom Sheet */}
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
@@ -338,7 +407,7 @@ export default function Profile() {
                 activeOpacity={0.7}
                 onPress={() => {
                   bottomSheetRef.current?.close();
-                  Alert.alert('Info', 'Fonctionnalité en développement');
+                  item.onPress();
                 }}
               >
                 <View style={[s.sheetIcon, { backgroundColor: item.iconBg }]}>
@@ -349,6 +418,60 @@ export default function Profile() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        </BottomSheetView>
+      </BottomSheet>
+
+      {/* Profile Edit Bottom Sheet */}
+      <BottomSheet
+        ref={editSheetRef}
+        index={-1}
+        snapPoints={editSnapPoints}
+        enablePanDownToClose
+        backdropComponent={renderBackdrop}
+      >
+        <BottomSheetView style={s.sheetContent}>
+          <View style={s.sheetHandle} />
+          <Text style={s.sheetTitle}>Informations personnelles</Text>
+
+          <Text style={s.editLabel}>Nom complet</Text>
+          <TextInput
+            style={s.editInput}
+            value={editName}
+            onChangeText={setEditName}
+            placeholder="Votre nom"
+            placeholderTextColor="#ADADAD"
+            autoCapitalize="words"
+          />
+
+          <Text style={s.editLabel}>Téléphone</Text>
+          <TextInput
+            style={s.editInput}
+            value={editPhone}
+            onChangeText={setEditPhone}
+            placeholder="+32 470 00 00 00"
+            placeholderTextColor="#ADADAD"
+            keyboardType="phone-pad"
+          />
+
+          <Text style={s.editLabel}>Email</Text>
+          <TextInput
+            style={[s.editInput, { color: '#9CA3AF' }]}
+            value={email}
+            editable={false}
+          />
+
+          <TouchableOpacity
+            style={[s.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSaveProfile}
+            disabled={saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={s.saveBtnText}>Enregistrer</Text>
+            )}
+          </TouchableOpacity>
         </BottomSheetView>
       </BottomSheet>
     </SafeAreaView>
@@ -431,4 +554,23 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   sheetLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111' },
+
+  // Profile edit sheet
+  editLabel: {
+    fontSize: 12, fontWeight: '700', color: '#9CA3AF',
+    textTransform: 'uppercase', letterSpacing: 0.5,
+    marginBottom: 6, marginTop: 12,
+  },
+  editInput: {
+    backgroundColor: '#F8F9FB', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, color: '#111',
+    borderWidth: 1.5, borderColor: '#F3F4F6',
+  },
+  saveBtn: {
+    backgroundColor: '#172247', borderRadius: 16,
+    paddingVertical: 16, alignItems: 'center',
+    marginTop: 24,
+  },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 });

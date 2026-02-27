@@ -51,7 +51,8 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api", 
+      "apiUrl": "YOUR_API_URL_HERE",
+      "socketUrl": "YOUR_SOCKET_URL_HERE",
       "eas": {
         "projectId": "d6938f3f-e8b0-4b3f-9ddd-d781ef02754a"
       }

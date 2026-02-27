@@ -1,9 +1,12 @@
 import Constants from 'expo-constants';
 import { tokenStorage } from './storage';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.129.179:3000/api';
-
-console.log('🌐 API_BASE_URL:', API_BASE_URL);
+const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl;
+if (!API_BASE_URL) {
+  throw new Error(
+    'API URL is not configured. Set "apiUrl" in app.json extra or provide EXPO_PUBLIC_API_URL.'
+  );
+}
 
 export interface ApiResponse<T = any> {
   ok?: boolean;
