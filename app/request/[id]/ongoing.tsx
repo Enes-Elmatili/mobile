@@ -664,7 +664,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 52,
-  },
   completeButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
   buttonDisabled: {
     opacity: 0.6,
