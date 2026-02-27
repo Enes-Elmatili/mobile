@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { tokenStorage } from './storage';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.129.179:3000/api';
+const API_BASE_URL = 'https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api';
 
 console.log('🌐 API_BASE_URL:', API_BASE_URL);
 
@@ -119,24 +119,42 @@ class ApiClient {
       const response = await fetch(url, config);
       const text = await response.text();
 
-      let data;
+      // ── Détection HTML / tunnel error (ngrok 503, Cloudflare, proxy pages) ──
+      const contentType = response.headers.get('content-type') || '';
+      const isHTML = contentType.includes('text/html') || text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html');
+
+      if (isHTML) {
+        const isNgrokError = text.includes('ngrok') || text.includes('ERR_NGROK');
+        const label = isNgrokError ? 'Tunnel ngrok indisponible' : 'Serveur indisponible';
+        console.error(`❌ [${response.status}] ${label} — ${config.method} ${endpoint}`);
+
+        const error: any = new Error(
+          response.status === 503
+            ? `Serveur temporairement indisponible (503). ${isNgrokError ? 'Tunnel ngrok down.' : 'Réessayez dans quelques secondes.'}`
+            : `${label} (${response.status})`
+        );
+        error.status = response.status;
+        error.isHTMLResponse = true;
+        error.isNgrokError = isNgrokError;
+        throw error;
+      }
+
+      // ── Parse JSON ────────────────────────────────────────────────────────
+      let data: any;
       try {
         data = JSON.parse(text);
       } catch {
-        console.error(`❌ API NON-JSON RESPONSE at ${url}`);
-        console.error(`📄 Content preview: ${text.slice(0, 500)}`);
-        
-        const error: any = new Error(`API returned invalid JSON (Status: ${response.status})`);
+        console.error(`❌ API NON-JSON RESPONSE [${response.status}] ${config.method} ${endpoint}`);
+        console.error(`📄 Preview: ${text.slice(0, 200)}`);
+        const error: any = new Error(`Réponse invalide du serveur (${response.status})`);
         error.status = response.status;
         throw error;
       }
 
-      // 🔧 FIX: Handle 401 with retry logic
+      // ── 401 → refresh token puis retry ───────────────────────────────────
       if (response.status === 401 && retryCount === 0) {
         console.log('🔐 Got 401, attempting token refresh...');
-        
         const newToken = await this.refreshAccessToken();
-        
         if (newToken) {
           console.log('🔄 Retrying request with new token...');
           return this.request(endpoint, options, retryCount + 1);
@@ -144,6 +162,14 @@ class ApiClient {
           console.log('❌ Token refresh failed, clearing session...');
           await tokenStorage.removeToken();
         }
+      }
+
+      // ── 503 avec JSON (rare mais possible) ───────────────────────────────
+      if (response.status === 503) {
+        const error: any = new Error(data?.error || data?.message || 'Serveur temporairement indisponible (503)');
+        error.status = 503;
+        error.data = data;
+        throw error;
       }
 
       if (!response.ok) {
@@ -157,7 +183,12 @@ class ApiClient {
       console.log(`✅ API SUCCESS ${config.method} ${endpoint}`);
       return data;
     } catch (error: any) {
-      console.error(`❌ API REQUEST FAILED:`, error.message);
+      // Ne pas re-logger les erreurs déjà construites avec un status connu
+      if (!error.status) {
+        console.error(`❌ API REQUEST FAILED (network?):`, error.message);
+      } else {
+        console.error(`❌ API REQUEST FAILED [${error.status}]:`, error.message);
+      }
       throw error;
     }
   }

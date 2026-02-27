@@ -12,6 +12,7 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  Alert,
   Platform,
   Dimensions,
   Animated,
@@ -92,10 +93,11 @@ function StatusHeroCard({
   onNewRequest: () => void;
 }) {
   const dotOpacity = useRef(new Animated.Value(1)).current;
-  const [secondsLeft, setSecondsLeft]  = useState<number | null>(null);
-  // ETA simulé pour la mission acceptée (8 min par défaut — à brancher sur l'API tracking)
-  const [etaSeconds, setEtaSeconds]    = useState<number>(8 * 60);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // ETA réel récupéré depuis l'API (via Google Directions dans MissionView)
+  const [etaLabel, setEtaLabel] = useState<string>('Chargement...');
   const SEARCH_TIMEOUT = 15 * 60;
+  const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
   useEffect(() => {
     if (!searchingMission && !activeMission) return;
@@ -119,23 +121,67 @@ function StatusHeroCard({
     return () => clearInterval(iv);
   }, [searchingMission?.id]);
 
-  // ETA countdown pour mission ACCEPTED
+  // ── ETA réel depuis l'API request + Google Directions ────────────────────
   useEffect(() => {
-    if (!activeMission || activeMission.status.toUpperCase() !== 'ACCEPTED') return;
-    const iv = setInterval(() => setEtaSeconds(p => (p > 0 ? p - 1 : 0)), 1000);
-    return () => clearInterval(iv);
-  }, [activeMission?.id]);
+    if (!activeMission) return;
+    const st = activeMission.status.toUpperCase();
+    if (st === 'ONGOING') { setEtaLabel('Mission en cours'); return; }
+    if (st !== 'ACCEPTED') return;
 
-  const fmt      = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const fmtEta   = (s: number) => {
-    const m = Math.floor(s / 60);
-    return m <= 0 ? 'Arrivée imminente' : `Arrivée dans ${m} min`;
-  };
+    let cancelled = false;
+
+    const fetchETA = async () => {
+      try {
+        // 1. Récupère les coords du prestataire depuis l'API
+        const details = await api.get(`/requests/${activeMission.id}`);
+        const req = details?.data || details;
+        const provider = req?.provider;
+
+        if (!provider?.lat || !provider?.lng || !req?.lat || !req?.lng) {
+          setEtaLabel('Prestataire en route');
+          return;
+        }
+
+        // 2. Calcule l'ETA via Google Directions
+        if (GOOGLE_MAPS_API_KEY) {
+          const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${provider.lat},${provider.lng}&destination=${req.lat},${req.lng}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (!cancelled && data.status === 'OK' && data.routes?.length > 0) {
+            const text = data.routes[0].legs[0].duration.text; // ex: "5 mins"
+            // Transforme "5 mins" → "Arrivée dans 5 min"
+            const match = text.match(/(\d+)/);
+            const min = match ? parseInt(match[1]) : null;
+            setEtaLabel(min !== null && min <= 1 ? 'Arrivée imminente' : `Arrivée dans ${min} min`);
+            return;
+          }
+        }
+
+        // 3. Fallback distance haversine
+        const R = 6371;
+        const dLat = (req.lat - provider.lat) * Math.PI / 180;
+        const dLon = (req.lng - provider.lng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(provider.lat * Math.PI / 180) * Math.cos(req.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const min = Math.ceil((dist * 1.4 / 30) * 60);
+        if (!cancelled) setEtaLabel(min <= 1 ? 'Arrivée imminente' : `Arrivée dans ${min} min`);
+      } catch {
+        if (!cancelled) setEtaLabel('Prestataire en route');
+      }
+    };
+
+    fetchETA();
+    // Rafraîchit l'ETA toutes les 30s
+    const iv = setInterval(fetchETA, 30_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [activeMission?.id, activeMission?.status]);
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const isExpiring = secondsLeft !== null && secondsLeft < 120;
 
   // ── État : mission active (ACCEPTED / ONGOING) — îlot fin, focus ETA ──
   if (activeMission) {
-    const isAccepted = activeMission.status.toUpperCase() === 'ACCEPTED';
     return (
       <TouchableOpacity style={hero.card} onPress={onActiveMissionPress} activeOpacity={0.92}>
         {/* Ligne unique : dot • ETA dynamique • pill Suivre */}
@@ -143,9 +189,7 @@ function StatusHeroCard({
           <View style={hero.liveRow}>
             <Animated.View style={[hero.liveDot, { opacity: dotOpacity }]} />
           </View>
-          <Text style={hero.etaText} numberOfLines={1}>
-            {isAccepted ? fmtEta(etaSeconds) : `${activeMission.title}`}
-          </Text>
+          <Text style={hero.etaText} numberOfLines={1}>{etaLabel}</Text>
           <View style={hero.followPill}>
             <Text style={hero.followText}>Suivre</Text>
             <Ionicons name="arrow-forward" size={11} color="#FFF" />
@@ -510,6 +554,32 @@ export default function Dashboard() {
   useFocusEffect(useCallback(() => { loadDashboard(); }, [loadDashboard]));
   const onRefresh = () => { setRefreshing(true); loadDashboard(); };
 
+  // ── Navigation vers MissionView — centralisée, déclarée avant le socket ──
+  const navigateToMissionView = useCallback((request: any) => {
+    const r = request;
+    const scheduledFor = r.scheduledFor || r.preferredTimeStart;
+    router.push({
+      pathname: '/request/[id]/MissionView',
+      params: {
+        id:             String(r.id),
+        serviceName:    r.title || r.serviceType || r.name || '',
+        address:        r.address || '',
+        price:          String(r.price || ''),
+        scheduledLabel: scheduledFor
+          ? new Date(scheduledFor).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+          : 'Dès maintenant',
+        expiresAt: r.expiresAt || '',
+        lat: String(r.lat || ''),
+        lng: String(r.lng || ''),
+      },
+    });
+  }, [router]);
+
+  // ── Navigation vers MissionView en phase SEARCHING (PUBLISHED) ──
+  const navigateToSearching = useCallback((request: any) => {
+    navigateToMissionView(request);
+  }, [navigateToMissionView]);
+
   // ── Socket ──
   useEffect(() => {
     if (!socket || !user?.id) return;
@@ -527,7 +597,26 @@ export default function Dashboard() {
       });
     };
 
-    const handleAccepted  = (d: any) => { updateRequestStatus(d.id || d.requestId, 'ACCEPTED');  loadDashboard(); if (d.id || d.requestId) router.push(`/request/${d.id || d.requestId}/tracking`); };
+    const handleAccepted  = (d: any) => {
+      updateRequestStatus(d.id || d.requestId, 'ACCEPTED');
+      loadDashboard();
+      // Récupère les détails complets pour naviguer avec tous les params
+      const reqId = d.id || d.requestId;
+      if (reqId) {
+        api.get(`/requests/${reqId}`)
+          .then(res => {
+            const req = res?.data || res;
+            navigateToMissionView(req);
+          })
+          .catch(() => {
+            // Fallback minimal si l'API échoue
+            router.push({
+              pathname: '/request/[id]/MissionView',
+              params: { id: String(reqId) },
+            });
+          });
+      }
+    };
     const handleStarted   = (d: any) => { updateRequestStatus(d.id || d.requestId, 'ONGOING');   loadDashboard(); };
     const handleCompleted = (d: any) => { updateRequestStatus(d.id || d.requestId, 'DONE');       loadDashboard(); };
     const handleCancelled = (d: any) => { updateRequestStatus(d.id || d.requestId, 'CANCELLED'); loadDashboard(); };
@@ -549,15 +638,39 @@ export default function Dashboard() {
       socket.off('request:expired',   handleExpired);
       socket.off('provider:accepted', handleAccepted);
     };
-  }, [socket, user?.id, router, loadDashboard]);
+  }, [socket, user?.id, router, loadDashboard, navigateToMissionView]);
 
   // ── Actions ──
   const handleRequestPress = async (requestId: string) => {
+    // Si la request locale est déjà PUBLISHED, on va directement sur MissionView
+    const localReq = data?.requests?.find(r => String(r.id) === String(requestId));
+    if (localReq?.status?.toUpperCase() === 'PUBLISHED') {
+      navigateToSearching(localReq);
+      return;
+    }
+    // Si ACCEPTED ou ONGOING en local, navigation directe sans bottom sheet
+    if (localReq && ['ACCEPTED', 'ONGOING'].includes(localReq.status?.toUpperCase())) {
+      navigateToMissionView(localReq);
+      return;
+    }
+
     setLoadingDetails(true);
     bottomSheetRef.current?.expand();
     try {
       const details = await api.get(`/requests/${requestId}`);
-      setSelectedRequest(details.request || details.data || details);
+      const req = details.request || details.data || details;
+      // Double-check après fetch — au cas où le statut aurait changé
+      if (req?.status?.toUpperCase() === 'PUBLISHED') {
+        bottomSheetRef.current?.close();
+        navigateToSearching(req);
+        return;
+      }
+      if (['ACCEPTED', 'ONGOING'].includes(req?.status?.toUpperCase())) {
+        bottomSheetRef.current?.close();
+        navigateToMissionView(req);
+        return;
+      }
+      setSelectedRequest(req);
     } catch (error) {
       console.error('Error loading request details:', error);
     } finally {
@@ -565,11 +678,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleNavigateToMission = (request: any) => {
+  const handleNavigateToMission = useCallback((request: any) => {
     bottomSheetRef.current?.close();
-    const st = request.status?.toUpperCase();
-    if (st === 'ACCEPTED' || st === 'ONGOING') router.push(`/request/${request.id}/tracking`);
-  };
+    navigateToMissionView(request);
+  }, [navigateToMissionView]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -639,8 +751,11 @@ export default function Dashboard() {
           activeMission={activeMission}
           searchingMission={searchingMission}
           name={name}
-          onActiveMissionPress={() => activeMission && handleNavigateToMission(activeMission)}
-          onSearchingPress={() => searchingMission && handleRequestPress(searchingMission.id)}
+          onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
+          onSearchingPress={() => {
+            if (!searchingMission) return;
+            navigateToSearching(searchingMission);
+          }}
           onNewRequest={() => router.push('/request/NewRequestStepper')}
         />
 
@@ -757,7 +872,7 @@ export default function Dashboard() {
                 </View>
               ))}
 
-              {/* CTA contextuelle */}
+              {/* CTA contextuelle — ACCEPTED / ONGOING */}
               {['ACCEPTED', 'ONGOING'].includes(selectedRequest.status?.toUpperCase()) && (
                 <TouchableOpacity style={s.actionBtn} onPress={() => handleNavigateToMission(selectedRequest)}>
                   <Text style={s.actionBtnText}>
@@ -765,6 +880,36 @@ export default function Dashboard() {
                   </Text>
                   <Ionicons name="navigate" size={17} color="#FFF" />
                 </TouchableOpacity>
+              )}
+
+              {/* CTA contextuelle — PUBLISHED (recherche en cours) */}
+              {selectedRequest.status?.toUpperCase() === 'PUBLISHED' && (
+                <>
+                  {/* Rejoindre l'écran de recherche */}
+                  <TouchableOpacity
+                    style={s.actionBtn}
+                    onPress={() => {
+                      bottomSheetRef.current?.close();
+                      navigateTo(selectedRequest);
+                    }}
+                  >
+                    <Text style={s.actionBtnText}>Suivre la recherche</Text>
+                    <Ionicons name="radio-outline" size={17} color="#FFF" />
+                  </TouchableOpacity>
+
+                  {/* Relancer manuellement les providers */}
+                  <TouchableOpacity
+                    style={s.resendBtn}
+                    onPress={async () => {
+                      try {
+                        await api.post(`/requests/${selectedRequest.id}/notify`);
+                      } catch {}
+                    }}
+                  >
+                    <Ionicons name="refresh-outline" size={15} color="#555" />
+                    <Text style={s.resendText}>Relancer les prestataires</Text>
+                  </TouchableOpacity>
+                </>
               )}
 
               {selectedRequest.status?.toUpperCase() === 'DONE' && (
@@ -897,6 +1042,15 @@ const s = StyleSheet.create({
     gap: 10, marginTop: 18,
   },
   actionBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+
+  // Bouton secondaire "Relancer les prestataires"
+  resendBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, marginTop: 12, paddingVertical: 12,
+    borderRadius: 14, backgroundColor: '#F5F5F5',
+    borderWidth: 1, borderColor: '#EBEBEB',
+  },
+  resendText: { fontSize: 13, fontWeight: '600', color: '#555' },
 
   doneCard: {
     backgroundColor: '#F5F5F5', borderRadius: 14, padding: 16,

@@ -1,4 +1,4 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files// EXPO_PUBLIC_API_URL=http://192.168.129.179:3000/api //
 
 # dependencies
 node_modules/

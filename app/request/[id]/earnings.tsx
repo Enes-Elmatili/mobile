@@ -1,5 +1,5 @@
 // app/request/[id]/earnings.tsx
-// Provider voit ses gains après mission — montant = star de l'écran
+// v2 — Palette Silver unifiée + navigation lock (no race condition)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Animated,
   Platform,
+  StatusBar,
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,6 +29,13 @@ export default function EarningsScreen() {
   const checkAnim = useRef(new Animated.Value(0)).current;
   const priceAnim = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(40)).current;
+
+  // ── Navigation lock — empêche tout retour arrière avant d'afficher les gains ──
+  // Sur Android, BackHandler intercepte le bouton physique
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true); // true = bloqué
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => { loadRequestDetails(); }, [id]);
 
@@ -76,6 +85,7 @@ export default function EarningsScreen() {
 
   return (
     <SafeAreaView style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#111" />
       {/* ── Zone succès — fond sombre ── */}
       <View style={s.heroZone}>
         {/* Checkmark animé */}
@@ -161,8 +171,8 @@ import { useRef } from 'react';
 // ============================================================================
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#111' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  root: { flex: 1, backgroundColor: '#111' }, // heroZone sombre, detailZone gris
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8E9EC' },
   loadError: { fontSize: 15, color: '#888' },
 
   // Hero zone (fond sombre)
@@ -187,7 +197,7 @@ const s = StyleSheet.create({
   // Detail zone (fond blanc, arrondis haut)
   detailZone: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: '#E8E9EC',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingHorizontal: 20, paddingTop: 24,
     paddingBottom: Platform.OS === 'ios' ? 0 : 20,
@@ -196,30 +206,32 @@ const s = StyleSheet.create({
 
   // Calcul
   calcCard: {
-    backgroundColor: '#F7F7F7', borderRadius: 20,
+    backgroundColor: '#F0F1F4', borderRadius: 20,
     paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4,
     marginBottom: 4,
+    borderWidth: 1, borderColor: '#DCDDE0',
   },
   calcTitle: { fontSize: 13, fontWeight: '700', color: '#888', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
   calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-  calcRowBorder: { borderBottomWidth: 1, borderBottomColor: '#EBEBEB' },
+  calcRowBorder: { borderBottomWidth: 1, borderBottomColor: '#DCDDE0' },
   calcLabel: { fontSize: 14, fontWeight: '500', color: '#555' },
   calcLabelNeg: { color: '#888' },
   calcValue: { fontSize: 14, fontWeight: '700', color: '#111' },
   calcValueNeg: { color: '#888' },
   calcTotal: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 14, borderTopWidth: 1.5, borderTopColor: '#E5E7EB', marginTop: 4,
+    paddingVertical: 14, borderTopWidth: 1.5, borderTopColor: '#DCDDE0', marginTop: 4,
   },
   calcTotalLabel: { fontSize: 15, fontWeight: '700', color: '#111' },
   calcTotalValue: { fontSize: 20, fontWeight: '900', color: '#111' },
 
   // Mission
   missionCard: {
-    backgroundColor: '#F7F7F7', borderRadius: 20, overflow: 'hidden', marginBottom: 8,
+    backgroundColor: '#F0F1F4', borderRadius: 20, overflow: 'hidden', marginBottom: 8,
+    borderWidth: 1, borderColor: '#DCDDE0',
   },
   missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13 },
-  missionRowBorder: { borderBottomWidth: 1, borderBottomColor: '#EBEBEB' },
+  missionRowBorder: { borderBottomWidth: 1, borderBottomColor: '#DCDDE0' },
   missionText: { fontSize: 14, fontWeight: '500', color: '#444', flex: 1 },
 
   // Boutons

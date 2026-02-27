@@ -1,5 +1,5 @@
 // app/request/[id]/rating.tsx
-// Client note le prestataire — chips compliments, étoiles animées, zéro formulaire lourd
+// v2 — Navigation Lock anti-race condition + Palette Silver unifiée
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -14,6 +14,8 @@ import {
   ActivityIndicator,
   Animated,
   Platform,
+  StatusBar,
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -63,7 +65,7 @@ function Star({ filled, onPress }: { filled: boolean; onPress: () => void }) {
         <Ionicons
           name={filled ? 'star' : 'star-outline'}
           size={44}
-          color={filled ? '#FFB800' : '#E5E7EB'}
+          color={filled ? '#FFB800' : '#CACBCE'}
         />
       </Animated.View>
     </TouchableOpacity>
@@ -112,12 +114,12 @@ const cc = StyleSheet.create({
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: '#F5F5F5', borderRadius: 20,
-    borderWidth: 1.5, borderColor: 'transparent',
+    backgroundColor: '#F0F1F4', borderRadius: 20,
+    borderWidth: 1.5, borderColor: '#DCDDE0',
   },
   chipSelected: { backgroundColor: '#111', borderColor: '#111' },
   emoji: { fontSize: 15 },
-  label: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  label: { fontSize: 13, fontWeight: '600', color: '#444' },
   labelSelected: { color: '#FFF' },
 });
 
@@ -139,6 +141,14 @@ export default function RatingScreen() {
 
   const slideUp = useRef(new Animated.Value(30)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Navigation Lock — bloque le retour physique Android ──────────────────
+  // Sans ce verrou, le layout parent peut rediriger vers /dashboard avant que
+  // l'utilisateur ait eu le temps de noter (race condition).
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     loadRequest();
@@ -209,18 +219,20 @@ export default function RatingScreen() {
 
   return (
     <SafeAreaView style={s.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="#E8E9EC" />
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Header ── */}
+        {/* ── Header — Navigation Lock ── */}
+        {/* Pas de bouton retour : on bloque la race condition layout/socket */}
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
-            <Ionicons name="close" size={20} color="#111" />
-          </TouchableOpacity>
+          <View style={s.closeBtn}>
+            <Ionicons name="close" size={20} color="#D0D1D6" />
+          </View>
           <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={s.skipBtn}>
-            <Text style={s.skipText}>Plus tard</Text>
+            <Text style={s.skipText}>Passer</Text>
           </TouchableOpacity>
         </View>
 
@@ -350,21 +362,23 @@ export default function RatingScreen() {
 // ============================================================================
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFF' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  root: { flex: 1, backgroundColor: '#E8E9EC' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8E9EC' },
   scroll: { paddingHorizontal: 20, paddingBottom: 120 },
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
   closeBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F0F1F4',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#DCDDE0',
   },
   skipBtn: { paddingHorizontal: 12, paddingVertical: 8 },
-  skipText: { fontSize: 14, fontWeight: '600', color: '#9CA3AF' },
+  skipText: { fontSize: 14, fontWeight: '600', color: '#888' },
 
   // Prestataire
-  providerBlock: { alignItems: 'center', paddingVertical: 24, gap: 8 },
+  providerBlock: { alignItems: 'center', paddingVertical: 28, gap: 8 },
   avatar: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: '#111', alignItems: 'center', justifyContent: 'center',
@@ -374,10 +388,11 @@ const s = StyleSheet.create({
   providerLabel: { fontSize: 13, fontWeight: '500', color: '#9CA3AF' },
   providerName: { fontSize: 22, fontWeight: '800', color: '#111' },
   serviceTag: {
-    backgroundColor: '#F5F5F5', borderRadius: 10,
+    backgroundColor: '#F0F1F4', borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 5, marginTop: 4,
+    borderWidth: 1, borderColor: '#DCDDE0',
   },
-  serviceTagText: { fontSize: 12, fontWeight: '600', color: '#555' },
+  serviceTagText: { fontSize: 12, fontWeight: '600', color: '#666' },
 
   // Étoiles
   starsBlock: { alignItems: 'center', marginBottom: 8 },
@@ -393,25 +408,25 @@ const s = StyleSheet.create({
   noteToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   noteToggleText: { fontSize: 13, fontWeight: '500', color: '#888' },
   noteInput: {
-    backgroundColor: '#F7F7F7', borderRadius: 14,
+    backgroundColor: '#F0F1F4', borderRadius: 14,
     padding: 14, fontSize: 15, color: '#111',
     minHeight: 90, marginTop: 10,
-    borderWidth: 1.5, borderColor: '#EBEBEB',
+    borderWidth: 1.5, borderColor: '#DCDDE0',
   },
 
   // Footer CTA
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF',
+    backgroundColor: '#E8E9EC',
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    borderTopWidth: 1, borderTopColor: '#DCDDE0',
   },
   submitBtn: {
     backgroundColor: '#111', borderRadius: 16, height: 56,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
-  submitBtnDisabled: { backgroundColor: '#D1D5DB' },
+  submitBtnDisabled: { backgroundColor: '#CACBCE' },
   submitBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 });

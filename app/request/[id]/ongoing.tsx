@@ -1,5 +1,5 @@
 // app/request/[id]/ongoing.tsx
-// Provider view with Google Directions API for accurate distance
+// v2 — Palette unifiée Silver/Monochrome (même charte que provider-dashboard)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  StatusBar,
+  BackHandler,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +21,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -68,11 +71,40 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+// ─── Map style Silver — même palette que le provider-dashboard ──────────────
+const SILVER_MAP_STYLE = [
+  { elementType: 'geometry',            stylers: [{ color: '#f5f5f5' }] },
+  { elementType: 'labels.text.fill',    stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke',  stylers: [{ color: '#f5f5f5' }] },
+  { featureType: 'landscape',           elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
+  { featureType: 'road',                elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road',                elementType: 'geometry.stroke', stylers: [{ color: '#e0e0e0' }] },
+  { featureType: 'road',                elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+  { featureType: 'road.arterial',       elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.highway',        elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+  { featureType: 'road.highway',        elementType: 'geometry.stroke', stylers: [{ color: '#cfcfcf' }] },
+  { featureType: 'road.local',          elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'water',               elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+  { featureType: 'water',               elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+  { featureType: 'administrative',      elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
+  { featureType: 'poi',                 stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',             stylers: [{ visibility: 'off' }] },
+];
+
 // ============================================================================
 // VALID STATES — statuts qui autorisent cette page
 // ============================================================================
 
-const ACTIONABLE_STATUSES = ['ACCEPTED', 'ONGOING'];
+const ACTIONABLE_STATUSES   = ['ACCEPTED', 'ONGOING'];
+
+// Statuts transitoires — race condition entre socket accept et GET /requests/:id
+// Le backend n'a pas encore propagé l'accept. On patiente plutôt que de rediriger.
+const TRANSITIONAL_STATUSES = ['PUBLISHED', 'PENDING'];
+
+// Retry : 6 × 800 ms = ~5 s max avant abandon
+const RETRY_MAX   = 6;
+const RETRY_DELAY = 800; // ms
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 // ============================================================================
 // COMPONENT
@@ -137,20 +169,41 @@ export default function MissionOngoing() {
   // LOAD REQUEST — avec guard de statut
   // ============================================================================
 
-  const loadRequestDetails = useCallback(async () => {
+  const loadRequestDetails = useCallback(async (attempt = 0) => {
     try {
       const response = await api.get(`/requests/${id}`);
       const data = response.data || response;
       const status = (data?.status || '').toUpperCase();
 
-      console.log('✅ [ONGOING] Request loaded:', data?.id, 'status:', status);
+      console.log(`✅ [ONGOING] Request loaded (attempt ${attempt + 1}): id=${data?.id} status=${status}`);
 
-      // ── GUARD : si la mission n'est plus actionnable, on redirige proprement ──
+      // ── Race condition guard : le backend n'a pas encore propagé l'accept ──
+      // Le provider vient d'accepter via socket. Le GET peut encore retourner
+      // PUBLISHED pendant quelques centaines de ms. On attend et on réessaie.
+      if (TRANSITIONAL_STATUSES.includes(status)) {
+        if (attempt < RETRY_MAX) {
+          console.warn(
+            `⏳ [ONGOING] Statut transitoire "${status}" (tentative ${attempt + 1}/${RETRY_MAX}) — retry dans ${RETRY_DELAY}ms`
+          );
+          setLoading(true); // Garde le spinner pendant le retry
+          await sleep(RETRY_DELAY);
+          return loadRequestDetails(attempt + 1);
+        }
+        // Après RETRY_MAX tentatives, le statut est toujours transitoire — abandon
+        console.error(`❌ [ONGOING] Statut toujours "${status}" après ${RETRY_MAX} tentatives — abandon`);
+        Alert.alert(
+          'Mission non disponible',
+          "La mission n'a pas pu être confirmée. Revenez au tableau de bord.",
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
+        );
+        return;
+      }
+
+      // ── Guard final : statuts terminaux non actionnables ──
       if (!ACTIONABLE_STATUSES.includes(status)) {
         console.warn(`⚠️ [ONGOING] Mission ${id} est en statut "${status}" — non actionnable, redirection`);
 
         if (status === 'DONE') {
-          // Rediriger vers l'écran de gains si déjà terminée
           Alert.alert(
             'Mission déjà terminée',
             'Cette mission a déjà été clôturée.',
@@ -163,14 +216,13 @@ export default function MissionOngoing() {
             [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
           );
         } else {
-          // Statut inconnu / non géré — retour dashboard
           Alert.alert(
             'Mission non disponible',
-            `Cette mission ne peut pas être gérée (statut: ${status}).`,
+            `Cette mission ne peut pas être gérée (statut : ${status}).`,
             [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
           );
         }
-        return; // Ne pas setter le request, arrêter le chargement via finally
+        return;
       }
 
       setRequest(data);
@@ -183,6 +235,12 @@ export default function MissionOngoing() {
       setLoading(false);
     }
   }, [id, router]);
+
+  // ── BackHandler lock — bloque le retour physique Android pendant la mission ──
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     loadRequestDetails();
@@ -295,11 +353,8 @@ export default function MissionOngoing() {
           locationSubscription.current = null;
         }
 
-        Alert.alert(
-          'Mission annulée',
-          'Le client a annulé la mission.',
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
-        );
+        // Replace direct — pas d'Alert pour éviter la race avec le layout
+        router.replace('/(tabs)/dashboard');
       }
     };
 
@@ -325,13 +380,32 @@ export default function MissionOngoing() {
     }
   };
 
-  const handleNavigate = () => {
-    if (request?.lat && request?.lng) {
-      const url = Platform.select({
-        ios: `maps://app?daddr=${request.lat},${request.lng}`,
-        android: `google.navigation:q=${request.lat},${request.lng}`,
-      });
-      if (url) Linking.openURL(url);
+  const handleNavigate = async () => {
+    if (!request?.lat || !request?.lng) return;
+
+    const lat = request.lat;
+    const lng = request.lng;
+
+    if (Platform.OS === 'ios') {
+      // Google Maps natif → Apple Maps → fallback web
+      const googleMapsUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+      const appleMapsUrl  = `maps://?daddr=${lat},${lng}`;
+      const webFallback   = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+
+      const canGoogle = await Linking.canOpenURL(googleMapsUrl);
+      if (canGoogle) {
+        Linking.openURL(googleMapsUrl);
+      } else {
+        const canApple = await Linking.canOpenURL(appleMapsUrl);
+        Linking.openURL(canApple ? appleMapsUrl : webFallback);
+      }
+    } else {
+      // Android : Google Maps navigation → fallback web
+      const googleNavUrl = `google.navigation:q=${lat},${lng}&mode=d`;
+      const webFallback  = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+
+      const canOpen = await Linking.canOpenURL(googleNavUrl);
+      Linking.openURL(canOpen ? googleNavUrl : webFallback);
     }
   };
 
@@ -390,14 +464,14 @@ export default function MissionOngoing() {
 
               const earnings = response.earnings ?? (request?.price * 0.85);
 
-              Alert.alert(
-                '🎉 Félicitations !',
-                `Mission terminée.\nGains : ${formatEuros(earnings)}`,
-                [{
-                  text: 'OK',
-                  onPress: () => router.replace(`/request/${id}/earnings`),
-                }]
-              );
+              // ── Navigation Lock anti-race condition ──────────────────────────
+              // router.replace empêche tout retour arrière.
+              // On redirige IMMÉDIATEMENT vers earnings avant que le layout/socket
+              // parent puisse voir activeMission = null et rediriger vers /dashboard.
+              router.replace({
+                pathname: '/request/[id]/earnings',
+                params: { id: String(id), earnings: String(earnings) },
+              });
             } catch (error: any) {
               console.error('❌ [ONGOING] Complete error:', error);
 
@@ -450,26 +524,30 @@ export default function MissionOngoing() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
+        customMapStyle={SILVER_MAP_STYLE}
         initialRegion={mapInitialRegion}
         showsUserLocation
         followsUserLocation
+        showsMyLocationButton={false}
+        showsCompass={false}
       >
         {/* Marker client */}
-        <Marker coordinate={clientLocation} title="Client" pinColor="#4CAF50" />
+        <Marker coordinate={clientLocation} title="Client" pinColor="#111111" />
 
         {/* Tracé de l'itinéraire */}
         {routeCoordinates.length > 0 ? (
-          <Polyline coordinates={routeCoordinates} strokeColor="#000" strokeWidth={4} />
+          <Polyline coordinates={routeCoordinates} strokeColor="#111111" strokeWidth={4} />
         ) : myLocation ? (
           <Polyline
             coordinates={[myLocation, clientLocation]}
-            strokeColor="#999"
+            strokeColor="#ADADAD"
             strokeWidth={3}
-            lineDashPattern={[10, 5]}
+            lineDashPattern={[8, 6]}
           />
         ) : null}
       </MapView>
@@ -559,8 +637,8 @@ export default function MissionOngoing() {
 // ============================================================================
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: '#E8E9EC' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#E8E9EC' },
   loadingText: { fontSize: 16, color: '#666', fontWeight: '500' },
   map: { flex: 1 },
   backButton: {
@@ -570,12 +648,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFF',
+    backgroundColor: '#F0F1F4',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DCDDE0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -584,13 +664,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFF',
+    backgroundColor: '#F0F1F4',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#DCDDE0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 8,
   },
@@ -600,11 +682,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingBottom: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#DCDDE0',
   },
   etaItem: { alignItems: 'center' },
-  etaDivider: { width: 1, backgroundColor: '#E0E0E0' },
-  etaLabel: { fontSize: 14, color: '#666', marginBottom: 4 },
+  etaDivider: { width: 1, backgroundColor: '#CACBCE' },
+  etaLabel: { fontSize: 11, fontWeight: '500', color: '#ADADAD', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
   etaValue: { fontSize: 24, fontWeight: '900', color: '#000' },
   clientDetails: {
     flexDirection: 'row',
@@ -612,25 +694,25 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#DCDDE0',
   },
   clientAvatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E2E3E6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   clientInfo: { flex: 1 },
   clientName: { fontSize: 18, fontWeight: '700', color: '#000', marginBottom: 4 },
-  clientAddress: { fontSize: 14, color: '#666' },
+  clientAddress: { fontSize: 13, color: '#888' },
   callButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#111111',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -649,7 +731,7 @@ const styles = StyleSheet.create({
   },
   navigateButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
   startButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#111111',
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
@@ -658,12 +740,13 @@ const styles = StyleSheet.create({
   },
   startButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
   completeButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#111111',
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 52,
+  },
   completeButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
   buttonDisabled: {
     opacity: 0.6,

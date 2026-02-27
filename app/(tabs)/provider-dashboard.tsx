@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 // app/(tabs)/provider-dashboard.tsx
-// Mode "Dispatch" — Google Maps dark plein écran + pop-up mission avec timer
+// v3 — "Perfection clinique" : Midnight map, Cockpit Island, Avatar marker, Edge vignette
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -16,36 +16,47 @@ import {
   Dimensions,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
-import Constants from 'expo-constants';
 
 const { width, height } = Dimensions.get('window');
 const TIMER_DURATION = 15;
 
-// ─── Google Maps dark style (Uber driver aesthetic) ────────────────────────
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0a0a0a' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#444444' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0a0a' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212121' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#333333' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#222222' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f1f1f' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#050505' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#1a1a1a' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
-  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#333333' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#3a3a3a' }] },
-  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0d0d0d' }] },
+// ─── Map style "Midnight Aubergine" — routes lisibles, POI off, max contrast ──
+// Routes gris-bleu sur fond presque noir. Labels très discrets. Effet pro navigation.
+const MIDNIGHT_MAP_STYLE = [
+  // Base
+  { elementType: 'geometry',            stylers: [{ color: '#0e0e18' }] },
+  { elementType: 'labels.text.fill',    stylers: [{ color: '#4a4a6a' }] },
+  { elementType: 'labels.text.stroke',  stylers: [{ color: '#0e0e18' }] },
+  // Landscape
+  { featureType: 'landscape',           elementType: 'geometry',            stylers: [{ color: '#111120' }] },
+  { featureType: 'landscape.man_made',  elementType: 'geometry',            stylers: [{ color: '#12121e' }] },
+  // Routes — gris-bleu lisibles
+  { featureType: 'road',                elementType: 'geometry',            stylers: [{ color: '#1e2035' }] },
+  { featureType: 'road',                elementType: 'geometry.stroke',     stylers: [{ color: '#292940' }] },
+  { featureType: 'road',                elementType: 'labels.text.fill',    stylers: [{ color: '#5a5a80' }] },
+  { featureType: 'road.arterial',       elementType: 'geometry',            stylers: [{ color: '#22253a' }] },
+  { featureType: 'road.arterial',       elementType: 'geometry.stroke',     stylers: [{ color: '#2e3150' }] },
+  { featureType: 'road.highway',        elementType: 'geometry',            stylers: [{ color: '#2a2e4a' }] },
+  { featureType: 'road.highway',        elementType: 'geometry.stroke',     stylers: [{ color: '#383c60' }] },
+  { featureType: 'road.highway',        elementType: 'labels.text.fill',    stylers: [{ color: '#6060a0' }] },
+  { featureType: 'road.local',          elementType: 'geometry',            stylers: [{ color: '#181828' }] },
+  // Eau
+  { featureType: 'water',               elementType: 'geometry',            stylers: [{ color: '#080815' }] },
+  { featureType: 'water',               elementType: 'labels.text.fill',    stylers: [{ color: '#1a1a35' }] },
+  // Admin
+  { featureType: 'administrative',      elementType: 'geometry',            stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#5050a0' }] },
+  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#3a3a60' }] },
+  // Off
+  { featureType: 'poi',                 stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',             stylers: [{ visibility: 'off' }] },
 ];
 
 // ============================================================================
@@ -86,7 +97,85 @@ interface IncomingRequest {
 }
 
 // ============================================================================
-// RADAR PULSE (affiché au centre de la carte quand online)
+// AVATAR MARKER — Remplace showsUserLocation natif : cercle + flèche de cap
+// ============================================================================
+
+function AvatarMarker({ heading }: { heading: number }) {
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0, duration: 0,    useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const pulseScale   = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.8] });
+  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.4, 0.1, 0] });
+
+  return (
+    <View style={av.wrap}>
+      {/* Pulse */}
+      <Animated.View style={[av.pulse, { transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
+      {/* Précision circle */}
+      <View style={av.accuracyRing} />
+      {/* Core dot */}
+      <View style={av.core}>
+        {/* Flèche de cap */}
+        <View style={[av.arrow, { transform: [{ rotate: `${heading}deg` }] }]}>
+          <View style={av.arrowHead} />
+        </View>
+        <View style={av.dot} />
+      </View>
+    </View>
+  );
+}
+
+const av = StyleSheet.create({
+  wrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  pulse: {
+    position: 'absolute',
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#4B7BEC',
+  },
+  accuracyRing: {
+    position: 'absolute',
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1.5, borderColor: 'rgba(75,123,236,0.4)',
+    backgroundColor: 'rgba(75,123,236,0.08)',
+  },
+  core: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#4B7BEC',
+    borderWidth: 2.5, borderColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#4B7BEC', shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  dot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: '#FFF',
+    position: 'absolute',
+  },
+  arrow: {
+    position: 'absolute',
+    width: 20, height: 20,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    top: -12,
+  },
+  arrowHead: {
+    width: 0, height: 0,
+    borderLeftWidth: 4, borderRightWidth: 4, borderBottomWidth: 8,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    borderBottomColor: '#4B7BEC',
+  },
+});
+
+// ============================================================================
+// RADAR PULSE — visible uniquement en ligne
 // ============================================================================
 
 function RadarPulse() {
@@ -99,18 +188,18 @@ function RadarPulse() {
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1, duration: 2000, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 1, duration: 2200, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 0,    useNativeDriver: true }),
         ])
       ).start();
     pulse(ring1, 0);
-    pulse(ring2, 600);
-    pulse(ring3, 1200);
+    pulse(ring2, 700);
+    pulse(ring3, 1400);
   }, []);
 
   const ring = (anim: Animated.Value) => ({
-    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 3] }) }],
-    opacity: anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.2, 0] }),
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 3.2] }) }],
+    opacity:   anim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.5, 0.15, 0] }),
   });
 
   return (
@@ -126,21 +215,22 @@ function RadarPulse() {
 }
 
 const radar = StyleSheet.create({
-  wrap: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center' },
+  wrap: { width: 130, height: 130, justifyContent: 'center', alignItems: 'center' },
   ring: {
     position: 'absolute',
     width: 80, height: 80, borderRadius: 40,
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)',
+    borderWidth: 1.5, borderColor: 'rgba(75,123,236,0.6)',
   },
   core: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(75,123,236,0.15)',
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(75,123,236,0.3)',
   },
 });
 
 // ============================================================================
-// INCOMING JOB CARD
+// INCOMING JOB CARD — inchangé, il est parfait
 // ============================================================================
 
 function IncomingJobCard({
@@ -152,12 +242,12 @@ function IncomingJobCard({
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  const slideUp  = useRef(new Animated.Value(400)).current;
+  const slideUp   = useRef(new Animated.Value(420)).current;
   const timerAnim = useRef(new Animated.Value(1)).current;
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
 
   useEffect(() => {
-    Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 11, useNativeDriver: true }).start();
+    Animated.spring(slideUp, { toValue: 0, tension: 55, friction: 10, useNativeDriver: true }).start();
   }, []);
 
   useEffect(() => {
@@ -167,15 +257,11 @@ function IncomingJobCard({
         return prev - 1;
       });
     }, 1000);
-    Animated.timing(timerAnim, {
-      toValue: 0,
-      duration: TIMER_DURATION * 1000,
-      useNativeDriver: false,
-    }).start();
+    Animated.timing(timerAnim, { toValue: 0, duration: TIMER_DURATION * 1000, useNativeDriver: false }).start();
     return () => clearInterval(interval);
   }, []);
 
-  const netPrice = request.price * 0.85;
+  const netPrice  = request.price * 0.85;
   const timerColor = timerAnim.interpolate({
     inputRange: [0, 0.33, 1],
     outputRange: ['#FF3B30', '#FF9500', '#34C759'],
@@ -183,6 +269,7 @@ function IncomingJobCard({
 
   return (
     <Animated.View style={[jc.wrap, { transform: [{ translateY: slideUp }] }]}>
+      {/* Timer bar */}
       <View style={jc.timerTrack}>
         <Animated.View style={[jc.timerFill, {
           width: timerAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
@@ -242,237 +329,281 @@ function IncomingJobCard({
 
 const jc = StyleSheet.create({
   wrap: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF',
+    position: 'absolute',
+    // Tab bar Expo Router : ~83px iOS / ~60px Android
+    bottom: Platform.OS === 'ios' ? 83 : 60,
+    left: 0, right: 0,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingTop: 0, paddingHorizontal: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: -8 },
-    elevation: 20,
+    paddingTop: 0, paddingHorizontal: 20,
+    paddingBottom: 24,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 28, shadowOffset: { width: 0, height: -10 },
+    elevation: 22,
   },
-  timerTrack: { height: 4, backgroundColor: '#F0F0F0', borderRadius: 2, marginBottom: 20, overflow: 'hidden' },
-  timerFill: { height: '100%', borderRadius: 2 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 16 },
-  headerLeft: { flex: 1, gap: 6 },
-  urgentPill: {
+  timerTrack:  { height: 4, backgroundColor: '#F0F0F0', borderRadius: 2, marginBottom: 20, overflow: 'hidden' },
+  timerFill:   { height: '100%', borderRadius: 2 },
+  header:      { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 16 },
+  headerLeft:  { flex: 1, gap: 6 },
+  urgentPill:  {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#FF3B30', borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start',
   },
-  urgentText: { fontSize: 10, fontWeight: '900', color: '#FFF', letterSpacing: 0.5 },
-  title: { fontSize: 18, fontWeight: '800', color: '#111', lineHeight: 24 },
-  priceBlock: { alignItems: 'flex-end' },
-  priceLabel: { fontSize: 10, fontWeight: '600', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 },
-  price: { fontSize: 38, fontWeight: '900', color: '#111', lineHeight: 44, letterSpacing: -1 },
-  priceGross: { fontSize: 11, color: '#ADADAD', fontWeight: '500' },
-  metas: { gap: 8, marginBottom: 20 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaText: { fontSize: 13, color: '#555', fontWeight: '500', flex: 1 },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  urgentText:  { fontSize: 10, fontWeight: '900', color: '#FFF', letterSpacing: 0.5 },
+  title:       { fontSize: 18, fontWeight: '800', color: '#111', lineHeight: 24 },
+  priceBlock:  { alignItems: 'flex-end' },
+  priceLabel:  { fontSize: 10, fontWeight: '600', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 },
+  price:       { fontSize: 38, fontWeight: '900', color: '#111', lineHeight: 44, letterSpacing: -1 },
+  priceGross:  { fontSize: 11, color: '#ADADAD', fontWeight: '500' },
+  metas:       { gap: 8, marginBottom: 20 },
+  meta:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaText:    { fontSize: 13, color: '#555', fontWeight: '500', flex: 1 },
+  footer:      { flexDirection: 'row', alignItems: 'center', gap: 12 },
   timerCircle: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
-  timerNum: { fontSize: 16, fontWeight: '800', color: '#111' },
+  timerNum:    { fontSize: 16, fontWeight: '800', color: '#111' },
   timerUrgent: { color: '#FF3B30' },
-  declineBtn: {
+  declineBtn:  {
     width: 50, height: 50, borderRadius: 25,
     backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: '#FECACA',
   },
-  acceptBtn: {
+  acceptBtn:   {
     flex: 1, height: 50, backgroundColor: '#111',
     borderRadius: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  acceptText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  acceptText:  { fontSize: 16, fontWeight: '800', color: '#FFF' },
 });
 
 // ============================================================================
-// WALLET PILL
+// COCKPIT ISLAND v3 — Slim pill, Apple/Tesla style
 // ============================================================================
 
-function WalletPill({ wallet, onPress }: { wallet: WalletData | null; onPress: () => void }) {
+function CockpitIsland({
+  isOnline,
+  isConnected,
+  wallet,
+  onToggle,
+  onWalletPress,
+}: {
+  isOnline: boolean;
+  isConnected: boolean;
+  wallet: WalletData | null;
+  onToggle: () => void;
+  onWalletPress: () => void;
+}) {
+  const scaleAnim   = useRef(new Animated.Value(1)).current;
+  const dotGlowAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isOnline) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(dotGlowAnim, { toValue: 1,   duration: 1400, useNativeDriver: true }),
+          Animated.timing(dotGlowAnim, { toValue: 0.4, duration: 1400, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      dotGlowAnim.stopAnimation();
+      dotGlowAnim.setValue(0);
+    }
+  }, [isOnline]);
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.94, duration: 60,  useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1,    tension: 300, friction: 8, useNativeDriver: true }),
+    ]).start();
+    onToggle();
+  };
+
+  const dotOpacity = dotGlowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+
   return (
-    <TouchableOpacity style={wp.wrap} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name="wallet-outline" size={16} color="#FFF" />
-      <Text style={wp.balance}>{formatEuros(wallet?.balance || 0)}</Text>
-      <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" />
-    </TouchableOpacity>
-  );
-}
+    <Animated.View style={[ci.island, { transform: [{ scale: scaleAnim }] }]}>
 
-const wp = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-  balance: { fontSize: 15, fontWeight: '800', color: '#FFF' },
-});
-
-// ============================================================================
-// STATS ROW — données réelles depuis /provider/dashboard
-// ============================================================================
-
-function StatsRow({ stats, loading }: { stats: ProviderStats; loading: boolean }) {
-  const items = [
-    { icon: 'checkmark-circle-outline', value: loading ? '—' : String(stats.jobsCompleted), label: 'Missions' },
-    { icon: 'star-outline',             value: loading ? '—' : stats.avgRating.toFixed(1),   label: 'Note' },
-    { icon: 'trophy-outline',           value: loading ? '—' : String(Math.round(stats.rankScore)), label: 'Rang' },
-  ];
-  return (
-    <View style={srow.wrap}>
-      {items.map((item, i) => (
-        <View key={i} style={srow.pill}>
-          <Ionicons name={item.icon as any} size={14} color="rgba(255,255,255,0.7)" />
-          <Text style={srow.value}>{item.value}</Text>
-          <Text style={srow.label}>{item.label}</Text>
+      {/* Statut — zone tactile gauche */}
+      <TouchableOpacity
+        onPress={handlePress}
+        activeOpacity={0.85}
+        style={[ci.statusSection, isOnline ? ci.bgOnline : ci.bgOffline]}
+      >
+        <View style={ci.dotWrap}>
+          {isOnline && (
+            <Animated.View style={[ci.dotGlow, { opacity: dotOpacity }]} />
+          )}
+          <View style={[ci.dot, isOnline ? ci.dotOn : ci.dotOff]} />
         </View>
-      ))}
-    </View>
+        <Text style={[ci.statusText, isOnline ? ci.statusOn : ci.statusOff]}>
+          {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Séparateur */}
+      <View style={ci.sep} />
+
+      {/* Wallet — solde réel Prisma */}
+      <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletSection}>
+        <Text style={ci.walletLabel}>SOLDE</Text>
+        <Text style={ci.walletAmount}>{formatEuros(wallet?.balance || 0)}</Text>
+      </TouchableOpacity>
+
+    </Animated.View>
   );
 }
 
-const srow = StyleSheet.create({
-  wrap: { flexDirection: 'row', gap: 8 },
-  pill: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+const ci = StyleSheet.create({
+  island: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(14,14,14,0.97)',
+    borderRadius: 44,
+    height: 52,           // +4px — plus d'air vertical
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 22,
   },
-  value: { fontSize: 14, fontWeight: '800', color: '#FFF' },
-  label: { fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.45)' },
+  // Statut = action principale, zone plus généreuse
+  statusSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 42,
+    paddingHorizontal: 20, // 20px minimum pour respirer
+    borderRadius: 22,
+    gap: 10,
+  },
+  bgOnline:  { backgroundColor: 'rgba(52,199,89,0.13)' },
+  bgOffline: { backgroundColor: 'transparent' },
+  dotWrap:   { width: 8, height: 8, alignItems: 'center', justifyContent: 'center' },
+  dotGlow:   { position: 'absolute', width: 16, height: 16, borderRadius: 8, backgroundColor: '#34C759' },
+  dot:       { width: 7, height: 7, borderRadius: 3.5 },
+  dotOn:     { backgroundColor: '#34C759' },
+  dotOff:    { backgroundColor: '#3e3e3e' },
+  statusText:  { fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
+  statusOn:    { color: '#34C759' },
+  statusOff:   { color: 'rgba(255,255,255,0.30)' },
+  // Séparateur = suggestion, pas coupure
+  sep: { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.07)', marginHorizontal: 2 },
+  // Solde = info secondaire, compact mais lisible
+  walletSection: {
+    alignItems: 'flex-end',
+    paddingLeft: 14,
+    paddingRight: 22,   // air généreux côté droit
+    gap: 1,
+  },
+  walletLabel:  { fontSize: 8.5, fontWeight: '600', color: 'rgba(255,255,255,0.28)', letterSpacing: 0.8, textTransform: 'uppercase' },
+  walletAmount: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: -0.3 },
+});
+
+
+// ============================================================================
+// STATS KPI — avec "Action Card" si zéro missions
+// ============================================================================
+
+function StatsSection({
+  stats,
+  wallet,
+  loading,
+  onWithdraw,
+  onWallet,
+}: {
+  stats: ProviderStats;
+  wallet: WalletData | null;
+  loading: boolean;
+  onWithdraw: () => void;
+  onWallet: () => void;
+}) {
+  const isFirstTimer = !loading && stats.jobsCompleted === 0;
+
+  if (loading) {
+    return (
+      <View style={ss.loadingRow}>
+        {[0,1,2,3].map(i => (
+          <View key={i} style={ss.shimmer} />
+        ))}
+      </View>
+    );
+  }
+}
+
+const ss = StyleSheet.create({
+  loadingRow: {
+    flexDirection: 'row', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 16, padding: 16,
+  },
+  shimmer: {
+    flex: 1, height: 28, borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  actionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: 'rgba(75,123,236,0.10)',
+    borderRadius: 16, padding: 16,
+    // Bordure lumineuse = CTA visible, pas juste décoratif
+    borderWidth: 1, borderColor: 'rgba(75,123,236,0.38)',
+    shadowColor: '#4B7BEC', shadowOpacity: 0.15,
+    shadowRadius: 12, shadowOffset: { width: 0, height: 0 },
+  },
+  actionIconWrap: {
+    width: 44, height: 44, borderRadius: 13,
+    backgroundColor: 'rgba(75,123,236,0.22)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(75,123,236,0.3)',
+  },
+  actionTextWrap: { flex: 1, gap: 4 },
+  actionTitle:    { fontSize: 13, fontWeight: '800', color: '#FFFFFF', lineHeight: 18 },
+  actionSub:      { fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.45)', lineHeight: 16 },
+  kpiRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+  kpiItem:  { flex: 1, alignItems: 'center', gap: 4 },
+  kpiSep:   { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.07)' },
+  kpiNum:   { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.3 },
+  kpiGold:  { color: '#FFD060' },
+  kpiStar:  { fontSize: 12, color: '#FFD060' },
+  kpiLabel: { fontSize: 10, fontWeight: '400', color: 'rgba(255,255,255,0.28)', letterSpacing: 0.4 },
 });
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-
-// ============================================================================
-// ISLAND STATUS — Dynamic Island style, opaque noir, centré en haut
-// ============================================================================
-
-function IslandStatus({
-  isOnline,
-  isConnected,
-  onToggle,
-}: {
-  isOnline: boolean;
-  isConnected: boolean;
-  onToggle: () => void;
-}) {
-  const glowAnim  = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (isOnline) {
-      // Glow pulse en boucle quand online
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      glowAnim.stopAnimation();
-      glowAnim.setValue(0);
-    }
-  }, [isOnline]);
-
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
-    ]).start();
-    onToggle();
-  };
-
-  const dotOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
-  const dotScale   = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] });
-
-  return (
-    <View style={island.wrapper}>
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <TouchableOpacity
-          style={[island.pill, isOnline && island.pillOnline]}
-          onPress={handlePress}
-          activeOpacity={1}
-        >
-          {/* Dot animé */}
-          <View style={island.dotWrap}>
-            {isOnline && (
-              <Animated.View style={[island.dotGlow, { opacity: dotOpacity, transform: [{ scale: dotScale }] }]} />
-            )}
-            <View style={[island.dot, isOnline ? island.dotOnline : island.dotOffline]} />
-          </View>
-
-          {/* Label */}
-          <Text style={[island.label, isOnline && island.labelOnline]}>
-            {isOnline ? 'EN LIGNE' : 'HORS LIGNE'}
-          </Text>
-
-          {/* Icône droite */}
-          <Ionicons
-            name={isOnline ? 'radio-outline' : 'power-outline'}
-            size={14}
-            color={isOnline ? '#34C759' : '#555'}
-          />
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
-  );
-}
-
-const island = StyleSheet.create({
-  wrapper: { alignItems: 'center' },
-  pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#111111',
-    paddingHorizontal: 18, paddingVertical: 11,
-    borderRadius: 30,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
-  },
-  pillOnline: {
-    borderColor: 'rgba(52,199,89,0.25)',
-    shadowColor: '#34C759', shadowOpacity: 0.2,
-  },
-  dotWrap:  { width: 10, height: 10, alignItems: 'center', justifyContent: 'center' },
-  dotGlow:  { position: 'absolute', width: 16, height: 16, borderRadius: 8, backgroundColor: '#34C759' },
-  dot:      { width: 7, height: 7, borderRadius: 4 },
-  dotOnline:  { backgroundColor: '#34C759' },
-  dotOffline: { backgroundColor: '#444' },
-  label:      { fontSize: 12, fontWeight: '800', color: '#444', letterSpacing: 1 },
-  labelOnline: { color: '#34C759' },
-});
-
 export default function ProviderDashboard() {
-  const router   = useRouter();
-  const { user } = useAuth();
+  const router           = useRouter();
+  const { user }         = useAuth();
   const { socket, isConnected } = useSocket();
 
   const mapRef   = useRef<MapView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const [location, setLocation]           = useState<{ latitude: number; longitude: number } | null>(null);
+  const [location,      setLocation]      = useState<{ latitude: number; longitude: number } | null>(null);
+  const [heading,       setHeading]        = useState(0);
   const [locationError, setLocationError] = useState(false);
-  const [wallet, setWallet]               = useState<WalletData | null>(null);
-  const [stats, setStats]                 = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
-  const [statsLoading, setStatsLoading]   = useState(true);
+  const [wallet,        setWallet]         = useState<WalletData | null>(null);
+  const [stats,         setStats]          = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
+  const [statsLoading,  setStatsLoading]  = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [isOnline, setIsOnline]           = useState(false);
+  const [loading,       setLoading]        = useState(true);
+  const [isOnline,      setIsOnline]       = useState(false);
 
-  // ── Fade in ──
+  // Fade in à l'ouverture
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }).start();
   }, []);
 
-  // ── Géolocalisation ──
+  // Géolocalisation + heading
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -481,20 +612,16 @@ export default function ProviderDashboard() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setLocation(coords);
+      if (loc.coords.heading != null) setHeading(loc.coords.heading);
 
-      // Centrer la carte sur la position du provider
-      mapRef.current?.animateToRegion({
-        ...coords,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      }, 800);
+      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 900);
 
-      // Tracking continu pour update le socket
       Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 30 },
+        { accuracy: Location.Accuracy.High, distanceInterval: 15 },
         (l) => {
           const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
           setLocation(c);
+          if (l.coords.heading != null) setHeading(l.coords.heading);
           if (socket && isOnline && user?.id) {
             socket.emit('provider:location', { providerId: user.id, ...c });
           }
@@ -503,37 +630,33 @@ export default function ProviderDashboard() {
     })();
   }, []);
 
-  // ── Data depuis /provider/dashboard (stats réelles) ──
+  // Data (wallet + stats)
   const loadData = useCallback(async () => {
-    // Appels indépendants — si l'un échoue, l'autre continue
     const results = await Promise.allSettled([
-      api.wallet.balance(),   // GET /wallet
-      api.user.me(),          // GET /auth/me — contient jobsCompleted, avgRating, rankScore
+      api.wallet.balance(),
+      api.user.me(),
     ]);
 
-    // Wallet
     if (results[0].status === 'fulfilled') {
-      const walletRes = results[0].value as any;
+      const w = results[0].value as any;
       setWallet({
-        balance:       walletRes.balance       || 0,
-        pendingAmount: walletRes.pendingAmount  || 0,
-        totalEarnings: walletRes.totalEarnings  || 0,
+        balance:       w.balance       || 0,
+        pendingAmount: w.pendingAmount  || 0,
+        totalEarnings: w.totalEarnings  || 0,
       });
     } else {
-      console.warn('Wallet load failed:', (results[0] as PromiseRejectedResult).reason?.message);
+      console.warn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
     }
 
-    // Stats depuis /auth/me
     if (results[1].status === 'fulfilled') {
-      const meRes = results[1].value as any;
-      const u = meRes.user || meRes.data || meRes;
+      const u = (results[1].value as any)?.user || (results[1].value as any)?.data || results[1].value;
       setStats({
         jobsCompleted: u.jobsCompleted ?? u.completedMissions ?? u.totalCompleted ?? 0,
         avgRating:     u.avgRating     ?? u.averageRating      ?? u.rating        ?? 5.0,
         rankScore:     u.rankScore     ?? u.rank               ?? u.score         ?? 0,
       });
     } else {
-      console.warn('Stats load failed:', (results[1] as PromiseRejectedResult).reason?.message);
+      console.warn('Stats failed:', (results[1] as PromiseRejectedResult).reason?.message);
     }
 
     setStatsLoading(false);
@@ -542,10 +665,9 @@ export default function ProviderDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Socket ──
+  // Socket
   useEffect(() => {
     if (!socket || !user?.id) return;
-
     if (socket.connected) socket.emit('provider:register', { providerId: user.id });
 
     const handleNewRequest = (data: any) => {
@@ -563,17 +685,11 @@ export default function ProviderDashboard() {
         latitude:    data.location?.latitude  || data.latitude,
         longitude:   data.location?.longitude || data.longitude,
       };
-      setIncomingRequests(prev =>
-        prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]
-      );
-
-      // Zoomer sur le marker de la mission entrante
+      setIncomingRequests(prev => prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]);
       if (req.latitude && req.longitude) {
         mapRef.current?.animateToRegion({
-          latitude:      req.latitude,
-          longitude:     req.longitude,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
+          latitude: req.latitude, longitude: req.longitude,
+          latitudeDelta: 0.02, longitudeDelta: 0.02,
         }, 600);
       }
     };
@@ -591,42 +707,30 @@ export default function ProviderDashboard() {
     socket.on('provider:status_update', handleStatusUpdate);
 
     return () => {
-      socket.off('new_request',            handleNewRequest);
-      socket.off('request:claimed',        removeRequest);
-      socket.off('request:expired',        removeRequest);
+      socket.off('new_request',           handleNewRequest);
+      socket.off('request:claimed',       removeRequest);
+      socket.off('request:expired',       removeRequest);
       socket.off('provider:status_update', handleStatusUpdate);
     };
   }, [socket, user?.id]);
 
-  // ── Toggle En ligne ──
+  // Toggle online
   const handleToggleOnline = useCallback(() => {
     if (!user?.id) return;
     const next = !isOnline;
     setIsOnline(next);
-    Vibration.vibrate(50);
+    Vibration.vibrate(next ? [0, 60, 30, 60] : 40);
     if (socket) socket.emit('provider:set_status', { providerId: user.id, status: next ? 'READY' : 'OFFLINE' });
     if (!next) setIncomingRequests([]);
-
-    // Recentrer sur la position du provider quand il passe online
     if (next && location) {
-      mapRef.current?.animateToRegion({
-        ...location,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      }, 600);
+      mapRef.current?.animateToRegion({ ...location, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 700);
     }
   }, [isOnline, socket, user?.id, location]);
 
-  // ── Accept / Decline ──
+  // Accept / Decline
   const handleAccept = useCallback(async (request: IncomingRequest) => {
     if (!user?.id) return;
-    if (socket) {
-      socket.emit('provider:accept', {
-        requestId:  request.requestId,
-        providerId: user.id,
-        clientId:   request.clientId,
-      });
-    }
+    if (socket) socket.emit('provider:accept', { requestId: request.requestId, providerId: user.id, clientId: request.clientId });
     Vibration.vibrate(100);
     setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
     router.push(`/request/${request.requestId}/ongoing`);
@@ -639,11 +743,12 @@ export default function ProviderDashboard() {
 
   const activeJob = incomingRequests[0] || null;
 
+  // ── Loading screen ──
   if (loading) {
     return (
       <View style={s.loadingScreen}>
         <StatusBar barStyle="light-content" />
-        <Ionicons name="navigate-circle" size={48} color="rgba(255,255,255,0.3)" />
+        <Ionicons name="navigate-circle" size={52} color="rgba(75,123,236,0.4)" />
       </View>
     );
   }
@@ -652,26 +757,38 @@ export default function ProviderDashboard() {
     <View style={s.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* ── Google Maps dark plein écran ── */}
+      {/* ── Carte Midnight Aubergine plein écran ── */}
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
-        customMapStyle={DARK_MAP_STYLE}
-        showsUserLocation={true}
+        customMapStyle={MIDNIGHT_MAP_STYLE}
+        showsUserLocation={false}        // Désactivé — on utilise notre AvatarMarker
         showsMyLocationButton={false}
         showsCompass={false}
         showsScale={false}
         pitchEnabled={false}
         toolbarEnabled={false}
         initialRegion={{
-          latitude:       location?.latitude  ?? 48.8566,
-          longitude:      location?.longitude ?? 2.3522,
-          latitudeDelta:  0.04,
-          longitudeDelta: 0.04,
+          latitude:      location?.latitude  ?? 48.8566,
+          longitude:     location?.longitude ?? 2.3522,
+          latitudeDelta:  0.035,
+          longitudeDelta: 0.035,
         }}
       >
-        {/* Markers des missions entrantes */}
+        {/* Avatar marker custom avec cap de direction */}
+        {location && (
+          <Marker
+            coordinate={location}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={false}
+            tracksViewChanges={false}
+          >
+            <AvatarMarker heading={heading} />
+          </Marker>
+        )}
+
+        {/* Markers missions entrantes */}
         {incomingRequests.map(req =>
           req.latitude && req.longitude ? (
             <Marker
@@ -679,6 +796,8 @@ export default function ProviderDashboard() {
               coordinate={{ latitude: req.latitude, longitude: req.longitude }}
               title={req.title}
               description={req.address}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
             >
               <View style={s.missionMarker}>
                 <Ionicons name="flash" size={14} color="#FFF" />
@@ -688,99 +807,101 @@ export default function ProviderDashboard() {
         )}
       </MapView>
 
-      {/* ── Overlay UI au-dessus de la carte ── */}
-      <Animated.View style={[s.overlay, { opacity: fadeAnim }]}>
+      {/* ── Vignette top — dégradé derrière le Top Island ── */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.80)', 'rgba(0,0,0,0.35)', 'transparent']}
+        style={s.vignetteTop}
+        pointerEvents="none"
+      />
 
-        {/* ── Island Status — Dynamic Island style, opaque, centré en haut ── */}
-        <IslandStatus
-          isOnline={isOnline}
-          isConnected={isConnected}
-          onToggle={handleToggleOnline}
-        />
+      {/* ══════════════════════════════════════════════
+          TOP ISLAND — îlot unique absolu en haut
+          Toggle online + Gains + Stats + Recenter
+      ══════════════════════════════════════════════ */}
+      {!activeJob && (
+        <Animated.View style={[s.topIsland, { opacity: fadeAnim }]}>
 
-        {/* ── Hero Card — îlot opaque, gains en star ── */}
-        <View style={s.heroCard}>
-
-          {/* Salut discret */}
-          <Text style={s.heroGreeting}>
-            {user?.name || user?.email?.split('@')[0]}
-          </Text>
-
-          {/* Gains = héros absolu */}
-          <TouchableOpacity onPress={() => router.push('/wallet')} activeOpacity={0.85}>
-            <Text style={s.earningsCaption}>gains nets · ce mois</Text>
-            <Text style={s.earningsHero}>
-              {statsLoading ? '—' : formatEuros(wallet?.totalEarnings || 0)}
-            </Text>
-            {!statsLoading && (wallet?.pendingAmount || 0) > 0 && (
-              <View style={s.pendingPill}>
-                <Text style={s.pendingText}>+{formatEuros(wallet?.pendingAmount || 0)} en attente</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* KPIs — séparateurs verticaux, fond neutre */}
-          <View style={s.kpiRow}>
-            <View style={s.kpiItem}>
-              <Text style={s.kpiValue}>{statsLoading ? '—' : stats.jobsCompleted}</Text>
-              <Text style={s.kpiLabel}>Missions</Text>
-            </View>
-            <View style={s.kpiSep} />
-            <View style={s.kpiItem}>
-              <Text style={s.kpiValue}>{statsLoading ? '—' : stats.avgRating.toFixed(1)}</Text>
-              <Text style={s.kpiLabel}>Note</Text>
-            </View>
-            <View style={s.kpiSep} />
-            <View style={s.kpiItem}>
-              <Text style={s.kpiValue}>{statsLoading ? '—' : `#${Math.round(stats.rankScore)}`}</Text>
-              <Text style={s.kpiLabel}>Rang</Text>
-            </View>
-            <View style={s.kpiSep} />
-            <TouchableOpacity style={s.kpiItem} onPress={() => router.push('/wallet')} activeOpacity={0.8}>
-              <Text style={s.kpiValue}>{statsLoading ? '—' : formatEuros(wallet?.balance || 0)}</Text>
-              <Text style={s.kpiLabel}>Solde</Text>
+          {/* Ligne 1 — CockpitIsland + Recenter côte à côte */}
+          <View style={s.tiRow}>
+            <CockpitIsland
+              isOnline={isOnline}
+              isConnected={isConnected}
+              wallet={wallet}
+              onToggle={handleToggleOnline}
+              onWalletPress={() => router.push('/wallet')}
+            />
+            <TouchableOpacity
+              style={s.recenterBtn}
+              onPress={() => location && mapRef.current?.animateToRegion({
+                ...location, latitudeDelta: 0.035, longitudeDelta: 0.035,
+              }, 700)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="locate" size={20} color="#FFF" />
             </TouchableOpacity>
           </View>
 
-        </View>
+          {/* Séparateur */}
+          <View style={s.tiSep} />
 
-        {/* Zone centrale — radar ou icône offline */}
-        <View style={s.centerZone}>
-          {isOnline ? (
-            <>
-              <RadarPulse />
-              <View style={s.scanBadge}>
-                <Text style={s.scanText}>
-                  {incomingRequests.length > 0
-                    ? `${incomingRequests.length} mission${incomingRequests.length > 1 ? 's' : ''} disponible${incomingRequests.length > 1 ? 's' : ''}`
-                    : 'Recherche active...'}
-                </Text>
+          {/* Ligne 2 — Gains hero + bouton Retirer */}
+          <View style={s.earningsRow}>
+            <View style={s.earningsLeft}>
+              <Text style={s.greeting}>{user?.name || user?.email?.split('@')[0]}</Text>
+              <View style={s.earningsCaptionRow}>
+                <Text style={s.earningsCaption}>gains nets · ce mois</Text>
+                {/* Label contextuel si zéro — évite le "data mismatch" */}
+
               </View>
-            </>
-          ) : (
-            <View style={s.offlineBadge}>
-              <Ionicons name="power-outline" size={20} color="rgba(255,255,255,0.5)" />
-              <Text style={s.offlineText}>Hors ligne</Text>
+              <Text style={s.earningsHero}>
+                {statsLoading ? '—' : formatEuros(wallet?.totalEarnings || 0)}
+              </Text>
+              {!statsLoading && (wallet?.pendingAmount || 0) > 0 && (
+                <View style={s.pendingPill}>
+                  <Text style={s.pendingText}>
+                    +{formatEuros(wallet?.pendingAmount || 0)} en attente
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
+            <TouchableOpacity
+              style={s.withdrawBtn}
+              onPress={() => router.push('/wallet')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="arrow-up" size={15} color="#111" />
+              <Text style={s.withdrawText}>Retirer</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Ligne 3 — KPIs / Action Card */}
+          <StatsSection
+            stats={stats}
+            wallet={wallet}
+            loading={statsLoading}
+            onWithdraw={() => router.push('/wallet')}
+            onWallet={() => router.push('/wallet')}
+          />
+
+        </Animated.View>
+      )}
+
+      {/* ── Radar au centre de la carte (online + pas de mission active) ── */}
+      {isOnline && !activeJob && (
+        <View style={s.centerZone} pointerEvents="none">
+          <RadarPulse />
+          <View style={s.scanBadge}>
+            <View style={s.scanDot} />
+            <Text style={s.scanText}>
+              {incomingRequests.length > 0
+                ? `${incomingRequests.length} mission${incomingRequests.length > 1 ? 's' : ''} disponible${incomingRequests.length > 1 ? 's' : ''}`
+                : 'En écoute...'}
+            </Text>
+          </View>
         </View>
+      )}
 
-        {/* Bouton recenter */}
-        <TouchableOpacity
-          style={s.recenterBtn}
-          onPress={() => location && mapRef.current?.animateToRegion({
-            ...location, latitudeDelta: 0.04, longitudeDelta: 0.04,
-          }, 600)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="locate" size={20} color="#FFF" />
-        </TouchableOpacity>
-
-
-
-      </Animated.View>
-
-      {/* Pop-up mission */}
+      {/* ── Pop-up mission entrante ── */}
       {activeJob && (
         <IncomingJobCard
           request={activeJob}
@@ -793,103 +914,146 @@ export default function ProviderDashboard() {
 }
 
 // ============================================================================
-// STYLES
+// STYLES PRINCIPAUX
 // ============================================================================
 
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#0A0A0A' },
-  loadingScreen: { flex: 1, backgroundColor: '#0A0A0A', justifyContent: 'center', alignItems: 'center' },
-
-  // Overlay transparent par-dessus la carte
-  overlay: {
-    flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 60 : 48,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 16 : 12,
-    gap: 14,
+  root:        { flex: 1, backgroundColor: '#0e0e18' },
+  loadingScreen: {
+    flex: 1, backgroundColor: '#0e0e18',
+    justifyContent: 'center', alignItems: 'center',
   },
 
-    // ── Hero Card ──
-  heroCard: {
-    backgroundColor: '#111111',
-    borderRadius: 22,
-    padding: 20,
-    gap: 16,
+  // Vignette top — derrière le Top Island
+  vignetteTop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: Platform.OS === 'ios' ? 340 : 310,
+    zIndex: 9000,
+  },
+
+  // ── TOP ISLAND — îlot absolu en haut, contient tout ──
+  topIsland: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 58 : 44,
+    left: 14, right: 14,
+    zIndex: 9999,
+    backgroundColor: '#111118',
+    borderRadius: 28,
+    paddingTop: 10,
+    paddingHorizontal: 16,  // respiration latérale obligatoire
+    paddingBottom: 18,
+    gap: 0,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 20, shadowOffset: { width: 0, height: 6 },
-    elevation: 12,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.85,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 28,
   },
-  heroGreeting: {
-    fontSize: 12, fontWeight: '600',
-    color: 'rgba(255,255,255,0.3)',
-    letterSpacing: 0.3,
+
+  // Ligne 1 de l'îlot : CockpitIsland + Recenter
+  tiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  // Séparateur interne
+  tiSep: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginVertical: 14,
+  },
+
+  // Recenter — dans l'îlot, pas en absolu
+  recenterBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+
+  // Zone centrale — radar au milieu de la carte
+  centerZone: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 2,
+  },
+
+  scanBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  scanDot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: '#34C759',
+  },
+  scanText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+
+  // Earnings (dans le Top Island)
+  earningsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  earningsLeft: { gap: 2, flex: 1 },
+  greeting: {
+    fontSize: 12, fontWeight: '500',
+    color: 'rgba(255,255,255,0.25)',
+    letterSpacing: 0.2, marginBottom: 6,
+  },
+  earningsCaptionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2,
   },
   earningsCaption: {
-    fontSize: 10, fontWeight: '600',
-    color: 'rgba(255,255,255,0.25)',
-    letterSpacing: 1, textTransform: 'uppercase',
-    marginBottom: 2,
+    fontSize: 10, fontWeight: '500',
+    color: 'rgba(255,255,255,0.2)',
+    letterSpacing: 1.2, textTransform: 'uppercase',
   },
+  zeroBadge: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  zeroBadgeText: { fontSize: 9, fontWeight: '600', color: 'rgba(255,255,255,0.3)', letterSpacing: 0.4 },
   earningsHero: {
-    fontSize: 46, fontWeight: '900',
+    fontSize: 36, fontWeight: '900',  // 900 = imposant même à zéro
     color: '#FFFFFF',
-    letterSpacing: -2, lineHeight: 52,
+    letterSpacing: -2, lineHeight: 42,
+    marginTop: 2,
   },
   pendingPill: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,149,0,0.12)',
+    backgroundColor: 'rgba(255,149,0,0.1)',
     borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1, borderColor: 'rgba(255,149,0,0.25)',
-    marginTop: 6,
+    borderWidth: 1, borderColor: 'rgba(255,149,0,0.22)',
+    marginTop: 8,
   },
   pendingText: { fontSize: 11, fontWeight: '600', color: '#FF9500' },
-  kpiRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  withdrawBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10,
+    marginBottom: 4, flexShrink: 0,
   },
-  kpiItem:  { flex: 1, alignItems: 'center', gap: 3 },
-  kpiSep:   { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.08)' },
-  kpiValue: { fontSize: 15, fontWeight: '800', color: '#FFF' },
-  kpiLabel: { fontSize: 10, fontWeight: '500', color: 'rgba(255,255,255,0.3)', letterSpacing: 0.3 },
+  withdrawText: { fontSize: 13, fontWeight: '800', color: '#111' },
 
-  centerZone: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
-
-  scanBadge: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 18, paddingVertical: 10,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  scanText: { fontSize: 14, fontWeight: '700', color: '#FFF', textAlign: 'center' },
-
-  offlineBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 18, paddingVertical: 10,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-  },
-  offlineText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.45)' },
-
-  recenterBtn: {
-    position: 'absolute',
-    right: 20,
-    bottom: Platform.OS === 'ios' ? 110 : 96,
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-
-
-
+  // Mission marker
   missionMarker: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 34, height: 34, borderRadius: 17,
     backgroundColor: '#FF3B30',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#FFF',
-    shadowColor: '#FF3B30', shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
+    borderWidth: 2.5, borderColor: '#FFF',
+    shadowColor: '#FF3B30', shadowOpacity: 0.7, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
   },
 });
