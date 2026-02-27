@@ -7,7 +7,10 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL";
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (!STRIPE_PUBLISHABLE_KEY) {
+  throw new Error('EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is required. Set it in your .env file.');
+}
 
 // ✅ Routes qui font partie d'un flow mission
 // Le layout ne doit JAMAIS rediriger quand l'utilisateur est sur ces routes

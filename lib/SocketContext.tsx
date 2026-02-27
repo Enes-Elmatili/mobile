@@ -5,8 +5,14 @@ import { useAuth } from './auth/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Alert, Vibration } from 'react-native';
+import Constants from 'expo-constants';
 
-const SOCKET_URL = 'https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev';
+const SOCKET_URL = Constants.expoConfig?.extra?.socketUrl;
+if (!SOCKET_URL) {
+  throw new Error(
+    'Socket URL is not configured. Set "socketUrl" in app.json extra or provide EXPO_PUBLIC_SOCKET_URL.'
+  );
+}
 
 interface SocketContextType {
   socket: Socket | null;

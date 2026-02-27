@@ -31,12 +31,16 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
 *.tsbuildinfo
 
 app-example
+
+# Google Play service account
+google-service-account.json
 
 # generated native folders
 /ios
