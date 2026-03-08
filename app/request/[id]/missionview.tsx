@@ -7,13 +7,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   Animated, Easing, Platform, Dimensions, StatusBar,
-  TextInput, KeyboardAvoidingView, Modal, Pressable,
+  TextInput, KeyboardAvoidingView, Modal, Pressable, Linking,
+  useColorScheme,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 
@@ -115,7 +117,10 @@ interface ConfirmModalProps {
   onCancel: () => void;
 }
 
-function ConfirmModal({ visible, title, message, confirmLabel = 'Confirmer', cancelLabel = 'Annuler', destructive = false, onConfirm, onCancel }: ConfirmModalProps) {
+function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel }: ConfirmModalProps) {
+  const { t } = useTranslation();
+  const resolvedConfirmLabel = confirmLabel || t('common.confirm');
+  const resolvedCancelLabel = cancelLabel || t('common.cancel');
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
 
@@ -144,10 +149,10 @@ function ConfirmModal({ visible, title, message, confirmLabel = 'Confirmer', can
         {message ? <Text style={cm.message}>{message}</Text> : null}
         <View style={cm.actions}>
           <TouchableOpacity style={cm.cancelBtn} onPress={onCancel} activeOpacity={0.75}>
-            <Text style={cm.cancelLabel}>{cancelLabel}</Text>
+            <Text style={cm.cancelLabel}>{resolvedCancelLabel}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[cm.confirmBtn, destructive && cm.confirmBtnDestructive]} onPress={onConfirm} activeOpacity={0.75}>
-            <Text style={[cm.confirmLabel, destructive && cm.confirmLabelDestructive]}>{confirmLabel}</Text>
+            <Text style={[cm.confirmLabel, destructive && cm.confirmLabelDestructive]}>{resolvedConfirmLabel}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -197,8 +202,8 @@ const fallbackETA = (oLat: number, oLng: number, dLat: number, dLng: number) => 
   return min <= 1 ? '1 min' : `${min} min`;
 };
 
-// ─── Grayscale map style ──────────────────────────────────────────────────────
-const MAP_STYLE = [
+// ─── Grayscale map style (light) ──────────────────────────────────────────────
+const MAP_STYLE_LIGHT = [
   { elementType: 'geometry',           stylers: [{ color: '#f0f0f0' }] },
   { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
   { elementType: 'labels.text.fill',   stylers: [{ color: '#9e9e9e' }] },
@@ -206,6 +211,21 @@ const MAP_STYLE = [
   { featureType: 'road',    elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d6d6d6' }] },
   { featureType: 'water',   elementType: 'geometry', stylers: [{ color: '#d0d0d0' }] },
+];
+
+// ─── Dark map style (monochrome branded — no blue) ───────────────────────────
+const MAP_STYLE_DARK = [
+  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
+  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
+  { featureType: 'poi',           stylers: [{ visibility: 'off' }] },
+  { featureType: 'road',          elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
+  { featureType: 'road.highway',  elementType: 'geometry', stylers: [{ color: '#333333' }] },
+  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
+  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
+  { featureType: 'water',         elementType: 'geometry', stylers: [{ color: '#111111' }] },
+  { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -340,17 +360,19 @@ const cl = StyleSheet.create({
 });
 
 // ─── Messages dynamiques (SEARCHING) ─────────────────────────────────────────
-const STEPS = [
-  { at: 0,   title: 'Analyse de votre demande',   sub: 'Vérification des détails de la mission' },
-  { at: 4,   title: 'Recherche de prestataires',  sub: 'Scan des intervenants disponibles à proximité' },
-  { at: 10,  title: 'Mise en relation en cours',  sub: 'Sélection du meilleur profil pour vous' },
-  { at: 25,  title: 'Finalisation',               sub: 'Cela prend généralement moins de 2 minutes' },
-  { at: 70,  title: 'Élargissement de la zone',   sub: 'Nous cherchons plus loin autour de vous' },
-  { at: 140, title: 'Toujours en recherche',      sub: 'Un prestataire sera disponible sous peu' },
+const getSteps = (t: any) => [
+  { at: 0,   title: t('mission_view.search_step1_title'), sub: t('mission_view.search_step1_sub') },
+  { at: 4,   title: t('mission_view.search_step2_title'), sub: t('mission_view.search_step2_sub') },
+  { at: 10,  title: t('mission_view.search_step3_title'), sub: t('mission_view.search_step3_sub') },
+  { at: 25,  title: t('mission_view.search_step4_title'), sub: t('mission_view.search_step4_sub') },
+  { at: 70,  title: t('mission_view.search_step5_title'), sub: t('mission_view.search_step5_sub') },
+  { at: 140, title: t('mission_view.search_step6_title'), sub: t('mission_view.search_step6_sub') },
 ];
 
 function DynamicMessage({ elapsed }: { elapsed: number }) {
-  const current = [...STEPS].reverse().find(s => elapsed >= s.at) || STEPS[0];
+  const { t } = useTranslation();
+  const steps = getSteps(t);
+  const current = [...steps].reverse().find(s => elapsed >= s.at) || steps[0];
   const opacity = useRef(new Animated.Value(1)).current;
   const prev = useRef(current.title);
 
@@ -432,12 +454,16 @@ export default function MissionView() {
   const router = useRouter();
   const { id, serviceName, address, price, scheduledLabel, expiresAt, lat, lng } =
     useLocalSearchParams<MissionParams>();
-  const { socket } = useSocket();
+  const { socket, joinRoom, leaveRoom } = useSocket();
+  const { t } = useTranslation();
+  const colorScheme = useColorScheme();
+  const mapStyle = colorScheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
 
   // ─── Phase state ─────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>('SEARCHING');
   const phaseAnim = useRef(new Animated.Value(0)).current; // 0 = searching, 1 = tracking
+  const hasTransitionedRef = useRef(false); // guard anti-double-transition
 
   // ─── Modal state ──────────────────────────────────────────────────────────
   const [cancelSearchModal, setCancelSearchModal] = useState(false);
@@ -451,8 +477,10 @@ export default function MissionView() {
   // ─── Tracking state ───────────────────────────────────────────────────────
   const [request, setRequest] = useState<any>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [eta, setEta] = useState('Calcul en cours...');
+  const [eta, setEta] = useState('');
   const [message, setMessage] = useState('');
+  // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
+  const hasRealLocationRef = useRef(false);
 
   // ─── Shared ───────────────────────────────────────────────────────────────
   const fadeIn  = useRef(new Animated.Value(0)).current;
@@ -480,10 +508,13 @@ export default function MissionView() {
 
   // ─── Transition vers TRACKING ─────────────────────────────────────────────
   const transitionToTracking = useCallback((requestData: any) => {
+    // Guard : évite la double-transition si le polling et le socket arrivent en même temps
+    if (hasTransitionedRef.current) return;
+    hasTransitionedRef.current = true;
+
     setRequest(requestData);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
-    // Slide down la bottom sheet de searching, puis afficher tracking
     Animated.timing(phaseAnim, {
       toValue: 1,
       duration: 600,
@@ -507,26 +538,31 @@ export default function MissionView() {
     }
   }, []);
 
-  // ─── Polling SEARCHING (5s) ───────────────────────────────────────────────
+  // ─── Polling SEARCHING (5s) — s'arrête dès que phase passe en TRACKING ──
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    if (!id) return;
+    if (!id || phase !== 'SEARCHING') return;
     const poll = async () => {
       try {
-        const res = await api.request(`/requests/${id}`);
+        const res = await api.get(`/requests/${id}`);
         const data = res?.data || res;
         const status = (data?.status || '').toUpperCase();
         if (status === 'ACCEPTED' || status === 'ONGOING') {
+          // Stop polling before transitioning
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           transitionToTracking(data);
-        } else if (status === 'CANCELLED' || status === 'EXPIRED') {
+        } else if (['CANCELLED', 'EXPIRED', 'COMPLETED', 'DONE'].includes(status)) {
+          // Stop polling on terminal statuses
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
           router.replace('/(tabs)/dashboard');
         }
       } catch (e) { console.error('[MissionView] poll:', e); }
     };
     poll();
-    const iv = setInterval(poll, 5000);
-    return () => clearInterval(iv);
-  }, [id]);
+    pollingRef.current = setInterval(poll, 5000);
+    return () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
+  }, [id, phase]);
 
   useEffect(() => { if (isExpired) router.replace('/(tabs)/dashboard'); }, [isExpired]);
 
@@ -538,10 +574,11 @@ export default function MissionView() {
 
   useEffect(() => {
     if (!socket || !id) return;
-    socket.emit('join:request', { requestId: id });
+    joinRoom('request', id);
 
     const onLocation = async (data: any) => {
       if (String(data.requestId) !== String(id)) return;
+      hasRealLocationRef.current = true; // GPS réel reçu — ne plus afficher "En attente"
       const loc = { latitude: data.lat, longitude: data.lng };
       setProviderLocation(loc);
       if (destRef.current) await fetchETA(data.lat, data.lng, destRef.current.lat, destRef.current.lng);
@@ -557,14 +594,17 @@ export default function MissionView() {
     const onCompleted = (data: any) => {
       if (String(data.requestId) === String(id)) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        showToast('Mission terminée avec succès.', 'success');
-        setTimeout(() => router.replace('/(tabs)/dashboard'), 2000);
+        showToast(t('mission_view.mission_completed'), 'success');
+        setTimeout(() => router.replace({
+          pathname: '/request/[id]/rating',
+          params: { id: String(id) },
+        }), 2000);
       }
     };
 
     const onCancelled = (data: any) => {
       if (String(data.requestId || data.id) === String(id)) {
-        showToast('Cette mission a été annulée.', 'error');
+        showToast(t('mission_view.mission_cancelled'), 'error');
         setTimeout(() => router.replace('/(tabs)/dashboard'), 1800);
       }
     };
@@ -574,23 +614,28 @@ export default function MissionView() {
     socket.on('request:completed', onCompleted);
     socket.on('request:cancelled', onCancelled);
     return () => {
-      socket.emit('leave:request', { requestId: id });
+      leaveRoom('request', id);
       socket.off('provider:location_update', onLocation);
       socket.off('request:started', onStarted);
       socket.off('request:completed', onCompleted);
       socket.off('request:cancelled', onCancelled);
     };
-  }, [socket, id, fetchETA]);
+  }, [socket, id, fetchETA, joinRoom, leaveRoom]);
 
   // ─── Set provider location depuis request initial ─────────────────────────
+  // N'écrase JAMAIS l'ETA si on a déjà reçu une position réelle via socket
+  // (évite le bug : request:started → setRequest → useEffect → reset ETA)
   useEffect(() => {
     if (!request) return;
     if (request.provider?.lat && request.provider?.lng) {
       const loc = { latitude: request.provider.lat, longitude: request.provider.lng };
       setProviderLocation(loc);
-      if (request.lat && request.lng) fetchETA(request.provider.lat, request.provider.lng, request.lat, request.lng);
-    } else {
-      setEta('En attente de localisation...');
+      if (!hasRealLocationRef.current && request.lat && request.lng) {
+        fetchETA(request.provider.lat, request.provider.lng, request.lat, request.lng);
+      }
+    } else if (!hasRealLocationRef.current) {
+      // Seulement si aucun GPS réel reçu — ne pas écraser l'ETA du socket
+      setEta(t('mission_view.waiting_location'));
     }
   }, [request]);
 
@@ -603,11 +648,11 @@ export default function MissionView() {
     setCancelSearchModal(false);
     setCancelling(true);
     try {
-      await api.request(`/requests/${id}`, { method: 'PATCH', body: { status: 'CANCELLED' } });
+      await api.post(`/requests/${id}/cancel`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
       router.replace('/(tabs)/dashboard');
     } catch {
-      showToast("Impossible d'annuler. Réessayez.", 'error');
+      showToast(t('mission_view.cancel_failed'), 'error');
       setCancelling(false);
     }
   }, [id, router]);
@@ -616,7 +661,7 @@ export default function MissionView() {
   const handleCancelTracking = () => {
     const status = (request?.status || '').toUpperCase();
     if (status === 'ONGOING') {
-      showToast('La mission est en cours. Contactez le prestataire.', 'error');
+      showToast(t('mission_view.mission_ongoing_contact'), 'error');
       return;
     }
     setCancelTrackModal(true);
@@ -626,29 +671,52 @@ export default function MissionView() {
     setCancelTrackModal(false);
     try {
       await api.post(`/requests/${id}/cancel`);
-      showToast('La mission a été annulée.', 'info');
+      showToast(t('mission_view.mission_was_cancelled'), 'info');
       setTimeout(() => router.replace('/(tabs)/dashboard'), 1600);
     } catch (error: any) {
       if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
         const res = await api.get(`/requests/${id}`);
         setRequest(res.data || res);
-        showToast('État de la mission mis à jour.', 'info');
+        showToast(t('mission_view.state_updated'), 'info');
       } else {
-        showToast("Impossible d'annuler la mission.", 'error');
+        showToast(t('mission_view.cancel_mission_failed'), 'error');
       }
     }
   };
 
-  // ─── Actions communication (placeholders) ────────────────────────────────
-  const handleCall = () => {
-    showToast('Fonctionnalité appel à configurer.', 'info');
-  };
+  // ─── Actions communication ───────────────────────────────────────────────
+  const handleCall = useCallback(() => {
+    const phone = request?.provider?.phone;
+    if (!phone) {
+      showToast(t('mission_view.phone_unavailable'), 'error');
+      return;
+    }
+    const url = `tel:${phone.replace(/\s+/g, '')}`;
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        showToast(t('mission_view.call_failed'), 'error');
+      }
+    }).catch(() => showToast(t('mission_view.call_failed'), 'error'));
+  }, [request]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!message.trim()) return;
-    // TODO: implémenter l'envoi de message
-    showToast('Message envoyé au prestataire.', 'success');
+    const recipientId = request?.provider?.userId || request?.provider?.id;
+    if (!recipientId) {
+      showToast(t('mission_view.provider_not_found'), 'error');
+      return;
+    }
+    const text = message.trim();
     setMessage('');
+    try {
+      await api.messages.send(recipientId, text);
+      showToast(t('mission_view.message_sent'), 'success');
+    } catch {
+      showToast(t('mission_view.message_failed'), 'error');
+      setMessage(text);
+    }
   };
 
   // ─── Map region ──────────────────────────────────────────────────────────
@@ -677,7 +745,7 @@ export default function MissionView() {
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={MAP_STYLE}
+        customMapStyle={mapStyle}
         initialRegion={mapRegion}
         scrollEnabled={phase === 'TRACKING'}
         zoomEnabled={phase === 'TRACKING'}
@@ -732,7 +800,7 @@ export default function MissionView() {
                 {/* Infos mission */}
                 <View style={s.missionRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.missionName} numberOfLines={1}>{serviceName || 'Mission'}</Text>
+                    <Text style={s.missionName} numberOfLines={1}>{serviceName || t('missions.mission')}</Text>
                     <View style={s.metaRow}>
                       {address ? (
                         <>
@@ -761,6 +829,8 @@ export default function MissionView() {
                   onPress={handleCancelSearching}
                   disabled={cancelling}
                   activeOpacity={0.75}
+                  accessibilityLabel={t('mission_view.cancel_search')}
+                  accessibilityRole="button"
                 >
                   <Ionicons
                     name="close-circle-outline"
@@ -769,7 +839,7 @@ export default function MissionView() {
                     style={{ marginRight: 8 }}
                   />
                   <Text style={[s.cancelSearchText, cancelling && s.cancelSearchTextOff]}>
-                    {cancelling ? 'Annulation…' : 'Annuler la recherche'}
+                    {cancelling ? t('mission_view.cancelling') : t('mission_view.cancel_search')}
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -783,15 +853,15 @@ export default function MissionView() {
         <>
           {/* Bouton retour flottant */}
           <SafeAreaView style={s.floatingTopBar} pointerEvents="box-none">
-            <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.8}>
+            <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
               <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
             </TouchableOpacity>
 
             {/* Badge statut */}
-            <View style={[s.statusBadge, status === 'ONGOING' && s.statusBadgeOngoing]}>
+            <View style={[s.statusBadge, status === 'ONGOING' && s.statusBadgeOngoing]} accessibilityLabel={status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')} accessibilityRole="text">
               <View style={[s.statusDot, status === 'ONGOING' && s.statusDotOngoing]} />
               <Text style={[s.statusText, status === 'ONGOING' && s.statusTextOngoing]}>
-                {status === 'ONGOING' ? 'Mission en cours' : 'Prestataire en route'}
+                {status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')}
               </Text>
             </View>
           </SafeAreaView>
@@ -804,10 +874,10 @@ export default function MissionView() {
             <View style={s.etaRow}>
               <View>
                 <Text style={s.etaLabel}>
-                  {status === 'ONGOING' ? 'Sur place' : 'Arrivée estimée'}
+                  {status === 'ONGOING' ? t('mission_view.on_site') : t('mission_view.estimated_arrival')}
                 </Text>
                 <Text style={s.etaTime}>
-                  {status === 'ONGOING' ? '—' : eta}
+                  {status === 'ONGOING' ? t('mission_view.on_site') : (eta || t('mission_view.calculating'))}
                 </Text>
               </View>
               <View style={s.etaBadge}>
@@ -828,7 +898,7 @@ export default function MissionView() {
 
                 {/* Infos */}
                 <View style={s.providerInfo}>
-                  <Text style={s.providerName}>{request.provider.name || 'Prestataire'}</Text>
+                  <Text style={s.providerName}>{request.provider.name || t('mission_view.provider')}</Text>
                   <View style={s.ratingRow}>
                     <Ionicons name="star" size={12} color="#F59E0B" />
                     <Text style={s.ratingText}>
@@ -846,7 +916,7 @@ export default function MissionView() {
                 {/* Actions communication */}
                 <View style={s.comActions}>
                   {/* Appel */}
-                  <TouchableOpacity style={s.comBtn} onPress={handleCall} activeOpacity={0.75}>
+                  <TouchableOpacity style={s.comBtn} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
                     <Ionicons name="call" size={18} color="#FFF" />
                   </TouchableOpacity>
                 </View>
@@ -861,18 +931,21 @@ export default function MissionView() {
               <View style={s.messageRow}>
                 <TextInput
                   style={s.messageInput}
-                  placeholder="Envoyer un message au prestataire…"
+                  placeholder={t('mission_view.send_message_placeholder')}
                   placeholderTextColor="#B0B0B0"
                   value={message}
                   onChangeText={setMessage}
                   returnKeyType="send"
                   onSubmitEditing={handleSendMessage}
+                  accessibilityLabel={t('mission_view.send_message_placeholder')}
                 />
                 <TouchableOpacity
                   style={[s.sendBtn, !message.trim() && s.sendBtnOff]}
                   onPress={handleSendMessage}
                   activeOpacity={0.75}
                   disabled={!message.trim()}
+                  accessibilityLabel={t('common.send')}
+                  accessibilityRole="button"
                 >
                   <Ionicons name="arrow-up" size={18} color="#FFF" />
                 </TouchableOpacity>
@@ -881,16 +954,16 @@ export default function MissionView() {
 
             {/* Annuler — seulement si ACCEPTED */}
             {status === 'ACCEPTED' && (
-              <TouchableOpacity style={s.cancelTrackBtn} onPress={handleCancelTracking} activeOpacity={0.75}>
-                <Text style={s.cancelTrackText}>Annuler la mission</Text>
+              <TouchableOpacity style={s.cancelTrackBtn} onPress={handleCancelTracking} activeOpacity={0.75} accessibilityLabel={t('mission_view.cancel_mission')} accessibilityRole="button">
+                <Text style={s.cancelTrackText}>{t('mission_view.cancel_mission')}</Text>
               </TouchableOpacity>
             )}
 
             {/* Banner ONGOING */}
             {status === 'ONGOING' && (
               <View style={s.ongoingBanner}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
-                <Text style={s.ongoingText}>Le prestataire est sur place</Text>
+                <Ionicons name="checkmark-circle" size={16} color="#1A1A1A" />
+                <Text style={s.ongoingText}>{t('mission_view.provider_on_site')}</Text>
               </View>
             )}
           </Animated.View>
@@ -900,19 +973,19 @@ export default function MissionView() {
       {/* ── MODALS ── */}
       <ConfirmModal
         visible={cancelSearchModal}
-        title="Annuler la recherche ?"
+        title={`${t('mission_view.cancel_search')} ?`}
         message="Votre demande sera annulée. Le remboursement sera traité sous 3–5 jours ouvrés."
-        confirmLabel="Annuler la recherche"
-        cancelLabel="Continuer"
+        confirmLabel={t('mission_view.cancel_search')}
+        cancelLabel={t('common.continue')}
         destructive
         onConfirm={doConfirmCancelSearching}
         onCancel={() => setCancelSearchModal(false)}
       />
       <ConfirmModal
         visible={cancelTrackModal}
-        title="Annuler la mission ?"
+        title={`${t('mission_view.cancel_mission')} ?`}
         message="Êtes-vous sûr de vouloir annuler ?"
-        confirmLabel="Oui, annuler"
+        confirmLabel={t('missions.yes_cancel')}
         cancelLabel="Non"
         destructive
         onConfirm={doConfirmCancelTracking}
@@ -1018,11 +1091,11 @@ const s = StyleSheet.create({
       android: { elevation: 4 },
     }),
   },
-  statusBadgeOngoing: { backgroundColor: '#ECFDF5' },
+  statusBadgeOngoing: { backgroundColor: '#F4F4F4' },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1A1A1A' },
-  statusDotOngoing: { backgroundColor: '#059669' },
+  statusDotOngoing: { backgroundColor: '#1A1A1A' },
   statusText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-  statusTextOngoing: { color: '#059669' },
+  statusTextOngoing: { color: '#1A1A1A' },
 
   trackingSheet: {
     position: 'absolute',
@@ -1108,10 +1181,10 @@ const s = StyleSheet.create({
 
   ongoingBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#ECFDF5', borderRadius: 14,
+    backgroundColor: '#F4F4F4', borderRadius: 14,
     paddingHorizontal: 16, paddingVertical: 12,
   },
-  ongoingText: { fontSize: 13, fontWeight: '600', color: '#059669', flex: 1 },
+  ongoingText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', flex: 1 },
 
   // ─── Markers ──────────────────────────────────────────────────────────────
   clientMarker: {

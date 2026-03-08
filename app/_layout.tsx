@@ -1,8 +1,12 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import { Slot, useRouter, useSegments } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import '../lib/i18n'; // i18n — doit être importé avant tout autre module
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import { SocketProvider } from '../lib/SocketContext';
+import { NetworkProvider } from '../lib/NetworkContext';
+import { OfflineQueueProvider } from '../lib/OfflineQueueContext';
+import { OfflineBanner } from '../components/OfflineBanner';
+import { usePushNotifications } from '../lib/usePushNotifications';
 import {
   ActivityIndicator,
   View,
@@ -13,10 +17,13 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL";
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (!STRIPE_PUBLISHABLE_KEY) {
+  throw new Error("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY environment variable is required");
+}
 
-// ✅ Routes qui font partie d'un flow mission
-// Le layout ne doit JAMAIS rediriger quand l'utilisateur est sur ces routes
+// ✅ Routes qui ne doivent pas déclencher de redirection auth
+// Inclut les flows mission + les nouvelles routes de l'app
 const MISSION_FLOW_ROUTES = [
   'ongoing',
   'tracking',
@@ -24,54 +31,73 @@ const MISSION_FLOW_ROUTES = [
   'rating',
   'NewRequestStepper',
   'missionview',
+  'explore',
+  'subscription',
+  'settings',
+  'providers',
+  'onboarding',
+  'signup',
+  'verify-email',
+  'messages',
+  'notifications',
+  'connect',
 ];
 
 function RootLayoutNav() {
-  const { user, isBooting } = useAuth();
-  const segments            = useSegments();
-  const router              = useRouter();
-  const hasRedirected       = useRef(false);
+  const { user, isBooting, token } = useAuth();
+  const segments                   = useSegments();
+  const router                     = useRouter();
+
+  usePushNotifications(user?.id);
 
   // ── Thème système ─────────────────────────────────────────────────────────
   const colorScheme = useColorScheme();
   const isDark      = colorScheme === 'dark';
 
+  // Primitives stables — évitent de relancer l'effet sur chaque re-render
+  // `segments` est un nouveau tableau à chaque render (référence instable)
+  // `user` est un nouvel objet à chaque setUser() (même données)
+  const userId     = user?.id ?? null;
+  const hasToken   = !!token;
+  const segmentKey = segments.join('/');
+
   useEffect(() => {
     if (isBooting) return;
 
-    const currentPath  = segments.join('/');
-    const inAuthGroup  = segments[0] === '(auth)';
+    // Token présent mais /auth/me pas encore résolu (rare race condition) — attendre
+    if (hasToken && !userId) return;
 
-    // ✅ GUARD : Ne jamais interrompre un flow mission
+    // Skip while still on the index route — index.tsx handles the initial
+    // redirect auth-aware, avoiding a cross-navigator replace (Slot root
+    // can't handle REPLACE → GO_BACK cascade)
+    if (!segments[0] || segmentKey === '') return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    // Guard : ne jamais interrompre un flow en cours
     const isOnMissionFlow = MISSION_FLOW_ROUTES.some(route =>
-      currentPath.includes(route)
+      segments.some(seg => seg === route)
     );
+    if (isOnMissionFlow) return;
 
-    if (isOnMissionFlow) {
-      console.log('🚫 [LAYOUT] Mission flow active, skipping redirect:', currentPath);
-      return;
-    }
-
-    console.log('🔍 [LAYOUT] Navigation check:', {
-      user: user?.email || 'null',
-      inAuthGroup,
-      path: currentPath,
-    });
-
-    if (!user && !inAuthGroup) {
-      console.log('➡️ [LAYOUT] Redirect to login');
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      if (!hasRedirected.current) {
-        hasRedirected.current = true;
-        console.log('➡️ [LAYOUT] Redirect to dashboard (post-login)');
+    if (!userId && !inAuthGroup) {
+      router.replace('/(auth)/welcome');
+    } else if (userId && inAuthGroup) {
+      // Routing basé sur le rôle et statut provider
+      const isProvider = user?.roles?.includes('PROVIDER');
+      if (isProvider) {
+        const ps = user?.providerStatus;
+        if (ps === 'ACTIVE') {
+          router.replace('/(tabs)/provider-dashboard');
+        } else {
+          // PENDING, REJECTED, etc. → écran d'attente
+          router.replace('/onboarding/provider/pending');
+        }
+      } else {
         router.replace('/(tabs)/dashboard');
       }
-    } else {
-      if (inAuthGroup) hasRedirected.current = false;
-      console.log('✅ [LAYOUT] No redirect needed');
     }
-  }, [user, isBooting, segments]);
+  }, [userId, isBooting, segmentKey, hasToken]);
 
   if (isBooting) {
     return (
@@ -99,7 +125,7 @@ function RootLayoutNav() {
         backgroundColor="transparent"
         translucent
       />
-      <Slot />
+      <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
     </>
   );
 }
@@ -107,17 +133,22 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
-      <StripeProvider
-        publishableKey={STRIPE_PUBLISHABLE_KEY}
-        merchantIdentifier="merchant.com.fixed.app"
-        urlScheme="fixed"
-      >
-        <AuthProvider>
-          <SocketProvider>
-            <RootLayoutNav />
-          </SocketProvider>
-        </AuthProvider>
-      </StripeProvider>
+      <NetworkProvider>
+        <StripeProvider
+          publishableKey={STRIPE_PUBLISHABLE_KEY}
+          merchantIdentifier="merchant.com.fixed.app"
+          urlScheme="fixed"
+        >
+          <AuthProvider>
+            <OfflineQueueProvider>
+              <SocketProvider>
+                <OfflineBanner />
+                <RootLayoutNav />
+              </SocketProvider>
+            </OfflineQueueProvider>
+          </AuthProvider>
+        </StripeProvider>
+      </NetworkProvider>
     </GestureHandlerRootView>
   );
 }

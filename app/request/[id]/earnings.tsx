@@ -6,7 +6,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
   Animated,
@@ -14,16 +13,22 @@ import {
   StatusBar,
   BackHandler,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '@/lib/api';
+import { useInvoice } from '@/hooks/useInvoice';
+import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 
 export default function EarningsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState<any>(null);
+  const [invoiceVisible, setInvoiceVisible] = useState(false);
+  const { invoice } = useInvoice(id ? Number(id) : null);
 
   // Animations
   const checkAnim = useRef(new Animated.Value(0)).current;
@@ -84,9 +89,10 @@ export default function EarningsScreen() {
   ];
 
   return (
-    <SafeAreaView style={s.root}>
+    <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor="#111" />
       {/* ── Zone succès — fond sombre ── */}
+      <SafeAreaView edges={['top']} style={s.heroSafe}>
       <View style={s.heroZone}>
         {/* Checkmark animé */}
         <Animated.View style={[s.checkCircle, {
@@ -106,11 +112,12 @@ export default function EarningsScreen() {
           {net.toFixed(2)} €
         </Animated.Text>
 
-        <Text style={s.heroSub}>sur votre solde dans 2–3 jours ouvrés</Text>
+        <Text style={s.heroSub}>disponible sous 48h après validation</Text>
       </View>
+      </SafeAreaView>
 
       {/* ── Zone détail — fond blanc ── */}
-      <Animated.View style={[s.detailZone, { transform: [{ translateY: slideUp }] }]}>
+      <Animated.View style={[s.detailZone, { paddingBottom: Math.max(insets.bottom, 16) + 16, transform: [{ translateY: slideUp }] }]}>
 
         {/* Calcul compact */}
         <View style={s.calcCard}>
@@ -144,12 +151,23 @@ export default function EarningsScreen() {
         {/* ── Actions ── */}
         <TouchableOpacity
           style={s.primaryBtn}
-          onPress={() => router.push('/(tabs)/dashboard')}
+          onPress={() => router.replace('/(tabs)/dashboard')}
           activeOpacity={0.88}
         >
           <Text style={s.primaryBtnText}>Retour au tableau de bord</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFF" />
         </TouchableOpacity>
+
+        {invoice && (
+          <TouchableOpacity
+            style={s.invoiceBtn}
+            onPress={() => setInvoiceVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="receipt-outline" size={16} color="#555" />
+            <Text style={s.invoiceBtnText}>Voir la facture</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={s.secondaryBtn}
@@ -159,7 +177,17 @@ export default function EarningsScreen() {
         </TouchableOpacity>
 
       </Animated.View>
-    </SafeAreaView>
+
+      {/* Invoice Sheet */}
+      <InvoiceSheet
+        invoice={invoice}
+        isVisible={invoiceVisible}
+        onClose={() => setInvoiceVisible(false)}
+        userRole="provider"
+        serviceTitle={request?.serviceType}
+        missionDate={request?.completedAt || request?.createdAt}
+      />
+    </View>
   );
 }
 
@@ -171,26 +199,29 @@ import { useRef } from 'react';
 // ============================================================================
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#111' }, // heroZone sombre, detailZone gris
+  root: { flex: 1, backgroundColor: '#111' },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8E9EC' },
   loadError: { fontSize: 15, color: '#888' },
 
-  // Hero zone (fond sombre)
+  // Hero safe wrapper
+  heroSafe: { backgroundColor: '#111' },
+
+  // Hero zone (fond sombre) — compact pour éviter la troncature
   heroZone: {
-    alignItems: 'center', paddingTop: 40, paddingBottom: 40, paddingHorizontal: 24,
-    gap: 10,
+    alignItems: 'center', paddingTop: 24, paddingBottom: 24, paddingHorizontal: 24,
+    gap: 8,
   },
   checkCircle: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: '#34C759',
+    backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 8,
-    shadowColor: '#34C759', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
   },
   heroLabel: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5 },
   heroPrice: {
-    fontSize: 64, fontWeight: '900', color: '#FFF',
-    letterSpacing: -2, lineHeight: 72,
+    fontSize: 56, fontWeight: '900', color: '#FFF',
+    letterSpacing: -2, lineHeight: 64,
   },
   heroSub: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.35)', textAlign: 'center' },
 
@@ -199,20 +230,19 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E8E9EC',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 20, paddingTop: 24,
-    paddingBottom: Platform.OS === 'ios' ? 0 : 20,
+    paddingHorizontal: 20, paddingTop: 20,
     gap: 12,
   },
 
   // Calcul
   calcCard: {
     backgroundColor: '#F0F1F4', borderRadius: 20,
-    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4,
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2,
     marginBottom: 4,
     borderWidth: 1, borderColor: '#DCDDE0',
   },
-  calcTitle: { fontSize: 13, fontWeight: '700', color: '#888', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
-  calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  calcTitle: { fontSize: 13, fontWeight: '700', color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   calcRowBorder: { borderBottomWidth: 1, borderBottomColor: '#DCDDE0' },
   calcLabel: { fontSize: 14, fontWeight: '500', color: '#555' },
   calcLabelNeg: { color: '#888' },
@@ -227,10 +257,10 @@ const s = StyleSheet.create({
 
   // Mission
   missionCard: {
-    backgroundColor: '#F0F1F4', borderRadius: 20, overflow: 'hidden', marginBottom: 8,
+    backgroundColor: '#F0F1F4', borderRadius: 20, overflow: 'hidden', marginBottom: 4,
     borderWidth: 1, borderColor: '#DCDDE0',
   },
-  missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13 },
+  missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 11 },
   missionRowBorder: { borderBottomWidth: 1, borderBottomColor: '#DCDDE0' },
   missionText: { fontSize: 14, fontWeight: '500', color: '#444', flex: 1 },
 
@@ -240,6 +270,12 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  secondaryBtn: { alignItems: 'center', paddingVertical: 14 },
+  secondaryBtn: { alignItems: 'center', paddingVertical: 10 },
   secondaryBtnText: { fontSize: 15, fontWeight: '600', color: '#888' },
+  invoiceBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#F0F1F4', borderRadius: 16, height: 48,
+    borderWidth: 1, borderColor: '#DCDDE0',
+  },
+  invoiceBtnText: { fontSize: 14, fontWeight: '600', color: '#555' },
 });

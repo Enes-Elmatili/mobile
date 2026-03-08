@@ -42,36 +42,36 @@ class TokenStorage {
   }
 
   async setToken(token: string): Promise<void> {
-    this.currentToken = token;
-    
     try {
       if (Platform.OS === 'web') {
         localStorage.setItem(TOKEN_KEY, token);
       } else {
         await SecureStore.setItemAsync(TOKEN_KEY, token);
       }
-      
-      // Notify listeners
+
+      // Update cache only after successful persistence
+      this.currentToken = token;
       this.listeners.forEach(cb => cb(token));
     } catch (e) {
       console.error('❌ Storage setToken error:', e);
+      throw e;
     }
   }
 
   async removeToken(): Promise<void> {
-    this.currentToken = null;
-    
     try {
       if (Platform.OS === 'web') {
         localStorage.removeItem(TOKEN_KEY);
       } else {
         await SecureStore.deleteItemAsync(TOKEN_KEY);
       }
-      
-      // Notify listeners
+
+      // Update cache only after successful persistence
+      this.currentToken = null;
       this.listeners.forEach(cb => cb(null));
     } catch (e) {
       console.error('❌ Storage removeToken error:', e);
+      throw e;
     }
   }
 

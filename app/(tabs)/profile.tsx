@@ -1,5 +1,5 @@
 // app/(tabs)/profile.tsx — Provider Profile Hub
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,38 +9,71 @@ import {
   Alert,
   ScrollView,
   Platform,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Image,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { showSocketToast } from '../../lib/SocketContext';
+import { api } from '../../lib/api';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+
+import { useAppTheme } from '@/hooks/use-app-theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { tokenStorage } from '../../lib/storage';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+
+const avatarKey = (userId: string) => `@fixed:profile:avatarUri:${userId}`;
 
 // ============================================================================
 // AVATAR WITH INITIALS + CAMERA BADGE
 // ============================================================================
 
-function ProviderAvatar({ name, size = 80 }: { name: string; size?: number }) {
+function ProviderAvatar({
+  name,
+  size = 80,
+  avatarUri,
+  onPickPhoto,
+}: {
+  name: string;
+  size?: number;
+  avatarUri?: string | null;
+  onPickPhoto?: () => void;
+}) {
+  const theme = useAppTheme();
   const initials = name
     .split(' ')
     .map(w => w[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  const palette = ['#6366F1', '#EC4899', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6'];
+  const palette = ['#1A1A1A', '#2D2D2D', '#404040', '#555', '#333', '#666'];
   const bg = palette[name.charCodeAt(0) % palette.length];
 
   return (
     <View style={[av.wrapper, { width: size, height: size, borderRadius: size / 2 }]}>
-      <View style={[av.circle, { backgroundColor: bg, borderRadius: size / 2 }]}>
-        <Text style={[av.initials, { fontSize: size * 0.34 }]}>{initials}</Text>
-      </View>
+      {avatarUri ? (
+        <Image
+          source={{ uri: avatarUri }}
+          style={[av.circle, { borderRadius: size / 2 }]}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[av.circle, { backgroundColor: bg, borderRadius: size / 2 }]}>
+          <Text style={[av.initials, { fontSize: size * 0.34 }]}>{initials}</Text>
+        </View>
+      )}
       <TouchableOpacity
-        style={av.badge}
+        style={[av.badge, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}
         activeOpacity={0.8}
-        onPress={() => Alert.alert('Info', 'Modification de photo en développement')}
+        onPress={onPickPhoto}
       >
-        <Ionicons name="camera" size={11} color="#FFF" />
+        <Ionicons name="camera" size={11} color={theme.accentText} />
       </TouchableOpacity>
     </View>
   );
@@ -53,9 +86,9 @@ const av = StyleSheet.create({
   badge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 26, height: 26, borderRadius: 13,
-    backgroundColor: '#172247',
+    backgroundColor: '#111',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2.5, borderColor: '#FFF',
+    borderWidth: 2.5, borderColor: 'transparent',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4 },
       android: { elevation: 3 },
@@ -72,13 +105,14 @@ function StatBadge({
 }: {
   icon: string; iconColor: string; iconBg: string; value: string; label: string;
 }) {
+  const t = useAppTheme();
   return (
     <View style={sb.wrap}>
       <View style={[sb.iconBox, { backgroundColor: iconBg }]}>
         <Ionicons name={icon as any} size={16} color={iconColor} />
       </View>
-      <Text style={sb.value}>{value}</Text>
-      <Text style={sb.label}>{label}</Text>
+      <Text style={[sb.value, { color: t.textAlt }]}>{value}</Text>
+      <Text style={[sb.label, { color: t.textMuted }]}>{label}</Text>
     </View>
   );
 }
@@ -90,7 +124,7 @@ const sb = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
   value: { fontSize: 16, fontWeight: '800', color: '#111' },
-  label: { fontSize: 10, color: '#9CA3AF', fontWeight: '500', textAlign: 'center' },
+  label: { fontSize: 10, color: '#ADADAD', fontWeight: '500', textAlign: 'center' },
 });
 
 // ============================================================================
@@ -108,23 +142,24 @@ type MenuItem = {
 };
 
 function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
+  const t = useAppTheme();
   return (
     <View style={ms.wrap}>
-      {!!title && <Text style={ms.title}>{title}</Text>}
-      <View style={ms.card}>
+      {!!title && <Text style={[ms.title, { color: t.textMuted }]}>{title}</Text>}
+      <View style={[ms.card, { backgroundColor: t.cardBg }]}>
         {items.map((item, i) => (
           <React.Fragment key={i}>
             <TouchableOpacity style={ms.row} onPress={item.onPress} activeOpacity={0.7}>
-              <View style={[ms.iconBox, { backgroundColor: item.iconBg }]}>
+              <View style={[ms.iconBox, { backgroundColor: t.surface }]}>
                 <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
               </View>
               <View style={ms.content}>
-                <Text style={[ms.label, item.danger && ms.labelDanger]}>{item.label}</Text>
-                {item.sublabel ? <Text style={ms.sublabel}>{item.sublabel}</Text> : null}
+                <Text style={[ms.label, item.danger ? ms.labelDanger : { color: t.textAlt }]}>{item.label}</Text>
+                {item.sublabel ? <Text style={[ms.sublabel, { color: t.textMuted }]}>{item.sublabel}</Text> : null}
               </View>
-              <Ionicons name="chevron-forward" size={16} color={item.danger ? '#FCA5A5' : '#D1D5DB'} />
+              <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
             </TouchableOpacity>
-            {i < items.length - 1 && <View style={ms.divider} />}
+            {i < items.length - 1 && <View style={[ms.divider, { backgroundColor: t.border }]} />}
           </React.Fragment>
         ))}
       </View>
@@ -135,7 +170,7 @@ function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
 const ms = StyleSheet.create({
   wrap: { marginBottom: 8 },
   title: {
-    fontSize: 11, fontWeight: '700', color: '#9CA3AF',
+    fontSize: 11, fontWeight: '700', color: '#ADADAD',
     textTransform: 'uppercase', letterSpacing: 0.6,
     marginBottom: 8, paddingHorizontal: 4,
   },
@@ -157,8 +192,8 @@ const ms = StyleSheet.create({
   content: { flex: 1 },
   label: { fontSize: 15, fontWeight: '600', color: '#111' },
   labelDanger: { color: '#DC2626' },
-  sublabel: { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
-  divider: { height: 1, backgroundColor: '#F9FAFB', marginLeft: 64 },
+  sublabel: { fontSize: 12, color: '#ADADAD', marginTop: 1 },
+  divider: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 64 },
 });
 
 // ============================================================================
@@ -166,27 +201,146 @@ const ms = StyleSheet.create({
 // ============================================================================
 
 export default function Profile() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshMe } = useAuth();
+  const { t }                        = useTranslation();
   const router = useRouter();
+  const theme = useAppTheme();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['40%', '70%'], []);
+
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName,    setEditName]    = useState('');
+  const [editPhone,   setEditPhone]   = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [avatarUri,   setAvatarUri]   = useState<string | null>(null);
+  const [stripeReady, setStripeReady]  = useState(false);
+  const [isVerified,  setIsVerified]  = useState(false);
+  const [profileStats, setProfileStats] = useState({ rating: '—', missions: '—', earnings: '—', acceptance: '—' });
 
   const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
   const email = user?.email || '';
   const roles = user?.roles?.join(' · ') || 'Prestataire';
 
-  // Stats — à connecter à l'API
-  const stats = { rating: '4,9', missions: '127', earnings: '2 840 €', acceptance: '94%' };
+  // ── Chargement avatar + stats + statut bancaire ──────────────────────────
+  useEffect(() => {
+    if (!user?.id) return;
+    AsyncStorage.getItem(avatarKey(user.id)).then(uri => { if (uri) setAvatarUri(uri); });
+  }, [user?.id]);
 
-  const wip = (label: string) => () =>
-    Alert.alert(label, 'Fonctionnalité en développement');
+  useEffect(() => {
+    if (!user?.roles?.includes('PROVIDER')) return;
+    (async () => {
+      try {
+        const [provRes, walletRes] = await Promise.all([
+          api.get<any>('/providers/me'),
+          api.wallet.balance(),
+        ]);
+        const prov = provRes?.data ?? provRes;
+        const provider = prov?.provider ?? prov;
+        const wallet = walletRes?.data ?? walletRes;
+        setIsVerified(provider?.validationStatus === 'ACTIVE');
+        const avgRating: number = provider?.avgRating ?? 0;
+        const jobsCompleted: number = provider?.jobsCompleted ?? 0;
+        const totalRequests: number = provider?.totalRequests ?? 0;
+        const acceptedRequests: number = provider?.acceptedRequests ?? 0;
+        const balanceCents: number = wallet?.balance ?? 0;
+        const acceptanceRate = totalRequests > 0
+          ? Math.round((acceptedRequests / totalRequests) * 100)
+          : 0;
+        setProfileStats({
+          rating: avgRating > 0 ? avgRating.toFixed(1).replace('.', ',') : '—',
+          missions: String(jobsCompleted),
+          earnings: `${Math.floor(balanceCents / 100).toLocaleString('fr-FR')} €`,
+          acceptance: totalRequests > 0 ? `${acceptanceRate}%` : '—',
+        });
+      } catch {
+        // Garde les placeholders en cas d'erreur réseau
+      }
+    })();
+  }, [user?.id, user?.roles?.join(',')]);
+
+  useEffect(() => {
+    if (!user?.roles?.includes('PROVIDER')) return;
+    api.connect.status()
+      .then((res: any) => {
+        setStripeReady(!!(res?.isStripeReady || res?.isConnected));
+      })
+      .catch(() => setStripeReady(false));
+  }, [user?.id, user?.roles?.join(',')]);
+
+  // ── Photo upload ──────────────────────────────────────────────────────────
+  const handlePickPhoto = useCallback(async () => {
+    let ImagePicker: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      ImagePicker = require('expo-image-picker');
+    } catch {
+      showSocketToast(t('profile.edit_photo_error'), 'error');
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showSocketToast('Accès à la galerie refusé.', 'error');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    // Sauvegarder localement (pas de champ avatar en DB → AsyncStorage pour le MVP)
+    if (user?.id) await AsyncStorage.setItem(avatarKey(user.id), asset.uri);
+    setAvatarUri(asset.uri);
+
+    // Upload en arrière-plan (optionnel — pour avoir l'URL sur le serveur)
+    try {
+      const token = await tokenStorage.getToken();
+      const formData = new FormData();
+      // @ts-ignore
+      formData.append('file', { uri: asset.uri, name: 'avatar.jpg', type: asset.mimeType ?? 'image/jpeg' });
+      await fetch(`${process.env.EXPO_PUBLIC_API_URL}/uploads`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'ngrok-skip-browser-warning': 'true' },
+        body: formData,
+      });
+      showSocketToast(t('common.success'), 'success');
+    } catch {
+      // L'URI local est déjà affichée — l'upload serveur est best-effort
+    }
+  }, [t]);
+
+  const openEditInfo = () => {
+    setEditName((user as any)?.name || '');
+    setEditPhone((user as any)?.phone || '');
+    setEditVisible(true);
+  };
+
+  const saveEditInfo = async () => {
+    setSaving(true);
+    try {
+      await api.patch('/me', { name: editName.trim() || null, phone: editPhone.trim() || null });
+      await refreshMe();
+      setEditVisible(false);
+    } catch (e: any) {
+      showSocketToast(e?.message || t('profile.save_error'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleLogout = () => {
-    Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(t('auth.logout'), t('auth.logout_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Déconnexion',
+        text: t('profile.logout_destructive'),
         style: 'destructive',
         onPress: async () => {
           await signOut();
@@ -203,121 +357,186 @@ export default function Profile() {
     []
   );
 
+  const isClientOnly =
+    user?.roles?.includes('CLIENT') && !user?.roles?.includes('PROVIDER');
+
   const accountItems: MenuItem[] = [
     {
-      icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF',
-      label: 'Informations personnelles', sublabel: 'Nom, téléphone, adresse',
-      onPress: wip('Informations personnelles'),
+      icon: 'person-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      label: t('profile.personal_info'), sublabel: t('profile.personal_info_sub'),
+      onPress: openEditInfo,
     },
     {
-      icon: 'card-outline', iconColor: '#8B5CF6', iconBg: '#EDE9FE',
-      label: 'Coordonnées bancaires', sublabel: 'IBAN pour recevoir vos gains',
-      onPress: wip('Coordonnées bancaires'),
+      icon: 'chatbubbles-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      label: t('profile.messages'), sublabel: t('profile.messages_sub'),
+      onPress: () => router.push('/messages'),
     },
     {
-      icon: 'shield-checkmark-outline', iconColor: '#059669', iconBg: '#ECFDF5',
-      label: 'Documents légaux', sublabel: 'Assurance, immatriculation',
-      onPress: wip('Documents légaux'),
+      icon: 'wallet-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      label: t('profile.subscription'), sublabel: t('profile.subscription_sub'),
+      onPress: () => router.push('/subscription'),
+    },
+    ...(isClientOnly
+      ? [{
+          icon: 'briefcase-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
+          label: t('profile.become_provider'), sublabel: t('profile.become_provider_sub'),
+          onPress: () => router.push('/onboarding'),
+        }]
+      : []),
+  ];
+
+  const invoiceItems: MenuItem[] = [
+    {
+      icon: 'receipt-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      label: 'Mes factures', sublabel: 'Historique et téléchargement',
+      onPress: () => router.push('/invoices'),
     },
   ];
 
   const prefItems: MenuItem[] = [
     {
-      icon: 'notifications-outline', iconColor: '#F59E0B', iconBg: '#FFFBEB',
-      label: 'Notifications', sublabel: 'Alertes missions, rappels',
-      onPress: wip('Notifications'),
+      icon: 'notifications-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      label: t('profile.notifications'), sublabel: t('profile.notifications_sub'),
+      onPress: () => router.push('/settings/notifications'),
     },
     {
-      icon: 'lock-closed-outline', iconColor: '#6B7280', iconBg: '#F3F4F6',
-      label: 'Confidentialité',
-      onPress: wip('Confidentialité'),
+      icon: 'lock-closed-outline', iconColor: theme.textMuted, iconBg: theme.surface,
+      label: t('profile.privacy'),
+      onPress: () => router.push('/settings/privacy'),
     },
   ];
 
   const supportItems: MenuItem[] = [
     {
-      icon: 'help-circle-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF',
-      label: 'Aide et support',
-      onPress: wip('Aide et support'),
+      icon: 'help-circle-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      label: t('profile.help'),
+      onPress: () => router.push('/settings/help'),
     },
     {
-      icon: 'chatbubble-ellipses-outline', iconColor: '#10B981', iconBg: '#ECFDF5',
-      label: 'Nous contacter',
-      onPress: wip('Nous contacter'),
-    },
-    {
-      icon: 'document-text-outline', iconColor: '#9CA3AF', iconBg: '#F3F4F6',
-      label: 'Conditions générales',
-      onPress: wip('CGU'),
+      icon: 'document-text-outline', iconColor: theme.textMuted, iconBg: theme.surface,
+      label: t('profile.terms'),
+      onPress: () => router.push('/settings/cgu'),
     },
   ];
 
   const dangerItems: MenuItem[] = [
     {
-      icon: 'log-out-outline', iconColor: '#DC2626', iconBg: '#FEF2F2',
-      label: 'Déconnexion',
+      icon: 'log-out-outline', iconColor: '#DC2626', iconBg: theme.surface,
+      label: t('auth.logout'),
       danger: true,
       onPress: handleLogout,
     },
   ];
 
   const sheetItems = [
-    { icon: 'person-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Modifier le profil' },
-    { icon: 'notifications-outline', iconColor: '#F59E0B', iconBg: '#FFFBEB', label: 'Notifications' },
-    { icon: 'lock-closed-outline', iconColor: '#6B7280', iconBg: '#F3F4F6', label: 'Confidentialité' },
-    { icon: 'help-circle-outline', iconColor: '#3B82F6', iconBg: '#EFF6FF', label: 'Aide et support' },
+    { icon: 'person-outline', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.personal_info'), onPress: openEditInfo },
+    { icon: 'notifications-outline', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.notifications'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/notifications'); } },
+    { icon: 'lock-closed-outline', iconColor: theme.textMuted, iconBg: theme.surface, label: t('profile.privacy'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/privacy'); } },
+    { icon: 'help-circle-outline', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.help'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/help'); } },
   ];
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
       {/* Header */}
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Profil</Text>
+      <View style={[s.header, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]}>Profil</Text>
         <TouchableOpacity
-          style={s.settingsBtn}
+          style={[s.settingsBtn, { backgroundColor: theme.surface }]}
           onPress={() => bottomSheetRef.current?.expand()}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={20} color="#172247" />
+          <Ionicons name="settings-outline" size={20} color={theme.textAlt} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Identity Card */}
-        <View style={s.identityCard}>
-          <ProviderAvatar name={displayName} size={82} />
+        <View style={[s.identityCard, { backgroundColor: theme.cardBg }]}>
+          <ProviderAvatar name={displayName} size={82} avatarUri={avatarUri} onPickPhoto={handlePickPhoto} />
           <View style={s.identityInfo}>
-            <Text style={s.identityName}>{displayName}</Text>
-            <Text style={s.identityEmail}>{email}</Text>
-            <View style={s.rolesPill}>
-              <Ionicons name="briefcase-outline" size={11} color="#172247" />
-              <Text style={s.rolesText}>{roles}</Text>
+            <View style={s.nameRow}>
+              <Text style={[s.identityName, { color: theme.textAlt }]}>{displayName}</Text>
+              {isVerified && (
+                <View style={s.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={18} color="#1D9BF0" />
+                </View>
+              )}
+            </View>
+            <Text style={[s.identityEmail, { color: theme.textMuted }]}>{email}</Text>
+            <View style={s.pillsRow}>
+              <View style={[s.rolesPill, { backgroundColor: theme.surface }]}>
+                <Ionicons name="briefcase-outline" size={11} color={theme.textSub} />
+                <Text style={[s.rolesText, { color: theme.textSub }]}>{roles}</Text>
+              </View>
+              {stripeReady && user?.roles?.includes('PROVIDER') && (
+                <View style={[s.stripeBadge, { backgroundColor: theme.stripeBadgeBg }]}>
+                  <Ionicons name="lock-closed" size={9} color="#635BFF" />
+                  <Text style={s.stripeBadgeText}>Stripe</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
 
         {/* Stats Row */}
-        <View style={s.statsCard}>
-          <StatBadge icon="star" iconColor="#F59E0B" iconBg="#FFFBEB" value={stats.rating} label="Note" />
-          <View style={s.statsDivider} />
-          <StatBadge icon="checkmark-circle-outline" iconColor="#059669" iconBg="#ECFDF5" value={stats.missions} label="Missions" />
-          <View style={s.statsDivider} />
-          <StatBadge icon="cash-outline" iconColor="#8B5CF6" iconBg="#EDE9FE" value={stats.earnings} label="Ce mois" />
-          <View style={s.statsDivider} />
-          <StatBadge icon="trending-up-outline" iconColor="#3B82F6" iconBg="#EFF6FF" value={stats.acceptance} label="Taux accept." />
+        <View style={[s.statsCard, { backgroundColor: theme.cardBg }]}>
+          <StatBadge icon="star" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.rating} label="Note" />
+          <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
+          <StatBadge icon="checkmark-circle-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.missions} label="Missions" />
+          <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
+          <StatBadge icon="cash-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.earnings} label="Wallet" />
+          <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
+          <StatBadge icon="trending-up-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.acceptance} label="Taux accept." />
         </View>
 
         {/* Menus */}
         <View style={s.sections}>
           <MenuSection title="Mon compte" items={accountItems} />
+          <MenuSection title="Facturation" items={invoiceItems} />
           <MenuSection title="Préférences" items={prefItems} />
           <MenuSection title="Support" items={supportItems} />
           <MenuSection items={dangerItems} />
         </View>
 
-        <Text style={s.version}>Version 1.0.0</Text>
+        <Text style={[s.version, { color: theme.textMuted }]}>Version 1.0.0</Text>
       </ScrollView>
+
+      {/* Modal — Édition informations personnelles */}
+      <Modal visible={editVisible} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[em.root, { backgroundColor: theme.bg }]}>
+          <View style={[em.header, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
+            <TouchableOpacity onPress={() => setEditVisible(false)} disabled={saving}>
+              <Text style={[em.cancel, { color: theme.textMuted }]}>Annuler</Text>
+            </TouchableOpacity>
+            <Text style={[em.title, { color: theme.textAlt }]}>Mes informations</Text>
+            <TouchableOpacity onPress={saveEditInfo} disabled={saving}>
+              <Text style={[em.save, saving && em.saveDisabled]}>{saving ? 'Sauvegarde…' : 'Sauvegarder'}</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={em.body}>
+            <Text style={[em.label, { color: theme.textMuted }]}>NOM COMPLET</Text>
+            <TextInput
+              style={[em.input, { backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.textAlt }]}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Jean Dupont"
+              autoCapitalize="words"
+              editable={!saving}
+            />
+            <Text style={[em.label, { color: theme.textMuted }]}>TÉLÉPHONE</Text>
+            <TextInput
+              style={[em.input, { backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.textAlt }]}
+              value={editPhone}
+              onChangeText={setEditPhone}
+              placeholder="+33 6 00 00 00 00"
+              keyboardType="phone-pad"
+              editable={!saving}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Bottom Sheet */}
       <BottomSheet
@@ -326,26 +545,25 @@ export default function Profile() {
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
+        backgroundStyle={{ backgroundColor: theme.cardBg }}
+        handleIndicatorStyle={{ backgroundColor: theme.border }}
       >
         <BottomSheetView style={s.sheetContent}>
-          <View style={s.sheetHandle} />
-          <Text style={s.sheetTitle}>Paramètres</Text>
+          <View style={[s.sheetHandle, { backgroundColor: theme.border }]} />
+          <Text style={[s.sheetTitle, { color: theme.textAlt }]}>Paramètres</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
             {sheetItems.map((item, i) => (
               <TouchableOpacity
                 key={i}
-                style={s.sheetRow}
+                style={[s.sheetRow, { borderBottomColor: theme.border }]}
                 activeOpacity={0.7}
-                onPress={() => {
-                  bottomSheetRef.current?.close();
-                  Alert.alert('Info', 'Fonctionnalité en développement');
-                }}
+                onPress={item.onPress}
               >
-                <View style={[s.sheetIcon, { backgroundColor: item.iconBg }]}>
+                <View style={[s.sheetIcon, { backgroundColor: theme.surface }]}>
                   <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
                 </View>
-                <Text style={s.sheetLabel}>{item.label}</Text>
-                <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+                <Text style={[s.sheetLabel, { color: theme.textAlt }]}>{item.label}</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -360,18 +578,18 @@ export default function Profile() {
 // ============================================================================
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
     backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#111' },
   settingsBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
 
   scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 48 },
@@ -386,15 +604,23 @@ const s = StyleSheet.create({
     }),
   },
   identityInfo: { flex: 1, gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   identityName: { fontSize: 20, fontWeight: '800', color: '#111' },
-  identityEmail: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
+  verifiedBadge: { marginTop: 1 },
+  identityEmail: { fontSize: 13, color: '#ADADAD', fontWeight: '500' },
+  pillsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   rolesPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#EEF2FF', borderRadius: 8,
+    backgroundColor: '#F5F5F5', borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 4,
-    alignSelf: 'flex-start', marginTop: 4,
   },
-  rolesText: { fontSize: 11, fontWeight: '700', color: '#172247' },
+  rolesText: { fontSize: 11, fontWeight: '700', color: '#555' },
+  stripeBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#EEF0FF', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  stripeBadgeText: { fontSize: 11, fontWeight: '700', color: '#635BFF' },
 
   statsCard: {
     flexDirection: 'row', alignItems: 'center',
@@ -406,29 +632,48 @@ const s = StyleSheet.create({
       android: { elevation: 3 },
     }),
   },
-  statsDivider: { width: 1, height: 40, backgroundColor: '#F3F4F6' },
+  statsDivider: { width: 1, height: 40, backgroundColor: '#F0F0F0' },
 
   sections: { gap: 16 },
 
   version: {
-    textAlign: 'center', fontSize: 12, color: '#D1D5DB',
+    textAlign: 'center', fontSize: 12, color: '#ADADAD',
     marginTop: 24, fontWeight: '500',
   },
 
   sheetContent: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
   sheetHandle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 20,
+    backgroundColor: '#EFEFEF', alignSelf: 'center', marginBottom: 20,
   },
   sheetTitle: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 16 },
   sheetRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 13,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   sheetIcon: {
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
   sheetLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111' },
+});
+
+const em = StyleSheet.create({
+  root:  { flex: 1, backgroundColor: '#FFFFFF' },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: '#F0F0F0', backgroundColor: '#FFF',
+  },
+  title:        { fontSize: 17, fontWeight: '700', color: '#111' },
+  cancel:       { fontSize: 16, color: '#ADADAD' },
+  save:         { fontSize: 16, fontWeight: '700', color: '#111' },
+  saveDisabled: { color: '#ADADAD' },
+  body:  { padding: 20, gap: 4 },
+  label: { fontSize: 11, fontWeight: '700', color: '#ADADAD', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6, marginTop: 16 },
+  input: {
+    backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#F0F0F0',
+    paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: '#111',
+  },
 });

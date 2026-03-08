@@ -1,406 +1,554 @@
-import React, { useState, useRef, useEffect } from "react";
+// app/(auth)/signup.tsx — FIXED Signup unifié (multi-step provider)
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  SafeAreaView,
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Easing,
-} from "react-native";
-import { useRouter } from "expo-router";
-import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
-import { api } from "@/lib/api";
+  View, Text, Pressable, StyleSheet,
+  Animated, KeyboardAvoidingView, Platform,
+  ScrollView, Easing, StatusBar, ActivityIndicator,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { FixedInput } from '@/lib/components/FixedInput';
+import type { InputState } from '@/lib/components/FixedInput';
+import { CLIENT_FLOW, PROVIDER_FLOW } from '@/constants/onboardingFlows';
 
-const { width } = Dimensions.get("window");
+const ROLE_INTENT_KEY = '@fixed:signup:role';
 
-// ─── Composants partagés ──────────────────────────────────────────────────────
-function XShape({ size = 24, color = "#FFFFFF" }: { size?: number; color?: string }) {
-  const thickness = Math.round(size * 0.15);
-  const arm: any = {
-    position: "absolute",
-    width: size,
-    height: thickness,
-    backgroundColor: color,
-    borderRadius: thickness / 2,
-    top: (size - thickness) / 2,
-    left: 0,
-  };
-  return (
-    <View style={{ width: size, height: size }}>
-      <View style={[arm, { transform: [{ rotate: "45deg" }] }]} />
-      <View style={[arm, { transform: [{ rotate: "-45deg" }] }]} />
-    </View>
-  );
-}
+// ─── Toast ────────────────────────────────────────────────────────────────────
+type ToastType = 'error' | 'success' | 'info';
+interface ToastMsg { id: number; type: ToastType; message: string }
 
-function XSpinner({ size = 24, color = "#FFFFFF" }: { size?: number; color?: string }) {
-  const spin = useRef(new Animated.Value(0)).current;
+function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
+  const ty = useRef(new Animated.Value(-72)).current;
+  const op = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 650, easing: Easing.linear, useNativeDriver: true })
-    );
-    anim.start();
-    return () => anim.stop();
+    Animated.parallel([
+      Animated.timing(ty, { toValue: 0,   duration: 320, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
+      Animated.timing(op, { toValue: 1,   duration: 280, useNativeDriver: true }),
+    ]).start();
+    const t = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(ty, { toValue: -72, duration: 260, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.timing(op, { toValue: 0,   duration: 200, useNativeDriver: true }),
+      ]).start(onDone);
+    }, 3200);
+    return () => clearTimeout(t);
   }, []);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const color = msg.type === 'error' ? '#FF453A' : msg.type === 'success' ? '#34C759' : '#FFF';
+  const icon  = msg.type === 'error' ? 'close-circle' : msg.type === 'success' ? 'checkmark-circle' : 'information-circle';
   return (
-    <Animated.View style={{ transform: [{ rotate }] }}>
-      <XShape size={size} color={color} />
+    <Animated.View style={[toast.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
+      <Ionicons name={icon as any} size={16} color={color} />
+      <Text style={toast.text}>{msg.message}</Text>
     </Animated.View>
   );
 }
 
-function PasswordStrength({ password }: { password: string }) {
-  if (!password) return null;
-  const level =
-    password.length < 6 ? 0 :
-    password.length < 8 ? 1 :
-    /[A-Z]/.test(password) && /[0-9]/.test(password) ? 3 : 2;
-  const labels = ["Trop court", "Faible", "Correct", "Fort"];
-  const colors = ["#EF4444", "#F59E0B", "#FFFFFF", "#22C55E"];
-  const widths = ["20%", "45%", "70%", "100%"];
+const toast = StyleSheet.create({
+  layer: { position: 'absolute', top: Platform.OS === 'ios' ? 56 : 36, left: 20, right: 20, zIndex: 9999, gap: 8 },
+  pill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, gap: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 10 },
+    }),
+  },
+  text: { fontSize: 14, color: '#FFF', fontWeight: '600', flex: 1 },
+});
+
+// ─── Password strength ────────────────────────────────────────────────────────
+function StrengthBar({ password }: { password: string }) {
+  const checks = [password.length >= 8, /[A-Z]/.test(password), /[0-9]/.test(password), /[^A-Za-z0-9]/.test(password)];
+  const score = checks.filter(Boolean).length;
+  const colors = ['#FF453A', '#FF9F0A', '#FFD60A', '#22C55E'];
+  const labels = ['Faible', 'Moyen', 'Bon', 'Fort'];
   return (
-    <View style={pw.container}>
-      <View style={pw.track}>
-        <View style={[pw.fill, { width: widths[level] as any, backgroundColor: colors[level] }]} />
+    <View style={str.wrap}>
+      <View style={str.barRow}>
+        {[0, 1, 2, 3].map(i => (
+          <View key={i} style={[str.segment, { backgroundColor: i < score ? colors[score - 1] : 'rgba(255,255,255,0.06)' }]} />
+        ))}
       </View>
-      <Text style={[pw.label, { color: colors[level] }]}>{labels[level]}</Text>
+      <Text style={[str.label, { color: score > 0 ? colors[score - 1] : 'rgba(255,255,255,0.2)' }]}>
+        {score > 0 ? labels[score - 1] : ''}
+      </Text>
     </View>
   );
 }
-
-const pw = StyleSheet.create({
-  container: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
-  track:     { flex: 1, height: 2, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 1, overflow: "hidden" },
-  fill:      { height: "100%", borderRadius: 1 },
-  label:     { fontSize: 11, fontWeight: "600", width: 68, textAlign: "right" },
+const str = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -8, marginBottom: 16 },
+  barRow: { flex: 1, flexDirection: 'row', gap: 4 },
+  segment: { flex: 1, height: 3, borderRadius: 2 },
+  label: { fontSize: 11, fontWeight: '600', width: 40 },
 });
 
-// ─── Signup ───────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+const RADIUS_OPTIONS = [
+  { value: 5,   label: '5 km',   hint: 'Quartier' },
+  { value: 10,  label: '10 km',  hint: 'Ville' },
+  { value: 20,  label: '20 km',  hint: 'Agglo.' },
+  { value: 30,  label: '30 km',  hint: 'Grand bassin' },
+  { value: 50,  label: '50 km',  hint: 'Région' },
+  { value: 100, label: '100 km', hint: 'Élargie' },
+];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+interface Category { id: number; name: string; icon?: string }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SIGNUP — Wizard unifié
+// ══════════════════════════════════════════════════════════════════════════════
+type Phase = 'identity' | 'zone' | 'creating';
+
 export default function Signup() {
-  const router     = useRouter();
-  const navigation = useNavigation();
+  const router = useRouter();
+  const { refreshMe } = useAuth();
 
-  const [name,         setName]         = useState("");
-  const [email,        setEmail]        = useState("");
-  const [password,     setPassword]     = useState("");
-  const [loading,      setLoading]      = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [focused,      setFocused]      = useState<string | null>(null);
+  // ── Role ────────────────────────────────────────────────────────────────────
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => { AsyncStorage.getItem(ROLE_INTENT_KEY).then(r => setRole(r)); }, []);
+  const isProvider = role === 'PROVIDER';
 
-  const cardY  = useRef(new Animated.Value(40)).current;
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  // ── Phase ───────────────────────────────────────────────────────────────────
+  const [phase, setPhase] = useState<Phase>('identity');
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(cardY, { toValue: 0, tension: 70, friction: 11, useNativeDriver: true }),
-      Animated.timing(fadeIn, { toValue: 1, duration: 450, useNativeDriver: true }),
-    ]).start();
+  // ── Step 1: Identity ────────────────────────────────────────────────────────
+  const [name,     setName]     = useState('');
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd,  setShowPwd]  = useState(false);
+  const [focused,  setFocused]  = useState<string | null>(null);
+
+  // ── Step 2: Zone + Categories ───────────────────────────────────────────────
+  const [city,         setCity]         = useState('');
+  const [radius,       setRadius]       = useState(10);
+  const [categories,   setCategories]   = useState<Category[]>([]);
+  const [selectedCats, setSelectedCats] = useState<number[]>([]);
+  const [catsLoading,  setCatsLoading]  = useState(false);
+
+  // ── Shared ──────────────────────────────────────────────────────────────────
+  const [msgs,    setMsgs]    = useState<ToastMsg[]>([]);
+  const counter = useRef(0);
+
+  const showToast = useCallback((message: string, type: ToastType = 'error') => {
+    const id = ++counter.current;
+    setMsgs(p => [...p, { id, type, message }]);
   }, []);
 
-  const handleBack = () => {
-    if (navigation.canGoBack()) router.back();
-    else router.replace("/(auth)/welcome");
+  // ── Animation ───────────────────────────────────────────────────────────────
+  const fade  = useRef(new Animated.Value(0)).current;
+  const transY = useRef(new Animated.Value(20)).current;
+  const animateIn = useCallback(() => {
+    fade.setValue(0); transY.setValue(20);
+    Animated.parallel([
+      Animated.timing(fade,  { toValue: 1, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(transY,{ toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [fade, transY]);
+  useEffect(() => { animateIn(); }, []);
+
+  // ── Load categories on zone phase ──────────────────────────────────────────
+  const [catsError, setCatsError] = useState(false);
+  const loadCategories = useCallback(() => {
+    setCatsLoading(true);
+    setCatsError(false);
+    api.taxonomies.list()
+      .then((res: any) => setCategories(res?.data ?? res ?? []))
+      .catch(() => { setCatsError(true); showToast('Erreur de chargement des catégories'); })
+      .finally(() => setCatsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (phase === 'zone' && isProvider && categories.length === 0) {
+      loadCategories();
+    }
+  }, [phase, isProvider]);
+
+  // ── Validation ──────────────────────────────────────────────────────────────
+  const isEmailValid = EMAIL_RE.test(email.trim());
+  const canIdentity = name.trim().length > 0 && isEmailValid && password.length >= 8;
+  const canZone = city.trim().length >= 2 && selectedCats.length > 0;
+
+  const nameState: InputState  = focused === 'name' ? 'active' : 'idle';
+  const emailState: InputState = focused === 'email' ? 'active' : email.length > 3 && isEmailValid ? 'valid' : email.length > 3 ? 'error' : 'idle';
+  const pwdState: InputState   = focused === 'password' ? 'active' : password.length >= 8 ? 'valid' : 'idle';
+  const cityState: InputState  = focused === 'city' ? 'active' : city.trim().length >= 2 ? 'valid' : 'idle';
+
+  // ── Navigation entre phases ─────────────────────────────────────────────────
+  const goToZone = () => {
+    if (!canIdentity) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (!name.trim()) showToast('Entrez votre nom');
+      else if (!isEmailValid) showToast('Adresse mail invalide');
+      else showToast('Mot de passe trop court — 6 caractères min.');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPhase('zone');
+    animateIn();
   };
 
-  const onSignup = async () => {
-    if (!email || !password) return Alert.alert("Erreur", "Remplissez tous les champs");
-    setLoading(true);
+  const goBack = () => {
+    Haptics.selectionAsync();
+    if (phase === 'zone') { setPhase('identity'); animateIn(); }
+    else router.canGoBack() ? router.back() : router.replace('/(auth)/welcome');
+  };
+
+  // ── Account creation + provider registration ───────────────────────────────
+  const createAccount = async () => {
+    if (isProvider && !canZone) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (city.trim().length < 2) showToast('Entrez votre ville de base');
+      else showToast('Sélectionnez au moins un domaine');
+      return;
+    }
+    if (!isProvider && !canIdentity) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPhase('creating');
+
     try {
-      await api.auth.signup(email, password, name);
-      Alert.alert("Compte cree !", "It's Fixed. Vous pouvez maintenant vous connecter.", [
-        { text: "Se connecter", onPress: () => router.replace("/(auth)/login") },
-      ]);
+      // 1. Create account
+      await api.auth.signup(email.trim().toLowerCase(), password, name.trim() || undefined);
+
+      if (isProvider) {
+        // 2. Register as provider
+        const selectedCatObjects = categories.filter(c => selectedCats.includes(c.id));
+        await api.providers.register({
+          name: name.trim(),
+          city: city.trim(),
+          categoryIds: selectedCats,
+        });
+
+        // 3. Refresh JWT (now has PROVIDER role)
+        await refreshMe();
+
+        // 4. Store onboarding data for any downstream screens (stripe etc.)
+        await AsyncStorage.setItem('onboarding_data', JSON.stringify({
+          name: name.trim(),
+          city: city.trim(),
+          radius,
+          categoryIds: selectedCats,
+          categories: selectedCatObjects.map(c => ({ id: c.id, name: c.name })),
+        }));
+
+        // 5. Documents KYC + Quiz → gérés par les écrans séparés dans /onboarding/
+        // (verify-email → /onboarding/documents → /onboarding/quiz → /onboarding/stripe)
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        finishSignup();
+      } else {
+        // Client → straight to verify-email
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        finishSignup();
+      }
     } catch (err: any) {
-      Alert.alert("Erreur", err.message || "Echec de l'inscription");
-    } finally {
-      setLoading(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showToast(err.message || "Échec de l'inscription");
+      setPhase(isProvider ? 'zone' : 'identity');
     }
   };
 
+  const finishSignup = () => {
+    // Nettoyer immédiatement les données temporaires
+    AsyncStorage.removeItem(ROLE_INTENT_KEY).catch(() => {});
+    AsyncStorage.removeItem('onboarding_data').catch(() => {});
+    router.replace({ pathname: '/(auth)/verify-email', params: { email: email.trim().toLowerCase() } });
+  };
+
+  // ── Progress (utilise les constantes unifiées) ──────────────────────────────
+  const flow = isProvider ? PROVIDER_FLOW : CLIENT_FLOW;
+  const totalSteps = flow.totalSteps;
+  const stepNum = isProvider
+    ? (phase === 'identity' ? PROVIDER_FLOW.steps.SIGNUP_ID : PROVIDER_FLOW.steps.ZONE)
+    : CLIENT_FLOW.steps.REGISTER;
+
+  const toggleCat = (id: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedCats(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.safeArea}>
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-        {/* Header avec fleche de retour bien visible */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.55)" />
-          </TouchableOpacity>
-          <View style={styles.brandMini}>
-            <XShape size={16} color="#FFFFFF" />
-            <Text style={styles.brandMiniText}>FIXED</Text>
+      <View style={toast.layer} pointerEvents="none">
+        {msgs.map(m => (
+          <Toast key={m.id} msg={m} onDone={() => setMsgs(p => p.filter(x => x.id !== m.id))} />
+        ))}
+      </View>
+
+      {/* Top bar */}
+      {phase !== 'creating' && (
+        <View style={s.topBar}>
+          <Pressable style={s.backBtn} onPress={goBack} hitSlop={12}>
+            <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.45)" />
+          </Pressable>
+          <Text style={s.logo}>FIXED</Text>
+          <View style={s.stepBadge}>
+            <Text style={s.stepText}>
+              {String(stepNum).padStart(2, '0')} / {totalSteps}
+            </Text>
           </View>
-          <View style={{ width: 40 }} />
         </View>
+      )}
 
+      {/* Progress bar */}
+      {phase !== 'creating' && (
+        <View style={s.progressRow}>
+          {Array.from({ length: isProvider ? totalSteps : 2 }).map((_, i) => (
+            <View key={i} style={[s.progressSeg, i < stepNum ? s.progressOn : s.progressOff]} />
+          ))}
+        </View>
+      )}
+
+      {/* ═══ CREATING — Loading screen ═══════════════════════════════════════ */}
+      {phase === 'creating' && (
+        <View style={s.creatingWrap}>
+          <ActivityIndicator size="large" color="#FFF" />
+          <Text style={s.creatingText}>Création de votre compte…</Text>
+          {isProvider && <Text style={s.creatingSubtext}>Configuration du profil prestataire</Text>}
+        </View>
+      )}
+
+      {/* ═══ FORM PHASES ═══════════════════════════════════════════════════════ */}
+      {phase !== 'creating' && (
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={s.scroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Animated.View
-              style={[styles.card, { opacity: fadeIn, transform: [{ translateY: cardY }] }]}
-            >
-              {/* Titre */}
-              <View style={styles.titleBlock}>
-                <Text style={styles.eyebrow}>NOUVEAU COMPTE</Text>
-                <Text style={styles.title}>Inscription</Text>
-                <View style={styles.titleRule} />
-              </View>
+            <Animated.View style={{ opacity: fade, transform: [{ translateY: transY }] }}>
 
-              {/* Indicateur d'etapes */}
-              <View style={styles.steps}>
-                <View style={[styles.stepDot, styles.stepDotActive]} />
-                <View style={styles.stepLine} />
-                <View style={styles.stepDot} />
-                <View style={styles.stepLine} />
-                <View style={styles.stepDot} />
-              </View>
-
-              {/* Champs */}
-              <View style={styles.form}>
-                {/* Nom */}
-                <View style={styles.field}>
-                  <Text style={styles.label}>NOM COMPLET</Text>
-                  <View style={[styles.inputRow, focused === "name" && styles.inputRowFocused]}>
-                    <Ionicons
-                      name="person-outline"
-                      size={17}
-                      color={focused === "name" ? "#FFFFFF" : "rgba(255,255,255,0.45)"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Jean Dupont"
-                      placeholderTextColor="rgba(255,255,255,0.22)"
-                      autoCapitalize="words"
-                      value={name}
-                      onChangeText={setName}
-                      onFocus={() => setFocused("name")}
-                      onBlur={() => setFocused(null)}
-                    />
-                    <Text style={styles.optionalTag}>optionnel</Text>
+              {/* ─── IDENTITY ──────────────────────────────────────────── */}
+              {phase === 'identity' && (
+                <>
+                  <Text style={s.title}>{'Créez votre\ncompte.'}</Text>
+                  <Text style={s.subtitle}>Opérationnel en moins d'une minute.</Text>
+                  <View style={s.fields}>
+                    <FixedInput label="Nom complet" icon="person-outline" state={nameState}
+                      value={name} onChangeText={setName} placeholder="Prénom et nom"
+                      autoCapitalize="words" maxLength={60} returnKeyType="next"
+                      onFocus={() => setFocused('name')} onBlur={() => setFocused(null)} />
+                    <FixedInput label="Adresse mail" icon="mail-outline" state={emailState}
+                      value={email} onChangeText={setEmail} placeholder="votre@email.com"
+                      autoCapitalize="none" keyboardType="email-address" returnKeyType="next"
+                      onFocus={() => setFocused('email')} onBlur={() => setFocused(null)} />
+                    <FixedInput label="Mot de passe" icon="lock-closed-outline" state={pwdState}
+                      value={password} onChangeText={setPassword} placeholder="Minimum 6 caractères"
+                      secureTextEntry={!showPwd} returnKeyType="done"
+                      onFocus={() => setFocused('password')} onBlur={() => setFocused(null)}
+                      onSubmitEditing={isProvider ? goToZone : createAccount}
+                      rightElement={
+                        <Pressable onPress={() => { Haptics.selectionAsync(); setShowPwd(p => !p); }} hitSlop={8}>
+                          <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={17} color="rgba(255,255,255,0.35)" />
+                        </Pressable>
+                      } />
+                    {password.length > 0 && <StrengthBar password={password} />}
                   </View>
-                </View>
+                </>
+              )}
 
-                {/* Email */}
-                <View style={styles.field}>
-                  <Text style={styles.label}>EMAIL</Text>
-                  <View style={[styles.inputRow, focused === "email" && styles.inputRowFocused]}>
-                    <Ionicons
-                      name="mail-outline"
-                      size={17}
-                      color={focused === "email" ? "#FFFFFF" : "rgba(255,255,255,0.45)"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="votre@email.com"
-                      placeholderTextColor="rgba(255,255,255,0.22)"
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                      value={email}
-                      onChangeText={setEmail}
-                      onFocus={() => setFocused("email")}
-                      onBlur={() => setFocused(null)}
-                    />
+              {/* ─── ZONE + CATEGORIES ─────────────────────────────────── */}
+              {phase === 'zone' && isProvider && (
+                <>
+                  <Text style={s.title}>{'Votre\nactivité.'}</Text>
+                  <Text style={s.subtitle}>Zone d'intervention et domaines d'expertise.</Text>
+                  <View style={s.fields}>
+                    <FixedInput label="Ville de base" icon="location-outline" state={cityState}
+                      value={city} onChangeText={setCity} placeholder="Paris, Lyon, Marseille…"
+                      autoCapitalize="words" maxLength={80} returnKeyType="done"
+                      onFocus={() => setFocused('city')} onBlur={() => setFocused(null)} />
+
+                    <Text style={s.sectionLabel}>Rayon d'intervention</Text>
+                    <View style={s.radiusGrid}>
+                      {RADIUS_OPTIONS.map(opt => {
+                        const active = radius === opt.value;
+                        return (
+                          <Pressable key={opt.value} style={[s.radiusCard, active && s.radiusCardActive]}
+                            onPress={() => { Haptics.selectionAsync(); setRadius(opt.value); }}>
+                            <Text style={[s.radiusLabel, active && s.radiusLabelActive]}>{opt.label}</Text>
+                            <Text style={[s.radiusHint, active && s.radiusHintActive]}>{opt.hint}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={[s.sectionLabel, { marginTop: 28 }]}>Vos métiers</Text>
+                    {catsLoading ? (
+                      <View style={s.centered}><ActivityIndicator size="large" color="rgba(255,255,255,0.4)" /></View>
+                    ) : catsError && categories.length === 0 ? (
+                      <Pressable style={s.centered} onPress={loadCategories}>
+                        <Ionicons name="refresh-outline" size={24} color="rgba(255,255,255,0.4)" />
+                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 8 }}>Réessayer</Text>
+                      </Pressable>
+                    ) : (
+                      <View style={s.catGrid}>
+                        {categories.map(cat => {
+                          const sel = selectedCats.includes(cat.id);
+                          return (
+                            <Pressable key={cat.id} style={[s.chip, sel && s.chipSelected]} onPress={() => toggleCat(cat.id)}>
+                              {cat.icon
+                                ? <Text style={s.chipIcon}>{cat.icon}</Text>
+                                : <Ionicons name="briefcase-outline" size={15} color={sel ? '#111' : 'rgba(255,255,255,0.5)'} />}
+                              <Text style={[s.chipText, sel && s.chipTextSelected]}>{cat.name}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
+                    {selectedCats.length > 0 && (
+                      <Text style={s.catCount}>
+                        {selectedCats.length} service{selectedCats.length > 1 ? 's' : ''} sélectionné{selectedCats.length > 1 ? 's' : ''}
+                      </Text>
+                    )}
                   </View>
-                </View>
+                </>
+              )}
 
-                {/* Mot de passe */}
-                <View style={styles.field}>
-                  <Text style={styles.label}>MOT DE PASSE</Text>
-                  <View style={[styles.inputRow, focused === "password" && styles.inputRowFocused]}>
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={17}
-                      color={focused === "password" ? "#FFFFFF" : "rgba(255,255,255,0.45)"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="8 caracteres minimum"
-                      placeholderTextColor="rgba(255,255,255,0.22)"
-                      secureTextEntry={!showPassword}
-                      value={password}
-                      onChangeText={setPassword}
-                      onFocus={() => setFocused("password")}
-                      onBlur={() => setFocused(null)}
-                    />
-                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                      <Ionicons
-                        name={showPassword ? "eye-off-outline" : "eye-outline"}
-                        size={18}
-                        color="rgba(255,255,255,0.4)"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  <PasswordStrength password={password} />
-                </View>
-
-                {/* Bouton */}
-                <TouchableOpacity
-                  style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-                  onPress={onSignup}
-                  disabled={loading}
-                  activeOpacity={0.88}
-                >
-                  {loading
-                    ? <XSpinner size={22} color="#0A0A0A" />
-                    : <Text style={styles.submitBtnText}>{"Creer mon compte"}</Text>
-                  }
-                </TouchableOpacity>
-
-                {/* Legal */}
-                <View style={styles.legalRow}>
-                  <Ionicons name="shield-checkmark-outline" size={12} color="rgba(255,255,255,0.2)" />
-                  <Text style={styles.legalText}>
-                    {"En creant un compte, vous acceptez nos "}
-                    <Text style={styles.legalLink}>CGU</Text>
-                    {" et notre "}
-                    <Text style={styles.legalLink}>{"Politique de confidentialite"}</Text>
-                  </Text>
-                </View>
-              </View>
-
-              {/* Footer */}
-              <View style={styles.footer}>
-                <View style={styles.footerRule} />
-                <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-                  <Text style={styles.footerText}>
-                    {"Deja un compte ?  "}
-                    <Text style={styles.footerLink}>Se connecter</Text>
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </Animated.View>
+
+            {/* ─── FOOTER (inside scroll) ──────────────────────────────── */}
+            <View style={s.footer}>
+              {phase === 'identity' && (
+                <View style={s.legalRow}>
+                  <Ionicons name="shield-checkmark-outline" size={12} color="rgba(255,255,255,0.2)" />
+                  <Text style={s.legalText}>
+                    {'En continuant, vous acceptez nos '}
+                    <Text style={s.legalLink}>CGU</Text>
+                    {' et '}
+                    <Text style={s.legalLink}>Politique de confidentialité</Text>
+                  </Text>
+                </View>
+              )}
+
+              {/* CTA adaptatif */}
+              {phase === 'identity' && (
+                <Pressable
+                  style={[s.cta, !canIdentity && s.ctaDisabled]}
+                  onPress={isProvider ? goToZone : createAccount}
+                >
+                  <Text style={[s.ctaText, !canIdentity && s.ctaTextDisabled]}>
+                    {isProvider ? 'Continuer' : "Créer mon compte"}
+                  </Text>
+                </Pressable>
+              )}
+
+              {phase === 'zone' && (
+                <Pressable
+                  style={[s.cta, !canZone && s.ctaDisabled]}
+                  onPress={createAccount}
+                  disabled={!canZone}
+                >
+                  <Text style={[s.ctaText, !canZone && s.ctaTextDisabled]}>Créer mon compte</Text>
+                </Pressable>
+              )}
+
+              {phase === 'identity' && (
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); router.push('/(auth)/login'); }}
+                  style={s.loginLink} hitSlop={8}
+                >
+                  <Text style={s.loginText}>
+                    {'Déjà un compte ?  '}
+                    <Text style={s.loginBold}>Se connecter</Text>
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      )}
     </View>
   );
 }
 
-// ─── Design tokens ─────────────────────────────────────────────────────────────
-const RADIUS   = 12;
-const BTN_H    = 55;
-const CARD_PAD = 28;
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000' },
 
-const styles = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: "#0A0A0A" },
-  safeArea: { flex: 1 },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 6,
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 24, paddingBottom: 8,
   },
-  backBtn:       { padding: 8, width: 40 },
-  brandMini:     { flexDirection: "row", alignItems: "center", gap: 8 },
-  brandMiniText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", letterSpacing: 5 },
-
-  scrollContent: { flexGrow: 1, justifyContent: "center", paddingVertical: 20 },
-
-  // Card centree — meme logique que login
-  card: {
-    alignSelf: "center",
-    width: "100%",
-    maxWidth: 420,
-    paddingHorizontal: CARD_PAD,
-    paddingVertical: 32,
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    alignItems: 'center', justifyContent: 'center',
   },
+  logo: { fontSize: 16, fontWeight: '900', letterSpacing: 3, color: '#FFF' },
+  stepBadge: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  stepText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.4)' },
 
-  titleBlock: { marginBottom: 28 },
-  eyebrow: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 4,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 40,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -1.5,
-    fontFamily: "Georgia",
-  },
-  titleRule: { width: 32, height: 2, backgroundColor: "#FFFFFF", marginTop: 14 },
+  progressRow: { flexDirection: 'row', gap: 4, paddingHorizontal: 24, marginBottom: 4 },
+  progressSeg: { flex: 1, height: 2, borderRadius: 1 },
+  progressOn:  { backgroundColor: '#FFF' },
+  progressOff: { backgroundColor: 'rgba(255,255,255,0.1)' },
 
-  steps:         { flexDirection: "row", alignItems: "center", marginBottom: 30 },
-  stepDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.15)" },
-  stepDotActive: { backgroundColor: "#FFFFFF", width: 24, borderRadius: 4 },
-  stepLine:      { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginHorizontal: 6 },
+  scroll: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: Platform.OS === 'ios' ? 36 : 24 },
 
-  form:  { gap: 0 },
-  field: { marginBottom: 20 },
-  label: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.5)",  // contraste ameliore
-    letterSpacing: 3,
-    fontWeight: "700",
-    marginBottom: 9,
-  },
+  title: { fontSize: 30, fontWeight: '800', color: '#FFF', lineHeight: 36, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 32 },
+  fields: {},
 
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: RADIUS,            // uniforme
-    paddingRight: 14,
-    height: 52,
-  },
-  inputRowFocused: {
-    borderColor: "rgba(255,255,255,0.4)",
-    backgroundColor: "rgba(255,255,255,0.1)",
-  },
-  inputIcon:   { marginLeft: 16 },
-  input: { flex: 1, paddingHorizontal: 11, fontSize: 15, color: "#FFFFFF" },
-  eyeBtn:      { padding: 6 },
-  optionalTag: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.22)",
-    letterSpacing: 1,
-    fontWeight: "600",
-    marginRight: 6,
-  },
+  /* Creating */
+  creatingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  creatingText: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+  creatingSubtext: { fontSize: 14, color: 'rgba(255,255,255,0.4)' },
 
-  submitBtn: {
-    backgroundColor: "#FFFFFF",
-    height: BTN_H,
-    borderRadius: RADIUS,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-    marginBottom: 16,
+  /* Zone */
+  sectionLabel: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.5, marginBottom: 12 },
+  radiusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  radiusCard: {
+    width: '30%', flexGrow: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center',
   },
-  submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: "#0A0A0A", fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
+  radiusCardActive:  { backgroundColor: '#FFF', borderColor: '#FFF' },
+  radiusLabel:       { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  radiusLabelActive: { color: '#111' },
+  radiusHint:        { fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, fontWeight: '500' },
+  radiusHintActive:  { color: 'rgba(0,0,0,0.45)' },
 
-  legalRow:  { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  legalText: { flex: 1, color: "rgba(255,255,255,0.2)", fontSize: 11, lineHeight: 18 },
-  legalLink: { color: "rgba(255,255,255,0.4)", textDecorationLine: "underline" },
+  centered: { paddingVertical: 40, alignItems: 'center' },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  chipSelected:     { backgroundColor: '#FFF', borderColor: '#FFF' },
+  chipIcon:         { fontSize: 15 },
+  chipText:         { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  chipTextSelected: { color: '#111' },
+  catCount: { fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 12 },
 
-  footer:     { marginTop: 28, alignItems: "center", gap: 16 },
-  footerRule: { width: 28, height: 1, backgroundColor: "rgba(255,255,255,0.1)" },
-  footerText: { color: "rgba(255,255,255,0.32)", fontSize: 14 },
-  footerLink: { color: "#FFFFFF", fontWeight: "600" },
+  /* Footer */
+  footer: { paddingTop: 24, gap: 12 },
+  legalRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 4 },
+  legalText: { flex: 1, color: 'rgba(255,255,255,0.25)', fontSize: 11, lineHeight: 16 },
+  legalLink: { color: 'rgba(255,255,255,0.45)', textDecorationLine: 'underline' },
+
+  cta: { height: 54, borderRadius: 14, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
+  ctaDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  ctaText: { fontSize: 16, fontWeight: '700', color: '#000' },
+  ctaTextDisabled: { color: 'rgba(255,255,255,0.2)' },
+
+  skipBtn: { alignItems: 'center', paddingVertical: 8 },
+  skipText: { fontSize: 14, color: 'rgba(255,255,255,0.35)' },
+
+  loginLink: { alignItems: 'center', paddingVertical: 4 },
+  loginText: { fontSize: 14, color: 'rgba(255,255,255,0.35)' },
+  loginBold: { color: '#FFF', fontWeight: '700' },
 });

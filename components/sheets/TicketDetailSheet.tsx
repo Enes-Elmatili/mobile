@@ -5,8 +5,10 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
-  Platform, Pressable,
+  Platform, Pressable, Alert,
 } from 'react-native';
+import { api } from '@/lib/api';
+import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -213,6 +215,7 @@ const ab = StyleSheet.create({
 // ============================================================================
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose, onNavigateToOngoing }: TicketDetailSheetProps) {
+  const router = useRouter();
   const [pendingRating, setPendingRating] = useState(0);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
@@ -250,25 +253,61 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   };
 
   const handleRate = async (rating: number) => {
+    if (!ticket?.provider?.id) return;
     setPendingRating(rating);
-    // TODO: await api.post(`/requests/${ticket.id}/rating`, { rating })
-    console.log(`[TicketDetailSheet] Rating soumis: ${rating}/5 pour mission #${ticket?.id}`);
-    setTimeout(() => setRatingSubmitted(true), 400);
+    try {
+      await api.post('/ratings', {
+        requestId: Number(ticket.id),
+        providerId: ticket.provider.id,
+        rating,
+      });
+      setTimeout(() => setRatingSubmitted(true), 400);
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Impossible de soumettre l\'évaluation.');
+      setPendingRating(0);
+    }
   };
 
-  const handleInvoice = () => {
-    // TODO: Linking.openURL(ticket.invoiceUrl) ou téléchargement PDF
-    console.log('[TicketDetailSheet] Téléchargement facture:', ticket?.id);
+  const handleInvoice = async () => {
+    try {
+      const result = await api.documents.list();
+      const invoices: any[] = result?.data?.invoices || result?.invoices || [];
+      const invoice = invoices.find(
+        (inv: any) => inv.requestId === ticket.id || inv.requestId === Number(ticket.id)
+      );
+      if (!invoice) {
+        Alert.alert('Facture', 'Aucune facture disponible pour cette mission.');
+        return;
+      }
+      const fileUrl: string | undefined = invoice.file?.url;
+      if (fileUrl) {
+        const base = (process.env.EXPO_PUBLIC_API_URL || '').replace('/api', '');
+        const fullUrl = fileUrl.startsWith('http') ? fileUrl : `${base}${fileUrl}`;
+        await Linking.openURL(fullUrl);
+      } else {
+        Alert.alert('Facture', 'Le PDF n\'est pas encore disponible.');
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible de charger la facture.');
+    }
   };
 
   const handleReorder = () => {
-    // TODO: router.push({ pathname: '/request/new', params: { selectedCategory: ticket?.category?.slug } })
-    console.log('[TicketDetailSheet] Reorder:', ticket?.id);
+    onClose();
+    const categorySlug = ticket?.category?.slug || ticket?.category?.name || '';
+    router.push({
+      pathname: '/request/NewRequestStepper',
+      params: { selectedCategory: categorySlug },
+    });
   };
 
   const handleSupport = () => {
-    // TODO: router.push('/support', { params: { requestId: ticket?.id } })
-    console.log('[TicketDetailSheet] Support pour:', ticket?.id);
+    const ref = String(ticket?.id || '').slice(-6).toUpperCase();
+    const subject = encodeURIComponent(`Problème avec la mission #${ref}`);
+    const body = encodeURIComponent(`Bonjour,\n\nJ'ai un problème avec ma mission référence #${ref}.\n\nDétails : `);
+    Linking.openURL(`mailto:support@fixed.app?subject=${subject}&body=${body}`).catch(() => {
+      Alert.alert('Support', 'Contactez-nous à support@fixed.app');
+    });
   };
 
   const handleContact = () => {
@@ -285,7 +324,6 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   const address      = ticket.address || '';
   const isDone       = ticket.status === 'DONE';
   const isOngoing    = ticket.status === 'ONGOING' || ticket.status === 'ACCEPTED';
-  const isCancelled  = ticket.status === 'CANCELLED';
   const providerName = ticket.provider?.name || 'Prestataire';
   const hasRating    = ticket.clientRating != null;
   const showRatingBlock = isDone && !hasRating && !ratingSubmitted;
@@ -591,7 +629,31 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                     variant="ghost"
                   />
                 )}
-                <TouchableOpacity style={sd.cancelLink} onPress={onClose} activeOpacity={0.6}>
+                <TouchableOpacity
+                  style={sd.cancelLink}
+                  onPress={() => {
+                    Alert.alert(
+                      'Annuler la mission',
+                      'Voulez-vous vraiment annuler cette mission ?',
+                      [
+                        { text: 'Non', style: 'cancel' },
+                        {
+                          text: 'Oui, annuler',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await api.post(`/requests/${ticket.id}/cancel`);
+                              onClose();
+                            } catch (e: any) {
+                              Alert.alert('Erreur', e?.message || 'Impossible d\'annuler la mission.');
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.6}
+                >
                   <Text style={sd.cancelLinkText}>Annuler la mission</Text>
                 </TouchableOpacity>
               </>

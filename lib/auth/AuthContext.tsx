@@ -1,3 +1,4 @@
+import { devLog, devWarn } from './../logger';
 import React, {
   createContext,
   useCallback,
@@ -8,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { api, tokenStorage } from '../api';
+import { useOnboardingStore } from '../../stores/onboardingStore';
 
 type Role = 'ADMIN' | 'PROVIDER' | 'CLIENT';
 
@@ -16,6 +18,7 @@ type UserData = {
   email: string;
   name?: string;
   roles: Role[];
+  providerStatus?: string; // PENDING | ACTIVE | REJECTED | SUSPENDED
 };
 
 type AuthState = {
@@ -37,15 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Subscribe to token changes from storage
   useEffect(() => {
     const unsubscribe = tokenStorage.subscribe((newToken) => {
-      console.log('🔄 Token storage updated:', newToken ? 'exists' : 'null');
+      devLog('🔄 Token storage updated:', newToken ? 'exists' : 'null');
       setToken(newToken);
     });
     return unsubscribe;
   }, []);
 
   const signOut = useCallback(async () => {
-    console.log('🚪 SIGNOUT');
+    devLog('🚪 SIGNOUT');
     setUser(null);
+    useOnboardingStore.getState().reset();
     await tokenStorage.removeToken(); // Vide le token AVANT l'appel API
     await api.auth.logout().catch(() => {}); // Ignore si session déjà expirée
   }, []);
@@ -60,33 +64,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Guard : ne rien faire si pas de token
     const currentToken = await tokenStorage.getToken();
     if (!currentToken) {
-      console.log('⏭️ refreshMe: no token, skipping');
+      devLog('⏭️ refreshMe: no token, skipping');
       return;
     }
 
     try {
-      console.log('📡 REFRESH ME CALL');
+      devLog('📡 REFRESH ME CALL');
       const res = await api.user.me();
-      console.log('📥 ME RESPONSE:', JSON.stringify(res, null, 2));
+      devLog('📥 ME RESPONSE:', JSON.stringify(res, null, 2));
 
       const userData = res?.user;
-      console.log('🔍 Extracted userData:', userData);
+      devLog('🔍 Extracted userData:', userData);
 
-      if (userData && userData.email && userData.id) {
+      if (userData && userData.email && userData.id && Array.isArray(userData.roles)) {
         setUser(userData);
-        console.log('✅ USER LOADED:', userData.email, 'Roles:', userData.roles);
+        devLog('✅ USER LOADED:', userData.email, 'Roles:', userData.roles);
       } else {
-        console.warn('⚠️ ME response sans user valide. userData:', userData);
+        devWarn('⚠️ ME response sans user valide. userData:', userData);
         await signOutRef.current();
       }
     } catch (e: any) {
       console.error('❌ REFRESH ME ERROR:', e.message || e);
 
       if (e.status === 401) {
-        console.log('🔒 Token expired and refresh failed. Signing out.');
+        devLog('🔒 Token expired and refresh failed. Signing out.');
         await signOutRef.current();
       } else if (e.status >= 500) {
-        console.warn('⚠️ Server error during refresh. Keeping local session.');
+        devWarn('⚠️ Server error during refresh. Keeping local session.');
       }
     }
   }, []); // Pas de dépendance sur signOut grâce au ref
@@ -98,26 +102,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshMe]);
 
   // Boot : lecture du token depuis le secure storage
+  // On attend /auth/me AVANT de retirer le spinner pour éviter un flash sur l'écran welcome
   useEffect(() => {
     let cancelled = false;
 
     const bootUp = async () => {
       try {
-        console.log('🔄 BOOT: Reading token from secure storage...');
+        devLog('🔄 BOOT: Reading token from secure storage...');
         const storedToken = await tokenStorage.getToken();
 
         if (cancelled) {
-          console.log('⚠️ Boot cancelled');
+          devLog('⚠️ Boot cancelled');
           return;
         }
 
-        console.log('🔑 BOOT TOKEN:', storedToken ? `${storedToken.slice(0, 20)}...` : 'null');
+        devLog('🔑 BOOT TOKEN:', storedToken ? `${storedToken.slice(0, 20)}...` : 'null');
         setToken(storedToken);
+
+        if (storedToken) {
+          // Attendre /auth/me avant de masquer le spinner —
+          // évite le flash welcome → dashboard pour les utilisateurs déjà connectés
+          devLog('🔄 BOOT: Awaiting /auth/me before unmounting spinner...');
+          await refreshMeRef.current();
+          if (cancelled) return;
+        }
+
         setIsBooting(false);
-        console.log('✅ BOOT COMPLETE');
+        devLog('✅ BOOT COMPLETE');
       } catch (error) {
         console.error('❌ BOOT ERROR:', error);
-        setIsBooting(false);
+        if (!cancelled) setIsBooting(false);
       }
     };
 
@@ -127,25 +141,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Token change → refresh /me (un seul déclenchement)
+  // Token change → refresh /me (signIn / signOut uniquement — le boot est géré ci-dessus)
+  const bootDoneRef = useRef(false);
   useEffect(() => {
     if (isBooting) {
-      console.log('⏳ Waiting for boot...');
+      devLog('⏳ Waiting for boot...');
+      return;
+    }
+
+    // Premier déclenchement après le boot : bootUp a déjà appelé refreshMe, on saute
+    if (!bootDoneRef.current) {
+      bootDoneRef.current = true;
       return;
     }
 
     if (token) {
       refreshMeRef.current();
     } else {
-      console.log('❌ No token, clearing user');
+      devLog('❌ No token, clearing user');
       setUser(null);
     }
   }, [token, isBooting]); // refreshMe retiré des deps, géré via ref
 
   const signIn = useCallback(async (newToken: string) => {
-    console.log('🔐 SIGNIN:', newToken.slice(0, 20) + '...');
+    devLog('🔐 SIGNIN:', newToken.slice(0, 20) + '...');
     await tokenStorage.setToken(newToken);
-    console.log('✅ SIGNIN: Token saved to storage');
+    devLog('✅ SIGNIN: Token saved to storage');
   }, []);
 
   const value = useMemo(
@@ -153,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [isBooting, token, user, signIn, signOut, refreshMe]
   );
 
-  console.log('🔍 AUTH STATE:', {
+  devLog('🔍 AUTH STATE:', {
     isBooting,
     hasToken: !!token,
     hasUser: !!user,

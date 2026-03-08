@@ -4,17 +4,19 @@
     "slug": "fixed-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/app-icons-ios/app-icon-1024x1024.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "fixed",
+    "scheme": ["fixed", "exp+fixed-app"],
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#121212"
+      "image": "./assets/splash-screens/splash-1284x2778.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": false,
@@ -28,16 +30,33 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundColor": "#121212"
+        "foregroundImage": "./assets/app-icons-android/adaptive-icon-foreground.png",
+        "backgroundImage": "./assets/app-icons-android/adaptive-icon-background.png"
       },
       "package": "com.fixed.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "fixed", "host": "*" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "exp+fixed-app", "host": "*" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "FOREGROUND_SERVICE",
         "ACCESS_BACKGROUND_LOCATION",
-        "VIBRATE"
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
       ]
     },
     "plugins": [
@@ -55,7 +74,18 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Autorisez FIXED à suivre l'arrivée de votre prestataire pour une expérience sans attente."
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/app-icons-ios/app-icon-1024x1024.png",
+          "color": "#000000",
+          "sounds": [],
+          "iosDisplayInForeground": true
+        }
+      ],
+      "expo-localization",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

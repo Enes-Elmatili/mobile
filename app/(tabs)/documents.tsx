@@ -41,15 +41,15 @@ const formatEuros = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  DONE:            { label: 'Terminé',   color: '#059669', bg: '#ECFDF5', icon: 'checkmark-circle-outline' },
-  CANCELLED:       { label: 'Annulé',    color: '#DC2626', bg: '#FEF2F2', icon: 'close-circle-outline' },
-  PENDING_PAYMENT: { label: 'Paiement',  color: '#7C3AED', bg: '#EDE9FE', icon: 'card-outline' },
-  PUBLISHED:       { label: 'En attente', color: '#B45309', bg: '#FEF3C7', icon: 'time-outline' },
-  ONGOING:         { label: 'En cours',  color: '#1D4ED8', bg: '#DBEAFE', icon: 'flash-outline' },
+  DONE:            { label: 'Terminé',    color: '#111', bg: '#F5F5F5', icon: 'checkmark-circle-outline' },
+  CANCELLED:       { label: 'Annulé',    color: '#888', bg: '#F5F5F5', icon: 'close-circle-outline' },
+  PENDING_PAYMENT: { label: 'Paiement',  color: '#555', bg: '#F5F5F5', icon: 'card-outline' },
+  PUBLISHED:       { label: 'En attente', color: '#888', bg: '#F5F5F5', icon: 'time-outline' },
+  ONGOING:         { label: 'En cours',  color: '#555', bg: '#F5F5F5', icon: 'flash-outline' },
 };
 
 const getStatus = (status?: string) =>
-  STATUS_CFG[status || ''] ?? { label: status || '—', color: '#6B7280', bg: '#F3F4F6', icon: 'ellipse-outline' };
+  STATUS_CFG[status || ''] ?? { label: status || '—', color: '#888', bg: '#F5F5F5', icon: 'ellipse-outline' };
 
 // ============================================================================
 // RECEIPT CARD — un justificatif dans la liste
@@ -114,7 +114,7 @@ const rc = StyleSheet.create({
   },
   content: { flex: 1, gap: 3 },
   label: { fontSize: 14, fontWeight: '700', color: '#111' },
-  ref: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
+  ref: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
@@ -123,7 +123,7 @@ const rc = StyleSheet.create({
   statusText: { fontSize: 10, fontWeight: '700' },
   right: { alignItems: 'flex-end', flexShrink: 0, gap: 2 },
   price: { fontSize: 15, fontWeight: '800', color: '#111' },
-  divider: { height: 1, backgroundColor: '#F9FAFB', marginLeft: 68 },
+  divider: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 68 },
 });
 
 // ============================================================================
@@ -133,7 +133,7 @@ const rc = StyleSheet.create({
 function SectionHeader({ icon, label, count }: { icon: string; label: string; count?: number }) {
   return (
     <View style={sh.wrap}>
-      <Ionicons name={icon as any} size={15} color="#6B7280" />
+      <Ionicons name={icon as any} size={15} color="#888" />
       <Text style={sh.label}>{label}</Text>
       {count != null && (
         <View style={sh.badge}>
@@ -149,12 +149,12 @@ const sh = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 8, paddingHorizontal: 2,
   },
-  label: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.6 },
+  label: { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.6 },
   badge: {
-    backgroundColor: '#E5E7EB', borderRadius: 8,
+    backgroundColor: '#EFEFEF', borderRadius: 8,
     paddingHorizontal: 6, paddingVertical: 1,
   },
-  badgeText: { fontSize: 10, fontWeight: '700', color: '#6B7280' },
+  badgeText: { fontSize: 10, fontWeight: '700', color: '#888' },
 });
 
 // ============================================================================
@@ -177,10 +177,10 @@ const ec = StyleSheet.create({
   wrap: { alignItems: 'center', paddingVertical: 28, gap: 8 },
   iconWrap: {
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
-  text: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  sub: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
+  text: { fontSize: 14, fontWeight: '600', color: '#111' },
+  sub: { fontSize: 13, color: '#ADADAD', textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
 });
 
 // ============================================================================
@@ -220,7 +220,7 @@ function Pagination({
         disabled={page === 1}
         activeOpacity={0.7}
       >
-        <Ionicons name="chevron-back" size={18} color={page === 1 ? '#D1D5DB' : '#172247'} />
+        <Ionicons name="chevron-back" size={18} color={page === 1 ? '#ADADAD' : '#111'} />
       </TouchableOpacity>
       <Text style={pg.text}>Page {page} sur {total}</Text>
       <TouchableOpacity
@@ -229,7 +229,7 @@ function Pagination({
         disabled={page === total}
         activeOpacity={0.7}
       >
-        <Ionicons name="chevron-forward" size={18} color={page === total ? '#D1D5DB' : '#172247'} />
+        <Ionicons name="chevron-forward" size={18} color={page === total ? '#ADADAD' : '#111'} />
       </TouchableOpacity>
     </View>
   );
@@ -239,14 +239,14 @@ const pg = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    borderTopWidth: 1, borderTopColor: '#F0F0F0',
   },
   btn: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
   btnDisabled: { opacity: 0.4 },
-  text: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+  text: { fontSize: 13, fontWeight: '600', color: '#888' },
 });
 
 // ============================================================================
@@ -269,7 +269,7 @@ function FilterBar({
       data={options}
       keyExtractor={item => item.key}
       showsHorizontalScrollIndicator={false}
-      style={{ flexGrow: 0, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}
+      style={{ flexGrow: 0, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
       contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}
       renderItem={({ item }) => {
         const active = item.key === selected;
@@ -292,11 +292,11 @@ function FilterBar({
 const fl = StyleSheet.create({
   chip: {
     paddingHorizontal: 18, paddingVertical: 0, height: 32,
-    borderRadius: 20, backgroundColor: '#F3F4F6',
+    borderRadius: 20, backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
   },
-  chipActive: { backgroundColor: '#172247' },
-  chipText: { fontSize: 14, fontWeight: '500', color: '#6B7280', textAlign: 'center' },
+  chipActive: { backgroundColor: '#111' },
+  chipText: { fontSize: 14, fontWeight: '500', color: '#888', textAlign: 'center' },
   chipTextActive: { color: '#FFF', fontWeight: '700' },
 });
 
@@ -359,7 +359,7 @@ export default function Documents() {
   if (loading) {
     return (
       <SafeAreaView style={s.center}>
-        <ActivityIndicator size="large" color="#172247" />
+        <ActivityIndicator size="large" color="#111" />
       </SafeAreaView>
     );
   }
@@ -375,7 +375,7 @@ export default function Documents() {
         <TouchableOpacity style={s.helpBtn} activeOpacity={0.7}
           onPress={() => {/* support */ }}
         >
-          <Ionicons name="help-circle-outline" size={20} color="#172247" />
+          <Ionicons name="help-circle-outline" size={20} color="#111" />
         </TouchableOpacity>
       </View>
 
@@ -389,7 +389,7 @@ export default function Documents() {
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#172247" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#111" />}
       >
 
         {/* ══ JUSTIFICATIFS DE SERVICE ══ */}
@@ -454,7 +454,7 @@ export default function Documents() {
           {/* Peppol CTA */}
           <TouchableOpacity style={s.peppolBtn} activeOpacity={0.8}>
             <View style={s.peppolIcon}>
-              <Ionicons name="cloud-upload-outline" size={18} color="#7C3AED" />
+              <Ionicons name="cloud-upload-outline" size={18} color="#555" />
             </View>
             <View style={s.peppolContent}>
               <Text style={s.peppolTitle}>Réseau Peppol</Text>
@@ -469,25 +469,25 @@ export default function Documents() {
           <SectionHeader icon="shield-checkmark-outline" label="Assistance" />
           <Card>
             <TouchableOpacity style={s.supportRow} activeOpacity={0.7}>
-              <View style={[s.supportIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#3B82F6" />
+              <View style={[s.supportIcon, { backgroundColor: '#F5F5F5' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#555" />
               </View>
               <View style={s.supportContent}>
                 <Text style={s.supportLabel}>Un problème avec un document ?</Text>
                 <Text style={s.supportSub}>Contactez notre support client</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+              <Ionicons name="chevron-forward" size={16} color="#ADADAD" />
             </TouchableOpacity>
             <View style={s.supportDivider} />
             <TouchableOpacity style={s.supportRow} activeOpacity={0.7}>
-              <View style={[s.supportIcon, { backgroundColor: '#ECFDF5' }]}>
-                <Ionicons name="shield-checkmark-outline" size={18} color="#059669" />
+              <View style={[s.supportIcon, { backgroundColor: '#F5F5F5' }]}>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#555" />
               </View>
               <View style={s.supportContent}>
                 <Text style={s.supportLabel}>Politique de remboursement</Text>
                 <Text style={s.supportSub}>Vos droits en tant que client</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+              <Ionicons name="chevron-forward" size={16} color="#ADADAD" />
             </TouchableOpacity>
           </Card>
         </View>
@@ -517,13 +517,13 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
     backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#111' },
-  headerSub: { fontSize: 13, color: '#9CA3AF', fontWeight: '500', marginTop: 2 },
+  headerSub: { fontSize: 13, color: '#ADADAD', fontWeight: '500', marginTop: 2 },
   helpBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
 
   scroll: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 48 },
@@ -535,19 +535,19 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: '#FFF', borderRadius: 14,
     padding: 14, marginTop: 8,
-    borderWidth: 1, borderColor: '#EDE9FE',
+    borderWidth: 1, borderColor: '#F0F0F0',
     ...Platform.select({
-      ios: { shadowColor: '#7C3AED', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 1 },
     }),
   },
   peppolIcon: {
     width: 38, height: 38, borderRadius: 10,
-    backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
   peppolContent: { flex: 1 },
   peppolTitle: { fontSize: 14, fontWeight: '700', color: '#111' },
-  peppolSub: { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
+  peppolSub: { fontSize: 12, color: '#ADADAD', marginTop: 1 },
 
   // Support rows
   supportRow: {
@@ -560,6 +560,6 @@ const s = StyleSheet.create({
   },
   supportContent: { flex: 1 },
   supportLabel: { fontSize: 14, fontWeight: '600', color: '#111' },
-  supportSub: { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
-  supportDivider: { height: 1, backgroundColor: '#F9FAFB', marginLeft: 64 },
+  supportSub: { fontSize: 12, color: '#ADADAD', marginTop: 1 },
+  supportDivider: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 64 },
 });

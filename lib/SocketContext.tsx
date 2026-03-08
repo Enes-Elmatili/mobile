@@ -1,39 +1,58 @@
+import { devLog, devWarn } from './logger';
 /* eslint-disable react-hooks/exhaustive-deps */
 // lib/SocketContext.tsx
 // ─── Production-ready Socket context : zéro Alert, redirections automatiques ───
 
 import React, {
-  createContext, useContext, useEffect, useState, useRef,
+  createContext, useContext, useEffect, useState, useRef, useCallback, useMemo,
 } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Platform, Vibration } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Platform, AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './auth/AuthContext';
+import { useNetwork } from './NetworkContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { tokenStorage } from './storage';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { api } from './api';
+import { useSoundManager } from '../hooks/useSoundManager';
 import {
   MissionRequestSheet,
   type MissionRequest,
 } from '../components/sheets/MissionRequestSheet';
 
 // ─── URL via variable d'environnement (EAS-safe) ─────────────────────────────
-const SOCKET_URL =
-  process.env.EXPO_PUBLIC_SOCKET_URL ||
-  'https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev';
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL;
+if (!SOCKET_URL) {
+  throw new Error('EXPO_PUBLIC_SOCKET_URL environment variable is required');
+}
 
 // ─── Statut de connexion ──────────────────────────────────────────────────────
-export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'connecting';
 
 // ─── Context type ─────────────────────────────────────────────────────────────
 interface SocketContextType {
-  socket:           Socket | null;
-  isConnected:      boolean;
-  connectionStatus: ConnectionStatus;
+  socket:              Socket | null;
+  isConnected:         boolean;
+  connectionStatus:    ConnectionStatus;
+  unreadCount:         number;
+  clearUnread:         () => void;
+  unreadMessages:      number;
+  clearUnreadMessages: () => void;
+  joinRoom:            (type: string, id: string) => void;
+  leaveRoom:           (type: string, id: string) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
-  socket:           null,
-  isConnected:      false,
-  connectionStatus: 'disconnected',
+  socket:              null,
+  isConnected:         false,
+  connectionStatus:    'connecting',
+  unreadCount:         0,
+  clearUnread:         () => {},
+  unreadMessages:      0,
+  clearUnreadMessages: () => {},
+  joinRoom:            () => {},
+  leaveRoom:           () => {},
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -88,7 +107,7 @@ function SocketToastLayer() {
       {toasts.map(t => {
         const av = anims.current[t.id] || new Animated.Value(1);
         const bg =
-          t.type === 'success' ? '#059669' :
+          t.type === 'success' ? '#1A1A1A' :
           t.type === 'error'   ? '#1A1A1A' : '#1A1A1A';
         const icon = t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '●';
         return (
@@ -142,6 +161,7 @@ function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
   const prevRef = useRef<ConnectionStatus>('connected');
 
   useEffect(() => {
+    // 'connecting' = état initial avant première connexion → pas de bannière
     const showing = status === 'reconnecting' || status === 'disconnected';
 
     Animated.timing(anim, {
@@ -195,6 +215,18 @@ const rb = StyleSheet.create({
   dot:   { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.7)' },
   label: { fontSize: 12, fontWeight: '700', color: '#FFF', letterSpacing: 0.2 },
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MESSAGE EMITTER
+// ─── Permet aux écrans de conversation de recevoir les messages en temps réel ──
+// ═══════════════════════════════════════════════════════════════════════════════
+export type IncomingMessage = { id: string; senderId: string; recipientId: string; text: string; createdAt: string; readAt: string | null };
+const messageEmitter = { listeners: [] as ((msg: IncomingMessage) => void)[] };
+
+export function onIncomingMessage(handler: (msg: IncomingMessage) => void): () => void {
+  messageEmitter.listeners.push(handler);
+  return () => { messageEmitter.listeners = messageEmitter.listeners.filter(l => l !== handler); };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MISSION REQUEST EMITTER
@@ -252,25 +284,91 @@ function MissionRequestLayer() {
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket]                     = useState<Socket | null>(null);
   const [isConnected, setIsConnected]           = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const [unreadCount, setUnreadCount]           = useState(0);
+  const [unreadMessages, setUnreadMessages]     = useState(0);
   const { user }  = useAuth();
   const router    = useRouter();
   const socketRef = useRef<Socket | null>(null);
+  const userRef   = useRef(user); // stable ref for user data (avoids deps instability)
+  userRef.current = user;
+  const { isOnline: networkOnline } = useNetwork();
+  const { play }  = useSoundManager();
+  const playRef   = useRef(play);
+  playRef.current = play;
+
+  // Reconnexion automatique du socket au retour en ligne
+  useEffect(() => {
+    if (networkOnline && socketRef.current && !socketRef.current.connected) {
+      devLog('[Socket] Network back online — reconnecting socket');
+      socketRef.current.connect();
+    }
+  }, [networkOnline]);
+
+  // Reconnexion automatique quand l'app revient au premier plan (iOS/Android suspend les sockets)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && socketRef.current && !socketRef.current.connected) {
+        devLog('[Socket] App returned to foreground — reconnecting socket');
+        socketRef.current.connect();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const clearUnread         = useCallback(() => setUnreadCount(0), []);
+  const clearUnreadMessages = useCallback(() => setUnreadMessages(0), []);
+
+  // ── Room join/leave avec déduplication ─────────────────────────────────────
+  const joinedRoomsRef = useRef<Set<string>>(new Set());
+
+  const joinRoom = useCallback((type: string, id: string) => {
+    const key = `${type}:${id}`;
+    if (joinedRoomsRef.current.has(key)) return; // already joined
+    joinedRoomsRef.current.add(key);
+    socketRef.current?.emit(`join:${type}`, { [`${type}Id`]: id });
+    devLog(`[Socket] join ${key}`);
+  }, []);
+
+  const leaveRoom = useCallback((type: string, id: string) => {
+    const key = `${type}:${id}`;
+    joinedRoomsRef.current.delete(key);
+    socketRef.current?.emit(`leave:${type}`, { [`${type}Id`]: id });
+    devLog(`[Socket] leave ${key}`);
+  }, []);
+
+  // ── Charger le nombre de notifications non lues au démarrage ──────────────
+  useEffect(() => {
+    if (!user) { setUnreadCount(0); return; }
+    api.notifications.list().then((res: any) => {
+      const items: any[] = res?.data ?? [];
+      setUnreadCount(items.filter((n: any) => !n.readAt).length);
+    }).catch(() => {});
+  }, [user?.id]);
+
+  // Push token registration is handled by usePushNotifications() in _layout.tsx
 
   useEffect(() => {
     if (!user) {
       if (socketRef.current) {
-        console.log('👋 User logged out, disconnecting socket');
+        devLog('👋 User logged out, disconnecting socket');
         socketRef.current.disconnect();
         socketRef.current = null;
         setSocket(null);
-        setIsConnected(false);
-        setConnectionStatus('disconnected');
       }
+      setIsConnected(false);
+      setConnectionStatus('connecting'); // reset : pas de bannière "connexion perdue" sur logout/401
       return;
     }
 
-    console.log('🔌 Initializing socket for user:', user.email, 'Role:', user.roles);
+    devLog('🔌 Initializing socket for user:', user.id);
+
+    let cancelled = false;
+
+    (async () => {
+    // Retrieve stored JWT for socket auth
+    const token = await tokenStorage.getToken();
+    if (cancelled) return;
 
     const newSocket = io(SOCKET_URL, {
       // Websocket en priorité — plus rapide et moins énergivore sur mobile
@@ -278,7 +376,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconnection:         true,
       reconnectionDelay:    1000,
       reconnectionAttempts: 10,
-      query:        { userId: user.id },
+      auth:         { token },
       extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
     });
 
@@ -286,19 +384,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // ── CONNEXION ─────────────────────────────────────────────────────────────
     newSocket.on('connect', async () => {
-      console.log('✅ Socket connected:', newSocket.id);
+      devLog('✅ Socket connected:', newSocket.id);
       setIsConnected(true);
       setConnectionStatus('connected');
+      // Clear joined rooms on reconnect so components can re-join
+      joinedRoomsRef.current.clear();
 
-      if (user.roles?.includes('PROVIDER')) {
+      const u = userRef.current;
+      if (u?.roles?.includes('PROVIDER')) {
         try {
           const raw        = await AsyncStorage.getItem('provider');
           const providerId = raw
-            ? (JSON.parse(raw).id || JSON.parse(raw)._id || JSON.parse(raw).providerId || user.id)
-            : user.id;
+            ? (JSON.parse(raw).id || JSON.parse(raw)._id || JSON.parse(raw).providerId || u.id)
+            : u.id;
 
-          console.log('📝 Registering provider:', providerId);
-          newSocket.emit('provider:register', { providerId, userId: user.id });
+          devLog('📝 Registering provider:', providerId);
+          newSocket.emit('provider:register', { providerId, userId: u.id });
         } catch (error) {
           console.error('❌ Error reading provider data:', error);
         }
@@ -306,23 +407,36 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('disconnect', () => {
-      console.log('🔌 Socket disconnected');
+      devLog('🔌 Socket disconnected');
       setIsConnected(false);
       setConnectionStatus('disconnected');
     });
 
-    newSocket.on('connect_error', (error) => {
+    newSocket.on('connect_error', async (error) => {
       console.error('❌ Socket connection error:', error.message);
+      if (error.message === 'AUTH_REQUIRED' || error.message === 'AUTH_INVALID') {
+        devWarn('🔒 Socket auth failed — refreshing token and retrying');
+        try {
+          const freshToken = await tokenStorage.getToken();
+          if (freshToken) {
+            newSocket.auth = { token: freshToken };
+            newSocket.connect();
+            return;
+          }
+        } catch {
+          devWarn('🔒 Token refresh failed');
+        }
+      }
       setConnectionStatus('disconnected');
     });
 
     newSocket.on('reconnect_attempt', (attempt) => {
-      console.log(`🔄 Reconnection attempt ${attempt}`);
+      devLog(`🔄 Reconnection attempt ${attempt}`);
       setConnectionStatus('reconnecting');
     });
 
     newSocket.on('reconnect', () => {
-      console.log('✅ Socket reconnected');
+      devLog('✅ Socket reconnected');
       setIsConnected(true);
       setConnectionStatus('connected');
     });
@@ -336,87 +450,72 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // ── PROVIDER EVENTS ───────────────────────────────────────────────────────
 
     newSocket.on('new_request', (data) => {
-      console.log('🔔 [PROVIDER] New request received:', data);
-      // Vibration gérée dans MissionRequestSheet via expo-haptics
-      // On pousse les données vers le layer global — zéro Alert
-      showMissionRequest({
-        requestId:       data.requestId  ?? data.id,
-        service:         data.serviceType ?? data.service ?? data.category,
-        distance:        data.distance    ? `${data.distance} km` : undefined,
-        estimatedPrice:  data.estimatedPrice ?? data.price,
-        clientName:      data.client?.name   ?? data.clientName,
-        address:         data.address        ?? data.location?.address,
-        scheduledAt:     data.scheduledAt    ?? data.date,
-      });
+      devLog('🔔 [PROVIDER] New request received:', data);
+      playRef.current('newMission');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      // Traité par IncomingJobCard dans le ProviderDashboard — pas de double card
     });
 
     newSocket.on('request:claimed', (requestId) => {
-      console.log(`🚫 [PROVIDER] Request ${requestId} claimed by another`);
-      Vibration.vibrate(200);
+      devLog(`🚫 [PROVIDER] Request ${requestId} claimed by another`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       clearMissionRequest(); // ferme la sheet si encore visible
       showSocketToast('Mission déjà prise par un autre prestataire.', 'error');
     });
 
     newSocket.on('request:expired', (requestId) => {
-      console.log(`⏰ [PROVIDER] Request ${requestId} expired`);
+      devLog(`⏰ [PROVIDER] Request ${requestId} expired`);
       clearMissionRequest();
       showSocketToast('Cette mission a expiré.', 'info');
     });
 
     // Ces deux événements sont gérés dans le ProviderDashboard
     newSocket.on('provider:accept_confirmed', (data) => {
-      console.log('✅ [PROVIDER] Accept confirmed:', data);
+      devLog('✅ [PROVIDER] Accept confirmed:', data);
     });
 
     newSocket.on('provider:accept_success', (data) => {
-      console.log('🚀 [PROVIDER] Mission accepted:', data);
-      Vibration.vibrate([0, 50, 100, 50]);
+      devLog('🚀 [PROVIDER] Mission accepted:', data);
+      playRef.current('missionAccepted');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     });
 
     // ── CLIENT EVENTS ─────────────────────────────────────────────────────────
 
     newSocket.on('provider:accepted', (data) => {
-      console.log('🎉 [CLIENT] Provider accepted request!', data);
+      devLog('🎉 [CLIENT] Provider accepted request!', data);
 
       // Ignorer si c'est un provider qui reçoit cet event
-      if (user.roles?.includes('PROVIDER')) {
-        console.log('⚠️ Ignoring provider:accepted — user is PROVIDER');
+      if (userRef.current?.roles?.includes('PROVIDER')) {
+        devLog('⚠️ Ignoring provider:accepted — user is PROVIDER');
         return;
       }
 
-      Vibration.vibrate([0, 100, 50, 100, 50, 100]);
+      playRef.current('providerFound');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Toast discret, puis redirection automatique — pas de popup à fermer
+      // Toast discret — la navigation vers missionview est geree par le dashboard
       const providerName = data.provider?.name || 'Un professionnel';
       showSocketToast(`${providerName} est en route vers vous.`, 'success');
-
-      // requestId peut être un number (ex: 157) — on force en string
-      const rid = String(data.requestId);
-      console.log('📍 Navigating to missionview for requestId:', rid);
-      setTimeout(() => {
-        router.push({
-          pathname: '/request/[id]/missionview',
-          params:   { id: rid },
-        });
-      }, 800);
     });
 
     newSocket.on('request:published', (data) => {
-      console.log('📢 [CLIENT] Request published:', data);
+      devLog('📢 [CLIENT] Request published:', data);
     });
 
     // ── SHARED EVENTS ─────────────────────────────────────────────────────────
 
     // location_update est géré localement dans MissionView
     newSocket.on('provider:location_update', (data) => {
-      console.log('📍 [GPS] Location update:', data);
+      devLog('📍 [GPS] Location update:', data);
     });
 
     newSocket.on('request:completed', (data) => {
-      console.log('🏁 [COMPLETION] Request completed:', data);
-      Vibration.vibrate([0, 100, 50, 100]);
+      devLog('🏁 [COMPLETION] Request completed:', data);
+      playRef.current('missionAccepted');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      if (user.roles?.includes('PROVIDER')) {
+      if (userRef.current?.roles?.includes('PROVIDER')) {
         showSocketToast('Mission terminée. Consultez vos gains.', 'success');
         setTimeout(() => router.push({ pathname: '/request/[id]/earnings', params: { id: String(data.requestId) } }), 900);
       } else {
@@ -427,24 +526,44 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Désormais géré dans request:completed
     newSocket.on('request:go_to_rating', (data) => {
-      console.log('⭐ [RATING] Redirect to rating:', data);
+      devLog('⭐ [RATING] Redirect to rating:', data);
     });
 
     // ── PAYMENT EVENTS ────────────────────────────────────────────────────────
 
     newSocket.on('payment:succeeded', (data) => {
-      console.log('💳 [PAYMENT] Payment succeeded:', data);
+      devLog('💳 [PAYMENT] Payment succeeded:', data);
+      playRef.current('paymentReceived');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showSocketToast('Paiement confirmé.', 'success');
     });
 
     // ── STATUS / MISC ─────────────────────────────────────────────────────────
 
     newSocket.on('provider:status_update', (data) => {
-      console.log('🔄 [STATUS] Provider status update:', data);
+      devLog('🔄 [STATUS] Provider status update:', data);
     });
 
     newSocket.on('provider:registered', (data) => {
-      console.log('✅ [PROVIDER] Registered successfully:', data);
+      devLog('✅ [PROVIDER] Registered successfully:', data);
+    });
+
+    // ── MESSAGES IN-APP ───────────────────────────────────────────────────────
+    newSocket.on('message:received', (msg: IncomingMessage) => {
+      devLog('💬 [MESSAGE] Incoming message from:', msg.senderId);
+      setUnreadMessages(prev => prev + 1);
+      messageEmitter.listeners.forEach(fn => fn(msg));
+    });
+
+    // ── NOTIFICATIONS IN-APP ──────────────────────────────────────────────────
+    newSocket.on('notification:received', () => {
+      setUnreadCount(prev => prev + 1);
+    });
+
+    // ── INVOICE GENERATED ───────────────────────────────────────────────────
+    newSocket.on('invoice:generated', (data: any) => {
+      devLog('📄 Invoice generated:', data?.invoiceNumber);
+      showSocketToast('Votre facture est disponible', 'success');
     });
 
     // ── ERROR HANDLING ────────────────────────────────────────────────────────
@@ -457,7 +576,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         error?.message?.includes('not found') ||
         error?.message?.includes('Invalid provider')
       ) {
-        console.warn('⚠️ Invalid provider ID — cleaning AsyncStorage');
+        devWarn('⚠️ Invalid provider ID — cleaning AsyncStorage');
         await AsyncStorage.removeItem('provider');
         showSocketToast('Profil prestataire à reconfigurer.', 'error');
 
@@ -476,41 +595,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setSocket(newSocket);
 
+    })(); // end async IIFE
+
     // ── CLEANUP ───────────────────────────────────────────────────────────────
     return () => {
-      console.log('🧹 Cleaning up socket listeners');
+      cancelled = true;
+      devLog('🧹 Cleaning up socket listeners');
+      joinedRoomsRef.current.clear();
 
-      newSocket.off('connect');
-      newSocket.off('disconnect');
-      newSocket.off('connect_error');
-      newSocket.off('reconnect_attempt');
-      newSocket.off('reconnect');
-      newSocket.off('reconnect_failed');
-      newSocket.off('error');
-
-      newSocket.off('new_request');
-      newSocket.off('request:claimed');
-      newSocket.off('request:expired');
-      newSocket.off('provider:accept_confirmed');
-      newSocket.off('provider:accept_success');
-      newSocket.off('provider:registered');
-      newSocket.off('provider:status_update');
-
-      newSocket.off('provider:accepted');
-      newSocket.off('request:published');
-
-      newSocket.off('provider:location_update');
-      newSocket.off('request:completed');
-      newSocket.off('request:go_to_rating');
-      newSocket.off('payment:succeeded');
-
-      newSocket.disconnect();
-      socketRef.current = null;
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
-  }, [user?.id, user?.email, user?.roles]);
+  // Only depend on user?.id — roles and email are read from userRef inside handlers
+  }, [user?.id]);
+
+  const contextValue = useMemo(
+    () => ({ socket, isConnected, connectionStatus, unreadCount, clearUnread, unreadMessages, clearUnreadMessages, joinRoom, leaveRoom }),
+    [socket, isConnected, connectionStatus, unreadCount, clearUnread, unreadMessages, clearUnreadMessages, joinRoom, leaveRoom]
+  );
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, connectionStatus }}>
+    <SocketContext.Provider value={contextValue}>
       {children}
 
       {/* Barre noire animée — visible uniquement si reconnecting/disconnected */}

@@ -15,19 +15,55 @@ import { api } from '@/lib/api';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { useAppTheme } from '@/hooks/use-app-theme';
+
 
 const { width } = Dimensions.get('window');
 const NET_RATE = 0.85;
 
 // ─── Grayscale map style ──────────────────────────────────────────────────────
-const MAP_STYLE = [
-  { elementType: 'geometry',           stylers: [{ color: '#f0f0f0' }] },
-  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'poi',     elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
-  { featureType: 'road',    elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d6d6d6' }] },
-  { featureType: 'water',   elementType: 'geometry', stylers: [{ color: '#d0d0d0' }] },
+const LIGHT_MAP_STYLE = [
+  { elementType: 'geometry',           stylers: [{ color: '#F0F0F0' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#F5F5F5' }] },
+  { featureType: 'landscape',          elementType: 'geometry',         stylers: [{ color: '#F8F9FB' }] },
+  { featureType: 'landscape.man_made', elementType: 'geometry',         stylers: [{ color: '#EFEFEF' }] },
+  { featureType: 'road',               elementType: 'geometry',         stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'road',               elementType: 'geometry.stroke',  stylers: [{ color: '#E8E8E8' }] },
+  { featureType: 'road',               elementType: 'labels.text.fill', stylers: [{ color: '#ADADAD' }] },
+  { featureType: 'road.arterial',      elementType: 'geometry',         stylers: [{ color: '#F5F5F5' }] },
+  { featureType: 'road.highway',       elementType: 'geometry',         stylers: [{ color: '#EBEBEB' }] },
+  { featureType: 'road.highway',       elementType: 'geometry.stroke',  stylers: [{ color: '#DEDEDE' }] },
+  { featureType: 'road.highway',       elementType: 'labels.text.fill', stylers: [{ color: '#999999' }] },
+  { featureType: 'road.local',         elementType: 'geometry',         stylers: [{ color: '#FAFAFA' }] },
+  { featureType: 'water',              elementType: 'geometry',         stylers: [{ color: '#D1D5DB' }] },
+  { featureType: 'water',              elementType: 'labels.text.fill', stylers: [{ color: '#ADADAD' }] },
+  { featureType: 'administrative',     elementType: 'geometry',         stylers: [{ color: '#E0E0E0' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
+  { featureType: 'poi',      stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',  stylers: [{ visibility: 'off' }] },
+];
+
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#666666' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#111111' }] },
+  { featureType: 'landscape',          elementType: 'geometry',         stylers: [{ color: '#151515' }] },
+  { featureType: 'landscape.man_made', elementType: 'geometry',         stylers: [{ color: '#1C1C1C' }] },
+  { featureType: 'road',               elementType: 'geometry',         stylers: [{ color: '#2A2A2A' }] },
+  { featureType: 'road',               elementType: 'geometry.stroke',  stylers: [{ color: '#222222' }] },
+  { featureType: 'road',               elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
+  { featureType: 'road.arterial',      elementType: 'geometry',         stylers: [{ color: '#282828' }] },
+  { featureType: 'road.highway',       elementType: 'geometry',         stylers: [{ color: '#333333' }] },
+  { featureType: 'road.highway',       elementType: 'geometry.stroke',  stylers: [{ color: '#2A2A2A' }] },
+  { featureType: 'road.highway',       elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
+  { featureType: 'road.local',         elementType: 'geometry',         stylers: [{ color: '#232323' }] },
+  { featureType: 'water',              elementType: 'geometry',         stylers: [{ color: '#0E0E0E' }] },
+  { featureType: 'water',              elementType: 'labels.text.fill', stylers: [{ color: '#444444' }] },
+  { featureType: 'administrative',     elementType: 'geometry',         stylers: [{ color: '#222222' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
+  { featureType: 'poi',      stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',  stylers: [{ visibility: 'off' }] },
 ];
 
 // ============================================================================
@@ -129,6 +165,7 @@ function ConfirmModal({
   confirmLabel = 'Confirmer', cancelLabel = 'Annuler',
   onConfirm, onCancel,
 }: ConfirmModalProps) {
+  const t = useAppTheme();
   const slideAnim = useRef(new Animated.Value(320)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
 
@@ -151,16 +188,16 @@ function ConfirmModal({
       <Pressable style={cm.overlay} onPress={onCancel}>
         <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: fadeAnim }]} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        <View style={cm.handle} />
-        <Text style={cm.title}>{title}</Text>
-        {message ? <Text style={cm.message}>{message}</Text> : null}
+      <Animated.View style={[cm.sheet, { backgroundColor: t.cardBg }, { transform: [{ translateY: slideAnim }] }]}>
+        <View style={[cm.handle, { backgroundColor: t.border }]} />
+        <Text style={[cm.title, { color: t.text }]}>{title}</Text>
+        {message ? <Text style={[cm.message, { color: t.textSub }]}>{message}</Text> : null}
         <View style={cm.actions}>
-          <TouchableOpacity style={cm.cancelBtn} onPress={onCancel} activeOpacity={0.75}>
-            <Text style={cm.cancelLabel}>{cancelLabel}</Text>
+          <TouchableOpacity style={[cm.cancelBtn, { borderColor: t.border }]} onPress={onCancel} activeOpacity={0.75}>
+            <Text style={[cm.cancelLabel, { color: t.textSub }]}>{cancelLabel}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={cm.confirmBtn} onPress={onConfirm} activeOpacity={0.75}>
-            <Text style={cm.confirmLabel}>{confirmLabel}</Text>
+          <TouchableOpacity style={[cm.confirmBtn, { backgroundColor: t.accent }]} onPress={onConfirm} activeOpacity={0.75}>
+            <Text style={[cm.confirmLabel, { color: t.accentText }]}>{confirmLabel}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -213,20 +250,21 @@ function buildDays(count = 10) {
 const DAYS = buildDays(10);
 
 function DayPicker({ selected, onSelect }: { selected: string | null; onSelect: (iso: string | null) => void }) {
+  const t = useAppTheme();
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={dp.container}
-      style={dp.scroll}
+      style={[dp.scroll, { backgroundColor: t.bg, borderBottomColor: t.border }]}
     >
       {/* "Tous" */}
       <TouchableOpacity
-        style={[dp.chip, selected === null && dp.chipSelected]}
+        style={[dp.chip, { backgroundColor: t.surface }, selected === null && [dp.chipSelected, { backgroundColor: t.accent }]]}
         onPress={() => onSelect(null)}
         activeOpacity={0.75}
       >
-        <Text style={[dp.chipLabel, selected === null && dp.chipLabelSelected]}>Tous</Text>
+        <Text style={[dp.chipLabel, { color: t.textSub }, selected === null && [dp.chipLabelSelected, { color: t.accentText }]]}>Tous</Text>
       </TouchableOpacity>
 
       {DAYS.map(day => {
@@ -234,12 +272,12 @@ function DayPicker({ selected, onSelect }: { selected: string | null; onSelect: 
         return (
           <TouchableOpacity
             key={day.iso}
-            style={[dp.day, active && dp.daySelected]}
+            style={[dp.day, { backgroundColor: t.surface }, active && [dp.daySelected, { backgroundColor: t.accent }]]}
             onPress={() => onSelect(active ? null : day.iso)}
             activeOpacity={0.75}
           >
-            <Text style={[dp.dayName, active && dp.dayNameSelected]}>{day.dayName}</Text>
-            <Text style={[dp.dayNum, active && dp.dayNumSelected]}>{day.dayNum}</Text>
+            <Text style={[dp.dayName, { color: t.textMuted }, active && dp.dayNameSelected]}>{day.dayName}</Text>
+            <Text style={[dp.dayNum, { color: t.text }, active && dp.dayNumSelected]}>{day.dayNum}</Text>
           </TouchableOpacity>
         );
       })}
@@ -274,6 +312,7 @@ const dp = StyleSheet.create({
 // ============================================================================
 
 function EarningsBanner({ missions }: { missions: Mission[] }) {
+  const t = useAppTheme();
   const today   = new Date();
   const todayMs = missions.filter(m => {
     const d = m.scheduledAt || m.createdAt;
@@ -289,17 +328,17 @@ function EarningsBanner({ missions }: { missions: Mission[] }) {
   if (todayMs.length === 0 && doneTodayEarnings === 0) return null;
 
   return (
-    <View style={eb.wrap}>
+    <View style={[eb.wrap, { backgroundColor: t.surface }]}>
       <View style={eb.left}>
-        <Ionicons name="flash-outline" size={14} color="#888" />
-        <Text style={eb.text}>
+        <Ionicons name="flash-outline" size={14} color={t.textSub} />
+        <Text style={[eb.text, { color: t.textSub }]}>
           {todayMs.length > 0
             ? `${todayMs.length} mission${todayMs.length > 1 ? 's' : ''} aujourd'hui`
             : 'Journée complétée'}
         </Text>
       </View>
       {doneTodayEarnings > 0 && (
-        <Text style={eb.earnings}>+{formatEuros(doneTodayEarnings)}</Text>
+        <Text style={[eb.earnings, { color: t.text }]}>+{formatEuros(doneTodayEarnings)}</Text>
       )}
     </View>
   );
@@ -314,7 +353,7 @@ const eb = StyleSheet.create({
   },
   left:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
   text:     { fontSize: 13, fontWeight: '600', color: '#555' },
-  earnings: { fontSize: 14, fontWeight: '800', color: '#059669' },
+  earnings: { fontSize: 14, fontWeight: '800', color: '#1A1A1A' },
 });
 
 // ============================================================================
@@ -329,6 +368,7 @@ function MissionCard({
   onNavigate: () => void;
   onComplete: () => void;
 }) {
+  const t = useAppTheme();
   const cfg      = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const net      = mission.price * NET_RATE;
   const dateStr  = mission.scheduledAt || mission.createdAt;
@@ -339,21 +379,21 @@ function MissionCard({
   const canNavigate = isActive && !!(mission.lat || mission.location?.lat);
 
   // Badge monochrome
-  const badgeBg    = cfg.done ? '#F0F0F0' : isActive ? '#1A1A1A' : '#F0F0F0';
-  const badgeColor = cfg.done ? '#555'    : isActive ? '#FFF'    : '#ADADAD';
+  const badgeBg    = cfg.done ? t.surface : isActive ? t.accent : t.surface;
+  const badgeColor = cfg.done ? t.textSub : isActive ? t.accentText : t.textMuted;
 
   return (
-    <TouchableOpacity style={[mc.card, isActive && mc.cardActive]} onPress={onPress} activeOpacity={0.78}>
+    <TouchableOpacity style={[mc.card, { backgroundColor: t.cardBg }, isActive && [mc.cardActive, { borderColor: t.accent }]]} onPress={onPress} activeOpacity={0.78}>
 
       {/* Barre temporelle à gauche */}
       <View style={mc.timeCol}>
         {time ? (
           <>
-            <Text style={[mc.timeText, isActive && mc.timeTextActive]}>{time}</Text>
-            <View style={[mc.timeLine, isActive && mc.timeLineActive]} />
+            <Text style={[mc.timeText, { color: t.textMuted }, isActive && [mc.timeTextActive, { color: t.text }]]}>{time}</Text>
+            <View style={[mc.timeLine, { backgroundColor: t.border }, isActive && [mc.timeLineActive, { backgroundColor: t.accent }]]} />
           </>
         ) : (
-          <View style={[mc.timeDot, isActive && mc.timeDotActive]} />
+          <View style={[mc.timeDot, { backgroundColor: t.border }, isActive && [mc.timeDotActive, { backgroundColor: t.accent }]]} />
         )}
       </View>
 
@@ -361,20 +401,20 @@ function MissionCard({
       <View style={mc.body}>
         <View style={mc.topRow}>
           <View style={mc.info}>
-            <Text style={mc.title} numberOfLines={1}>{mission.title}</Text>
+            <Text style={[mc.title, { color: t.text }]} numberOfLines={1}>{mission.title}</Text>
             {mission.client?.name && (
-              <Text style={mc.client} numberOfLines={1}>{mission.client.name}</Text>
+              <Text style={[mc.client, { color: t.textSub }]} numberOfLines={1}>{mission.client.name}</Text>
             )}
             <View style={mc.addrRow}>
-              <Ionicons name="location-outline" size={11} color="#ADADAD" />
-              <Text style={mc.addr} numberOfLines={1}>{address}</Text>
+              <Ionicons name="location-outline" size={11} color={t.textMuted} />
+              <Text style={[mc.addr, { color: t.textMuted }]} numberOfLines={1}>{address}</Text>
             </View>
           </View>
 
           {/* Gains à droite — vert uniquement */}
           <View style={mc.earningsCol}>
-            <Text style={mc.earningsNet}>+{formatEuros(net)}</Text>
-            <Text style={mc.earningsLabel}>net</Text>
+            <Text style={[mc.earningsNet, { color: t.text }]}>+{formatEuros(net)}</Text>
+            <Text style={[mc.earningsLabel, { color: t.textMuted }]}>net</Text>
           </View>
         </View>
 
@@ -387,13 +427,13 @@ function MissionCard({
 
           <View style={mc.quickActions}>
             {canNavigate && (
-              <TouchableOpacity style={mc.quickBtn} onPress={onNavigate} activeOpacity={0.8}>
-                <Ionicons name="navigate-outline" size={15} color="#1A1A1A" />
+              <TouchableOpacity style={[mc.quickBtn, { backgroundColor: t.surface }]} onPress={onNavigate} activeOpacity={0.8}>
+                <Ionicons name="navigate-outline" size={15} color={t.text} />
               </TouchableOpacity>
             )}
             {canComplete && (
-              <TouchableOpacity style={[mc.quickBtn, mc.quickBtnComplete]} onPress={onComplete} activeOpacity={0.8}>
-                <Ionicons name="checkmark" size={15} color="#059669" />
+              <TouchableOpacity style={[mc.quickBtn, mc.quickBtnComplete, { backgroundColor: t.surface }]} onPress={onComplete} activeOpacity={0.8}>
+                <Ionicons name="checkmark" size={15} color={t.text} />
               </TouchableOpacity>
             )}
           </View>
@@ -436,7 +476,7 @@ const mc = StyleSheet.create({
 
   // Gains
   earningsCol:   { alignItems: 'flex-end', paddingLeft: 10 },
-  earningsNet:   { fontSize: 18, fontWeight: '900', color: '#059669', letterSpacing: -0.4 },
+  earningsNet:   { fontSize: 18, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.4 },
   earningsLabel: { fontSize: 10, color: '#ADADAD', fontWeight: '600' },
 
   // Footer
@@ -445,7 +485,7 @@ const mc = StyleSheet.create({
   badgeText:   { fontSize: 11, fontWeight: '700' },
   quickActions:{ flexDirection: 'row', gap: 6 },
   quickBtn:    { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  quickBtnComplete: { backgroundColor: '#ECFDF5' },
+  quickBtnComplete: { backgroundColor: '#F5F5F5' },
 });
 
 // ============================================================================
@@ -457,23 +497,24 @@ function FilterBar({ options, selected, onSelect }: {
   selected: string;
   onSelect: (k: string) => void;
 }) {
+  const t = useAppTheme();
   return (
     <FlatList
       horizontal
       data={options}
       keyExtractor={item => item.key}
       showsHorizontalScrollIndicator={false}
-      style={{ flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' }}
+      style={{ flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border }}
       contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center', paddingVertical: 10 }}
       renderItem={({ item }) => {
         const active = item.key === selected;
         return (
           <TouchableOpacity
-            style={[fb.chip, active && fb.chipActive]}
+            style={[fb.chip, { backgroundColor: t.surface }, active && [fb.chipActive, { backgroundColor: t.accent }]]}
             onPress={() => onSelect(item.key)}
             activeOpacity={0.8}
           >
-            <Text numberOfLines={1} style={[fb.chipText, active && fb.chipTextActive]}>
+            <Text numberOfLines={1} style={[fb.chipText, { color: t.textSub }, active && [fb.chipTextActive, { color: t.accentText }]]}>
               {item.label}
             </Text>
           </TouchableOpacity>
@@ -497,27 +538,43 @@ const fb = StyleSheet.create({
 // EMPTY STATE
 // ============================================================================
 
-function EmptyState({ tab, onGoOnline }: { tab: Tab; onGoOnline: () => void }) {
+function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: () => void; dayEarnings?: number }) {
+  const t = useAppTheme();
   if (tab === 'history') {
     return (
       <View style={es.wrap}>
-        <Ionicons name="time-outline" size={40} color="#D0D0D0" />
-        <Text style={es.title}>Aucun historique</Text>
-        <Text style={es.sub}>Vos missions terminées apparaîtront ici.</Text>
+        <Ionicons name="time-outline" size={40} color={t.textMuted} />
+        <Text style={[es.title, { color: t.text }]}>Aucun historique</Text>
+        <Text style={[es.sub, { color: t.textMuted }]}>Vos missions terminées apparaîtront ici.</Text>
       </View>
     );
   }
+
+  // Journée complétée — célébration au lieu d'un empty state générique
+  if (dayEarnings && dayEarnings > 0) {
+    return (
+      <View style={es.wrap}>
+        <View style={[es.checkCircle, { backgroundColor: t.accent }]}>
+          <Ionicons name="checkmark" size={32} color={t.accentText} />
+        </View>
+        <Text style={[es.heroAmount, { color: t.text }]}>+{formatEuros(dayEarnings)}</Text>
+        <Text style={[es.title, { color: t.text }]}>Journée complétée</Text>
+        <Text style={[es.sub, { color: t.textMuted }]}>Excellent travail. Vos gains sont en cours de traitement.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={es.wrap}>
-      <View style={es.iconWrap}>
-        <Ionicons name="navigate-circle-outline" size={44} color="#D0D0D0" />
+      <View style={[es.iconWrap, { backgroundColor: t.surface }]}>
+        <Ionicons name="navigate-circle-outline" size={44} color={t.textMuted} />
       </View>
-      <Text style={es.title}>Aucune mission à venir</Text>
-      <Text style={es.sub}>Passez en ligne pour commencer à recevoir des missions.</Text>
-      <TouchableOpacity style={es.cta} onPress={onGoOnline} activeOpacity={0.85}>
-        <View style={es.ctaDot} />
-        <Text style={es.ctaText}>Passer en ligne</Text>
-        <Ionicons name="arrow-forward" size={16} color="#FFF" />
+      <Text style={[es.title, { color: t.text }]}>Aucune mission à venir</Text>
+      <Text style={[es.sub, { color: t.textMuted }]}>Passez en ligne pour commencer à recevoir des missions.</Text>
+      <TouchableOpacity style={[es.cta, { backgroundColor: t.accent }]} onPress={onGoOnline} activeOpacity={0.85}>
+        <View style={[es.ctaDot, { backgroundColor: t.accentText }]} />
+        <Text style={[es.ctaText, { color: t.accentText }]}>Passer en ligne</Text>
+        <Ionicons name="arrow-forward" size={16} color={t.accentText} />
       </TouchableOpacity>
     </View>
   );
@@ -526,10 +583,15 @@ function EmptyState({ tab, onGoOnline }: { tab: Tab; onGoOnline: () => void }) {
 const es = StyleSheet.create({
   wrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 80, gap: 12 },
   iconWrap:{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  checkCircle: {
+    width: 64, height: 64, borderRadius: 32, backgroundColor: '#1A1A1A',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  heroAmount: { fontSize: 36, fontWeight: '900', color: '#1A1A1A', letterSpacing: -1.5 },
   title:   { fontSize: 17, fontWeight: '800', color: '#1A1A1A', textAlign: 'center' },
   sub:     { fontSize: 14, color: '#ADADAD', textAlign: 'center', lineHeight: 20 },
   cta:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#1A1A1A', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20, marginTop: 8 },
-  ctaDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#34C759' },
+  ctaDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
   ctaText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
 });
 
@@ -538,16 +600,17 @@ const es = StyleSheet.create({
 // ============================================================================
 
 function ClientAvatar({ name, size = 40 }: { name: string; size?: number }) {
+  const t = useAppTheme();
   const initials = name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
   return (
-    <View style={[cav.circle, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[cav.text, { fontSize: size * 0.34 }]}>{initials}</Text>
+    <View style={[cav.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent }]}>
+      <Text style={[cav.text, { fontSize: size * 0.34, color: t.accentText }]}>{initials}</Text>
     </View>
   );
 }
 const cav = StyleSheet.create({
-  circle: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1A1A' },
-  text:   { color: '#FFF', fontWeight: '800', letterSpacing: 0.5 },
+  circle: { alignItems: 'center', justifyContent: 'center' },
+  text:   { fontWeight: '800', letterSpacing: 0.5 },
 });
 
 // ============================================================================
@@ -557,6 +620,7 @@ const cav = StyleSheet.create({
 function TabBar({ tab, onChange, upcomingCount }: {
   tab: Tab; onChange: (t: Tab) => void; upcomingCount: number;
 }) {
+  const t = useAppTheme();
   const indicatorX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -566,16 +630,16 @@ function TabBar({ tab, onChange, upcomingCount }: {
   const indicatorLeft = indicatorX.interpolate({ inputRange: [0, 1], outputRange: ['0%', '50%'] });
 
   return (
-    <View style={tb.wrap}>
-      <Animated.View style={[tb.indicator, { left: indicatorLeft }]} />
-      {(['upcoming', 'history'] as Tab[]).map(t => (
-        <TouchableOpacity key={t} style={tb.tab} onPress={() => onChange(t)} activeOpacity={0.75}>
-          <Text style={[tb.label, tab === t && tb.labelActive]}>
-            {t === 'upcoming' ? 'À venir' : 'Historique'}
+    <View style={[tb.wrap, { backgroundColor: t.surface }]}>
+      <Animated.View style={[tb.indicator, { backgroundColor: t.cardBg }, { left: indicatorLeft }]} />
+      {(['upcoming', 'history'] as Tab[]).map(tb2 => (
+        <TouchableOpacity key={tb2} style={tb.tab} onPress={() => onChange(tb2)} activeOpacity={0.75}>
+          <Text style={[tb.label, { color: t.textMuted }, tab === tb2 && [tb.labelActive, { color: t.text }]]}>
+            {tb2 === 'upcoming' ? 'À venir' : 'Historique'}
           </Text>
-          {t === 'upcoming' && upcomingCount > 0 && (
-            <View style={tb.badge}>
-              <Text style={tb.badgeText}>{upcomingCount}</Text>
+          {tb2 === 'upcoming' && upcomingCount > 0 && (
+            <View style={[tb.badge, { backgroundColor: t.accent }]}>
+              <Text style={[tb.badgeText, { color: t.accentText }]}>{upcomingCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -602,6 +666,7 @@ const tb = StyleSheet.create({
 function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   mission: Mission; onNavigate: () => void; onComplete: () => void; onViewFull: () => void;
 }) {
+  const t = useAppTheme();
   const cfg         = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const net         = mission.price * NET_RATE;
   const canComplete = mission.status === 'ONGOING';
@@ -617,32 +682,30 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const fmtT = (d: Date | null) => d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
   const fmtD = (d: Date | null) => d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '—';
 
-  const badgeBg    = cfg.done ? '#F0F0F0' : cfg.active ? '#1A1A1A' : '#F0F0F0';
-  const badgeColor = cfg.done ? '#555'    : cfg.active ? '#FFF'    : '#ADADAD';
+  const badgeBg    = cfg.done ? t.surface : cfg.active ? t.accent : t.surface;
+  const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
 
   return (
     <BottomSheetScrollView contentContainerStyle={sd.scroll} showsVerticalScrollIndicator={false}>
-      <View style={sd.handle} />
-
       {/* ── Mini-carte Silver ── */}
       {hasCoords ? (
         <View style={sd.mapContainer}>
           <MapView
             provider={PROVIDER_DEFAULT}
-            customMapStyle={MAP_STYLE}
+            customMapStyle={t.isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
             style={sd.map}
             initialRegion={{ latitude: lat!, longitude: lng!, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
             showsPointsOfInterest={false} showsBuildings={false}
           >
             <Marker coordinate={{ latitude: lat!, longitude: lng! }} anchor={{ x: 0.5, y: 0.5 }}>
-              <View style={sd.markerOuter}><View style={sd.markerInner} /></View>
+              <View style={[sd.markerOuter, { backgroundColor: t.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,26,26,0.12)' }]}><View style={[sd.markerInner, { backgroundColor: t.accent, borderColor: t.cardBg }]} /></View>
             </Marker>
           </MapView>
           <View style={sd.mapOverlay}>
-            <View style={sd.mapAddrBadge}>
-              <Ionicons name="location-outline" size={11} color="#555" />
-              <Text style={sd.mapAddrText} numberOfLines={1}>{address}</Text>
+            <View style={[sd.mapAddrBadge, { backgroundColor: t.isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.94)' }]}>
+              <Ionicons name="location-outline" size={11} color={t.textSub} />
+              <Text style={[sd.mapAddrText, { color: t.text }]} numberOfLines={1}>{address}</Text>
             </View>
           </View>
           {/* Badge statut flottant — monochrome */}
@@ -652,144 +715,160 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           </View>
         </View>
       ) : (
-        <View style={sd.mapFallback}>
-          <Ionicons name="map-outline" size={24} color="#D0D0D0" />
-          <Text style={sd.mapFallbackText}>{address || 'Adresse non disponible'}</Text>
+        <View style={[sd.mapFallback, { backgroundColor: t.surface }]}>
+          <Ionicons name="map-outline" size={24} color={t.textMuted} />
+          <Text style={[sd.mapFallbackText, { color: t.textMuted }]}>{address || 'Adresse non disponible'}</Text>
         </View>
       )}
 
       <View style={sd.body}>
         {/* Titre */}
         <View style={sd.titleRow}>
-          <Text style={sd.title}>{mission.title}</Text>
+          <Text style={[sd.title, { color: t.text }]}>{mission.title}</Text>
           {mission.client?.name && (
             <View style={sd.clientRow}>
               <ClientAvatar name={mission.client.name} size={24} />
-              <Text style={sd.clientName}>{mission.client.name}</Text>
+              <Text style={[sd.clientName, { color: t.textSub }]}>{mission.client.name}</Text>
             </View>
           )}
         </View>
 
-        {/* Gains — bloc vert */}
-        <View style={sd.earningsBlock}>
+        {/* Gains */}
+        <View style={[sd.earningsBlock, { backgroundColor: t.surfaceAlt }]}>
           <View>
-            <Text style={sd.earningsLabel}>Gain net (85%)</Text>
-            <Text style={sd.earningsNet}>{formatEuros(net)}</Text>
+            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>Gain net</Text>
+            {mission.price > 0 ? (
+              <Text style={[sd.earningsNet, { color: t.text }]}>{formatEuros(net)}</Text>
+            ) : (
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>Prix à confirmer</Text>
+            )}
           </View>
-          <View style={sd.earningsDivider} />
+          <View style={[sd.earningsDivider, { backgroundColor: t.border }]} />
           <View>
-            <Text style={sd.earningsLabel}>Brut client</Text>
-            <Text style={sd.earningsGross}>{formatEuros(mission.price)}</Text>
+            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>Brut client</Text>
+            {mission.price > 0 ? (
+              <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(mission.price)}</Text>
+            ) : (
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>—</Text>
+            )}
           </View>
         </View>
 
         {/* Divider */}
-        <View style={sd.sep} />
+        <View style={[sd.sep, { backgroundColor: t.border }]} />
 
         {/* Chronologie */}
         {(createdAt || scheduledAt) && (
           <>
-            <Text style={sd.sectionLabel}>Chronologie</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Chronologie</Text>
             {createdAt && (
               <View style={sd.infoRow}>
-                <View style={sd.infoIcon}><Ionicons name="ellipse" size={12} color="#ADADAD" /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={sd.infoLabel}>Commande passée</Text>
-                  <Text style={sd.infoValue}>{fmtD(createdAt)} · {fmtT(createdAt)}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Commande passée · {fmtD(createdAt)} · {fmtT(createdAt)}</Text>
+                </View>
+              </View>
+            )}
+            {cfg.active && (
+              <View style={sd.infoRow}>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
+                <View style={sd.infoContent}>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Confirmée</Text>
                 </View>
               </View>
             )}
             {scheduledAt && (
               <View style={sd.infoRow}>
-                <View style={sd.infoIcon}><Ionicons name="calendar-outline" size={12} color="#ADADAD" /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={sd.infoLabel}>Départ prévu</Text>
-                  <Text style={sd.infoValue}>{fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Départ prévu · {fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
                 </View>
               </View>
             )}
-            <View style={sd.sep} />
+            <View style={sd.infoRow}>
+              <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
+              <View style={sd.infoContent}>
+                <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminée</Text>
+              </View>
+            </View>
+            <View style={[sd.sep, { backgroundColor: t.border }]} />
           </>
         )}
 
         {/* Adresse + description */}
         {(address || mission.description) && (
           <>
-            <Text style={sd.sectionLabel}>Détails mission</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Détails mission</Text>
             {address ? (
               <View style={sd.infoRow}>
-                <View style={sd.infoIcon}><Ionicons name="location-outline" size={12} color="#ADADAD" /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="location-outline" size={12} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={sd.infoLabel}>Adresse</Text>
-                  <Text style={sd.infoValue}>{address}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>{address}</Text>
                 </View>
               </View>
             ) : null}
             {mission.description ? (
               <View style={sd.infoRow}>
-                <View style={sd.infoIcon}><Ionicons name="document-text-outline" size={12} color="#ADADAD" /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="document-text-outline" size={12} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={sd.infoLabel}>Description</Text>
-                  <Text style={sd.infoValue}>{mission.description}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>{mission.description}</Text>
                 </View>
               </View>
             ) : null}
-            <View style={sd.sep} />
+            <View style={[sd.sep, { backgroundColor: t.border }]} />
           </>
         )}
 
         {/* Client card */}
         {mission.client && (
           <>
-            <Text style={sd.sectionLabel}>Client</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Client</Text>
             <View style={sd.clientCard}>
               <ClientAvatar name={mission.client.name} size={44} />
               <View style={{ flex: 1 }}>
-                <Text style={sd.clientCardName}>{mission.client.name}</Text>
-                {mission.client.phone && (
-                  <Text style={sd.clientCardPhone}>{mission.client.phone}</Text>
-                )}
+                <Text style={[sd.clientCardName, { color: t.text }]}>{mission.client.name}</Text>
               </View>
               {mission.client.phone && (
                 <TouchableOpacity
-                  style={sd.callBtn}
+                  style={[sd.callBtn, { backgroundColor: t.accent }]}
                   onPress={() => Linking.openURL(`tel:${mission.client!.phone}`)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="call" size={16} color="#FFF" />
+                  <Ionicons name="call" size={16} color={t.accentText} />
                 </TouchableOpacity>
               )}
             </View>
-            <View style={sd.sep} />
+            <View style={[sd.sep, { backgroundColor: t.border }]} />
           </>
         )}
 
-        {/* Actions */}
-        <View style={sd.actions}>
-          {canNavigate && (
-            <TouchableOpacity style={sd.navBtn} onPress={onNavigate} activeOpacity={0.85}>
-              <Ionicons name="navigate" size={18} color="#FFF" />
-              <Text style={sd.navBtnText}>S'y rendre (GPS)</Text>
-            </TouchableOpacity>
-          )}
-          {canComplete && (
-            <TouchableOpacity style={sd.completeBtn} onPress={onComplete} activeOpacity={0.85}>
-              <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-              <Text style={sd.completeBtnText}>Terminer la mission</Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
+        {/* ── CTA ── */}
+        {(canNavigate || canComplete) && (
+          <View style={sd.actionsBlock}>
+            {canNavigate && (
+              <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onNavigate} activeOpacity={0.85}>
+                <Ionicons name="navigate" size={18} color={t.accentText} />
+                <Text style={[sd.navBtnText, { color: t.accentText }]}>S'y rendre (GPS)</Text>
+              </TouchableOpacity>
+            )}
+            {canComplete && (
+              <TouchableOpacity style={[sd.completeBtn, { backgroundColor: t.accent }]} onPress={onComplete} activeOpacity={0.85}>
+                <Ionicons name="checkmark-circle" size={18} color={t.accentText} />
+                <Text style={[sd.completeBtnText, { color: t.accentText }]}>Terminer la mission</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
     </BottomSheetScrollView>
   );
 }
 
 const sd = StyleSheet.create({
-  scroll: { paddingBottom: 40 },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
-
+  scroll: { paddingBottom: 80 },
   // Map
-  mapContainer: { height: 170, marginTop: 8, overflow: 'hidden', position: 'relative' },
+  mapContainer: { height: 150, marginTop: 8, overflow: 'hidden', position: 'relative' },
   map:          { ...StyleSheet.absoluteFillObject },
   markerOuter:  { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(26,26,26,0.12)', alignItems: 'center', justifyContent: 'center' },
   markerInner:  { width: 12, height: 12, borderRadius: 6, backgroundColor: '#1A1A1A', borderWidth: 2.5, borderColor: '#FFF' },
@@ -802,24 +881,25 @@ const sd = StyleSheet.create({
   mapFallbackText: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
 
   // Body
-  body: { paddingHorizontal: 20, paddingTop: 18 },
-  titleRow: { marginBottom: 16, gap: 6 },
+  body: { paddingHorizontal: 20, paddingTop: 14 },
+  titleRow: { marginBottom: 12, gap: 6 },
   title:    { fontSize: 22, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.4 },
   clientRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
   clientName:{ fontSize: 13, color: '#888', fontWeight: '600' },
 
   // Gains
-  earningsBlock:  { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F8F8', borderRadius: 16, padding: 16, marginBottom: 18 },
+  earningsBlock:  { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F8F8', borderRadius: 16, padding: 14, marginBottom: 12 },
   earningsLabel:  { fontSize: 11, color: '#ADADAD', fontWeight: '600', marginBottom: 3 },
-  earningsNet:    { fontSize: 28, fontWeight: '900', color: '#059669', letterSpacing: -0.8 },
+  earningsNet:    { fontSize: 28, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.8 },
+  earningsZero:   { fontSize: 16, fontWeight: '600', color: '#888888', fontStyle: 'italic' },
   earningsDivider:{ width: StyleSheet.hairlineWidth, height: 44, backgroundColor: '#E0E0E0', marginHorizontal: 20 },
   earningsGross:  { fontSize: 16, fontWeight: '600', color: '#ADADAD' },
 
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: '#F0F0F0', marginVertical: 14 },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: '#F0F0F0', marginVertical: 10 },
 
   // Info rows
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
-  infoRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 },
+  infoRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   infoIcon:     { width: 28, height: 28, borderRadius: 8, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   infoContent:  { flex: 1 },
   infoLabel:    { fontSize: 10, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
@@ -832,10 +912,12 @@ const sd = StyleSheet.create({
   callBtn:        { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' },
 
   // Actions
-  actions:        { marginTop: 4, gap: 10, marginBottom: 8 },
+  actionsBlock: {
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, gap: 10,
+  },
   navBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1A1A1A', borderRadius: 16, paddingVertical: 15 },
   navBtnText:     { fontSize: 15, fontWeight: '700', color: '#FFF' },
-  completeBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#059669', borderRadius: 16, paddingVertical: 15 },
+  completeBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1A1A1A', borderRadius: 16, paddingVertical: 15 },
   completeBtnText:{ fontSize: 15, fontWeight: '700', color: '#FFF' },
 });
 
@@ -857,12 +939,13 @@ export default function Missions() {
   const [searchQuery,     setSearchQuery]     = useState('');
   const [searchActive,    setSearchActive]    = useState(false);
   const [selectedDay,     setSelectedDay]     = useState<string | null>(null);
+  const t = useAppTheme();
 
   // Modals
   const [completeModal, setCompleteModal] = useState<Mission | null>(null);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints     = useMemo(() => ['55%', '90%'], []);
+  const snapPoints     = useMemo(() => ['70%', '92%'], []);
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const loadMissions = useCallback(async () => {
@@ -903,6 +986,17 @@ export default function Missions() {
   // ── Filtered lists ────────────────────────────────────────────────────────
   const upcomingMissions = useMemo(() => missions.filter(m => UPCOMING_STATUSES.includes(m.status)), [missions]);
   const historyMissions  = useMemo(() => missions.filter(m => HISTORY_STATUSES.includes(m.status)),  [missions]);
+
+  // Gains du jour (missions DONE aujourd'hui) — pour le empty state célébration
+  const todayDoneEarnings = useMemo(() => {
+    const today = new Date();
+    return missions
+      .filter(m => {
+        const d = m.scheduledAt || m.createdAt;
+        return m.status === 'DONE' && d && isSameDay(new Date(d), today);
+      })
+      .reduce((acc, m) => acc + m.price * NET_RATE, 0);
+  }, [missions]);
 
   const historyFilterOptions = useMemo(() => {
     const months = new Set(historyMissions.map(m => formatMonthKey(m.createdAt)));
@@ -1022,44 +1116,44 @@ export default function Missions() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.center}>
-        <ActivityIndicator size="large" color="#1A1A1A" />
+      <SafeAreaView style={[s.center, { backgroundColor: t.bg }]}>
+        <ActivityIndicator size="large" color={t.accent} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: t.bg }]}>
 
       {/* ── Header ── */}
-      <View style={s.header}>
+      <View style={[s.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
         <View style={s.headerRow}>
           <View>
-            <Text style={s.headerTitle}>Missions</Text>
+            <Text style={[s.headerTitle, { color: t.text }]}>Missions</Text>
             {upcomingMissions.length > 0 && (
-              <Text style={s.headerSub}>
+              <Text style={[s.headerSub, { color: t.textMuted }]}>
                 {upcomingMissions.length} mission{upcomingMissions.length > 1 ? 's' : ''} à venir
               </Text>
             )}
           </View>
           {!searchActive && (
             <TouchableOpacity
-              style={s.searchIconBtn}
+              style={[s.searchIconBtn, { backgroundColor: t.surface }]}
               onPress={() => setSearchActive(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="search-outline" size={20} color="#1A1A1A" />
+              <Ionicons name="search-outline" size={20} color={t.text} />
             </TouchableOpacity>
           )}
         </View>
 
         {searchActive && (
-          <View style={s.searchBar}>
-            <Ionicons name="search-outline" size={15} color="#ADADAD" style={{ marginLeft: 12 }} />
+          <View style={[s.searchBar, { backgroundColor: t.surface }]}>
+            <Ionicons name="search-outline" size={15} color={t.textMuted} style={{ marginLeft: 12 }} />
             <TextInput
-              style={s.searchInput}
+              style={[s.searchInput, { color: t.text }]}
               placeholder="Rechercher une mission..."
-              placeholderTextColor="#ADADAD"
+              placeholderTextColor={t.textMuted}
               value={searchQuery}
               onChangeText={setSearchQuery}
               onBlur={() => { if (!searchQuery) setSearchActive(false); }}
@@ -1067,7 +1161,7 @@ export default function Missions() {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} style={{ paddingHorizontal: 10 }}>
-                <Ionicons name="close-circle" size={16} color="#ADADAD" />
+                <Ionicons name="close-circle" size={16} color={t.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -1094,11 +1188,11 @@ export default function Missions() {
 
       {/* ── Erreur ── */}
       {error && (
-        <View style={s.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={15} color="#1A1A1A" />
-          <Text style={s.errorText}>{error}</Text>
+        <View style={[s.errorBanner, { backgroundColor: t.surface }]}>
+          <Ionicons name="alert-circle-outline" size={15} color={t.text} />
+          <Text style={[s.errorText, { color: t.text }]}>{error}</Text>
           <TouchableOpacity onPress={loadMissions}>
-            <Text style={s.retryText}>Réessayer</Text>
+            <Text style={[s.retryText, { color: t.text }]}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1109,17 +1203,17 @@ export default function Missions() {
         renderItem={renderMission}
         keyExtractor={item => item.id}
         contentContainerStyle={[s.list, !displayedList.length && s.listEmpty]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1A1A1A" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
         ListEmptyComponent={
-          <EmptyState tab={tab} onGoOnline={() => router.replace('/(tabs)/dashboard')} />
+          <EmptyState tab={tab} onGoOnline={() => router.replace('/(tabs)/dashboard')} dayEarnings={tab === 'upcoming' ? todayDoneEarnings : undefined} />
         }
         showsVerticalScrollIndicator={false}
       />
 
       {/* ── Bottom Sheet Detail ── */}
-      <BottomSheet ref={bottomSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backdropComponent={renderBackdrop}>
+      <BottomSheet ref={bottomSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }}>
         {loadingDetails ? (
-          <ActivityIndicator size="large" color="#1A1A1A" style={{ marginTop: 60 }} />
+          <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
         ) : selectedMission ? (
           <MissionDetail
             mission={selectedMission}
@@ -1156,8 +1250,8 @@ export default function Missions() {
 // ============================================================================
 
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#F8F8F8' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F8F8' },
+  root:   { flex: 1, backgroundColor: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
 
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: '#FFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

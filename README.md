@@ -1,60 +1,62 @@
-# FIXED — Mobile App
+# FIXED — Application Mobile
 
-A two-sided service marketplace connecting **clients** with **service providers** (tradespeople) for on-demand repairs, installations, and maintenance — with real-time tracking, Stripe payments, and live provider matching.
+Application React Native / Expo — marketplace de services à domicile deux faces (clients ↔ prestataires).
 
----
-
-## MVP Overview
-
-| Role | Core Flow |
-|------|-----------|
-| **Client** | Sign up → Create request → Match provider → Track mission → Pay → Rate |
-| **Provider** | Sign up → Go online → Accept request → Navigate to client → Complete → Earn |
+**Dernière mise à jour : 27 février 2026**
 
 ---
 
-## Prerequisites
+## Vue d'ensemble MVP
 
-| Tool | Version | Install |
-|------|---------|---------|
+| Rôle | Flux principal |
+|------|----------------|
+| **Client** | Inscription → Créer une demande → Matcher un prestataire → Suivre la mission → Payer → Évaluer |
+| **Prestataire** | Inscription → Se mettre en ligne → Accepter une demande → Naviguer → Terminer → Toucher |
+
+---
+
+## Prérequis
+
+| Outil | Version | Installation |
+|-------|---------|-------------|
 | Node.js | ≥ 20 | https://nodejs.org |
-| npm | ≥ 10 | Comes with Node |
-| Expo CLI | latest | `npm i -g expo-cli` |
-| Expo Go app | latest | App Store / Google Play |
-| ngrok | latest | https://ngrok.com/download |
+| npm | ≥ 10 | Inclus avec Node |
+| Expo CLI | dernière | `npm i -g expo-cli` |
+| Expo Go | dernière | App Store / Google Play |
+| ngrok | dernière | https://ngrok.com/download |
 
-> **Physical device required.** Google Maps and Location services do not work in the Expo Go simulator.
+> **Appareil physique requis.** Google Maps et la localisation ne fonctionnent pas dans le simulateur Expo Go.
 
 ---
 
-## Step 1 — Start the Backend
+## Étape 1 — Démarrer le backend
 
-### 1.1 Install dependencies
+### 1.1 Installer les dépendances
 
 ```bash
 cd backend
 npm install
 ```
 
-### 1.2 Apply database migrations & seed
+### 1.2 Appliquer les migrations et seeder la base
 
 ```bash
 npx prisma migrate deploy
 npx prisma db seed
 ```
 
-This creates the SQLite database at `backend/prisma/dev.db` and seeds it with:
-- An admin account: `admin@mosaic.com` / `Mosaic@2025`
-- Service categories (plumbing, electrical, cleaning, etc.)
-- Sample providers and roles
+Cela crée la base SQLite `backend/prisma/dev.db` et la seed avec :
+- Un compte admin : `admin@mosaic.com` / `Mosaic@2025`
+- Les catégories de services (plomberie, électricité, nettoyage…)
+- Des prestataires et rôles d'exemple
 
-### 1.3 Start the server
+### 1.3 Démarrer le serveur
 
 ```bash
 npm run dev
 ```
 
-The API will be live at `http://localhost:3000`. You should see:
+L'API est disponible sur `http://localhost:3000`. Vous devriez voir :
 
 ```
 Server running on http://0.0.0.0:3000
@@ -63,415 +65,423 @@ Socket.IO attached
 
 ---
 
-## Step 2 — Expose the Backend via ngrok
+## Étape 2 — Exposer le backend via ngrok
 
-The mobile app on your phone needs a public URL to reach your local backend.
+L'application mobile sur votre téléphone a besoin d'une URL publique pour atteindre le backend local.
 
-### 2.1 In a new terminal window
+### 2.1 Dans un nouveau terminal
 
 ```bash
 ngrok http 3000
 ```
 
-### 2.2 Copy the Forwarding URL
+### 2.2 Copier l'URL de transfert
 
-ngrok will show something like:
+ngrok affichera quelque chose comme :
 
 ```
 Forwarding   https://abc123.ngrok-free.app -> http://localhost:3000
 ```
 
-Copy the `https://...ngrok-free.app` URL.
+Copier l'URL `https://...ngrok-free.app`.
 
 ---
 
-## Step 3 — Configure the Mobile App
+## Étape 3 — Configurer l'application mobile
 
-### 3.1 Open `mobile/.env`
+### 3.1 Éditer `mobile/.env`
 
 ```bash
 cd mobile
 ```
 
-Edit `.env` and paste your ngrok URL:
+Modifier `.env` et coller l'URL ngrok :
 
 ```env
-EXPO_PUBLIC_API_URL=https://YOUR_NGROK_URL.ngrok-free.app/api
-
-EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL
+EXPO_PUBLIC_API_URL=https://VOTRE_URL_NGROK.ngrok-free.app/api
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=<votre_clé_google_maps>
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
 
-> If you want to use your **local IP** instead of ngrok (both devices on same Wi-Fi):
+> Pour utiliser votre **IP locale** à la place de ngrok (appareils sur le même Wi-Fi) :
 > ```env
 > EXPO_PUBLIC_API_URL=http://192.168.x.x:3000/api
 > ```
-> Find your IP with `ipconfig getifaddr en0` (macOS) or `ipconfig` (Windows).
+> Trouver votre IP avec `ipconfig getifaddr en0` (macOS) ou `ipconfig` (Windows).
 
-### 3.2 Install dependencies
+### 3.2 Installer les dépendances
 
 ```bash
 npm install
 ```
 
-### 3.3 Start Expo
+### 3.3 Démarrer Expo
 
 ```bash
 npx expo start
 ```
 
-A QR code will appear in the terminal and a browser window will open.
+Un QR code apparaîtra dans le terminal et une fenêtre de navigateur s'ouvrira.
 
 ---
 
-## Step 4 — Open the App on Your Device
+## Étape 4 — Ouvrir l'application sur votre appareil
 
-1. Open the **Expo Go** app on your iPhone or Android.
-2. Scan the QR code shown in the terminal.
-3. The app will bundle and launch — this takes ~30 seconds on first load.
+1. Ouvrir l'application **Expo Go** sur votre iPhone ou Android.
+2. Scanner le QR code affiché dans le terminal.
+3. L'application se bundle et se lance — environ 30 secondes au premier chargement.
 
-You should see the **FIXED welcome screen**.
-
----
-
-## Step 5 — Visualize the MVP Flows
-
-### Flow A: Client Journey
-
-**Goal:** Create a service request and track a provider in real-time.
-
-| Step | Screen | Action |
-|------|--------|--------|
-| 1 | Welcome | Tap **Get Started** |
-| 2 | Sign Up | Create a client account (select role: **Client**) |
-| 3 | Client Dashboard | View your service categories and request history |
-| 4 | New Request | Tap **+** → Multi-step form opens |
-| 5 | Request Stepper | Choose category → Describe the issue → Add photos → Set location → Confirm |
-| 6 | Dashboard | Request appears as **PENDING** — waiting for a provider |
-| 7 | Missions Tab | Open to see the live request status |
-| 8 | Tracking Screen | When a provider accepts, tap the mission → see real-time map tracking |
-| 9 | Rating Screen | After mission completes, rate the provider (1–5 stars) |
-| 10 | Wallet | Check balance and transaction history |
+Vous devriez voir l'**écran de bienvenue FIXED**.
 
 ---
 
-### Flow B: Provider Journey
+## Étape 5 — Tester les flux MVP
 
-**Goal:** Go online, receive a request, and complete a mission.
+### Flux A : Parcours Client
 
-> Use a second device or a second Expo Go session with a separate account.
+**Objectif :** Créer une demande de service et suivre un prestataire en temps réel.
 
-| Step | Screen | Action |
-|------|--------|--------|
-| 1 | Sign Up | Create a provider account (select role: **Provider**) |
-| 2 | Provider Dashboard | Tap the status toggle → set yourself **ONLINE** |
-| 3 | Wait | The backend broadcasts nearby requests every 45 seconds |
-| 4 | Notification | A new request alert appears — tap to view details |
-| 5 | Mission Sheet | Review the request details, client location, and price |
-| 6 | Accept | Tap **Accept** — mission status changes to **IN PROGRESS** |
-| 7 | Ongoing Screen | Navigation map shows route to client |
-| 8 | Complete | Tap **Complete Mission** when done |
-| 9 | Earnings | View payout and request withdrawal from Earnings screen |
+| Étape | Écran | Action |
+|-------|-------|--------|
+| 1 | Bienvenue | Appuyer sur **Démarrer** |
+| 2 | Inscription | Créer un compte client (rôle : **Client**) |
+| 3 | Dashboard Client | Voir les catégories et l'historique des demandes |
+| 4 | Nouvelle demande | Appuyer sur **+** → Formulaire multi-étapes |
+| 5 | Stepper | Choisir catégorie → Décrire le problème → Ajouter photos → Localisation → Confirmer |
+| 6 | Dashboard | Demande en statut **PENDING** — en attente d'un prestataire |
+| 7 | Onglet Missions | Voir le statut de la demande en live |
+| 8 | Écran de suivi | Quand un prestataire accepte → carte avec suivi temps réel |
+| 9 | Évaluation | Après la mission, noter le prestataire (1–5 étoiles) |
+| 10 | Wallet | Consulter le solde et l'historique des transactions |
 
 ---
 
-### Flow C: Admin Overview (Web/API)
+### Flux B : Parcours Prestataire
 
-The backend exposes a Swagger UI for inspecting all endpoints:
+**Objectif :** Se mettre en ligne, recevoir une demande et compléter une mission.
+
+> Utiliser un second appareil ou une seconde session Expo Go avec un compte séparé.
+
+| Étape | Écran | Action |
+|-------|-------|--------|
+| 1 | Inscription | Créer un compte prestataire (rôle : **Provider**) |
+| 2 | Dashboard Prestataire | Activer le toggle de statut → se mettre **EN LIGNE** |
+| 3 | Attente | Le backend broadcast les demandes proches toutes les 45 secondes |
+| 4 | Notification | Une alerte de nouvelle demande apparaît — appuyer pour voir les détails |
+| 5 | Fiche mission | Consulter les détails, la localisation du client et le prix |
+| 6 | Accepter | Appuyer sur **Accepter** — statut de la mission → **EN COURS** |
+| 7 | Écran en cours | Carte de navigation vers le client |
+| 8 | Terminer | Appuyer sur **Terminer la mission** quand c'est fait |
+| 9 | Gains | Voir le paiement et demander un retrait depuis l'écran Gains |
+
+---
+
+### Flux C : Admin (API / Web)
+
+Le backend expose une Swagger UI pour inspecter tous les endpoints :
 
 ```
 http://localhost:3000/api-docs
 ```
 
-Admin credentials:
+Identifiants admin :
 ```
-Email:    admin@mosaic.com
-Password: Mosaic@2025
+Email    : admin@mosaic.com
+Mot de passe : Mosaic@2025
 ```
 
-Key admin endpoints to test via Swagger or a REST client (e.g. Insomnia):
+Endpoints clés à tester via Swagger ou un client REST (ex. Insomnia) :
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /api/auth/login` | Get a JWT token |
-| `GET /api/users` | List all users |
-| `GET /api/requests` | List all service requests |
-| `GET /api/providers` | List all providers with status |
-| `GET /api/stats` | Dashboard stats |
-| `GET /api/wallet` | Wallet balances |
-| `GET /api/stats/requests.csv` | Export requests as CSV |
+| Endpoint | Objectif |
+|----------|----------|
+| `POST /api/auth/login` | Obtenir un token JWT |
+| `GET /api/users` | Lister tous les utilisateurs |
+| `GET /api/requests` | Lister toutes les demandes |
+| `GET /api/providers` | Lister les prestataires avec leur statut |
+| `GET /api/stats` | Statistiques du dashboard |
+| `GET /api/wallet` | Soldes des wallets |
+| `GET /api/stats/requests.csv` | Exporter les demandes en CSV |
 
 ---
 
-## App Structure at a Glance
+## Structure de l'application
 
 ```
 mobile/
 ├── app/
-│   ├── (auth)/          ← Welcome, Login, Sign Up
-│   ├── (tabs)/          ← Dashboard, Missions, Profile, Documents
-│   ├── request/         ← New Request Stepper + Mission detail screens
-│   │   └── [id]/        ← Ongoing, Tracking, Rating, Earnings
-│   ├── providers/       ← Provider list & profiles
-│   └── wallet.tsx       ← Balance & transactions
-├── components/          ← Reusable UI (cards, sheets, buttons)
+│   ├── _layout.tsx              ← Layout racine + garde d'auth
+│   ├── index.tsx                ← Écran de bienvenue / splash
+│   ├── (auth)/                  ← Bienvenue, Login, Inscription
+│   ├── (tabs)/                  ← Dashboard, Missions, Profil, Documents
+│   ├── request/
+│   │   ├── NewRequestStepper.tsx ← Formulaire multi-étapes
+│   │   ├── list.tsx             ← Historique des demandes
+│   │   └── [id]/
+│   │       ├── index.tsx        ← Détail demande
+│   │       └── missionview.tsx  ← Suivi mission (Socket.IO)
+│   ├── providers/               ← Liste et profils prestataires
+│   └── wallet.tsx               ← Solde et transactions
+├── components/                  ← UI réutilisable (cards, sheets, boutons)
+│   ├── sheets/                  ← Dialogs bottom-sheet
+│   └── ui/                      ← Primitives UI
 ├── lib/
-│   ├── api.ts           ← Axios client with JWT refresh
-│   ├── AuthContext.tsx  ← Auth state
-│   └── SocketContext.tsx← Real-time Socket.IO provider
-└── .env                 ← API URL, Maps key, Stripe key
+│   ├── api.ts                   ← Client Axios avec refresh JWT
+│   ├── auth/AuthContext.tsx     ← État d'authentification
+│   ├── SocketContext.tsx        ← Provider Socket.IO temps réel
+│   ├── storage.ts               ← Expo Secure Store
+│   └── config.ts                ← Configuration & env
+├── hooks/                       ← Custom React hooks
+├── constants/                   ← Thème et configuration
+└── .env                         ← URL API, clé Maps, clé Stripe
 ```
 
 ---
 
-## Troubleshooting
+## Dépendances principales
 
-| Problem | Fix |
-|---------|-----|
-| App shows "Network Error" | Check ngrok is running and `.env` URL is correct. Restart Expo after editing `.env`. |
-| Map not loading | Google Maps API key must be enabled for Maps SDK (iOS + Android) in Google Cloud Console. |
-| QR code not scanning | Make sure phone and computer are on the same Wi-Fi, or use the Expo tunnel mode: `npx expo start --tunnel` |
-| Socket not connecting | The backend Socket.IO server must be running. Check `http://localhost:3000` responds. |
-| DB error on start | Run `npx prisma migrate deploy` again from the `backend/` directory. |
-| Blank screen / crash | Check the Expo terminal for errors. Most common: missing `.env` values or wrong API URL. |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Mobile | React Native 0.81 + Expo 54 |
-| Navigation | Expo Router (file-based) |
-| Backend | Node.js + Express 5 |
-| Database | SQLite via Prisma ORM |
-| Real-time | Socket.IO 4 |
-| Payments | Stripe (test mode) |
-| Maps | Google Maps + Expo Location |
-| Auth | JWT + Expo Secure Store |
+| Catégorie | Librairie | Version |
+|-----------|----------|---------|
+| Framework | React Native + Expo | 0.81.5 / 54.0.33 |
+| Navigation | Expo Router | 6.0.23 |
+| HTTP | Axios | 1.13.2 |
+| Temps réel | Socket.IO client | 4.8.3 |
+| Paiements | @stripe/stripe-react-native | 0.50.3 |
+| Cartes | react-native-maps | 1.20.1 |
+| Géolocalisation | expo-location | 19.0.8 |
+| Formulaires | react-hook-form | 7.69.0 |
+| Stockage sécurisé | expo-secure-store | 15.0.8 |
+| Animations | react-native-reanimated | 4.1.1 |
+| Bottom sheets | @gorhom/bottom-sheet | 5.2.8 |
+| Icônes | @expo/vector-icons | 15.0.3 |
 
 ---
 
+## Résolution de problèmes
+
+| Problème | Solution |
+|---------|---------|
+| "Network Error" | Vérifier que ngrok tourne et que l'URL dans `.env` est correcte. Redémarrer Expo après modification de `.env`. |
+| Carte non chargée | La clé Google Maps API doit être activée pour Maps SDK (iOS + Android) dans la Google Cloud Console. |
+| QR code non scannable | S'assurer que le téléphone et l'ordi sont sur le même Wi-Fi, ou utiliser le mode tunnel : `npx expo start --tunnel` |
+| Socket non connecté | Le serveur Socket.IO backend doit être en marche. Vérifier que `http://localhost:3000` répond. |
+| Erreur DB au démarrage | Relancer `npx prisma migrate deploy` depuis le dossier `backend/`. |
+| Écran blanc / crash | Consulter le terminal Expo pour les erreurs. Le plus fréquent : valeurs `.env` manquantes ou URL API incorrecte. |
+
 ---
 
-# Road to Production
-
-## Where We Are Now
-
-The codebase has a **complete, working skeleton**. The full data model, API routing, auth, real-time layer, payment integration, and all main screens exist. You can demo every core flow end-to-end. What's missing is the layer between "demo-able" and "shippable to real users" — unfinished UI handlers, security gaps, and deployment scaffolding.
+## État actuel (Audit 27/02/2026)
 
 ```
 DEMO-READY          ████████████████████░░░░░░░░░░  ~65%
 PRODUCTION-READY    ████████░░░░░░░░░░░░░░░░░░░░░░  ~25%
 ```
 
----
-
-## Current State by Area
-
-| Area | Status | Notes |
-|------|--------|-------|
-| Backend API | ✅ Working | All 37 route modules present, Prisma ORM, Socket.IO |
-| Auth (login/signup) | ✅ Working | JWT with refresh, secure storage |
-| Client request flow | ✅ Working | Multi-step stepper, location picker, photos |
-| Provider accept/complete | ✅ Working | Socket broadcast, mission state machine |
-| Real-time tracking | ✅ Working | Socket.IO location updates, map rendering |
-| Stripe payments | ⚠️ Test mode only | Test keys, no live key setup |
-| Wallet system | ✅ Working | Credit/debit/hold/release, transactions |
-| Profile editing | ❌ Stub only | All profile actions show "coming soon" |
-| Documents/Invoices | ❌ Stub only | PDF download not wired up |
-| In-app messaging | ❌ Not built | TODO in missionview.tsx |
-| Push notifications | ❌ Not built | Expo push tokens not configured |
-| Admin panel (mobile) | ✅ API exists | No mobile admin UI — API-only |
-| Tests | ❌ Zero coverage | Empty test directory |
-| Production deployment | ❌ None | No Dockerfile, no CI/CD, no prod env |
+| Domaine | Statut | Notes |
+|---------|--------|-------|
+| API Backend | Fonctionnel | 35 modules de routes, Prisma ORM, Socket.IO |
+| Auth (login/signup) | Fonctionnel | JWT avec refresh, stockage sécurisé |
+| Flux client (création de demande) | Fonctionnel | Stepper multi-étapes, localisation, photos |
+| Acceptation / complétion prestataire | Fonctionnel | Broadcast Socket, machine à états mission |
+| Suivi temps réel | Fonctionnel | Mises à jour localisation Socket.IO, carte |
+| Paiements Stripe | Mode test | Clés test, pas de setup clé live |
+| Système Wallet | Fonctionnel | Crédit/débit/hold/release, transactions |
+| Édition de profil | Non implémenté | Tous les boutons → "en développement" |
+| Documents / Factures | Non implémenté | PDF non câblé (backend génère, front TODO) |
+| Messagerie in-app | Non implémenté | TODO dans `missionview.tsx:649` |
+| Notifications push | Non implémenté | Tokens Expo push non configurés |
+| Admin panel (mobile) | Non implémenté | API admin complète, pas d'UI mobile |
+| Tests | Aucun | `backend/tests/` vide, 0% couverture |
+| Déploiement production | Aucun | Pas de Dockerfile, pas de CI/CD, pas d'env prod |
 
 ---
 
-## Production To-Do List
+## Road to Production
 
-### 🔴 CRITICAL — Must fix before any real user touches this
+### Problèmes critiques — À corriger avant tout utilisateur réel
 
-- [ ] **Remove MASTER_KEY auth bypass**
-  - `backend/middleware/auth.js` — delete the `x-master-key` header bypass entirely
-  - Remove `MASTER_KEY` from `.env`
-  - Comment in code says "jamais en prod" — it is currently active in prod config
+- [ ] **Supprimer le bypass MASTER_KEY**
+  - `backend/middleware/auth.js` — supprimer entièrement le bypass header `x-master-key`
+  - Retirer `MASTER_KEY` du `.env`
+  - Le commentaire dans le code dit "jamais en prod" — il est actuellement actif
 
-- [ ] **Remove hardcoded Stripe key from source code**
-  - `mobile/app/_layout.tsx` line 16 — Stripe publishable key is hardcoded in the file
-  - Move to `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` env var (already in `.env`, just not used in layout)
+- [ ] **Supprimer la clé Stripe hardcodée du code source**
+  - `mobile/app/_layout.tsx` ligne 16 — clé publishable Stripe codée en dur
+  - Utiliser `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` (déjà dans `.env`, pas encore utilisée dans le layout)
 
-- [ ] **Remove hardcoded ngrok URL from source code**
-  - `mobile/lib/api.ts` line 4 — fallback URL points to a personal ngrok tunnel
-  - Throw an error if `EXPO_PUBLIC_API_URL` is not set instead of silently falling back
+- [ ] **Supprimer l'URL ngrok hardcodée du code source**
+  - `mobile/lib/api.ts` ligne 4 — fallback URL pointe vers un tunnel ngrok personnel
+  - Lever une erreur si `EXPO_PUBLIC_API_URL` n'est pas défini au lieu de tomber silencieusement
 
-- [ ] **Harden JWT_SECRET fallback**
-  - `backend/routes/auth.js` and `backend/middleware/auth.js` both fall back to `"dev"` if `JWT_SECRET` is unset
-  - Replace with: `if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is required')`
+- [ ] **Sécuriser le fallback JWT_SECRET**
+  - `backend/routes/auth.js` et `backend/middleware/auth.js` tombent sur `"dev"` si `JWT_SECRET` absent
+  - Remplacer par : `if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is required')`
 
-- [ ] **Rotate all API keys** (they are committed to the repo)
-  - Google Maps API key
-  - Stripe test keys (both secret and publishable)
-  - Generate a new strong `JWT_SECRET` for production
+- [ ] **Rotation de toutes les clés API** (committées dans le dépôt)
+  - Clé Google Maps API
+  - Clés Stripe test (secret et publishable)
+  - Générer un nouveau `JWT_SECRET` fort pour la production
 
-- [ ] **Create `.env.example` files** (both `backend/` and `mobile/`) with placeholder values and no real secrets
+- [ ] **Créer les fichiers `.env.example`** (dans `backend/` et `mobile/`) avec des valeurs placeholder sans vrais secrets
 
-- [ ] **Assign user role on signup**
-  - `backend/routes/auth.js` — new users are created with no role, locking them out of all protected routes
-  - Look up the default CLIENT or PROVIDER role by name and attach it at registration time
-
----
-
-### 🟠 HIGH — Blocks a credible demo or beta
-
-- [ ] **Implement Profile editing**
-  - `mobile/app/(tabs)/profile.tsx` — all buttons call `wip()` placeholder
-  - Personal info, phone number, banking details, notification preferences all return "en développement"
-
-- [ ] **Wire up invoice/document download**
-  - `mobile/components/sheets/TicketDetailSheet.tsx` line 260 — `handleInvoice()` is a TODO
-  - Backend generates PDFs via pdfkit — connect the download URL to `Linking.openURL()`
-
-- [ ] **Implement in-app messaging**
-  - `mobile/app/request/[id]/missionview.tsx` line 649 — message send is a TODO
-  - Backend has a `Message` model in Prisma — API and socket layer need wiring
-
-- [ ] **Implement rating submission**
-  - `TicketDetailSheet.tsx` line 254 — `handleRate()` is a TODO comment
-  - `POST /api/requests/:id/rating` endpoint exists — call it
-
-- [ ] **Strip all `console.log` from production builds**
-  - 70+ instances across `lib/api.ts`, `SocketContext.tsx`, `AuthContext.tsx`
-  - Add a babel plugin (`babel-plugin-transform-remove-console`) or wrap in `if (__DEV__)`
-
-- [ ] **Add push notifications**
-  - Install `expo-notifications`, register device token on login
-  - Backend needs a `pushToken` field on User and a notify helper
-  - Key triggers: new request matched, provider accepted, mission completed
-
-- [ ] **Implement reorder flow**
-  - `TicketDetailSheet.tsx` line 265 — `handleReorder()` is a TODO
-  - Should pre-fill NewRequestStepper with previous category and description
+- [ ] **Assigner le rôle à l'inscription**
+  - `backend/routes/auth.js` — les nouveaux utilisateurs sont créés sans rôle, les bloquant sur toutes les routes protégées
+  - Récupérer le rôle CLIENT ou PROVIDER par son nom et l'attacher au moment de l'inscription
 
 ---
 
-### 🟡 MEDIUM — Required for App Store submission
+### Haute priorité — Bloque un demo ou bêta crédible
 
-- [ ] **Switch database from SQLite to PostgreSQL**
-  - `backend/prisma/schema.prisma` uses `provider = "sqlite"`
-  - SQLite has no concurrent write support — will fail under any real load
-  - Update schema to `provider = "postgresql"`, update `DATABASE_URL`
+- [ ] **Implémenter l'édition de profil**
+  - `mobile/app/(tabs)/profile.tsx` — tous les boutons appellent `wip()` placeholder
+  - Infos personnelles, téléphone, coordonnées bancaires, préférences notifs → tout renvoie "en développement"
 
-- [ ] **Complete EAS build configuration**
-  - `mobile/eas.json` is nearly empty — no production profile, no environment secrets
-  - Add `production` build profile with `autoIncrement: true` and EAS secrets for all env vars
-  - Configure `submit` profile for App Store Connect and Google Play
+- [ ] **Câbler le téléchargement de factures / documents**
+  - `mobile/components/sheets/TicketDetailSheet.tsx` ligne 260 — `handleInvoice()` est un TODO
+  - Le backend génère les PDF via pdfkit — connecter l'URL de téléchargement à `Linking.openURL()`
 
-- [ ] **Add rate limiting to auth routes**
-  - `backend/routes/auth.js` — login and signup have no brute-force protection
-  - Add `express-rate-limit` middleware on `POST /api/auth/login`
+- [ ] **Implémenter la messagerie in-app**
+  - `mobile/app/request/[id]/missionview.tsx` ligne 649 — envoi de message est un TODO
+  - Le backend a un modèle `Message` dans Prisma — l'API et la couche socket sont prêtes à être câblées
 
-- [ ] **Add error monitoring (Sentry)**
-  - Backend: `@sentry/node` on the Express error handler
-  - Mobile: `@sentry/react-native` in `app/_layout.tsx`
-  - Without this, production crashes are invisible
+- [ ] **Implémenter la soumission d'avis**
+  - `TicketDetailSheet.tsx` ligne 254 — `handleRate()` est un commentaire TODO
+  - L'endpoint `POST /api/requests/:id/rating` existe — l'appeler
 
-- [ ] **Add admin audit logs for provider actions**
-  - `backend/routes/admin.providers.js` lines 116, 138 — suspend/activate have TODO audit log comments
-  - `AdminActionLog` model already exists in Prisma — just write to it
+- [ ] **Supprimer tous les `console.log` des builds production**
+  - 70+ instances dans `lib/api.ts`, `SocketContext.tsx`, `AuthContext.tsx`
+  - Ajouter un plugin babel (`babel-plugin-transform-remove-console`) ou entourer de `if (__DEV__)`
 
-- [ ] **Strengthen password validation**
-  - `backend/routes/auth.js` uses `z.string().min(6)` — accepts "123456"
-  - Add regex: at least one uppercase, one number, one special character
+- [ ] **Ajouter les notifications push**
+  - Installer `expo-notifications`, enregistrer le token appareil à la connexion
+  - Le backend a besoin d'un champ `pushToken` sur User et d'un helper de notification
+  - Déclencheurs clés : demande matchée, prestataire accepté, mission terminée
 
-- [ ] **Fix optional schema fields that should be required**
-  - `Request.price` — can be null, will break payment flow
-  - `User.phone` — providers need a contact number
-  - `Provider.email` — add `@unique` constraint
+- [ ] **Implémenter le flux de re-commande**
+  - `TicketDetailSheet.tsx` ligne 265 — `handleReorder()` est un TODO
+  - Doit pré-remplir NewRequestStepper avec la catégorie et la description précédentes
 
 ---
 
-### 🟢 LOW — Post-launch polish
+### Moyenne priorité — Requis pour soumission App Store
 
-- [ ] **Write tests**
-  - `backend/tests/` directory exists but is empty
-  - Start with auth endpoints and the request creation + matching flow
-  - Use Jest + Supertest for the backend
+- [ ] **Passer la base de données de SQLite à PostgreSQL**
+  - `backend/prisma/schema.prisma` utilise `provider = "sqlite"`
+  - SQLite n'a pas de support d'écriture concurrente — échouera sous n'importe quelle charge réelle
+  - Mettre à jour le schéma vers `provider = "postgresql"`, mettre à jour `DATABASE_URL`
 
-- [ ] **Remove TypeScript `any` casts**
-  - 26+ instances across mobile screens
-  - Prevents catching bugs at compile time
+- [ ] **Compléter la configuration EAS build**
+  - `mobile/eas.json` est quasi vide — pas de profil production, pas de secrets d'environnement
+  - Ajouter un profil `production` avec `autoIncrement: true` et les secrets EAS pour toutes les vars d'env
+  - Configurer le profil `submit` pour App Store Connect et Google Play
 
-- [ ] **Add CI/CD pipeline**
-  - Create `.github/workflows/ci.yml`
-  - Run lint + tests on every PR
-  - Trigger EAS build on merge to `main`
+- [ ] **Ajouter le rate limiting sur les routes auth**
+  - `backend/routes/auth.js` — login et signup n'ont pas de protection brute-force
+  - Ajouter le middleware `express-rate-limit` sur `POST /api/auth/login`
 
-- [ ] **Add a Dockerfile for the backend**
-  - Needed for any cloud deployment (Railway, Render, Fly.io, AWS)
-  - Include `prisma migrate deploy` in the startup command
+- [ ] **Ajouter la surveillance d'erreurs (Sentry)**
+  - Backend : `@sentry/node` sur le gestionnaire d'erreurs Express
+  - Mobile : `@sentry/react-native` dans `app/_layout.tsx`
+  - Sans ça, les crashs en production sont invisibles
 
-- [ ] **Localization / i18n**
-  - `backend/i18n/` exists but mobile UI is hardcoded in French
-  - Decide: French-only MVP or add i18n from the start
+- [ ] **Ajouter les logs d'audit admin pour les actions prestataires**
+  - `backend/routes/admin.providers.js` lignes 116, 138 — suspend/activate ont des commentaires TODO audit log
+  - Le modèle `AdminActionLog` existe déjà dans Prisma — juste écrire dedans
+
+- [ ] **Renforcer la validation des mots de passe**
+  - `backend/routes/auth.js` utilise `z.string().min(6)` — accepte "123456"
+  - Ajouter regex : au moins une majuscule, un chiffre, un caractère spécial
+
+- [ ] **Corriger les champs optionnels qui devraient être requis**
+  - `Request.price` — peut être null, cassera le flux de paiement
+  - `User.phone` — les prestataires ont besoin d'un numéro de contact
+  - `Provider.email` — ajouter la contrainte `@unique`
 
 ---
 
-## Suggested Sprint Order
+### Basse priorité — Polissage post-lancement
+
+- [ ] **Écrire des tests**
+  - `backend/tests/` existe mais est vide
+  - Commencer par les endpoints auth et le flux de création + matching de demandes
+  - Utiliser Jest + Supertest pour le backend
+
+- [ ] **Supprimer les casts TypeScript `any`**
+  - 26+ instances dans les écrans mobile
+  - Empêche la détection de bugs à la compilation
+
+- [ ] **Ajouter un pipeline CI/CD**
+  - Créer `.github/workflows/ci.yml`
+  - Lancer lint + tests sur chaque PR
+  - Déclencher un build EAS sur merge vers `main`
+
+- [ ] **Ajouter un Dockerfile pour le backend**
+  - Nécessaire pour tout déploiement cloud (Railway, Render, Fly.io, AWS)
+  - Inclure `prisma migrate deploy` dans la commande de démarrage
+
+- [ ] **Localisation / i18n**
+  - `backend/i18n/` existe mais l'UI mobile est codée en dur en français
+  - Décider : MVP français uniquement ou ajouter i18n dès le départ
+
+---
+
+## Ordre des sprints suggéré
 
 ```
-Sprint 1 — Security & Auth (3–4 days)
-  Remove MASTER_KEY bypass
-  Fix JWT fallback
-  Assign roles on signup
-  Rotate and externalize all secrets
+Sprint 1 — Sécurité & Auth (3–4 jours)
+  Supprimer le bypass MASTER_KEY
+  Corriger le fallback JWT
+  Assigner les rôles à l'inscription
+  Rotation et externalisation de tous les secrets
 
-Sprint 2 — Complete Core UX (5–7 days)
-  Profile editing
-  Invoice download
-  Rating submission
-  In-app messaging (basic)
-  Strip console.logs
+Sprint 2 — Complétion UX (5–7 jours)
+  Édition de profil
+  Téléchargement factures
+  Soumission d'avis
+  Messagerie in-app (basique)
+  Supprimer les console.logs
 
-Sprint 3 — Production Infrastructure (3–5 days)
-  Migrate DB to PostgreSQL
-  Configure EAS production build
-  Add Sentry
-  Deploy backend to cloud host (Railway / Render)
+Sprint 3 — Infrastructure production (3–5 jours)
+  Migrer DB vers PostgreSQL
+  Configurer le build EAS production
+  Ajouter Sentry
+  Déployer le backend sur cloud (Railway / Render)
 
-Sprint 4 — Store Submission (3–4 days)
-  Complete app.json metadata
+Sprint 4 — Soumission stores (3–4 jours)
+  Compléter les métadonnées app.json
   EAS build + submit
-  App Store / Play Store listing
-  TestFlight / internal track testing
+  Listing App Store / Play Store
+  TestFlight / track interne
 
-Sprint 5 — Hardening (ongoing)
-  Add push notifications
-  Write tests
-  Add CI/CD
+Sprint 5 — Consolidation (continu)
+  Ajouter notifications push
+  Écrire des tests
+  Ajouter CI/CD
   Rate limiting
 ```
 
 ---
 
-## Quick Health Check
+## Vérification rapide
 
-Run this after every major change to verify the core flow still works:
+Exécuter après chaque changement majeur pour vérifier que le flux core fonctionne encore :
 
 ```bash
-# 1. Backend is alive
+# 1. Backend en vie
 curl http://localhost:3000/api/
 
-# 2. Auth works
+# 2. Auth fonctionnel
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@mosaic.com","password":"Mosaic@2025"}'
 
-# 3. Categories load (used by NewRequestStepper)
+# 3. Catégories chargées (utilisées par NewRequestStepper)
 curl http://localhost:3000/api/categories \
-  -H "Authorization: Bearer <token_from_step_2>"
+  -H "Authorization: Bearer <token_de_l_étape_2>"
 
-# 4. Providers list
+# 4. Liste des prestataires
 curl http://localhost:3000/api/providers \
-  -H "Authorization: Bearer <token_from_step_2>"
+  -H "Authorization: Bearer <token_de_l_étape_2>"
 ```
+
+
+

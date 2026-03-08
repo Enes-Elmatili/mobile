@@ -1,333 +1,381 @@
-import React, { useState, useRef, useEffect } from "react";
+// app/(auth)/login.tsx — FIXED Premium Auth
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  SafeAreaView,
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  Easing,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Animated, Dimensions, KeyboardAvoidingView, Platform,
+  Easing, StatusBar,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
-const { width, height } = Dimensions.get("window");
+const { height: SCREEN_H } = Dimensions.get("window");
 
-// ─── Composants partagés ──────────────────────────────────────────────────────
-function XShape({ size = 24, color = "#FFFFFF" }: { size?: number; color?: string }) {
-  const thickness = Math.round(size * 0.15);
-  const arm: any = {
-    position: "absolute",
-    width: size,
-    height: thickness,
-    backgroundColor: color,
-    borderRadius: thickness / 2,
-    top: (size - thickness) / 2,
-    left: 0,
-  };
-  return (
-    <View style={{ width: size, height: size }}>
-      <View style={[arm, { transform: [{ rotate: "45deg" }] }]} />
-      <View style={[arm, { transform: [{ rotate: "-45deg" }] }]} />
-    </View>
-  );
-}
+// ─── Toast ────────────────────────────────────────────────────────────────────
+type ToastType = "error" | "success" | "info";
+interface ToastMsg { id: number; type: ToastType; message: string }
 
-function XSpinner({ size = 24, color = "#FFFFFF" }: { size?: number; color?: string }) {
-  const spin = useRef(new Animated.Value(0)).current;
+function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
+  const ty = useRef(new Animated.Value(-72)).current;
+  const op = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 650, easing: Easing.linear, useNativeDriver: true })
-    );
-    anim.start();
-    return () => anim.stop();
+    Animated.parallel([
+      Animated.timing(ty, { toValue: 0,   duration: 320, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
+      Animated.timing(op, { toValue: 1,   duration: 280, useNativeDriver: true }),
+    ]).start();
+    const t = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(ty, { toValue: -72, duration: 260, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.timing(op, { toValue: 0,   duration: 200, useNativeDriver: true }),
+      ]).start(onDone);
+    }, 3200);
+    return () => clearTimeout(t);
   }, []);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const icon  = msg.type === "error" ? "✕" : msg.type === "success" ? "✓" : "●";
+  const color = msg.type === "error" ? "#FF453A" : msg.type === "success" ? "#34C759" : "#FFF";
   return (
-    <Animated.View style={{ transform: [{ rotate }] }}>
-      <XShape size={size} color={color} />
+    <Animated.View style={[toast.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
+      <Text style={[toast.icon, { color }]}>{icon}</Text>
+      <Text style={toast.text}>{msg.message}</Text>
     </Animated.View>
   );
 }
 
-// ─── Login ────────────────────────────────────────────────────────────────────
+const toast = StyleSheet.create({
+  layer: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 56 : 36,
+    left: 20, right: 20, zIndex: 9999, gap: 8,
+  },
+  pill: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, gap: 10,
+    ...Platform.select({
+      ios:     { shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 10 },
+    }),
+  },
+  icon: { fontSize: 13, fontWeight: "800" },
+  text: { fontSize: 14, color: "#FFF", fontWeight: "600", flex: 1 },
+});
+
+// ─── Spinner ──────────────────────────────────────────────────────────────────
+function Spinner({ color = "#0A0A0A" }: { color?: string }) {
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: 750, easing: Easing.linear, useNativeDriver: true })
+    );
+    a.start();
+    return () => a.stop();
+  }, []);
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  return (
+    <Animated.View style={{ transform: [{ rotate }] }}>
+      <View style={{
+        width: 20, height: 20, borderRadius: 10,
+        borderWidth: 2.5, borderColor: color, borderTopColor: "transparent",
+      }} />
+    </Animated.View>
+  );
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
 export default function Login() {
-  const router     = useRouter();
-  const navigation = useNavigation();
+  const router = useRouter();
   const { signIn, isBooting } = useAuth();
+  const { t } = useTranslation();
 
-  const [email,           setEmail]           = useState("");
-  const [password,        setPassword]        = useState("");
-  const [loading,         setLoading]         = useState(false);
-  const [showPassword,    setShowPassword]    = useState(false);
-  const [emailFocused,    setEmailFocused]    = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const [showPwd,  setShowPwd]  = useState(false);
+  const [focused,  setFocused]  = useState<"email" | "password" | null>(null);
+  const [msgs,     setMsgs]     = useState<ToastMsg[]>([]);
+  const counter = useRef(0);
 
-  const cardY  = useRef(new Animated.Value(40)).current;
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  const showToast = useCallback((message: string, type: ToastType = "error") => {
+    const id = ++counter.current;
+    setMsgs(p => [...p, { id, type, message }]);
+  }, []);
+
+  // Entrance animations — same easing as welcome page
+  const ease    = Easing.bezier(0.16, 1, 0.3, 1);
+  const lineS   = useRef(new Animated.Value(0)).current;
+  const titleOp = useRef(new Animated.Value(0)).current;
+  const titleTy = useRef(new Animated.Value(16)).current;
+  const formOp  = useRef(new Animated.Value(0)).current;
+  const formTy  = useRef(new Animated.Value(22)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.spring(cardY, { toValue: 0, tension: 70, friction: 11, useNativeDriver: true }),
-      Animated.timing(fadeIn, { toValue: 1, duration: 450, useNativeDriver: true }),
+    Animated.sequence([
+      Animated.timing(lineS,   { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+      Animated.delay(80),
+      Animated.parallel([
+        Animated.timing(titleOp, { toValue: 1, duration: 700, easing: ease, useNativeDriver: true }),
+        Animated.timing(titleTy, { toValue: 0, duration: 700, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.delay(100),
+      Animated.parallel([
+        Animated.timing(formOp, { toValue: 1, duration: 700, easing: ease, useNativeDriver: true }),
+        Animated.timing(formTy, { toValue: 0, duration: 700, easing: ease, useNativeDriver: true }),
+      ]),
     ]).start();
   }, []);
 
-  const handleBack = () => {
-    if (navigation.canGoBack()) router.back();
-    else router.replace("/(auth)/welcome");
-  };
-
-  const onLogin = async () => {
-    if (!email || !password) return Alert.alert("Erreur", "Remplissez tous les champs");
+  const onSubmit = async () => {
+    if (!email.trim() || !password) {
+      showToast(t('auth.fill_all_fields'));
+      return;
+    }
     setLoading(true);
     try {
-      const res   = await api.auth.login(email, password);
+      const res   = await api.auth.login(email.trim().toLowerCase(), password);
       const token = res?.token;
-      if (!token) throw new Error("Token manquant");
+      if (!token) throw new Error();
       await signIn(token);
     } catch {
-      Alert.alert("Erreur", "Email ou mot de passe incorrect");
+      showToast(t('auth.invalid_credentials'));
     } finally {
       setLoading(false);
     }
   };
 
-  if (isBooting) {
-    return (
-      <View style={styles.loadingContainer}>
-        <XSpinner size={36} color="#FFFFFF" />
-      </View>
-    );
-  }
+  if (isBooting) return (
+    <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+      <StatusBar barStyle="light-content" />
+      <Spinner color="#fff" />
+    </View>
+  );
 
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.safeArea}>
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-        {/* Header minimal */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.55)" />
-          </TouchableOpacity>
-          <View style={styles.brandMini}>
-            <XShape size={16} color="#FFFFFF" />
-            <Text style={styles.brandMiniText}>FIXED</Text>
-          </View>
-          <View style={{ width: 40 }} />
-        </View>
+      {/* Ambient glow — identique à la welcome page */}
+      <LinearGradient
+        colors={["rgba(255,255,255,0.04)", "transparent"]}
+        style={s.glow}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.8 }}
+      />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.kav}
+      {/* Toast layer */}
+      <View style={toast.layer} pointerEvents="none">
+        {msgs.map(m => (
+          <Toast key={m.id} msg={m} onDone={() => setMsgs(p => p.filter(x => x.id !== m.id))} />
+        ))}
+      </View>
+
+      {/* Header — même structure que welcome topBar */}
+      <View style={s.topBar}>
+        <TouchableOpacity
+          style={s.backBtn}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(auth)/welcome')}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel={t('common.back')}
+          accessibilityRole="button"
         >
-          {/* Conteneur centre — card flottante */}
-          <Animated.View
-            style={[styles.card, { opacity: fadeIn, transform: [{ translateY: cardY }] }]}
-          >
-            {/* Titre */}
-            <View style={styles.titleBlock}>
-              <Text style={styles.eyebrow}>BON RETOUR</Text>
-              <Text style={styles.title}>Connexion</Text>
-              <View style={styles.titleRule} />
+          <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.45)" />
+        </TouchableOpacity>
+        <Text style={s.topLogo}>FIXED</Text>
+        <View style={s.backBtn} />
+      </View>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <View style={s.body}>
+
+          {/* Bloc titre */}
+          <Animated.View style={[s.titleBlock, { opacity: titleOp, transform: [{ translateY: titleTy }] }]}>
+            <Animated.View style={[s.line, { transform: [{ scaleX: lineS }] }]} />
+            <Text style={s.eyebrow}>{t('auth.welcome_back')}</Text>
+            <Text style={s.title}>{t('auth.login')}</Text>
+          </Animated.View>
+
+          {/* Formulaire */}
+          <Animated.View style={[s.form, { opacity: formOp, transform: [{ translateY: formTy }] }]}>
+
+            {/* Email */}
+            <View style={s.field}>
+              <Text style={s.label}>{t('auth.email_label')}</Text>
+              <View style={[s.row, focused === "email" && s.rowActive]}>
+                <Ionicons
+                  name="mail-outline" size={16}
+                  color={focused === "email" ? "#fff" : "rgba(255,255,255,0.32)"}
+                  style={s.rowIcon}
+                />
+                <TextInput
+                  style={s.input}
+                  placeholder={t('auth.email_placeholder')}
+                  placeholderTextColor="rgba(255,255,255,0.18)"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  returnKeyType="next"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setFocused("email")}
+                  onBlur={() => setFocused(null)}
+                  accessibilityLabel={t('auth.email_label')}
+                />
+              </View>
             </View>
 
-            {/* Champs */}
-            <View style={styles.form}>
-              {/* Email */}
-              <View style={styles.field}>
-                <Text style={styles.label}>EMAIL</Text>
-                <View style={[styles.inputRow, emailFocused && styles.inputRowFocused]}>
+            {/* Mot de passe */}
+            <View style={s.field}>
+              <Text style={s.label}>{t('auth.password_label')}</Text>
+              <View style={[s.row, focused === "password" && s.rowActive]}>
+                <Ionicons
+                  name="lock-closed-outline" size={16}
+                  color={focused === "password" ? "#fff" : "rgba(255,255,255,0.32)"}
+                  style={s.rowIcon}
+                />
+                <TextInput
+                  style={s.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="rgba(255,255,255,0.18)"
+                  secureTextEntry={!showPwd}
+                  returnKeyType="done"
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={() => setFocused("password")}
+                  onBlur={() => setFocused(null)}
+                  onSubmitEditing={onSubmit}
+                  accessibilityLabel={t('auth.password_label')}
+                />
+                <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.eye} accessibilityLabel={showPwd ? t('auth.hide_password') : t('auth.show_password')} accessibilityRole="button">
                   <Ionicons
-                    name="mail-outline"
-                    size={17}
-                    color={emailFocused ? "#FFFFFF" : "rgba(255,255,255,0.45)"}
-                    style={styles.inputIcon}
+                    name={showPwd ? "eye-off-outline" : "eye-outline"}
+                    size={18}
+                    color="rgba(255,255,255,0.32)"
                   />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="votre@email.com"
-                    placeholderTextColor="rgba(255,255,255,0.22)"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    value={email}
-                    onChangeText={setEmail}
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
-                  />
-                </View>
+                </TouchableOpacity>
               </View>
-
-              {/* Mot de passe */}
-              <View style={styles.field}>
-                <Text style={styles.label}>MOT DE PASSE</Text>
-                <View style={[styles.inputRow, passwordFocused && styles.inputRowFocused]}>
-                  <Ionicons
-                    name="lock-closed-outline"
-                    size={17}
-                    color={passwordFocused ? "#FFFFFF" : "rgba(255,255,255,0.45)"}
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="••••••••"
-                    placeholderTextColor="rgba(255,255,255,0.22)"
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={setPassword}
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(false)}
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                    <Ionicons
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={18}
-                      color="rgba(255,255,255,0.4)"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <TouchableOpacity style={styles.forgotRow}>
-                <Text style={styles.forgotText}>Mot de passe oublie ?</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-                onPress={onLogin}
-                disabled={loading}
-                activeOpacity={0.88}
-              >
-                {loading
-                  ? <XSpinner size={22} color="#0A0A0A" />
-                  : <Text style={styles.submitBtnText}>Se connecter</Text>
-                }
-              </TouchableOpacity>
             </View>
+
+            <TouchableOpacity style={s.forgotRow} activeOpacity={0.6} accessibilityRole="button">
+              <Text style={s.forgotText}>{t('auth.forgot_password')}</Text>
+            </TouchableOpacity>
+
+            {/* CTA — même style que welcome page */}
+            <TouchableOpacity
+              style={[s.cta, loading && { opacity: 0.55 }]}
+              onPress={onSubmit}
+              disabled={loading}
+              activeOpacity={0.85}
+              accessibilityLabel={t('auth.login_btn')}
+              accessibilityRole="button"
+            >
+              {loading
+                ? <Spinner color="#0A0A0A" />
+                : <Text style={s.ctaText}>{t('auth.login_btn')}</Text>
+              }
+            </TouchableOpacity>
 
             {/* Footer */}
-            <View style={styles.footer}>
-              <View style={styles.footerRule} />
-              <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
-                <Text style={styles.footerText}>
-                  {"Pas encore de compte ?  "}
-                  <Text style={styles.footerLink}>{"Creer un compte"}</Text>
+            <View style={s.footer}>
+              <View style={s.rule} />
+              <TouchableOpacity onPress={() => router.push("/(auth)/signup")} activeOpacity={0.7} accessibilityRole="link">
+                <Text style={s.footerText}>
+                  {t('auth.no_account') + '  '}
+                  <Text style={s.footerLink}>{t('auth.signup_btn')}</Text>
                 </Text>
               </TouchableOpacity>
             </View>
+
           </Animated.View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
-// ─── Design tokens ─────────────────────────────────────────────────────────────
-const RADIUS   = 12;   // borderRadius uniforme partout
-const BTN_H    = 55;   // hauteur bouton uniforme
-const CARD_PAD = 28;
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#000" },
+  glow: {
+    position: "absolute", top: 0, left: 0, right: 0,
+    height: SCREEN_H * 0.45, zIndex: 0,
+  },
 
-const styles = StyleSheet.create({
-  root:             { flex: 1, backgroundColor: "#0A0A0A" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0A0A0A" },
-  safeArea:         { flex: 1 },
-
-  header: {
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 6,
+    paddingBottom: 8,
   },
-  backBtn:       { padding: 8, width: 40 },
-  brandMini:     { flexDirection: "row", alignItems: "center", gap: 8 },
-  brandMiniText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", letterSpacing: 5 },
-
-  kav: { flex: 1, justifyContent: "center" },
-
-  // Card centree — ne prend pas toute la largeur, max 420
-  card: {
-    alignSelf: "center",
-    width: "100%",
-    maxWidth: 420,
-    paddingHorizontal: CARD_PAD,
-    paddingVertical: 36,
+  backBtn: { width: 40 },
+  topLogo: {
+    fontSize: 17, fontWeight: "700",
+    letterSpacing: 4, color: "#fff",
   },
 
-  titleBlock: { marginBottom: 36 },
+  body: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+  },
+
+  titleBlock: { marginBottom: 40 },
+  line: {
+    width: 32, height: 1.5,
+    backgroundColor: "rgba(255,255,255,0.35)",
+    marginBottom: 22,
+  },
   eyebrow: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 4,
-    fontWeight: "700",
-    marginBottom: 10,
+    fontSize: 10, letterSpacing: 4, fontWeight: "600",
+    color: "rgba(255,255,255,0.38)", marginBottom: 10,
   },
   title: {
-    fontSize: 40,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -1.5,
-    fontFamily: "Georgia",
+    fontSize: 38, fontWeight: "800", color: "#fff",
+    letterSpacing: -1, lineHeight: 44,
   },
-  titleRule: { width: 32, height: 2, backgroundColor: "#FFFFFF", marginTop: 14 },
 
-  form:  { gap: 0 },
+  form:  {},
   field: { marginBottom: 20 },
   label: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.5)",   // contraste ameliore
-    letterSpacing: 3,
-    fontWeight: "700",
-    marginBottom: 9,
+    fontSize: 10, letterSpacing: 3, fontWeight: "600",
+    color: "rgba(255,255,255,0.4)", marginBottom: 8,
   },
-
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: RADIUS,             // uniforme
-    paddingRight: 14,
-    height: 52,
+  row: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14, height: 54,
   },
-  inputRowFocused: {
-    borderColor: "rgba(255,255,255,0.4)",
-    backgroundColor: "rgba(255,255,255,0.1)",
+  rowActive: {
+    borderColor: "rgba(255,255,255,0.32)",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  inputIcon: { marginLeft: 16 },
+  rowIcon: { marginLeft: 16 },
   input: {
-    flex: 1,
-    paddingHorizontal: 11,
-    fontSize: 15,
-    color: "#FFFFFF",
+    flex: 1, paddingHorizontal: 12,
+    fontSize: 15, color: "#fff",
   },
-  eyeBtn: { padding: 6 },
+  eye: { paddingHorizontal: 14 },
 
-  forgotRow:  { alignSelf: "flex-end", marginTop: -8, marginBottom: 26 },
-  forgotText: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "500" },
+  forgotRow: { alignSelf: "flex-end", marginTop: -4, marginBottom: 26 },
+  forgotText: { fontSize: 13, color: "rgba(255,255,255,0.38)", fontWeight: "500" },
 
-  submitBtn: {
-    backgroundColor: "#FFFFFF",
-    height: BTN_H,
-    borderRadius: RADIUS,
-    alignItems: "center",
-    justifyContent: "center",
+  cta: {
+    height: 56, borderRadius: 16,
+    backgroundColor: "#fff",
+    alignItems: "center", justifyContent: "center",
   },
-  submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: "#0A0A0A", fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
+  ctaText: { fontSize: 16, fontWeight: "700", color: "#000", letterSpacing: 0.3 },
 
-  footer:     { marginTop: 28, alignItems: "center", gap: 16 },
-  footerRule: { width: 28, height: 1, backgroundColor: "rgba(255,255,255,0.1)" },
-  footerText: { color: "rgba(255,255,255,0.32)", fontSize: 14 },
-  footerLink: { color: "#FFFFFF", fontWeight: "600" },
+  footer:     { marginTop: 28, alignItems: "center", gap: 14 },
+  rule:       { width: 28, height: 1, backgroundColor: "rgba(255,255,255,0.08)" },
+  footerText: { color: "rgba(255,255,255,0.3)", fontSize: 14 },
+  footerLink: { color: "#fff", fontWeight: "600" },
 });

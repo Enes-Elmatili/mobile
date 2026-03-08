@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  useColorScheme,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,32 @@ import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
+// ─── Grayscale map style (light) ─────────────────────────────────────────────
+const MAP_STYLE_LIGHT = [
+  { elementType: 'geometry',           stylers: [{ color: '#f0f0f0' }] },
+  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#9e9e9e' }] },
+  { featureType: 'poi',     elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
+  { featureType: 'road',    elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d6d6d6' }] },
+  { featureType: 'water',   elementType: 'geometry', stylers: [{ color: '#d0d0d0' }] },
+];
+
+// ─── Dark map style (monochrome branded — no blue) ───────────────────────────
+const MAP_STYLE_DARK = [
+  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
+  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
+  { featureType: 'poi',           stylers: [{ visibility: 'off' }] },
+  { featureType: 'road',          elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
+  { featureType: 'road.highway',  elementType: 'geometry', stylers: [{ color: '#333333' }] },
+  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
+  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
+  { featureType: 'water',         elementType: 'geometry', stylers: [{ color: '#111111' }] },
+  { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
+];
 
 // ============================================================================
 // UTILS
@@ -58,13 +85,20 @@ const TRACKABLE_STATUSES = ['ACCEPTED', 'ONGOING'];
 export default function RequestTracking() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { socket } = useSocket();
+  const { socket, joinRoom, leaveRoom } = useSocket();
+  const colorScheme = useColorScheme();
+  const mapStyle = colorScheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
 
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [eta, setEta] = useState('Calcul en cours...');
+
+  // ── PIN state ──────────────────────────────────────────────────────────────
+  const [pinCode, setPinCode] = useState<string | null>(null);
+  const [pinVerified, setPinVerified] = useState(false);
+  const [providerArrived, setProviderArrived] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -145,6 +179,20 @@ export default function RequestTracking() {
 
       setRequest(requestData);
 
+      // Restore photo/PIN state from server data
+      if (requestData.beforePhotoUrl) setProviderArrived(true);
+      if (requestData.pinVerified) setPinVerified(true);
+
+      // Fetch PIN code for this request
+      if (status === 'ACCEPTED' || status === 'ONGOING') {
+        try {
+          const pinResponse = await api.get(`/requests/${id}/pin`);
+          const pinData = pinResponse.data || pinResponse;
+          if (pinData?.pinCode) setPinCode(pinData.pinCode);
+          if (pinData?.pinVerified) setPinVerified(true);
+        } catch { /* PIN not yet generated or not authorized */ }
+      }
+
       if (requestData.provider?.lat && requestData.provider?.lng) {
         setProviderLocation({
           latitude: requestData.provider.lat,
@@ -160,7 +208,7 @@ export default function RequestTracking() {
           );
         }
       } else {
-        setEta('En attente de localisation...');
+        setEta('< 30 min');
       }
     } catch (error) {
       console.error('❌ [TRACKING] Error loading request:', error);
@@ -190,8 +238,7 @@ export default function RequestTracking() {
   useEffect(() => {
     if (!socket || !id) return;
 
-    socket.emit('join:request', { requestId: id });
-    console.log('🔌 [TRACKING] Joined room for request:', id);
+    joinRoom('request', id);
 
     const handleLocationUpdate = async (data: any) => {
       if (String(data.requestId) !== String(id)) return;
@@ -251,19 +298,45 @@ export default function RequestTracking() {
       }
     };
 
+    // ── Mission verification events ──────────────────────────────────────────
+    const handlePinReady = (data: any) => {
+      if (String(data.requestId) === String(id) && data.pinCode) {
+        setPinCode(data.pinCode);
+      }
+    };
+
+    const handleBeforePhoto = (data: any) => {
+      if (String(data.requestId) === String(id)) {
+        setProviderArrived(true);
+        Alert.alert('Prestataire arrive', 'Votre prestataire est sur place. Communiquez-lui le code PIN affiche ci-dessous.');
+      }
+    };
+
+    const handlePinVerified = (data: any) => {
+      if (String(data.requestId) === String(id)) {
+        setPinVerified(true);
+      }
+    };
+
     socket.on('provider:location_update', handleLocationUpdate);
     socket.on('request:started', handleRequestStarted);
     socket.on('request:completed', handleRequestCompleted);
     socket.on('request:cancelled', handleRequestCancelled);
+    socket.on('mission:pin_ready', handlePinReady);
+    socket.on('mission:before_photo', handleBeforePhoto);
+    socket.on('mission:pin_verified', handlePinVerified);
 
     return () => {
-      socket.emit('leave:request', { requestId: id });
+      leaveRoom('request', id);
       socket.off('provider:location_update', handleLocationUpdate);
       socket.off('request:started', handleRequestStarted);
       socket.off('request:completed', handleRequestCompleted);
       socket.off('request:cancelled', handleRequestCancelled);
+      socket.off('mission:pin_ready', handlePinReady);
+      socket.off('mission:before_photo', handleBeforePhoto);
+      socket.off('mission:pin_verified', handlePinVerified);
     };
-  }, [socket, id, fetchETAFromGoogle, router]);
+  }, [socket, id, fetchETAFromGoogle, router, joinRoom, leaveRoom]);
 
   // ============================================================================
   // ANIMATIONS
@@ -360,6 +433,7 @@ export default function RequestTracking() {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
+        customMapStyle={mapStyle}
         initialRegion={{
           ...clientLocation,
           latitudeDelta: 0.02,
@@ -368,7 +442,7 @@ export default function RequestTracking() {
         showsUserLocation
       >
         {/* Client location */}
-        <Marker coordinate={clientLocation} title="Votre position" pinColor="#4CAF50" />
+        <Marker coordinate={clientLocation} title="Votre position" pinColor="#1A1A1A" />
 
         {/* Provider location */}
         {providerLocation && (
@@ -394,7 +468,7 @@ export default function RequestTracking() {
           </Text>
           <Text style={styles.etaTime}>{eta}</Text>
           {!providerLocation && (
-            <Text style={styles.etaSubLabel}>En attente de la position du prestataire...</Text>
+            <Text style={styles.etaSubLabel}>Temps estimé : {'< 30 min'}</Text>
           )}
         </View>
 
@@ -423,6 +497,40 @@ export default function RequestTracking() {
           <Text style={styles.missionPrice}>{formatEuros(request?.price || 0)}</Text>
         </View>
 
+        {/* ── PIN Card — shown when provider has arrived ───────────────── */}
+        {status === 'ACCEPTED' && pinCode && providerArrived && !pinVerified && (
+          <View style={styles.pinCard}>
+            <View style={styles.pinCardHeader}>
+              <Ionicons name="key" size={20} color="#111" />
+              <Text style={styles.pinCardTitle}>Code PIN de verification</Text>
+            </View>
+            <Text style={styles.pinCardSubtitle}>Communiquez ce code a votre prestataire</Text>
+            <View style={styles.pinDigitsRow}>
+              {pinCode.split('').map((digit, i) => (
+                <View key={i} style={styles.pinDigitBox}>
+                  <Text style={styles.pinDigitText}>{digit}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* PIN verified banner */}
+        {status === 'ACCEPTED' && pinVerified && (
+          <View style={styles.verifiedBanner}>
+            <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+            <Text style={styles.verifiedBannerText}>Code PIN verifie — la mission va demarrer</Text>
+          </View>
+        )}
+
+        {/* PIN card for non-arrived provider */}
+        {status === 'ACCEPTED' && pinCode && !providerArrived && !pinVerified && (
+          <View style={styles.pinCardPending}>
+            <Ionicons name="time-outline" size={18} color="#888" />
+            <Text style={styles.pinCardPendingText}>Le prestataire est en route. Le code PIN s'affichera a son arrivee.</Text>
+          </View>
+        )}
+
         {/* Actions — annulation seulement si ACCEPTED (pas ONGOING) */}
         {status === 'ACCEPTED' && (
           <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRequest}>
@@ -432,7 +540,7 @@ export default function RequestTracking() {
 
         {status === 'ONGOING' && (
           <View style={styles.ongoingBanner}>
-            <Ionicons name="time-outline" size={16} color="#1D4ED8" />
+            <Ionicons name="checkmark-circle" size={16} color="#1A1A1A" />
             <Text style={styles.ongoingBannerText}>Mission en cours — le prestataire est sur place</Text>
           </View>
         )}
@@ -515,7 +623,7 @@ const styles = StyleSheet.create({
   providerRating: { fontSize: 14, color: '#666' },
   callButton: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center', alignItems: 'center',
   },
   missionDetails: { marginBottom: 20 },
@@ -531,8 +639,38 @@ const styles = StyleSheet.create({
   cancelButtonText: { fontSize: 16, fontWeight: '700', color: '#DC2626' },
   ongoingBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#DBEAFE', borderRadius: 14,
+    backgroundColor: '#F4F4F4', borderRadius: 14,
     paddingHorizontal: 16, paddingVertical: 12,
   },
-  ongoingBannerText: { fontSize: 13, fontWeight: '600', color: '#1D4ED8', flex: 1 },
+  ongoingBannerText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', flex: 1 },
+
+  // ── PIN card ──
+  pinCard: {
+    backgroundColor: '#F8FAFC', borderRadius: 16, padding: 20,
+    marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  pinCardHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
+  },
+  pinCardTitle: { fontSize: 16, fontWeight: '700', color: '#111' },
+  pinCardSubtitle: { fontSize: 13, color: '#888', marginBottom: 16 },
+  pinDigitsRow: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
+  pinDigitBox: {
+    width: 56, height: 64, borderRadius: 14,
+    backgroundColor: '#FFF', borderWidth: 2, borderColor: '#1A1A1A',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  pinDigitText: { fontSize: 28, fontWeight: '900', color: '#000' },
+  verifiedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F0FDF4', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
+  },
+  verifiedBannerText: { fontSize: 13, fontWeight: '600', color: '#15803D', flex: 1 },
+  pinCardPending: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F8FAFC', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
+  },
+  pinCardPendingText: { fontSize: 13, color: '#888', flex: 1 },
 });

@@ -18,6 +18,7 @@ import {
   Dimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 
 const SHEET_HEIGHT      = 360;
 const COUNTDOWN_SECONDS = 25;
@@ -56,6 +57,7 @@ function getServiceIcon(service?: string): string {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
+  const { t } = useTranslation();
   const translateY    = useRef(new Animated.Value(SHEET_HEIGHT + 60)).current;
   const backdropAnim  = useRef(new Animated.Value(0)).current;
   const progressAnim  = useRef(new Animated.Value(1)).current;
@@ -237,9 +239,9 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
             <Text style={styles.iconEmoji}>{icon}</Text>
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.overline}>NOUVELLE MISSION</Text>
+            <Text style={styles.overline}>{t('mission_sheet.new_mission')}</Text>
             <Text style={styles.serviceTitle} numberOfLines={1}>
-              {request?.service ?? 'Service'}
+              {request?.service ?? t('common.service')}
             </Text>
           </View>
           <View style={[styles.countdownBubble, { borderColor: urgencyColor }]}>
@@ -254,7 +256,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
         {/* Détails mission */}
         <View style={styles.details}>
           {request?.address    && <DetailRow emoji="📍" value={request.address} />}
-          {request?.distance   && <DetailRow emoji="🛣"  value={`${request.distance} de vous`} />}
+          {request?.distance   && <DetailRow emoji="🛣"  value={`${request.distance} ${t('mission_sheet.from_you')}`} />}
           {request?.scheduledAt && <DetailRow emoji="🕐" value={request.scheduledAt} />}
           {request?.clientName && <DetailRow emoji="👤" value={request.clientName} />}
         </View>
@@ -262,20 +264,20 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
         {/* Prix estimé */}
         {request?.estimatedPrice != null && (
           <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Gain estimé</Text>
+            <Text style={styles.priceLabel}>{t('mission_sheet.estimated_earning')}</Text>
             <Text style={styles.priceValue}>{request.estimatedPrice} €</Text>
           </View>
         )}
 
         {/* Actions */}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} activeOpacity={0.7}>
-            <Text style={styles.declineTxt}>Passer</Text>
+          <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} activeOpacity={0.7} accessibilityLabel={t('mission_sheet.decline')} accessibilityRole="button">
+            <Text style={styles.declineTxt}>{t('mission_sheet.decline')}</Text>
           </TouchableOpacity>
 
           <Animated.View style={[styles.acceptWrap, { transform: [{ scale: pulseAnim }] }]}>
-            <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} activeOpacity={0.85}>
-              <Text style={styles.acceptTxt}>Accepter</Text>
+            <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} activeOpacity={0.85} accessibilityLabel={t('mission_sheet.accept')} accessibilityRole="button">
+              <Text style={styles.acceptTxt}>{t('mission_sheet.accept')}</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>

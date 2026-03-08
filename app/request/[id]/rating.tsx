@@ -19,36 +19,39 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { useOfflineAction } from '@/hooks/useOfflineAction';
+import { showSocketToast } from '@/lib/SocketContext';
 
 // ============================================================================
 // CHIPS COMPLIMENTS
 // ============================================================================
 
-const COMPLIMENTS = [
-  { id: 'quality', icon: '✨', label: 'Top qualité' },
-  { id: 'polite', icon: '😊', label: 'Super poli' },
-  { id: 'fast', icon: '⚡', label: 'Rapide' },
-  { id: 'material', icon: '🔧', label: 'Bon matos' },
-  { id: 'punctual', icon: '⏰', label: 'Ponctuel' },
-  { id: 'clean', icon: '🧹', label: 'Chantier propre' },
-  { id: 'pro', icon: '🎯', label: 'Très pro' },
-  { id: 'recommend', icon: '💬', label: 'Je recommande' },
+const getCompliments = (t: (key: string) => string) => [
+  { id: 'quality', icon: '✨', label: t('rating.compliment_quality') },
+  { id: 'polite', icon: '😊', label: t('rating.compliment_polite') },
+  { id: 'fast', icon: '⚡', label: t('rating.compliment_fast') },
+  { id: 'material', icon: '🔧', label: t('rating.compliment_material') },
+  { id: 'punctual', icon: '⏰', label: t('rating.compliment_punctual') },
+  { id: 'clean', icon: '🧹', label: t('rating.compliment_clean') },
+  { id: 'pro', icon: '🎯', label: t('rating.compliment_pro') },
+  { id: 'recommend', icon: '💬', label: t('rating.compliment_recommend') },
 ];
 
-const RATING_LABELS: Record<number, string> = {
-  1: 'Très mauvais',
-  2: 'Mauvais',
-  3: 'Correct',
-  4: 'Bien',
-  5: 'Excellent',
-};
+const getRatingLabels = (t: (key: string) => string): Record<number, string> => ({
+  1: t('rating.rating_1'),
+  2: t('rating.rating_2'),
+  3: t('rating.rating_3'),
+  4: t('rating.rating_4'),
+  5: t('rating.rating_5'),
+});
 
 // ============================================================================
 // STAR — animée au tap
 // ============================================================================
 
-function Star({ filled, onPress }: { filled: boolean; onPress: () => void }) {
+function Star({ filled, onPress, accessibilityLabel }: { filled: boolean; onPress: () => void; accessibilityLabel?: string }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
@@ -60,12 +63,12 @@ function Star({ filled, onPress }: { filled: boolean; onPress: () => void }) {
   };
 
   return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={1}>
+    <TouchableOpacity onPress={handlePress} activeOpacity={1} accessibilityLabel={accessibilityLabel} accessibilityRole="button">
       <Animated.View style={{ transform: [{ scale }] }}>
         <Ionicons
           name={filled ? 'star' : 'star-outline'}
           size={44}
-          color={filled ? '#FFB800' : '#CACBCE'}
+          color={filled ? '#FFB800' : '#B0B0B0'}
         />
       </Animated.View>
     </TouchableOpacity>
@@ -81,7 +84,7 @@ function ComplimentChip({
   selected,
   onPress,
 }: {
-  chip: typeof COMPLIMENTS[0];
+  chip: { id: string; icon: string; label: string };
   selected: boolean;
   onPress: () => void;
 }) {
@@ -101,6 +104,8 @@ function ComplimentChip({
         style={[cc.chip, selected && cc.chipSelected]}
         onPress={handlePress}
         activeOpacity={1}
+        accessibilityLabel={chip.label}
+        accessibilityRole="button"
       >
         <Text style={cc.emoji}>{chip.icon}</Text>
         <Text style={[cc.label, selected && cc.labelSelected]}>{chip.label}</Text>
@@ -130,6 +135,10 @@ const cc = StyleSheet.create({
 export default function RatingScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { t } = useTranslation();
+
+  const compliments = getCompliments(t);
+  const ratingLabels = getRatingLabels(t);
 
   const [rating, setRating] = useState(0);
   const [selectedCompliments, setSelectedCompliments] = useState<string[]>([]);
@@ -138,6 +147,15 @@ export default function RatingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const { execute: submitRatingOffline } = useOfflineAction('SUBMIT_RATING', {
+    onQueued: () => {
+      showSocketToast(t('offline.ratingQueued'), 'info');
+      router.replace('/(tabs)/dashboard');
+    },
+    onSuccess: () => router.replace('/(tabs)/dashboard'),
+    onError: (err) => Alert.alert(t('common.error'), err.message || t('rating.submit_error')),
+  });
 
   const slideUp = useRef(new Animated.Value(30)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -177,31 +195,32 @@ export default function RatingScreen() {
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      Alert.alert('Note requise', 'Donnez au moins une étoile');
+      Alert.alert(t('rating.rating_required_title'), t('rating.rating_required_msg'));
       return;
     }
     if (!request?.providerId) {
-      Alert.alert('Erreur', 'Prestataire introuvable');
+      Alert.alert(t('common.error'), t('rating.provider_not_found'));
       return;
     }
 
+    setSubmitting(true);
+    const complimentLabels = compliments
+      .filter(c => selectedCompliments.includes(c.id))
+      .map(c => c.label)
+      .join(', ');
+
+    const payload = {
+      providerId: request.providerId,
+      requestId: Number(id),
+      rating,
+      comment: [complimentLabels, comment].filter(Boolean).join(' — '),
+    };
+
     try {
-      setSubmitting(true);
-      const complimentLabels = COMPLIMENTS
-        .filter(c => selectedCompliments.includes(c.id))
-        .map(c => c.label)
-        .join(', ');
-
-      await api.post('/ratings', {
-        providerId: request.providerId,
-        requestId: Number(id),
-        rating,
-        comment: [complimentLabels, comment].filter(Boolean).join(' — '),
-      });
-
-      router.replace('/(tabs)/dashboard');
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible d\'envoyer l\'évaluation');
+      await submitRatingOffline(
+        () => api.post('/ratings', payload),
+        payload as Record<string, unknown>,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -231,8 +250,8 @@ export default function RatingScreen() {
           <View style={s.closeBtn}>
             <Ionicons name="close" size={20} color="#D0D1D6" />
           </View>
-          <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={s.skipBtn}>
-            <Text style={s.skipText}>Passer</Text>
+          <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={s.skipBtn} accessibilityRole="button">
+            <Text style={s.skipText}>{t('rating.skip')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -244,7 +263,7 @@ export default function RatingScreen() {
               {providerName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
             </Text>
           </View>
-          <Text style={s.providerLabel}>Votre mission avec</Text>
+          <Text style={s.providerLabel}>{t('rating.your_mission_with')}</Text>
           <Text style={s.providerName}>{providerName}</Text>
           {request?.serviceType && (
             <View style={s.serviceTag}>
@@ -257,20 +276,20 @@ export default function RatingScreen() {
         <View style={s.starsBlock}>
           <View style={s.stars}>
             {[1, 2, 3, 4, 5].map(star => (
-              <Star key={star} filled={rating >= star} onPress={() => setRating(star)} />
+              <Star key={star} filled={rating >= star} onPress={() => setRating(star)} accessibilityLabel={`${star}/5`} />
             ))}
           </View>
           {rating > 0 && (
-            <Text style={s.ratingLabel}>{RATING_LABELS[rating]}</Text>
+            <Text style={s.ratingLabel}>{ratingLabels[rating]}</Text>
           )}
         </View>
 
         {/* ── Chips compliments — apparaissent dès qu'une étoile est choisie ── */}
         {rating >= 4 && (
           <Animated.View style={[s.section, { opacity: fadeAnim }]}>
-            <Text style={s.sectionTitle}>Ce qui vous a plu ?</Text>
+            <Text style={s.sectionTitle}>{t('rating.what_you_liked')}</Text>
             <View style={s.chipsWrap}>
-              {COMPLIMENTS.map(chip => (
+              {compliments.map(chip => (
                 <ComplimentChip
                   key={chip.id}
                   chip={chip}
@@ -284,13 +303,13 @@ export default function RatingScreen() {
 
         {rating > 0 && rating < 4 && (
           <Animated.View style={[s.section, { opacity: fadeAnim }]}>
-            <Text style={s.sectionTitle}>Ce qui n'a pas fonctionné ?</Text>
+            <Text style={s.sectionTitle}>{t('rating.what_went_wrong')}</Text>
             <View style={s.chipsWrap}>
               {[
-                { id: 'late', icon: '⏰', label: 'En retard' },
-                { id: 'quality', icon: '⚠️', label: 'Mauvaise qualité' },
-                { id: 'rude', icon: '😞', label: 'Peu aimable' },
-                { id: 'messy', icon: '🗑️', label: 'Chantier sale' },
+                { id: 'late', icon: '⏰', label: t('rating.negative_late') },
+                { id: 'quality', icon: '⚠️', label: t('rating.negative_quality') },
+                { id: 'rude', icon: '😞', label: t('rating.negative_rude') },
+                { id: 'messy', icon: '🗑️', label: t('rating.negative_messy') },
               ].map(chip => (
                 <ComplimentChip
                   key={chip.id}
@@ -310,14 +329,15 @@ export default function RatingScreen() {
               style={s.noteToggle}
               onPress={() => setNoteOpen(p => !p)}
               activeOpacity={0.7}
+              accessibilityRole="button"
             >
               <Ionicons name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#888" />
-              <Text style={s.noteToggleText}>Ajouter un commentaire</Text>
+              <Text style={s.noteToggleText}>{t('rating.add_comment')}</Text>
             </TouchableOpacity>
             {noteOpen && (
               <TextInput
                 style={s.noteInput}
-                placeholder="Décrivez votre expérience..."
+                placeholder={t('rating.describe_experience')}
                 placeholderTextColor="#ADADAD"
                 value={comment}
                 onChangeText={setComment}
@@ -325,6 +345,7 @@ export default function RatingScreen() {
                 numberOfLines={3}
                 textAlignVertical="top"
                 autoFocus
+                accessibilityLabel={t('rating.add_comment')}
               />
             )}
           </View>
@@ -340,13 +361,15 @@ export default function RatingScreen() {
           onPress={handleSubmit}
           disabled={rating === 0 || submitting}
           activeOpacity={0.88}
+          accessibilityRole="button"
+          accessibilityLabel={rating === 0 ? t('rating.rate_first') : t('rating.submit_review')}
         >
           {submitting ? (
             <ActivityIndicator color="#FFF" />
           ) : (
             <>
               <Text style={s.submitBtnText}>
-                {rating === 0 ? 'Donnez une note d\'abord' : 'Envoyer l\'évaluation'}
+                {rating === 0 ? t('rating.rate_first') : t('rating.submit_review')}
               </Text>
               {rating > 0 && <Ionicons name="arrow-forward" size={18} color="#FFF" />}
             </>

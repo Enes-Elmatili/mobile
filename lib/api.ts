@@ -1,9 +1,10 @@
-import Constants from 'expo-constants';
 import { tokenStorage } from './storage';
+import { devLog, devWarn } from './logger';
 
-const API_BASE_URL = 'https://radiosymmetrical-jeniffer-acquisitively.ngrok-free.dev/api';
-
-console.log('🌐 API_BASE_URL:', API_BASE_URL);
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+if (!API_BASE_URL) {
+  throw new Error('EXPO_PUBLIC_API_URL environment variable is required');
+}
 
 export interface ApiResponse<T = any> {
   ok?: boolean;
@@ -22,7 +23,7 @@ class ApiClient {
   private baseURL: string;
   private isRefreshing: boolean = false;
   private refreshPromise: Promise<string | null> | null = null;
-  private pendingRequests: (() => void)[] = [];
+  private pendingRequests: ((token: string | null) => void)[] = [];
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
@@ -32,11 +33,11 @@ class ApiClient {
     const token = await tokenStorage.getToken();
     
     if (__DEV__) {
-      console.log('🔐 Token status:', token ? `Present (${token.slice(0, 10)}...)` : '❌ NULL');
+      devLog('🔐 Token status:', token ? `Present (${token.slice(0, 10)}...)` : '❌ NULL');
     }
     
     if (!token) {
-      console.warn('⚠️ API Request sent WITHOUT Token!');
+      devWarn('⚠️ API Request sent WITHOUT Token!');
     }
 
     return {
@@ -50,21 +51,22 @@ class ApiClient {
   private async refreshAccessToken(): Promise<string | null> {
     if (this.isRefreshing) {
       return new Promise((resolve) => {
-        this.pendingRequests.push(() => resolve(tokenStorage.getCachedToken()));
+        this.pendingRequests.push((newToken: string | null) => resolve(newToken));
       });
     }
 
     this.isRefreshing = true;
-    
+    let newToken: string | null = null;
+
     try {
       const currentToken = await tokenStorage.getToken();
       if (!currentToken) {
-        console.log('❌ No token available for refresh');
+        devLog('❌ No token available for refresh');
         return null;
       }
 
-      console.log('🔄 Refreshing access token...');
-      
+      devLog('🔄 Refreshing access token...');
+
       const response = await fetch(`${this.baseURL}/auth/refresh`, {
         method: 'POST',
         headers: {
@@ -76,26 +78,27 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.log('❌ Refresh failed:', errorData.error || response.status);
+        devLog('❌ Refresh failed:', errorData.error || response.status);
         return null;
       }
 
       const data = await response.json();
-      
+
       if (!data.token) {
-        console.log('❌ No token in refresh response');
+        devLog('❌ No token in refresh response');
         return null;
       }
-      
+
       await tokenStorage.setToken(data.token);
-      console.log('✅ Token refreshed successfully');
-      return data.token;
+      newToken = data.token;
+      devLog('✅ Token refreshed successfully');
+      return newToken;
     } catch (error) {
       console.error('❌ Token refresh error:', error);
       return null;
     } finally {
       this.isRefreshing = false;
-      this.pendingRequests.forEach(cb => cb());
+      this.pendingRequests.forEach(cb => cb(newToken));
       this.pendingRequests = [];
     }
   }
@@ -113,7 +116,7 @@ class ApiClient {
       config.body = JSON.stringify(options.body);
     }
 
-    console.log(`📡 API ${config.method} ${url}`);
+    devLog(`📡 API ${config.method} ${url}`);
 
     try {
       const response = await fetch(url, config);
@@ -153,13 +156,13 @@ class ApiClient {
 
       // ── 401 → refresh token puis retry ───────────────────────────────────
       if (response.status === 401 && retryCount === 0) {
-        console.log('🔐 Got 401, attempting token refresh...');
+        devLog('🔐 Got 401, attempting token refresh...');
         const newToken = await this.refreshAccessToken();
         if (newToken) {
-          console.log('🔄 Retrying request with new token...');
+          devLog('🔄 Retrying request with new token...');
           return this.request(endpoint, options, retryCount + 1);
         } else {
-          console.log('❌ Token refresh failed, clearing session...');
+          devLog('❌ Token refresh failed, clearing session...');
           await tokenStorage.removeToken();
         }
       }
@@ -180,7 +183,7 @@ class ApiClient {
         throw error;
       }
 
-      console.log(`✅ API SUCCESS ${config.method} ${endpoint}`);
+      devLog(`✅ API SUCCESS ${config.method} ${endpoint}`);
       return data;
     } catch (error: any) {
       // Ne pas re-logger les erreurs déjà construites avec un status connu
@@ -217,8 +220,8 @@ class ApiClient {
       }
       return result;
     },
-    signup: async (email: string, password: string, name?: string) => {
-      const result = await this.post('/auth/signup', { email, password, name });
+    signup: async (email: string, password: string, name?: string, extra?: { role?: string; phone?: string; firstName?: string; lastName?: string }) => {
+      const result = await this.post('/auth/signup', { email, password, name, ...extra });
       if (result.token) {
         await tokenStorage.setToken(result.token);
       }
@@ -240,6 +243,8 @@ class ApiClient {
     get: (id: string) => this.request(`/users/${id}`),
     list: () => this.request('/users'),
     update: (id: string, data: any) => this.put(`/users/${id}`, data),
+    updateProfile: (data: { name?: string; phone?: string; city?: string }) =>
+      this.patch('/me', data),
   };
 
   // ==================== REQUESTS (CLIENT + PROVIDER) ====================
@@ -277,15 +282,79 @@ class ApiClient {
     get: (id: string) => this.request(`/providers/${id}`),
     nearby: (lat: number, lng: number, radius = 5000) =>
       this.request(`/providers/nearby?lat=${lat}&lng=${lng}&radius=${radius}`),
+    available: (params: { lat: number; lng: number; radius?: number; categoryId?: number; minRating?: number; limit?: number }) => {
+      const qs = new URLSearchParams({
+        lat: params.lat.toString(),
+        lng: params.lng.toString(),
+        ...(params.radius !== undefined && { radius: params.radius.toString() }),
+        ...(params.categoryId !== undefined && { categoryId: params.categoryId.toString() }),
+        ...(params.minRating !== undefined && { minRating: params.minRating.toString() }),
+        ...(params.limit !== undefined && { limit: params.limit.toString() }),
+      });
+      return this.request(`/providers/available?${qs}`);
+    },
     missions: () => this.request('/providers/missions'),
     top: () => this.request('/providers/top'),
     ranked: () => this.request('/providers/ranked'),
+    me: () => this.request('/providers/me'),
+    register: (data: any) => this.post('/providers/register', data),
+    updateMe: (data: any) => this.patch('/providers/me', data),
+    validationStatus: () => this.request<{ providerStatus: string }>('/providers/me/validation-status'),
+  };
+
+  // ==================== PROVIDER DOCUMENTS ====================
+  providerDocs = {
+    list: () => this.request('/providers/documents'),
+
+    /** Upload un document KYC via multipart/form-data */
+    upload: async (formData: FormData, _retry = false): Promise<any> => {
+      const token = await tokenStorage.getToken();
+      const url = `${this.baseURL}/providers/documents`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'ngrok-skip-browser-warning': 'true',
+          // Content-Type intentionnellement absent : fetch le gère avec le boundary multipart
+        },
+        body: formData,
+      });
+
+      // Token expiré → refresh et retry une fois
+      if (response.status === 401 && !_retry) {
+        const newToken = await this.refreshAccessToken();
+        if (newToken) return this.providerDocs.upload(formData, true);
+      }
+
+      const text = await response.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { throw new Error('Réponse invalide du serveur'); }
+      if (!response.ok) throw Object.assign(new Error(data?.error || `HTTP ${response.status}`), { status: response.status, data });
+      return data;
+    },
+
+    /** Config des documents requis pour une catégorie (slug) */
+    config: (categorySlug: string) => this.request(`/providers/doc-config/${categorySlug}`),
+  };
+
+  // ==================== PROVIDER QUIZ ====================
+  providerQuiz = {
+    /** Questions du quiz pour une catégorie (sans les réponses) */
+    getQuestions: (categorySlug: string) =>
+      this.request(`/providers/quiz-config/${categorySlug}`),
+
+    /** Soumet les réponses et retourne { passed, score, total, passMark, detail } */
+    submit: (categorySlug: string, answers: number[]) =>
+      this.post(`/providers/quiz/${categorySlug}`, { answers }),
   };
 
   // ==================== WALLET ====================
   wallet = {
     balance: () => this.request('/wallet'),
     transactions: (limit = 50) => this.request(`/wallet/txs?limit=${limit}`),
+    withdraws: () => this.request('/wallet/withdraws'),
+    withdraw: (amount: number, destination?: string, note?: string) =>
+      this.post('/wallet/withdraw', { amount, method: 'BANK', destination, note }),
     credit: (amount: number) => this.post('/wallet/credit', { amount }),
     debit: (amount: number) => this.post('/wallet/debit', { amount }),
   };
@@ -293,8 +362,8 @@ class ApiClient {
   // ==================== NOTIFICATIONS ====================
   notifications = {
     list: () => this.request('/notifications'),
-    markAsRead: (id: string) => this.put(`/notifications/${id}/read`),
-    markAllAsRead: () => this.put('/notifications/read-all'),
+    markAsRead: (id: string) => this.patch(`/notifications/${id}/read`),
+    markAllAsRead: () => this.patch('/notifications/read-all'),
   };
 
   // ==================== MESSAGES ====================
@@ -303,6 +372,10 @@ class ApiClient {
     get: (id: string) => this.request(`/messages/${id}`),
     send: (recipientId: string, content: string) =>
       this.post('/messages', { recipientId, content }),
+    inbox: (page = 1, limit = 20) => this.request(`/messages/inbox?page=${page}&limit=${limit}`),
+    conversation: (userId: string, page = 1) => this.request(`/messages/conversation/${userId}?page=${page}&limit=50`),
+    markAsRead: (id: string) => this.patch(`/messages/${id}/read`),
+    unreadCount: () => this.request('/messages/unread'),
   };
 
   // ==================== RATINGS ====================
@@ -330,6 +403,17 @@ class ApiClient {
     getInvoice: (id: string) => this.request(`/documents/invoices/${id}`),
   };
 
+  // ==================== INVOICES ====================
+  invoices = {
+    list: () => this.request('/invoices'),
+    get: (id: string) => this.request(`/invoices/${id}`),
+    getByRequest: (requestId: number) => this.request(`/invoices?requestId=${requestId}`),
+    getPdfUrl: (id: string) => {
+      const base = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
+      return `${base}/api/invoices/${id}/pdf`;
+    },
+  };
+
   // ==================== BUSINESS ====================
   contracts = {
     list: () => this.request('/contracts'),
@@ -348,7 +432,7 @@ class ApiClient {
     },
     // ✅ FIXED: Added missing success method
     success: async (requestId: string) => {
-      console.log(`✅ Confirming payment success for request ${requestId}`);
+      devLog(`✅ Confirming payment success for request ${requestId}`);
       return this.post('/payments/success', { requestId });
     },
     create: (data: any) => this.post('/payments', data),
@@ -366,6 +450,13 @@ class ApiClient {
     get: () => this.request('/subscription'),
     create: (plan: string) => this.post('/subscription', { plan }),
     cancel: () => this.delete('/subscription'),
+  };
+
+  // ==================== STRIPE CONNECT ====================
+  connect = {
+    status: () => this.request('/connect/status'),
+    onboarding: (returnUrl?: string, refreshUrl?: string) => this.post('/connect/onboarding', { returnUrl, refreshUrl }),
+    dashboard: () => this.post('/connect/dashboard', {}),
   };
 
   storage = tokenStorage;

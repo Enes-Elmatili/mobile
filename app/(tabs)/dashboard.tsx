@@ -20,12 +20,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
+import { useAppTheme } from '@/hooks/use-app-theme';
+import InvoiceSheet from '@/components/sheets/InvoiceSheet';
+import { useInvoice } from '@/hooks/useInvoice';
 
 const { width } = Dimensions.get('window');
 
@@ -39,11 +43,14 @@ interface DashboardData {
   requests: {
     id: string;
     title: string;
+    serviceType?: string;
     status: string;
     description?: string;
     price?: number;
     createdAt: string;
     expiresAt?: string;
+    category?: { id: number; name: string };
+    subcategory?: { id: number; name: string };
   }[];
 }
 
@@ -51,25 +58,25 @@ interface DashboardData {
 // UTILS
 // ============================================================================
 
-const getStatusInfo = (status: string) => {
+const getStatusInfo = (status: string, t: (key: string) => string) => {
   const s = (status || 'PENDING').toUpperCase();
   const map: Record<string, { label: string; color: string; bgColor: string; icon: string; dot: string }> = {
-    DONE:            { label: 'Terminé',   color: '#111',    bgColor: '#F0F0F0', icon: 'checkmark-circle-outline', dot: '#111' },
-    CANCELLED:       { label: 'Annulé',    color: '#888',    bgColor: '#F5F5F5', icon: 'close-circle-outline',     dot: '#888' },
-    ONGOING:         { label: 'En cours',  color: '#111',    bgColor: '#EDEDED', icon: 'time-outline',             dot: '#111' },
-    PUBLISHED:       { label: 'Recherche', color: '#555',    bgColor: '#F2F2F2', icon: 'radio-outline',            dot: '#555' },
-    ACCEPTED:        { label: 'Accepté',   color: '#111',    bgColor: '#E8E8E8', icon: 'hand-left-outline',        dot: '#111' },
-    PENDING_PAYMENT: { label: 'Paiement',  color: '#111',    bgColor: '#EBEBEB', icon: 'card-outline',             dot: '#111' },
-    EXPIRED:         { label: 'Expiré',    color: '#ADADAD', bgColor: '#F7F7F7', icon: 'time-outline',             dot: '#CCC' },
+    DONE:            { label: t('dashboard.status_done'),      color: '#111',    bgColor: '#F0F0F0', icon: 'checkmark-circle-outline', dot: '#111' },
+    CANCELLED:       { label: t('dashboard.status_cancelled'), color: '#888',    bgColor: '#F5F5F5', icon: 'close-circle-outline',     dot: '#888' },
+    ONGOING:         { label: t('dashboard.status_ongoing'),   color: '#111',    bgColor: '#EDEDED', icon: 'time-outline',             dot: '#111' },
+    PUBLISHED:       { label: t('dashboard.status_published'), color: '#555',    bgColor: '#F2F2F2', icon: 'radio-outline',            dot: '#555' },
+    ACCEPTED:        { label: t('dashboard.status_accepted'),  color: '#111',    bgColor: '#E8E8E8', icon: 'hand-left-outline',        dot: '#111' },
+    PENDING_PAYMENT: { label: t('dashboard.status_payment'),   color: '#111',    bgColor: '#EBEBEB', icon: 'card-outline',             dot: '#111' },
+    EXPIRED:         { label: t('dashboard.status_expired'),   color: '#ADADAD', bgColor: '#F7F7F7', icon: 'time-outline',             dot: '#CCC' },
   };
   return map[s] || { label: s, color: '#888', bgColor: '#F5F5F5', icon: 'help-circle-outline', dot: '#CCC' };
 };
 
-const getGreeting = () => {
+const getGreeting = (t: (key: string) => string) => {
   const h = new Date().getHours();
-  if (h < 12) return 'Bonjour';
-  if (h < 18) return 'Bon après-midi';
-  return 'Bonsoir';
+  if (h < 12) return t('dashboard.greeting_morning');
+  if (h < 18) return t('dashboard.greeting_afternoon');
+  return t('dashboard.greeting_evening');
 };
 
 // ============================================================================
@@ -80,25 +87,31 @@ const getGreeting = () => {
 function StatusHeroCard({
   activeMission,
   searchingMission,
+  latestRequest,
   name,
   onActiveMissionPress,
   onSearchingPress,
   onNewRequest,
+  onLatestPress,
 }: {
   activeMission: DashboardData['requests'][0] | null;
   searchingMission: DashboardData['requests'][0] | null;
+  latestRequest: DashboardData['requests'][0] | null;
   name: string;
   onActiveMissionPress: () => void;
   onSearchingPress: () => void;
   onNewRequest: () => void;
+  onLatestPress: () => void;
 }) {
+  const { t } = useTranslation();
+  const theme = useAppTheme();
   const dotOpacity = useRef(new Animated.Value(1)).current;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  // ETA réel récupéré depuis l'API (via Google Directions dans MissionView)
-  const [etaLabel, setEtaLabel] = useState<string>('Chargement...');
+  const [etaLabel, setEtaLabel] = useState<string>(t('dashboard.loading_eta'));
   const SEARCH_TIMEOUT = 15 * 60;
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
+  // Pulsing dot for active states
   useEffect(() => {
     if (!searchingMission && !activeMission) return;
     Animated.loop(
@@ -121,43 +134,35 @@ function StatusHeroCard({
     return () => clearInterval(iv);
   }, [searchingMission?.id]);
 
-  // ── ETA réel depuis l'API request + Google Directions ────────────────────
+  // ETA réel depuis l'API request + Google Directions
   useEffect(() => {
     if (!activeMission) return;
     const st = activeMission.status.toUpperCase();
-    if (st === 'ONGOING') { setEtaLabel('Mission en cours'); return; }
+    if (['COMPLETED', 'DONE', 'CANCELLED', 'EXPIRED'].includes(st)) return;
+    if (st === 'ONGOING') { setEtaLabel(t('dashboard.mission_ongoing')); return; }
     if (st !== 'ACCEPTED') return;
 
     let cancelled = false;
-
     const fetchETA = async () => {
       try {
-        // 1. Récupère les coords du prestataire depuis l'API
         const details = await api.get(`/requests/${activeMission.id}`);
         const req = details?.data || details;
         const provider = req?.provider;
-
         if (!provider?.lat || !provider?.lng || !req?.lat || !req?.lng) {
-          setEtaLabel('Prestataire en route');
+          setEtaLabel(t('dashboard.provider_on_way'));
           return;
         }
-
-        // 2. Calcule l'ETA via Google Directions
         if (GOOGLE_MAPS_API_KEY) {
           const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${provider.lat},${provider.lng}&destination=${req.lat},${req.lng}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`;
           const res = await fetch(url);
           const data = await res.json();
           if (!cancelled && data.status === 'OK' && data.routes?.length > 0) {
-            const text = data.routes[0].legs[0].duration.text; // ex: "5 mins"
-            // Transforme "5 mins" → "Arrivée dans 5 min"
-            const match = text.match(/(\d+)/);
+            const match = data.routes[0].legs[0].duration.text.match(/(\d+)/);
             const min = match ? parseInt(match[1]) : null;
-            setEtaLabel(min !== null && min <= 1 ? 'Arrivée imminente' : `Arrivée dans ${min} min`);
+            setEtaLabel(min !== null && min <= 1 ? t('dashboard.arrival_imminent') : t('dashboard.arrival_in_min', { min }));
             return;
           }
         }
-
-        // 3. Fallback distance haversine
         const R = 6371;
         const dLat = (req.lat - provider.lat) * Math.PI / 180;
         const dLon = (req.lng - provider.lng) * Math.PI / 180;
@@ -165,14 +170,12 @@ function StatusHeroCard({
           Math.cos(provider.lat * Math.PI / 180) * Math.cos(req.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
         const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const min = Math.ceil((dist * 1.4 / 30) * 60);
-        if (!cancelled) setEtaLabel(min <= 1 ? 'Arrivée imminente' : `Arrivée dans ${min} min`);
+        if (!cancelled) setEtaLabel(min <= 1 ? t('dashboard.arrival_imminent') : t('dashboard.arrival_in_min', { min }));
       } catch {
-        if (!cancelled) setEtaLabel('Prestataire en route');
+        if (!cancelled) setEtaLabel(t('dashboard.provider_on_way'));
       }
     };
-
     fetchETA();
-    // Rafraîchit l'ETA toutes les 30s
     const iv = setInterval(fetchETA, 30_000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [activeMission?.id, activeMission?.status]);
@@ -180,150 +183,155 @@ function StatusHeroCard({
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const isExpiring = secondsLeft !== null && secondsLeft < 120;
 
-  // ── État : mission active (ACCEPTED / ONGOING) — îlot fin, focus ETA ──
-  if (activeMission) {
+  // ── ACCEPTED — prestataire en route, affiche ETA ──
+  if (activeMission && activeMission.status.toUpperCase() === 'ACCEPTED') {
     return (
-      <TouchableOpacity style={hero.card} onPress={onActiveMissionPress} activeOpacity={0.92}>
-        {/* Ligne unique : dot • ETA dynamique • pill Suivre */}
-        <View style={hero.slimRow}>
-          <View style={hero.liveRow}>
-            <Animated.View style={[hero.liveDot, { opacity: dotOpacity }]} />
-          </View>
-          <Text style={hero.etaText} numberOfLines={1}>{etaLabel}</Text>
-          <View style={hero.followPill}>
-            <Text style={hero.followText}>Suivre</Text>
-            <Ionicons name="arrow-forward" size={11} color="#FFF" />
-          </View>
+      <TouchableOpacity style={[hero.strip, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onActiveMissionPress} activeOpacity={0.85} accessibilityRole="button">
+        <Animated.View style={[hero.dot, hero.dotActive, { opacity: dotOpacity }]} />
+        <View style={hero.stripContent}>
+          <Text style={[hero.stripTitle, { color: theme.textAlt }]} numberOfLines={1}>{etaLabel}</Text>
+          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>{activeMission.serviceType || activeMission.title}</Text>
+        </View>
+        <View style={[hero.stripAction, { backgroundColor: theme.accent }]}>
+          <Ionicons name="navigate-outline" size={13} color={theme.accentText} />
         </View>
       </TouchableOpacity>
     );
   }
 
-  // ── État : recherche en cours (PUBLISHED) ──
+  // ── ONGOING — mission en cours ──
+  if (activeMission && activeMission.status.toUpperCase() === 'ONGOING') {
+    return (
+      <TouchableOpacity style={[hero.strip, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onActiveMissionPress} activeOpacity={0.85} accessibilityRole="button">
+        <Animated.View style={[hero.dot, hero.dotActive, { opacity: dotOpacity }]} />
+        <View style={hero.stripContent}>
+          <Text style={[hero.stripTitle, { color: theme.textAlt }]} numberOfLines={1}>{t('dashboard.mission_ongoing')}</Text>
+          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>{activeMission.serviceType || activeMission.title}</Text>
+        </View>
+        <View style={[hero.stripAction, { backgroundColor: theme.accent }]}>
+          <Ionicons name="eye-outline" size={13} color={theme.accentText} />
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  // ── PUBLISHED — recherche en cours ──
   if (searchingMission) {
     return (
-      <TouchableOpacity style={[hero.card, hero.cardSearch]} onPress={onSearchingPress} activeOpacity={0.92}>
-        <View style={hero.topRow}>
-          <View style={hero.liveRow}>
-            <Animated.View style={[hero.liveDot, hero.liveDotSearch, { opacity: dotOpacity }]} />
-            <Text style={[hero.liveLabel, hero.liveLabelSearch]}>Recherche en cours</Text>
-          </View>
-          {secondsLeft !== null && (
-            <View style={[hero.timerPill, isExpiring && hero.timerPillUrgent]}>
-              <Ionicons name="time-outline" size={11} color={isExpiring ? '#FFF' : '#555'} />
-              <Text style={[hero.timerText, isExpiring && hero.timerTextUrgent]}>{fmt(secondsLeft)}</Text>
-            </View>
-          )}
+      <TouchableOpacity style={[hero.strip, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onSearchingPress} activeOpacity={0.85} accessibilityRole="button">
+        <Animated.View style={[hero.dot, hero.dotSearching, { opacity: dotOpacity }]} />
+        <View style={hero.stripContent}>
+          <Text style={[hero.stripTitle, { color: theme.textAlt }]} numberOfLines={1}>{t('dashboard.search_in_progress')}</Text>
+          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>{searchingMission.serviceType || searchingMission.title}</Text>
         </View>
-        <Text style={[hero.missionTitle, hero.missionTitleSearch]} numberOfLines={2}>{searchingMission.title}</Text>
-        <Text style={[hero.missionSub, hero.missionSubSearch]}>Nous cherchons le meilleur prestataire disponible.</Text>
-        <View style={hero.xWatermark}><Text style={[hero.xText, hero.xTextSearch]}>✕</Text></View>
+        {secondsLeft !== null && (
+          <View style={[hero.timerPill, isExpiring && hero.timerPillUrgent]}>
+            <Text style={[hero.timerText, isExpiring && hero.timerTextUrgent]}>{fmt(secondsLeft)}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   }
 
-  // ── État : calme — rien à afficher ──
-  return null;
+  // ── Idle — dernière request ou aucune ──
+  if (latestRequest) {
+    const latestStatus = getStatusInfo(latestRequest.status, t);
+    return (
+      <TouchableOpacity style={[hero.strip, hero.stripIdle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onLatestPress} activeOpacity={0.85} accessibilityRole="button">
+        <View style={[hero.dot, { backgroundColor: latestStatus.dot }]} />
+        <View style={hero.stripContent}>
+          <Text style={[hero.stripTitle, { color: theme.textSub }]} numberOfLines={1}>{latestStatus.label} — {latestRequest.serviceType || latestRequest.title}</Text>
+          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>
+            {new Date(latestRequest.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+            {latestRequest.price ? ` · ${latestRequest.price} €` : ''}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
+      </TouchableOpacity>
+    );
+  }
+
+  // ── Aucune demande ──
+  return (
+    <View style={[hero.strip, hero.stripEmpty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <Ionicons name="remove-circle-outline" size={16} color={theme.textMuted} />
+      <Text style={[hero.emptyText, { color: theme.textMuted }]}>{t('dashboard.no_active_request')}</Text>
+    </View>
+  );
 }
 
 const hero = StyleSheet.create({
-  card: {
-    backgroundColor: '#111',
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 14,       // ~44px hauteur totale — discret comme Dynamic Island
-    marginBottom: 20,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
-      android: { elevation: 5 },
-    }),
-  },
-  cardSearch: { backgroundColor: '#F7F7F7', borderWidth: 1, borderColor: '#E8E8E8' },
-  cardIdle:   { backgroundColor: '#F7F7F7', borderWidth: 1, borderColor: '#EBEBEB' },
-
-  // ── Îlot fin (mission ACCEPTED / ONGOING) — hauteur réduite ──
-  slimRow: {
+  strip: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 0, // le padding du card fait ~44px de hauteur totale
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 14, borderWidth: 1, borderColor: '#F0F0F0',
+    backgroundColor: '#FFF', width: '100%', marginBottom: 16,
   },
-  etaText: {
-    flex: 1, fontSize: 14, fontWeight: '700',
-    color: '#FFF', letterSpacing: -0.2,
+  stripIdle: { opacity: 0.8 },
+  stripEmpty: { justifyContent: 'center', opacity: 0.6 },
+  stripContent: { flex: 1, minWidth: 0, gap: 2 },
+  stripTitle: { fontSize: 13, fontWeight: '700', color: '#111' },
+  stripSub: { fontSize: 11, fontWeight: '500', color: '#ADADAD' },
+  stripAction: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: '#111', alignItems: 'center', justifyContent: 'center',
   },
 
-  topRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  liveRow:  { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  liveDot:  { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFF' },
-  liveDotSearch: { backgroundColor: '#555' },
-  liveLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, textTransform: 'uppercase' },
-  liveLabelSearch: { color: '#888' },
-
-  followPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-  followText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#CCC', flexShrink: 0 },
+  dotActive: { backgroundColor: '#111' },
+  dotSearching: { backgroundColor: '#888' },
 
   timerPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#EBEBEB', paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20, borderWidth: 1, borderColor: '#E0E0E0',
+    backgroundColor: '#F0F0F0', paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 10,
   },
-  timerPillUrgent: { backgroundColor: '#111', borderColor: '#111' },
-  timerText:       { fontSize: 11, fontWeight: '800', color: '#555' },
+  timerPillUrgent: { backgroundColor: '#111' },
+  timerText: { fontSize: 11, fontWeight: '800', color: '#555' },
   timerTextUrgent: { color: '#FFF' },
 
-  missionTitle:       { fontSize: 22, fontWeight: '900', color: '#FFF', lineHeight: 28, letterSpacing: -0.5, marginBottom: 6 },
-  missionTitleSearch: { color: '#111' },
-  missionSub:         { fontSize: 13, fontWeight: '400', color: 'rgba(255,255,255,0.4)', lineHeight: 19 },
-  missionSubSearch:   { color: '#9CA3AF' },
-
-
-
-  // X watermark (identity signature)
-  xWatermark: { position: 'absolute', right: 16, bottom: 12 },
-  xText:      { fontSize: 80, fontWeight: '900', color: 'rgba(255,255,255,0.04)', lineHeight: 80 },
-  xTextSearch:{ color: 'rgba(0,0,0,0.04)' },
+  emptyText: { fontSize: 12, fontWeight: '600', color: '#ADADAD' },
 });
 
 // ============================================================================
 // QUICK ACTIONS ROW
 // ============================================================================
 
-const QUICK_ACTIONS = [
-  { icon: 'hammer-outline',   label: 'Bricol.',   category: 'bricolage'    },
-  { icon: 'leaf-outline',     label: 'Jardin',    category: 'jardinage'    },
-  { icon: 'sparkles-outline', label: 'Ménage',    category: 'menage'       },
-  { icon: 'car-outline',      label: 'Déménag.',  category: 'demenagement' },
-  { icon: 'brush-outline',    label: 'Peinture',  category: 'peinture'     },
-  { icon: 'grid-outline',     label: 'Tout voir', category: ''             },
+const getQuickActions = (t: (key: string) => string) => [
+  { icon: 'hammer-outline',   label: t('dashboard.cat_bricolage'),    category: 'bricolage'    },
+  { icon: 'leaf-outline',     label: t('dashboard.cat_jardinage'),    category: 'jardinage'    },
+  { icon: 'sparkles-outline', label: t('dashboard.cat_menage'),       category: 'menage'       },
+  { icon: 'car-outline',      label: t('dashboard.cat_demenagement'), category: 'demenagement' },
+  { icon: 'brush-outline',    label: t('dashboard.cat_peinture'),     category: 'peinture'     },
+  { icon: 'grid-outline',     label: t('dashboard.cat_all'),          category: ''             },
 ];
 
 function QuickActions({ onPress }: { onPress: (category: string) => void }) {
+  const { t } = useTranslation();
+  const theme = useAppTheme();
+  const actions = getQuickActions(t);
   return (
     <View style={qa.wrap}>
-      <Text style={qa.title}>Services</Text>
+      <Text style={[qa.title, { color: theme.textAlt }]}>{t('dashboard.services')}</Text>
       <FlatList
-        data={QUICK_ACTIONS}
+        data={actions}
         keyExtractor={(_, i) => String(i)}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={qa.list}
         renderItem={({ item, index }) => {
-          const isLast = index === QUICK_ACTIONS.length - 1;
+          const isLast = index === actions.length - 1;
           return (
             <TouchableOpacity
               style={qa.item}
               onPress={() => onPress(item.category)}
               activeOpacity={0.72}
+              accessibilityLabel={item.label}
+              accessibilityRole="button"
             >
-              <View style={[qa.circle, isLast && qa.circleLast]}>
-                <Ionicons name={item.icon as any} size={18} color={isLast ? '#FFF' : '#111'} />
+              <View style={[qa.circle, !isLast && { backgroundColor: theme.surface, borderColor: theme.borderLight }, isLast && qa.circleLast]}>
+                <Ionicons name={item.icon as any} size={18} color={isLast ? '#FFF' : theme.textAlt} />
               </View>
-              <Text style={qa.label} numberOfLines={1}>{item.label}</Text>
+              <Text style={[qa.label, { color: theme.textSub }]} numberOfLines={1}>{item.label}</Text>
             </TouchableOpacity>
           );
         }}
@@ -333,7 +341,7 @@ function QuickActions({ onPress }: { onPress: (category: string) => void }) {
 }
 
 const qa = StyleSheet.create({
-  wrap:  { marginBottom: 18 },
+  wrap:  { marginBottom: 32, width: '100%' },
   title: { fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 10, paddingHorizontal: 2 },
   list:  { gap: 6, paddingBottom: 2 },
   item:  { alignItems: 'center', gap: 6, width: 62 },
@@ -352,24 +360,14 @@ const qa = StyleSheet.create({
 // Remplace les stats de dépenses par des infos de disponibilité en temps réel
 // ============================================================================
 
-// Simule des données live — à brancher sur un endpoint /availability
+// Static placeholder — to be replaced with a real /availability endpoint
 function useAvailability() {
-  const [data, setData] = useState({ providers: 12, avgMinutes: 25, demand: 'standard' as 'standard' | 'high' });
-  useEffect(() => {
-    // Légère variation aléatoire pour simuler le temps réel
-    const iv = setInterval(() => {
-      setData(prev => ({
-        providers:  Math.max(4, prev.providers  + Math.floor(Math.random() * 3) - 1),
-        avgMinutes: Math.max(15, prev.avgMinutes + Math.floor(Math.random() * 5) - 2),
-        demand:     Math.random() > 0.8 ? 'high' : 'standard',
-      }));
-    }, 30_000);
-    return () => clearInterval(iv);
-  }, []);
-  return data;
+  return { providers: 12, avgMinutes: 25, demand: 'standard' as 'standard' | 'high' };
 }
 
 function AvailabilityBar() {
+  const { t } = useTranslation();
+  const theme = useAppTheme();
   const { providers, avgMinutes, demand } = useAvailability();
   const isHigh = demand === 'high';
 
@@ -377,36 +375,36 @@ function AvailabilityBar() {
     {
       icon: 'people-outline' as const,
       value: `${providers}`,
-      label: 'Disponibles',
-      sub: 'à proximité',
+      label: t('dashboard.available'),
+      sub: t('dashboard.nearby'),
     },
     {
       icon: 'timer-outline' as const,
       value: `~${avgMinutes} min`,
-      label: 'Fixé en',
-      sub: 'temps moyen',
+      label: t('dashboard.fixed_in'),
+      sub: t('dashboard.avg_time'),
     },
     {
       icon: isHigh ? 'trending-up-outline' as const : 'checkmark-circle-outline' as const,
-      value: isHigh ? 'Forte dem.' : 'Standard',
-      label: 'Prix',
-      sub: isHigh ? 'tarif majoré' : 'tarif normal',
+      value: isHigh ? t('dashboard.high_demand') : t('dashboard.standard'),
+      label: t('dashboard.price'),
+      sub: isHigh ? t('dashboard.surge_pricing') : t('dashboard.normal_pricing'),
       accent: isHigh,
     },
   ];
 
   return (
-    <View style={sb.card}>
+    <View style={[sb.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
       {items.map((it, i) => (
         <React.Fragment key={i}>
           <View style={sb.item}>
-            <View style={[sb.iconWrap, it.accent && sb.iconWrapAccent]}>
+            <View style={[sb.iconWrap, { backgroundColor: theme.surface }, it.accent && sb.iconWrapAccent]}>
               <Ionicons name={it.icon} size={14} color={it.accent ? '#111' : '#888'} />
             </View>
-            <Text style={[sb.value, it.accent && sb.valueAccent]}>{it.value}</Text>
-            <Text style={sb.label}>{it.sub}</Text>
+            <Text style={[sb.value, { color: theme.textAlt }, it.accent && sb.valueAccent]}>{it.value}</Text>
+            <Text style={[sb.label, { color: theme.textMuted }]}>{it.sub}</Text>
           </View>
-          {i < items.length - 1 && <View style={sb.sep} />}
+          {i < items.length - 1 && <View style={[sb.sep, { backgroundColor: theme.border }]} />}
         </React.Fragment>
       ))}
     </View>
@@ -417,7 +415,7 @@ const sb = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF', borderRadius: 18, padding: 16,
-    marginBottom: 28,
+    marginBottom: 28, width: '100%',
     borderWidth: 1, borderColor: '#F0F0F0',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10 },
@@ -437,19 +435,20 @@ const sb = StyleSheet.create({
 // SERVICE ROW — monochrome, hiérarchie claire
 // ============================================================================
 
-// Guess service icon from title keywords
-const getServiceIcon = (title?: string): string => {
-  if (!title) return 'build-outline';
-  const t = title.toLowerCase();
-  if (t.includes('ménage') || t.includes('nettoyage')) return 'sparkles-outline';
-  if (t.includes('plomb')) return 'water-outline';
-  if (t.includes('électr') || t.includes('electr')) return 'flash-outline';
-  if (t.includes('jardin') || t.includes('pelouse')) return 'leaf-outline';
-  if (t.includes('peint')) return 'brush-outline';
-  if (t.includes('démén') || t.includes('demen')) return 'car-outline';
-  if (t.includes('rénov') || t.includes('renov')) return 'construct-outline';
-  if (t.includes('bricol')) return 'hammer-outline';
-  return 'build-outline';
+// Guess service icon from serviceType / category name
+const getServiceIcon = (label?: string): string => {
+  if (!label) return 'construct-outline';
+  const t = label.toLowerCase();
+  if (t.includes('bricol'))                             return 'hammer-outline';
+  if (t.includes('jardin') || t.includes('pelouse'))    return 'leaf-outline';
+  if (t.includes('ménage') || t.includes('nettoyage'))  return 'sparkles-outline';
+  if (t.includes('démén') || t.includes('demen'))       return 'cube-outline';
+  if (t.includes('peint'))                              return 'color-palette-outline';
+  if (t.includes('plomb'))                              return 'water-outline';
+  if (t.includes('électr') || t.includes('electr'))     return 'flash-outline';
+  if (t.includes('urgence'))                            return 'build-outline';
+  if (t.includes('rénov') || t.includes('renov'))       return 'construct-outline';
+  return 'construct-outline';
 };
 
 function ServiceRow({
@@ -461,37 +460,40 @@ function ServiceRow({
   onPress: () => void;
   isLast: boolean;
 }) {
-  const status   = getStatusInfo(request.status);
+  const { t } = useTranslation();
+  const theme = useAppTheme();
+  const status   = getStatusInfo(request.status, t);
   const isActive = ['ACCEPTED', 'ONGOING'].includes(request.status?.toUpperCase());
-  const icon     = getServiceIcon(request.title);
+  const serviceName = request.serviceType || request.category?.name || request.title;
+  const icon     = getServiceIcon(serviceName);
   const date     = new Date(request.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
   return (
     <>
-      <TouchableOpacity style={sr.row} onPress={onPress} activeOpacity={0.65}>
+      <TouchableOpacity style={sr.row} onPress={onPress} activeOpacity={0.65} accessibilityLabel={serviceName || t('common.service')} accessibilityRole="button">
 
         {/* Icône service */}
-        <View style={[sr.iconBox, isActive && sr.iconBoxActive]}>
+        <View style={[sr.iconBox, !isActive && { backgroundColor: theme.surface }, isActive && sr.iconBoxActive]}>
           <Ionicons name={icon as any} size={16} color={isActive ? '#FFF' : '#555'} />
         </View>
 
         {/* Centre : titre + date */}
         <View style={sr.mid}>
-          <Text style={sr.title} numberOfLines={1}>{request.title || 'Service'}</Text>
-          <Text style={sr.meta}>{date}{request.price ? ` · ${request.price} €` : ''}</Text>
+          <Text style={[sr.title, { color: theme.textAlt }]} numberOfLines={1}>{serviceName || t('common.service')}</Text>
+          <Text style={[sr.meta, { color: theme.textMuted }]}>{date}{request.price ? ` · ${request.price} €` : ''}</Text>
         </View>
 
         {/* Droite : statut pill + chevron */}
         <View style={sr.right}>
           {isActive
             ? <View style={sr.activeBadge}><Text style={sr.activeBadgeText}>{status.label}</Text></View>
-            : <Text style={sr.statusText}>{status.label}</Text>
+            : <Text style={[sr.statusText, { color: theme.textMuted }]}>{status.label}</Text>
           }
           <Ionicons name="chevron-forward" size={13} color="#D8D8D8" />
         </View>
 
       </TouchableOpacity>
-      {!isLast && <View style={sr.sep} />}
+      {!isLast && <View style={[sr.sep, { backgroundColor: theme.border }]} />}
     </>
   );
 }
@@ -524,9 +526,10 @@ const sr = StyleSheet.create({
 const PREVIEW_COUNT = 5;
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
-  const { socket } = useSocket();
+  const { socket, unreadCount, joinRoom, leaveRoom } = useSocket();
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -534,9 +537,15 @@ export default function Dashboard() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showAllRequests, setShowAllRequests] = useState(false);
+  const [invoiceVisible, setInvoiceVisible] = useState(false);
+  const theme = useAppTheme();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['50%', '85%'], []);
+
+  // Invoice hook — fetches invoice for selected DONE request
+  const invoiceRequestId = selectedRequest?.status?.toUpperCase() === 'DONE' ? selectedRequest?.id : null;
+  const { invoice, loading: invoiceLoading } = useInvoice(invoiceRequestId ? Number(invoiceRequestId) : null);
 
   // ── Data ──
   const loadDashboard = useCallback(async () => {
@@ -559,7 +568,7 @@ export default function Dashboard() {
     const r = request;
     const scheduledFor = r.scheduledFor || r.preferredTimeStart;
     router.push({
-      pathname: '/request/[id]/MissionView',
+      pathname: '/request/[id]/missionview',
       params: {
         id:             String(r.id),
         serviceName:    r.title || r.serviceType || r.name || '',
@@ -583,7 +592,7 @@ export default function Dashboard() {
   // ── Socket ──
   useEffect(() => {
     if (!socket || !user?.id) return;
-    socket.emit('join:user', { userId: user.id });
+    joinRoom('user', user.id);
 
     const updateRequestStatus = (requestId: string | number, newStatus: string) => {
       setData(prev => {
@@ -597,11 +606,15 @@ export default function Dashboard() {
       });
     };
 
+    // Deduplicate: prevent double-fire if both request:accepted and provider:accepted arrive
+    const acceptedIds = new Set<string>();
     const handleAccepted  = (d: any) => {
-      updateRequestStatus(d.id || d.requestId, 'ACCEPTED');
-      loadDashboard();
-      // Récupère les détails complets pour naviguer avec tous les params
-      const reqId = d.id || d.requestId;
+      const reqId = String(d.id || d.requestId);
+      if (acceptedIds.has(reqId)) return; // already handled
+      acceptedIds.add(reqId);
+
+      updateRequestStatus(reqId, 'ACCEPTED');
+      // Navigate to missionview — no need to refetch dashboard, optimistic update is enough
       if (reqId) {
         api.get(`/requests/${reqId}`)
           .then(res => {
@@ -609,16 +622,15 @@ export default function Dashboard() {
             navigateToMissionView(req);
           })
           .catch(() => {
-            // Fallback minimal si l'API échoue
             router.push({
-              pathname: '/request/[id]/MissionView',
-              params: { id: String(reqId) },
+              pathname: '/request/[id]/missionview',
+              params: { id: reqId },
             });
           });
       }
     };
-    const handleStarted   = (d: any) => { updateRequestStatus(d.id || d.requestId, 'ONGOING');   loadDashboard(); };
-    const handleCompleted = (d: any) => { updateRequestStatus(d.id || d.requestId, 'DONE');       loadDashboard(); };
+    const handleStarted   = (d: any) => { updateRequestStatus(d.id || d.requestId, 'ONGOING'); };
+    const handleCompleted = (d: any) => { updateRequestStatus(d.id || d.requestId, 'DONE');     loadDashboard(); };
     const handleCancelled = (d: any) => { updateRequestStatus(d.id || d.requestId, 'CANCELLED'); loadDashboard(); };
     const handleExpired   = (d: any) => { updateRequestStatus(d.id || d.requestId, 'EXPIRED');   loadDashboard(); };
 
@@ -630,7 +642,7 @@ export default function Dashboard() {
     socket.on('provider:accepted', handleAccepted);
 
     return () => {
-      socket.emit('leave:user', { userId: user.id });
+      leaveRoom('user', user.id);
       socket.off('request:accepted',  handleAccepted);
       socket.off('request:started',   handleStarted);
       socket.off('request:completed', handleCompleted);
@@ -638,7 +650,7 @@ export default function Dashboard() {
       socket.off('request:expired',   handleExpired);
       socket.off('provider:accepted', handleAccepted);
     };
-  }, [socket, user?.id, router, loadDashboard, navigateToMissionView]);
+  }, [socket, user?.id, router, loadDashboard, navigateToMissionView, joinRoom, leaveRoom]);
 
   // ── Actions ──
   const handleRequestPress = async (requestId: string) => {
@@ -694,9 +706,19 @@ export default function Dashboard() {
     [data]
   );
 
-  const searchingMission = useMemo(() =>
-    !activeMission && (data?.requests?.find(r => r.status?.toUpperCase() === 'PUBLISHED') || null),
+  const searchingMission = useMemo(
+    () => activeMission ? null : (data?.requests?.find(r => r.status?.toUpperCase() === 'PUBLISHED') || null),
     [data, activeMission]
+  );
+
+  // Dernière request non-terminale (hors active/searching) pour l'état idle du hero card
+  // Les statuts terminaux (DONE, CANCELLED, EXPIRED) ne comptent pas comme "en cours"
+  const TERMINAL_STATUSES = ['DONE', 'CANCELLED', 'EXPIRED'];
+  const latestRequest = useMemo(
+    () => (activeMission || searchingMission)
+      ? null
+      : (data?.requests?.find(r => !TERMINAL_STATUSES.includes(r.status?.toUpperCase())) || null),
+    [data, activeMission, searchingMission]
   );
 
   const displayedRequests = useMemo(() => {
@@ -712,8 +734,8 @@ export default function Dashboard() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={s.center}>
-        <ActivityIndicator size="large" color="#111" />
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
       </SafeAreaView>
     );
   }
@@ -722,56 +744,52 @@ export default function Dashboard() {
   const city = data?.me?.city || 'Bruxelles';
 
   return (
-    <SafeAreaView style={s.root}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#111" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Header compact — une seule ligne ── */}
         <View style={s.header}>
           <View style={s.headerNameRow}>
-            <Text style={s.greeting}>{getGreeting()}, </Text>
-            <Text style={s.name}>{name}</Text>
+            <Text style={[s.greeting, { color: theme.textMuted }]}>{getGreeting(t)}, </Text>
+            <Text style={[s.name, { color: theme.textAlt }]}>{name}</Text>
           </View>
           <View style={s.headerRight}>
-            <TouchableOpacity style={s.iconBtn}>
-              <Ionicons name="notifications-outline" size={18} color="#111" />
+            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => router.push('/notifications')} accessibilityLabel={t('common.notifications')} accessibilityRole="button">
+              <Ionicons name="notifications-outline" size={18} color={theme.textAlt} />
+              {unreadCount > 0 && (
+                <View style={[s.notifBadge, { backgroundColor: theme.accent, borderColor: theme.bg }]}>
+                  <Text style={[s.notifBadgeText, { color: theme.accentText }]}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-outline" size={18} color="#111" />
+            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/profile')} accessibilityLabel={t('profile.title')} accessibilityRole="button">
+              <Ionicons name="person-outline" size={18} color={theme.textAlt} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── Status Hero Card — visible seulement si mission active/recherche ── */}
-        <StatusHeroCard
-          activeMission={activeMission}
-          searchingMission={searchingMission}
-          name={name}
-          onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
-          onSearchingPress={() => {
-            if (!searchingMission) return;
-            navigateToSearching(searchingMission);
-          }}
-          onNewRequest={() => router.push('/request/NewRequestStepper')}
-        />
-
         {/* ── CTA principale — toujours visible, star de l'écran vide ── */}
         {!activeMission && !searchingMission && (
           <TouchableOpacity
-            style={s.mainCTA}
+            style={[s.mainCTA, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
             onPress={() => router.push('/request/NewRequestStepper')}
             activeOpacity={0.85}
+            accessibilityLabel={t('dashboard.order_service')}
+            accessibilityRole="button"
           >
-            <View style={s.mainCTASearchIcon}>
-              <Ionicons name="add" size={16} color="rgba(255,255,255,0.7)" />
+            <View style={[s.mainCTASearchIcon, { backgroundColor: theme.surface }]}>
+              <Ionicons name="add" size={16} color={theme.textAlt} />
             </View>
-            <Text style={s.mainCTATitle}>Commander un service</Text>
-            <View style={s.mainCTABtn}>
-              <Ionicons name="arrow-forward" size={14} color="#FFF" />
+            <Text style={[s.mainCTATitle, { color: theme.textAlt }]}>{t('dashboard.order_service')}</Text>
+            <View style={[s.mainCTABtn, { backgroundColor: theme.surface }]}>
+              <Ionicons name="arrow-forward" size={14} color={theme.textSub} />
             </View>
           </TouchableOpacity>
         )}
@@ -784,28 +802,40 @@ export default function Dashboard() {
           )
         } />
 
-        {/* ── Disponibilité en temps réel — toujours affiché ── */}
-        <AvailabilityBar />
+        {/* ── Status Hero Card — sous le carrousel de services ── */}
+        <StatusHeroCard
+          activeMission={activeMission}
+          searchingMission={searchingMission}
+          latestRequest={latestRequest}
+          name={name}
+          onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
+          onSearchingPress={() => {
+            if (!searchingMission) return;
+            navigateToSearching(searchingMission);
+          }}
+          onNewRequest={() => router.push('/request/NewRequestStepper')}
+          onLatestPress={() => latestRequest && handleRequestPress(latestRequest.id)}
+        />
 
         {/* ── Mes missions ── */}
         <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>
-            Activité récente
-            {totalCount > 0 && <Text style={s.sectionCount}> · {totalCount}</Text>}
+          <Text style={[s.sectionTitle, { color: theme.textAlt }]}>
+            {t('dashboard.recent_activity')}
+            {totalCount > 0 && <Text style={[s.sectionCount, { color: theme.textMuted }]}> · {totalCount}</Text>}
           </Text>
-          <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="refresh-outline" size={16} color="#ADADAD" />
+          <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={t('common.refresh')} accessibilityRole="button">
+            <Ionicons name="refresh-outline" size={16} color={theme.textMuted} />
           </TouchableOpacity>
         </View>
 
-        <View style={s.listCard}>
+        <View style={[s.listCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           {!data?.requests?.length ? (
             <View style={s.empty}>
-              <View style={s.emptyIcon}>
+              <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
                 <Text style={s.emptyX}>✕</Text>
               </View>
-              <Text style={s.emptyTitle}>Aucune mission</Text>
-              <Text style={s.emptySub}>Vos interventions apparaîtront ici</Text>
+              <Text style={[s.emptyTitle, { color: theme.text }]}>{t('dashboard.no_missions')}</Text>
+              <Text style={[s.emptySub, { color: theme.textMuted }]}>{t('dashboard.missions_appear_here')}</Text>
             </View>
           ) : (
             <>
@@ -819,12 +849,13 @@ export default function Dashboard() {
               ))}
               {hasMore && (
                 <TouchableOpacity
-                  style={s.seeMoreBtn}
+                  style={[s.seeMoreBtn, { borderTopColor: theme.border }]}
                   onPress={() => setShowAllRequests(v => !v)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
                 >
-                  <Text style={s.seeMoreText}>
-                    {showAllRequests ? 'Réduire' : `Voir tout (${totalCount - PREVIEW_COUNT} de plus)`}
+                  <Text style={[s.seeMoreText, { color: theme.textMuted }]}>
+                    {showAllRequests ? t('dashboard.collapse') : t('dashboard.see_all_more', { count: totalCount - PREVIEW_COUNT })}
                   </Text>
                   <Ionicons name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={14} color="#ADADAD" />
                 </TouchableOpacity>
@@ -842,41 +873,41 @@ export default function Dashboard() {
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
-        backgroundStyle={s.sheetBg}
+        backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
         handleIndicatorStyle={s.sheetIndicator}
       >
         <BottomSheetView style={s.sheet}>
           {loadingDetails ? (
-            <ActivityIndicator size="large" color="#111" style={{ marginTop: 50 }} />
+            <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 50 }} />
           ) : selectedRequest ? (
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={s.sheetTitle}>{selectedRequest.title || selectedRequest.serviceType}</Text>
+              <Text style={[s.sheetTitle, { color: theme.textAlt }]}>{selectedRequest.title || selectedRequest.serviceType}</Text>
 
               {/* Status badge */}
-              <View style={s.statusBadge}>
-                <View style={[s.statusDot, { backgroundColor: getStatusInfo(selectedRequest.status).dot }]} />
-                <Text style={s.statusBadgeText}>{getStatusInfo(selectedRequest.status).label}</Text>
+              <View style={[s.statusBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View style={[s.statusDot, { backgroundColor: getStatusInfo(selectedRequest.status, t).dot }]} />
+                <Text style={[s.statusBadgeText, { color: theme.textSub }]}>{getStatusInfo(selectedRequest.status, t).label}</Text>
               </View>
 
               {/* Infos */}
               {[
-                { icon: 'document-text-outline', val: selectedRequest.description || 'Aucune description.' },
+                { icon: 'document-text-outline', val: selectedRequest.description || t('dashboard.no_description') },
                 selectedRequest.address && { icon: 'location-outline', val: selectedRequest.address },
                 selectedRequest.price    && { icon: 'cash-outline',    val: `${selectedRequest.price} €` },
               ].filter(Boolean).map((row: any, i) => (
                 <View key={i} style={s.sheetRow}>
-                  <View style={s.sheetRowIcon}>
+                  <View style={[s.sheetRowIcon, { backgroundColor: theme.surface }]}>
                     <Ionicons name={row.icon} size={14} color="#888" />
                   </View>
-                  <Text style={s.sheetVal}>{row.val}</Text>
+                  <Text style={[s.sheetVal, { color: theme.textSub }]}>{row.val}</Text>
                 </View>
               ))}
 
               {/* CTA contextuelle — ACCEPTED / ONGOING */}
               {['ACCEPTED', 'ONGOING'].includes(selectedRequest.status?.toUpperCase()) && (
-                <TouchableOpacity style={s.actionBtn} onPress={() => handleNavigateToMission(selectedRequest)}>
-                  <Text style={s.actionBtnText}>
-                    {selectedRequest.status === 'ACCEPTED' ? 'Suivre le prestataire' : 'Suivre la mission'}
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => handleNavigateToMission(selectedRequest)} accessibilityRole="button">
+                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>
+                    {selectedRequest.status === 'ACCEPTED' ? t('dashboard.track_provider') : t('dashboard.track_mission')}
                   </Text>
                   <Ionicons name="navigate" size={17} color="#FFF" />
                 </TouchableOpacity>
@@ -887,49 +918,67 @@ export default function Dashboard() {
                 <>
                   {/* Rejoindre l'écran de recherche */}
                   <TouchableOpacity
-                    style={s.actionBtn}
+                    style={[s.actionBtn, { backgroundColor: theme.accent }]}
                     onPress={() => {
                       bottomSheetRef.current?.close();
-                      navigateTo(selectedRequest);
+                      navigateToSearching(selectedRequest);
                     }}
+                    accessibilityRole="button"
                   >
-                    <Text style={s.actionBtnText}>Suivre la recherche</Text>
+                    <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.track_search')}</Text>
                     <Ionicons name="radio-outline" size={17} color="#FFF" />
                   </TouchableOpacity>
 
                   {/* Relancer manuellement les providers */}
                   <TouchableOpacity
-                    style={s.resendBtn}
+                    style={[s.resendBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                    accessibilityRole="button"
                     onPress={async () => {
                       try {
                         await api.post(`/requests/${selectedRequest.id}/notify`);
                       } catch {}
                     }}
                   >
-                    <Ionicons name="refresh-outline" size={15} color="#555" />
-                    <Text style={s.resendText}>Relancer les prestataires</Text>
+                    <Ionicons name="refresh-outline" size={15} color={theme.textSub} />
+                    <Text style={[s.resendText, { color: theme.textSub }]}>{t('dashboard.resend_providers')}</Text>
                   </TouchableOpacity>
                 </>
               )}
 
               {selectedRequest.status?.toUpperCase() === 'DONE' && (
-                <View style={s.doneCard}>
-                  <Ionicons name="checkmark-circle" size={20} color="#111" />
-                  <Text style={s.doneText}>Mission terminée avec succès</Text>
-                </View>
+                <>
+                  <View style={[s.doneCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Ionicons name="checkmark-circle" size={20} color={theme.accent} />
+                    <Text style={[s.doneText, { color: theme.textAlt }]}>{t('dashboard.mission_success')}</Text>
+                  </View>
+                  {invoice && (
+                    <TouchableOpacity
+                      style={[s.actionBtn, { backgroundColor: theme.accent, marginTop: 10 }]}
+                      onPress={() => {
+                        bottomSheetRef.current?.close();
+                        setTimeout(() => setInvoiceVisible(true), 300);
+                      }}
+                      activeOpacity={0.78}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="receipt-outline" size={17} color={theme.accentText} />
+                      <Text style={[s.actionBtnText, { color: theme.accentText }]}>Voir la facture</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
 
               {selectedRequest.status?.toUpperCase() === 'EXPIRED' && (
                 <>
-                  <View style={s.expiredCard}>
+                  <View style={[s.expiredCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
                     <Ionicons name="time-outline" size={20} color="#888" />
                     <View style={{ flex: 1 }}>
-                      <Text style={s.expiredTitle}>Aucun prestataire trouvé</Text>
-                      <Text style={s.expiredSub}>Relancez la recherche pour trouver un intervenant disponible.</Text>
+                      <Text style={[s.expiredTitle, { color: theme.text }]}>{t('dashboard.no_provider_found')}</Text>
+                      <Text style={[s.expiredSub, { color: theme.textMuted }]}>{t('dashboard.restart_search_sub')}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={s.actionBtn} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }}>
-                    <Text style={s.actionBtnText}>Relancer la recherche</Text>
+                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }} accessibilityRole="button">
+                    <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.restart_search')}</Text>
                     <Ionicons name="refresh" size={17} color="#FFF" />
                   </TouchableOpacity>
                 </>
@@ -938,6 +987,17 @@ export default function Dashboard() {
           ) : null}
         </BottomSheetView>
       </BottomSheet>
+
+      {/* ── Invoice Sheet ── */}
+      <InvoiceSheet
+        invoice={invoice}
+        isVisible={invoiceVisible}
+        onClose={() => setInvoiceVisible(false)}
+        userRole="client"
+        providerName={selectedRequest?.provider?.name}
+        serviceTitle={selectedRequest?.serviceType || selectedRequest?.title}
+        missionDate={selectedRequest?.completedAt || selectedRequest?.createdAt}
+      />
     </SafeAreaView>
   );
 }
@@ -946,14 +1006,40 @@ export default function Dashboard() {
 // STYLES
 // ============================================================================
 
+// ── Explore CTA styles ────────────────────────────────────────────────────────
+
+const cta = StyleSheet.create({
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#FFF', borderRadius: 18, padding: 14, marginBottom: 18,
+    borderWidth: 1, borderColor: '#F0F0F0',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 1 },
+    }),
+  },
+  iconWrap: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+  },
+  title: { fontSize: 14, fontWeight: '700', color: '#111' },
+  sub:   { fontSize: 12, color: '#ADADAD', marginTop: 2, fontWeight: '500' },
+  arrow: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+  },
+});
+
+// ── Main styles ───────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#F8F9FB' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FB' },
-  scroll: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32 },
+  root:   { flex: 1, backgroundColor: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  scroll: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32, alignItems: 'center' },
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 16,
+    alignItems: 'center', marginBottom: 16, width: '100%',
   },
   headerNameRow: { flexDirection: 'row', alignItems: 'baseline' },
   greeting: { fontSize: 14, fontWeight: '400', color: '#ADADAD' },
@@ -963,40 +1049,52 @@ const s = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: '#F0F0F0',
+    position: 'relative',
   },
+  notifBadge: {
+    position: 'absolute', top: -3, right: -3,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: '#F5F5F5',
+  },
+  notifBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFF' },
 
   mainCTA: {
-    backgroundColor: '#111',
+    backgroundColor: '#FFF',
     borderRadius: 18, height: 64, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginBottom: 20,
+    marginBottom: 20, alignSelf: 'stretch',
+    borderWidth: 1, borderColor: '#F0F0F0',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 5 },
+      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 1 },
     }),
   },
   mainCTASearchIcon: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
   },
-  mainCTATitle: { flex: 1, fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+  mainCTATitle: { flex: 1, fontSize: 15, fontWeight: '700', color: '#111' },
   mainCTABtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
   },
 
   sectionRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 8, paddingHorizontal: 2,
+    alignItems: 'center', marginBottom: 8, paddingHorizontal: 2, width: '100%',
   },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
   sectionCount: { fontSize: 14, fontWeight: '600', color: '#ADADAD' },
 
   listCard: {
     backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#EFEFEF',
+    borderWidth: 1, borderColor: '#EFEFEF', width: '100%',
+
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10 },
       android: { elevation: 1 },

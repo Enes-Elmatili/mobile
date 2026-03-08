@@ -1,499 +1,973 @@
-import React, { useCallback, useEffect, useRef, useState, createContext, useContext } from "react";
+// screens/WelcomeSplash.tsx
+// FIXED — Premium Welcome / Onboarding Splash
+// Stack: React Native + Expo + expo-router
+// Dependencies: expo install expo-haptics expo-linear-gradient
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
-  Animated,
   Dimensions,
-  StatusBar,
-  SafeAreaView,
+  TouchableOpacity,
+  Animated,
   Easing,
+  StatusBar,
+  PanResponder,
 } from "react-native";
-import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import Svg, { Path, Circle as SvgCircle } from "react-native-svg";
+import { router } from "expo-router";
 
-const { width, height } = Dimensions.get("window");
+const { height: SCREEN_H } = Dimensions.get("window");
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedSvgCircle = Animated.createAnimatedComponent(SvgCircle);
 
 // ─────────────────────────────────────────────
-// TOAST SYSTEM
+// DATA
 // ─────────────────────────────────────────────
-type ToastType = "error" | "success" | "info";
-interface ToastMessage { id: number; type: ToastType; message: string }
+const SCREENS = [
+  {
+    tag: "MÉNAGE · BRICOLAGE · PLOMBERIE",
+    headline: "Votre problème.\nNotre expert.",
+    sub: "Un prestataire qualifié chez vous en moins de 30 minutes.",
+    visual: "home",
+  },
+  {
+    tag: "SUIVI EN TEMPS RÉEL",
+    headline: "Suivez chaque\nétape en direct.",
+    sub: "De l'acceptation à l'arrivée, gardez le contrôle total.",
+    visual: "track",
+  },
+  {
+    tag: "PAIEMENT SÉCURISÉ",
+    headline: "Payez en un\ngeste. C'est fixé.",
+    sub: "Prix transparent, pas de surprise. Paiement Stripe intégré.",
+    visual: "pay",
+  },
+];
 
-const ToastContext = createContext<{
-  showToast: (message: string, type?: ToastType) => void;
-} | null>(null);
-
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used inside ToastProvider");
-  return ctx;
-}
-
-function ToastItem({ toast, onRemove }: { toast: ToastMessage; onRemove: () => void }) {
-  const translateY = useRef(new Animated.Value(-80)).current;
-  const opacity    = useRef(new Animated.Value(0)).current;
+// ─────────────────────────────────────────────
+// VISUAL: Radar / Concentric rings
+// ─────────────────────────────────────────────
+function RadarVisual({ active }: { active: boolean }) {
+  const ring1 = useRef(new Animated.Value(1)).current;
+  const ring2 = useRef(new Animated.Value(1)).current;
+  const ring3 = useRef(new Animated.Value(1)).current;
+  const opacity1 = useRef(new Animated.Value(0.5)).current;
+  const opacity2 = useRef(new Animated.Value(0.35)).current;
+  const opacity3 = useRef(new Animated.Value(0.2)).current;
+  const orbitAngle = useRef(new Animated.Value(0)).current;
+  const fadeIn = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Slide in
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: 0, duration: 320, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
-      Animated.timing(opacity,    { toValue: 1, duration: 250, useNativeDriver: true }),
-    ]).start();
+    if (!active) return;
+    Animated.timing(fadeIn, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
 
-    // Auto-dismiss after 3s
-    const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(translateY, { toValue: -80, duration: 280, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-        Animated.timing(opacity,    { toValue: 0,   duration: 220, useNativeDriver: true }),
-      ]).start(() => onRemove());
-    }, 3000);
+    const pulseAnim = (val: Animated.Value, opVal: Animated.Value, opBase: number, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(val, {
+              toValue: 1.1,
+              duration: 1500,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(opVal, {
+              toValue: opBase * 0.4,
+              duration: 1500,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(val, {
+              toValue: 1,
+              duration: 1500,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(opVal, {
+              toValue: opBase,
+              duration: 1500,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      );
 
-    return () => clearTimeout(timer);
-  }, []);
+    pulseAnim(ring1, opacity1, 0.5, 0).start();
+    pulseAnim(ring2, opacity2, 0.35, 400).start();
+    pulseAnim(ring3, opacity3, 0.2, 800).start();
 
-  const accentColor = toast.type === "error" ? "#FF3B3B" : toast.type === "success" ? "#00E676" : "#FFFFFF";
-  const label       = toast.type === "error" ? "✕" : toast.type === "success" ? "✓" : "i";
+    Animated.loop(
+      Animated.timing(orbitAngle, {
+        toValue: 1,
+        duration: 6000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [active, fadeIn, opacity1, opacity2, opacity3, orbitAngle, ring1, ring2, ring3]);
+
+  const orbitRotate = orbitAngle.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  const rings = [
+    { size: 80, scale: ring1, op: opacity1, border: 2 },
+    { size: 150, scale: ring2, op: opacity2, border: 1 },
+    { size: 220, scale: ring3, op: opacity3, border: 1 },
+  ];
 
   return (
-    <Animated.View style={[toast_s.pill, { opacity, transform: [{ translateY }] }]}>
-      <View style={[toast_s.dot, { backgroundColor: accentColor }]}>
-        <Text style={toast_s.dotLabel}>{label}</Text>
-      </View>
-      <Text style={toast_s.text} numberOfLines={2}>{toast.message}</Text>
+    <Animated.View style={[styles.visualContainer, { opacity: fadeIn }]}>
+      {rings.map((r, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            width: r.size,
+            height: r.size,
+            borderRadius: r.size / 2,
+            borderWidth: r.border,
+            borderColor: "#fff",
+            opacity: r.op,
+            transform: [{ scale: r.scale }],
+          }}
+        />
+      ))}
+      {/* Center dot */}
+      <View style={styles.centerDot} />
+      {/* Orbiting dot */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: 80,
+          height: 80,
+          alignItems: "center",
+          transform: [{ rotate: orbitRotate }],
+        }}
+      >
+        <View
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 3.5,
+            backgroundColor: "rgba(255,255,255,0.6)",
+            position: "absolute",
+            top: -40,
+          }}
+        />
+      </Animated.View>
     </Animated.View>
   );
 }
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const counter = useRef(0);
-
-  const showToast = useCallback((message: string, type: ToastType = "info") => {
-    const id = ++counter.current;
-    setToasts(prev => [...prev, { id, type, message }]);
-  }, []);
-
-  const remove = useCallback((id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
-
-  return (
-    <ToastContext.Provider value={{ showToast }}>
-      {children}
-      <View style={toast_s.container} pointerEvents="none">
-        {toasts.map(t => (
-          <ToastItem key={t.id} toast={t} onRemove={() => remove(t.id)} />
-        ))}
-      </View>
-    </ToastContext.Provider>
-  );
-}
-
-const toast_s = StyleSheet.create({
-  container: {
-    position: "absolute",
-    top: 56,
-    left: 16,
-    right: 16,
-    zIndex: 999,
-    gap: 8,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#111111",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  dot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  dotLabel: { color: "#000", fontSize: 11, fontWeight: "800" },
-  text:     { color: "#FFFFFF", fontSize: 13, fontWeight: "500", flex: 1, lineHeight: 18 },
-});
-
 // ─────────────────────────────────────────────
-// X SHAPE
+// VISUAL: Route / Tracking
 // ─────────────────────────────────────────────
-function XShape({ size = 60, color = "#FFFFFF" }: { size?: number; color?: string }) {
-  const thickness = Math.round(size * 0.15);
-  const arm: any = {
-    position: "absolute",
-    width: size,
-    height: thickness,
-    backgroundColor: color,
-    borderRadius: thickness / 2,
-    top: (size - thickness) / 2,
-    left: 0,
-  };
-  return (
-    <View style={{ width: size, height: size }}>
-      <View style={[arm, { transform: [{ rotate: "45deg" }] }]} />
-      <View style={[arm, { transform: [{ rotate: "-45deg" }] }]} />
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────
-// SPLASH SCREEN
-// Bug fix: use Animated.timing (not spring) for the final zoom so
-// the .start() callback is ALWAYS called, even on slow devices.
-// ─────────────────────────────────────────────
-function SplashScreen({ onDone }: { onDone: () => void }) {
-  const fixedOpacity = useRef(new Animated.Value(0)).current;
-  const fixedScale   = useRef(new Animated.Value(0.75)).current;
-  const xOpacity     = useRef(new Animated.Value(0)).current;
-  const xRotation    = useRef(new Animated.Value(0)).current;
-  const xScale       = useRef(new Animated.Value(1)).current;
-  const didFinish    = useRef(false);
-
-  const safeDone = useCallback(() => {
-    if (!didFinish.current) {
-      didFinish.current = true;
-      onDone();
-    }
-  }, [onDone]);
-
-  const oneSpin = useCallback(
-    (toValue: number) =>
-      Animated.timing(xRotation, {
-        toValue,
-        duration: 520,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    []
-  );
-
-  const pulse = Animated.sequence([
-    Animated.timing(xScale, { toValue: 1.28, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    Animated.timing(xScale, { toValue: 1,    duration: 180, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
-    Animated.timing(xScale, { toValue: 1.15, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    Animated.timing(xScale, { toValue: 1,    duration: 140, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
-  ]);
+function TrackVisual({ active }: { active: boolean }) {
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const pathProgress = useRef(new Animated.Value(0)).current;
+  const dotOpacity = useRef(new Animated.Value(0)).current;
+  const endDotScale = useRef(new Animated.Value(0)).current;
+  const movingDotY = useRef(new Animated.Value(0)).current;
+  const movingDotX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Safety net: if animation never completes (edge case), force onDone after 6s
-    const safetyTimer = setTimeout(safeDone, 6000);
-
+    if (!active) return;
     Animated.sequence([
-      // 1. FIXED in
-      Animated.parallel([
-        Animated.timing(fixedOpacity, { toValue: 1, duration: 480, useNativeDriver: true }),
-        Animated.spring(fixedScale,   { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }),
-      ]),
-      // 2. pause
-      Animated.delay(700),
-      // 3. crossfade FIXED -> X
-      Animated.parallel([
-        Animated.timing(fixedOpacity, { toValue: 0, duration: 240, useNativeDriver: true }),
-        Animated.timing(xOpacity,     { toValue: 1, duration: 240, useNativeDriver: true }),
-      ]),
-      // 4. pulse
-      pulse,
-      // 5. 3 rotations
-      oneSpin(1),
-      oneSpin(2),
-      oneSpin(3),
-      // 6. FIXED: use timing instead of spring so callback is guaranteed
-      Animated.timing(xScale, {
-        toValue: 45,
-        duration: 520,
-        easing: Easing.in(Easing.quad),
+      Animated.timing(fadeIn, {
+        toValue: 1,
+        duration: 600,
         useNativeDriver: true,
       }),
-    ]).start(({ finished }) => {
-      clearTimeout(safetyTimer);
-      safeDone();
-    });
+      Animated.timing(pathProgress, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.parallel([
+        Animated.spring(endDotScale, {
+          toValue: 1,
+          friction: 5,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
 
-    return () => clearTimeout(safetyTimer);
-  }, []);
+    // Moving dot loop
+    setTimeout(() => {
+      Animated.loop(
+        Animated.parallel([
+          Animated.timing(movingDotY, {
+            toValue: 1,
+            duration: 2500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(movingDotX, {
+            toValue: 1,
+            duration: 2500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }, 1800);
+  }, [active, dotOpacity, endDotScale, fadeIn, movingDotX, movingDotY, pathProgress]);
 
-  const rotate = xRotation.interpolate({
-    inputRange: [0, 3],
-    outputRange: ["0deg", "1080deg"],
+  const moveDotTranslateY = movingDotY.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, -90, -180],
+  });
+  const moveDotTranslateX = movingDotX.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 65, 135],
+  });
+
+  // Tracé animé de la courbe : strokeDashoffset passe de 400 → 0 au fil de pathProgress
+  const TRACK_PATH_LENGTH = 400;
+  const animatedTrackOffset = pathProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [TRACK_PATH_LENGTH, 0],
   });
 
   return (
-    <View style={splash.container}>
-      <StatusBar barStyle="light-content" />
-      <Animated.Text
-        style={[splash.fixedText, { opacity: fixedOpacity, transform: [{ scale: fixedScale }] }]}
+    <Animated.View style={[styles.visualContainer, { opacity: fadeIn }]}>
+      {/* Dashed background path + animated progress path */}
+      <Svg
+        width={260}
+        height={260}
+        viewBox="0 0 260 260"
+        style={{ position: "absolute" }}
       >
-        FIXED
-      </Animated.Text>
+        {/* Fond en tirets */}
+        <Path
+          d="M 60 220 Q 60 130 130 130 Q 200 130 200 40"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={1.5}
+          strokeDasharray="6,6"
+          fill="none"
+        />
+        {/* Ligne animée qui se trace au fil de pathProgress */}
+        <AnimatedPath
+          d="M 60 220 Q 60 130 130 130 Q 200 130 200 40"
+          stroke="rgba(255,255,255,0.9)"
+          strokeWidth={2}
+          fill="none"
+          strokeDasharray={TRACK_PATH_LENGTH}
+          strokeDashoffset={animatedTrackOffset}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+
+      {/* Start point */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 28,
+          left: 48,
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          borderWidth: 1.5,
+          borderColor: "rgba(255,255,255,0.4)",
+        }}
+      />
+
+      {/* End point */}
       <Animated.View
         style={{
           position: "absolute",
-          opacity: xOpacity,
-          transform: [{ rotate }, { scale: xScale }],
+          top: 26,
+          right: 50,
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          backgroundColor: "#fff",
+          transform: [{ scale: endDotScale }],
+          shadowColor: "#fff",
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.5,
+          shadowRadius: 10,
         }}
-      >
-        <XShape size={64} color="#FFFFFF" />
-      </Animated.View>
-    </View>
+      />
+
+      {/* Moving dot */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 32,
+          left: 52,
+          width: 9,
+          height: 9,
+          borderRadius: 4.5,
+          backgroundColor: "#fff",
+          opacity: dotOpacity,
+          transform: [
+            { translateY: moveDotTranslateY },
+            { translateX: moveDotTranslateX },
+          ],
+          shadowColor: "#fff",
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.6,
+          shadowRadius: 8,
+        }}
+      />
+    </Animated.View>
   );
 }
 
-const splash = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#0A0A0A",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 100,
-  },
-  fixedText: {
-    position: "absolute",
-    color: "#FFFFFF",
-    fontSize: 38,
-    fontWeight: "800",
-    letterSpacing: 14,
-    fontFamily: "Georgia",
-  },
-});
-
 // ─────────────────────────────────────────────
-// WELCOME CONTENT
+// VISUAL: Checkmark / Payment confirmed
 // ─────────────────────────────────────────────
-function WelcomeContent() {
-  const router = useRouter();
-
-  const fadeIn    = useRef(new Animated.Value(0)).current;
-  const logoY     = useRef(new Animated.Value(-20)).current;
-  const headlineY = useRef(new Animated.Value(30)).current;
-  const buttonsY  = useRef(new Animated.Value(50)).current;
+function PayVisual({ active }: { active: boolean }) {
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const circleProgress = useRef(new Animated.Value(0)).current;
+  const checkProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.stagger(80, [
-      Animated.parallel([
-        Animated.timing(fadeIn, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.spring(logoY,  { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
-      ]),
-      Animated.spring(headlineY, { toValue: 0, tension: 70, friction: 11, useNativeDriver: true }),
-      Animated.spring(buttonsY,  { toValue: 0, tension: 70, friction: 11, useNativeDriver: true }),
+    if (!active) return;
+    Animated.sequence([
+      Animated.timing(fadeIn, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(circleProgress, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(checkProgress, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
     ]).start();
-  }, []);
+  }, [active, checkProgress, circleProgress, fadeIn]);
 
+  const circumference = 2 * Math.PI * 60;
+  const circleDash = circleProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [circumference, 0],
+  });
+  const checkDash = checkProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [80, 0],
+  });
+
+  return (
+    <Animated.View style={[styles.visualContainer, { opacity: fadeIn }]}>
+      <Svg width={140} height={140} viewBox="0 0 140 140">
+        {/* Background circle */}
+        <SvgCircle
+          cx={70}
+          cy={70}
+          r={60}
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth={1.5}
+          fill="none"
+        />
+        {/* Animated circle */}
+        <AnimatedSvgCircle
+          cx={70}
+          cy={70}
+          r={60}
+          stroke="#fff"
+          strokeWidth={2}
+          fill="none"
+          strokeDasharray={`${circumference}`}
+          strokeDashoffset={circleDash}
+          strokeLinecap="round"
+          transform="rotate(-90 70 70)"
+        />
+        {/* Animated checkmark */}
+        <AnimatedPath
+          d="M 45 72 L 63 88 L 98 53"
+          stroke="#fff"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+          strokeDasharray="80"
+          strokeDashoffset={checkDash}
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+// ─────────────────────────────────────────────
+// VISUAL SWITCHER
+// ─────────────────────────────────────────────
+function VisualSwitcher({ type, active }: { type: string; active: boolean }) {
+  if (type === "home") return <RadarVisual active={active} />;
+  if (type === "track") return <TrackVisual active={active} />;
+  if (type === "pay") return <PayVisual active={active} />;
+  return null;
+}
+
+// ─────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────
+export default function WelcomeSplash() {
+  const [phase, setPhase] = useState("splash"); // splash | onboarding
+  const [currentScreen, setCurrentScreen] = useState(0);
+  const [contentActive, setContentActive] = useState(false);
+  const transitioningRef = useRef(false);
+
+  // Splash animations
+  const lineScaleX = useRef(new Animated.Value(0)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoTranslateY = useRef(new Animated.Value(14)).current;
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const taglineTranslateY = useRef(new Animated.Value(10)).current;
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+
+  // Onboarding content animations
+  const tagOpacity = useRef(new Animated.Value(0)).current;
+  const tagTransY = useRef(new Animated.Value(10)).current;
+  const headlineOpacity = useRef(new Animated.Value(0)).current;
+  const headlineTransY = useRef(new Animated.Value(18)).current;
+  const subOpacity = useRef(new Animated.Value(0)).current;
+  const subTransY = useRef(new Animated.Value(14)).current;
+  const ctaOpacity = useRef(new Animated.Value(0)).current;
+  const ctaTransY = useRef(new Animated.Value(12)).current;
+
+  // Dot widths
+  const dotWidths = useRef(SCREENS.map(() => new Animated.Value(8))).current;
+
+  // useRef pour stabiliser la référence — évite que animateContentIn/animateDots
+  // soient recréées à chaque render et re-déclenchent le useEffect splash
+  const ease = useRef(Easing.bezier(0.16, 1, 0.3, 1)).current;
+
+  // ── Splash sequence ──
+  useEffect(() => {
+    const sequence = Animated.sequence([
+      Animated.delay(400),
+      // Line expand
+      Animated.timing(lineScaleX, {
+        toValue: 1,
+        duration: 700,
+        easing: ease,
+        useNativeDriver: true,
+      }),
+      // Logo fade in
+      Animated.delay(100),
+      Animated.parallel([
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 800,
+          easing: ease,
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoTranslateY, {
+          toValue: 0,
+          duration: 800,
+          easing: ease,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Tagline
+      Animated.delay(100),
+      Animated.parallel([
+        Animated.timing(taglineOpacity, {
+          toValue: 1,
+          duration: 700,
+          easing: ease,
+          useNativeDriver: true,
+        }),
+        Animated.timing(taglineTranslateY, {
+          toValue: 0,
+          duration: 700,
+          easing: ease,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Hold
+      Animated.delay(1200),
+      // Fade out splash
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    sequence.start(() => {
+      setPhase("onboarding");
+      animateContentIn();
+      animateDots(0);
+    });
+  }, [animateContentIn, animateDots, ease, lineScaleX, logoOpacity, logoTranslateY, splashOpacity, taglineOpacity, taglineTranslateY]);
+
+  // ── Content animations ──
+  const animateContentIn = useCallback(() => {
+    tagOpacity.setValue(0);
+    tagTransY.setValue(10);
+    headlineOpacity.setValue(0);
+    headlineTransY.setValue(18);
+    subOpacity.setValue(0);
+    subTransY.setValue(14);
+    ctaOpacity.setValue(0);
+    ctaTransY.setValue(12);
+
+    Animated.stagger(120, [
+      Animated.parallel([
+        Animated.timing(tagOpacity, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(tagTransY, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(headlineOpacity, { toValue: 1, duration: 700, easing: ease, useNativeDriver: true }),
+        Animated.timing(headlineTransY, { toValue: 0, duration: 700, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(subOpacity, { toValue: 1, duration: 700, easing: ease, useNativeDriver: true }),
+        Animated.timing(subTransY, { toValue: 0, duration: 700, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(ctaOpacity, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(ctaTransY, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+    ]).start(() => setContentActive(true));
+  }, [ctaOpacity, ctaTransY, ease, headlineOpacity, headlineTransY, subOpacity, subTransY, tagOpacity, tagTransY]);
+
+  const animateContentOut = useCallback(() => {
+    setContentActive(false);
+    return new Promise((resolve) => {
+      Animated.parallel([
+        Animated.timing(tagOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(headlineOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(subOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(ctaOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]).start(resolve);
+    });
+  }, [ctaOpacity, headlineOpacity, subOpacity, tagOpacity]);
+
+  const animateDots = useCallback((idx: number) => {
+    SCREENS.forEach((_, i) => {
+      Animated.timing(dotWidths[i], {
+        toValue: i === idx ? 28 : 8,
+        duration: 400,
+        easing: ease,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [dotWidths, ease]);
+
+  // ── Navigation ──
+  const goToScreen = useCallback(
+    async (idx: number) => {
+      if (idx === currentScreen || transitioningRef.current) return;
+      transitioningRef.current = true;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await animateContentOut();
+      setCurrentScreen(idx);
+      animateDots(idx);
+      setTimeout(() => {
+        animateContentIn();
+        transitioningRef.current = false;
+      }, 80);
+    },
+    [currentScreen]
+  );
+
+  const nextScreen = useCallback(() => {
+    if (currentScreen < SCREENS.length - 1) {
+      goToScreen(currentScreen + 1);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      router.push("/onboarding/role-selector");
+    }
+  }, [currentScreen, goToScreen]);
+
+  const prevScreen = useCallback(() => {
+    if (currentScreen > 0) goToScreen(currentScreen - 1);
+  }, [currentScreen, goToScreen]);
+
+  // ── Swipe gesture ──
+  // Les refs évitent le stale-closure : panResponder est créé une seule fois
+  // mais ses callbacks appellent toujours la version la plus récente des handlers.
+  const nextScreenRef = useRef(nextScreen);
+  const prevScreenRef = useRef(prevScreen);
+  nextScreenRef.current = nextScreen;
+  prevScreenRef.current = prevScreen;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 20,
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx < -50) nextScreenRef.current();
+        else if (gs.dx > 50) prevScreenRef.current();
+      },
+    })
+  ).current;
+
+  const screen = SCREENS[currentScreen];
+
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      <View style={styles.gridOverlay} pointerEvents="none">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View key={"c" + i} style={[styles.gridCol, { left: (width / 6) * i }]} />
-        ))}
-        {Array.from({ length: 10 }).map((_, i) => (
-          <View key={"r" + i} style={[styles.gridRow, { top: (height / 10) * i }]} />
-        ))}
-      </View>
+      {/* Subtle ambient glow */}
+      <LinearGradient
+        colors={["rgba(255,255,255,0.04)", "transparent"]}
+        style={styles.ambientGlow}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.7 }}
+      />
 
-      <SafeAreaView style={styles.safeArea}>
-        {/* Logo */}
-        <Animated.View
-          style={[styles.logoZone, { opacity: fadeIn, transform: [{ translateY: logoY }] }]}
-        >
-          <View style={styles.logoRow}>
-            <XShape size={24} color="#FFFFFF" />
-            <Text style={styles.wordmark}>FIXED</Text>
-          </View>
-          <View style={styles.tagBadge}>
-            <Text style={styles.tagText}>PRO PLATFORM</Text>
-          </View>
-        </Animated.View>
+      {/* ═══ SPLASH PHASE ═══ */}
+      {phase === "splash" && (
+        <Animated.View style={[styles.splashContainer, { opacity: splashOpacity }]}>
+          {/* Expanding line */}
+          <Animated.View
+            style={[
+              styles.splashLine,
+              { transform: [{ scaleX: lineScaleX }] },
+            ]}
+          />
 
-        {/* Headline */}
-        <Animated.View
-          style={[styles.heroSection, { opacity: fadeIn, transform: [{ translateY: headlineY }] }]}
-        >
-          <Text style={styles.headline}>{"Un\nprobleme ?"}</Text>
-          <Text style={styles.slogan}>{"It's Fixed."}</Text>
-          <View style={styles.sloganUnderline} />
-          <Text style={styles.subline}>
-            {"La plateforme qui connecte\nclients et prestataires."}
-          </Text>
-        </Animated.View>
-
-        {/* Boutons */}
-        <Animated.View
-          style={[styles.actions, { opacity: fadeIn, transform: [{ translateY: buttonsY }] }]}
-        >
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => router.push("/(auth)/login")}
-            activeOpacity={0.88}
+          {/* Logo */}
+          <Animated.Text
+            style={[
+              styles.splashLogo,
+              {
+                opacity: logoOpacity,
+                transform: [{ translateY: logoTranslateY }],
+              },
+            ]}
           >
-            <Text style={styles.primaryBtnText}>Se connecter</Text>
-          </TouchableOpacity>
+            FIXED
+          </Animated.Text>
 
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={() => router.push("/(auth)/signup")}
-            activeOpacity={0.88}
+          {/* Tagline */}
+          <Animated.Text
+            style={[
+              styles.splashTagline,
+              {
+                opacity: taglineOpacity,
+                transform: [{ translateY: taglineTranslateY }],
+              },
+            ]}
           >
-            <Text style={styles.secondaryBtnText}>{"Creer un compte"}</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.legalText}>
-            {"En continuant, vous acceptez nos "}
-            <Text style={styles.legalLink}>{"Conditions d'utilisation"}</Text>
-          </Text>
+            SERVICES À LA DEMANDE
+          </Animated.Text>
         </Animated.View>
-      </SafeAreaView>
+      )}
+
+      {/* ═══ ONBOARDING PHASE ═══ */}
+      {phase === "onboarding" && (
+        <View style={styles.onboardingContainer} {...panResponder.panHandlers}>
+          {/* Top bar */}
+          <View style={styles.topBar}>
+            <Text style={styles.topLogo}>FIXED</Text>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push("/onboarding/role-selector");
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={styles.skipBtn}>Passer</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Content area */}
+          <View style={styles.contentArea}>
+            {/* Tag */}
+            <Animated.Text
+              style={[
+                styles.tag,
+                {
+                  opacity: tagOpacity,
+                  transform: [{ translateY: tagTransY }],
+                },
+              ]}
+            >
+              {screen.tag}
+            </Animated.Text>
+
+            {/* Visual */}
+            <View style={styles.visualWrapper}>
+              <VisualSwitcher type={screen.visual} active={contentActive} />
+            </View>
+
+            {/* Headline */}
+            <Animated.Text
+              style={[
+                styles.headline,
+                {
+                  opacity: headlineOpacity,
+                  transform: [{ translateY: headlineTransY }],
+                },
+              ]}
+            >
+              {screen.headline}
+            </Animated.Text>
+
+            {/* Subtitle */}
+            <Animated.Text
+              style={[
+                styles.subtitle,
+                {
+                  opacity: subOpacity,
+                  transform: [{ translateY: subTransY }],
+                },
+              ]}
+            >
+              {screen.sub}
+            </Animated.Text>
+          </View>
+
+          {/* Bottom controls */}
+          <View style={styles.bottomControls}>
+            {/* Dots */}
+            <View style={styles.dotsRow}>
+              {SCREENS.map((_, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => goToScreen(i)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                >
+                  <Animated.View
+                    style={[
+                      styles.dot,
+                      {
+                        width: dotWidths[i],
+                        backgroundColor:
+                          i === currentScreen
+                            ? "#fff"
+                            : "rgba(255,255,255,0.15)",
+                      },
+                    ]}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* CTA */}
+            <Animated.View
+              style={{
+                opacity: ctaOpacity,
+                transform: [{ translateY: ctaTransY }],
+              }}
+            >
+              <TouchableOpacity
+                style={styles.ctaButton}
+                activeOpacity={0.85}
+                onPress={nextScreen}
+              >
+                <Text style={styles.ctaText}>
+                  {currentScreen < SCREENS.length - 1
+                    ? "Continuer"
+                    : "Commencer"}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Home indicator placeholder */}
+            <View style={styles.homeIndicator} />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 // ─────────────────────────────────────────────
-// ROOT EXPORT — with auto-login check
+// STYLES
 // ─────────────────────────────────────────────
-type Phase = "splash" | "welcome" | "redirecting";
-
-export default function Welcome() {
-  const router = useRouter();
-  const [phase, setPhase] = useState<Phase>("splash");
-
-  // Run auto-login check concurrently while splash plays
-  const checkAuth = useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem("auth_token");
-      return !!token;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const handleSplashDone = useCallback(async () => {
-    const isLoggedIn = await checkAuth();
-    if (isLoggedIn) {
-      // Token found → skip Welcome, go straight to app
-      router.replace("/(app)/dashboard");
-    } else {
-      setPhase("welcome");
-    }
-  }, []);
-
-  return (
-    <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
-      {phase === "splash" && <SplashScreen onDone={handleSplashDone} />}
-      {phase === "welcome" && <WelcomeContent />}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0A0A0A" },
-
-  gridOverlay: { ...StyleSheet.absoluteFillObject },
-  gridCol: { position: "absolute", top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,255,255,0.03)" },
-  gridRow: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: "rgba(255,255,255,0.03)" },
-
-  safeArea: {
+  root: {
     flex: 1,
-    paddingHorizontal: 28,
+    backgroundColor: "#000",
+  },
+  ambientGlow: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: SCREEN_H * 0.5,
+    zIndex: 0,
+  },
+
+  // ── Splash ──
+  splashContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  splashLine: {
+    width: 56,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.4)",
+    marginBottom: 26,
+  },
+  splashLogo: {
+    fontFamily: "System",
+    fontSize: 48,
+    fontWeight: "800",
+    letterSpacing: 10,
+    color: "#fff",
+  },
+  splashTagline: {
+    fontFamily: "System",
+    fontSize: 11,
+    fontWeight: "300",
+    letterSpacing: 4,
+    color: "rgba(255,255,255,0.3)",
+    marginTop: 16,
+  },
+
+  // ── Onboarding ──
+  onboardingContainer: {
+    flex: 1,
+    zIndex: 5,
+  },
+  topBar: {
+    flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 20,
+    alignItems: "center",
+    paddingTop: 60,
+    paddingHorizontal: 28,
+  },
+  topLogo: {
+    fontFamily: "System",
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 4,
+    color: "#fff",
+  },
+  skipBtn: {
+    fontFamily: "System",
+    fontSize: 14,
+    fontWeight: "400",
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: 0.5,
+  },
+
+  // ── Content ──
+  contentArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     paddingBottom: 20,
   },
-
-  logoZone: { paddingTop: 12, gap: 10 },
-  logoRow:  { flexDirection: "row", alignItems: "center", gap: 12 },
-  wordmark: {
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: 8,
-    fontFamily: "Georgia",
+  tag: {
+    fontFamily: "System",
+    fontSize: 10,
+    fontWeight: "500",
+    letterSpacing: 3,
+    color: "rgba(255,255,255,0.28)",
+    textTransform: "uppercase",
+    marginBottom: 36,
   },
-  tagBadge: {
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  visualWrapper: {
+    width: 260,
+    height: 260,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 44,
   },
-  tagText: { color: "rgba(255,255,255,0.35)", fontSize: 10, letterSpacing: 3, fontWeight: "600" },
-
-  heroSection: { flex: 1, justifyContent: "center", paddingVertical: 32 },
-
+  visualContainer: {
+    width: 260,
+    height: 260,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  centerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#fff",
+    shadowColor: "#fff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 8,
+  },
   headline: {
-    fontSize: 62,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    lineHeight: 66,
-    letterSpacing: -2.5,
-    fontFamily: "Georgia",
-    marginBottom: 12,
-  },
-  slogan: {
-    fontSize: 62,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    lineHeight: 66,
-    letterSpacing: -1,
-    fontFamily: "Georgia",
-    fontStyle: "italic",
-  },
-  sloganUnderline: {
-    width: 56,
-    height: 3,
-    backgroundColor: "#FFFFFF",
-    marginTop: 22,
-    marginBottom: 22,
-  },
-  subline: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.38)",
-    lineHeight: 23,
-    letterSpacing: 0.2,
-  },
-
-  actions: { gap: 12, paddingBottom: 4 },
-
-  primaryBtn: {
-    backgroundColor: "#FFFFFF",
-    height: 55,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnText: { color: "#0A0A0A", fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
-
-  secondaryBtn: {
-    backgroundColor: "transparent",
-    height: 55,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-  secondaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600", letterSpacing: 0.3 },
-
-  legalText: {
+    fontFamily: "System",
+    fontSize: 30,
+    fontWeight: "700",
+    lineHeight: 38,
+    color: "#fff",
     textAlign: "center",
-    color: "rgba(255,255,255,0.2)",
-    fontSize: 11,
-    marginTop: 4,
-    lineHeight: 16,
+    paddingHorizontal: 40,
   },
-  legalLink: { color: "rgba(255,255,255,0.4)", textDecorationLine: "underline" },
+  subtitle: {
+    fontFamily: "System",
+    fontSize: 14,
+    fontWeight: "300",
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
+    paddingHorizontal: 48,
+    marginTop: 14,
+  },
+
+  // ── Bottom ──
+  bottomControls: {
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 28,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 4,
+  },
+  ctaButton: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ctaText: {
+    fontFamily: "System",
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+    letterSpacing: 0.5,
+  },
+  homeIndicator: {
+    width: 134,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "center",
+    marginTop: 16,
+  },
 });

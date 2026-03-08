@@ -16,6 +16,7 @@ import {
   TextInput,
   Dimensions,
   Animated,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   useColorScheme,
@@ -27,6 +28,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useStripe } from '@stripe/stripe-react-native';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { toIoniconName } from '../../lib/iconMapper';
 
@@ -64,32 +66,31 @@ const MAP_STYLE_SILVER = [
   { featureType: 'water',                      elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
 ];
 
-// ─── Carte Dark ────────────────────────────────────────────────────────────────
+// ─── Carte Dark (monochrome branded — no blue) ──────────────────────────────────
 const MAP_STYLE_DARK = [
-  { elementType: 'geometry',           stylers: [{ color: '#1a1a2e' }] },
+  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
   { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#8a8a9a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
-  { featureType: 'landscape',     elementType: 'geometry', stylers: [{ color: '#16213e' }] },
-  { featureType: 'poi',           elementType: 'geometry', stylers: [{ color: '#1e2a3a' }] },
-  { featureType: 'poi.park',      elementType: 'geometry', stylers: [{ color: '#192330' }] },
-  { featureType: 'road',          elementType: 'geometry', stylers: [{ color: '#0f3460' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#4a6fa5' }] },
-  { featureType: 'road.highway',  elementType: 'geometry', stylers: [{ color: '#1a4a7a' }] },
-  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#4a6fa5' }] },
-  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#3a5a7a' }] },
-  { featureType: 'transit.line',  elementType: 'geometry', stylers: [{ color: '#0d1b2a' }] },
-  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#1e2a3a' }] },
-  { featureType: 'water',         elementType: 'geometry', stylers: [{ color: '#0d1b2a' }] },
-  { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#3a5a7a' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
+  { featureType: 'landscape',     elementType: 'geometry', stylers: [{ color: '#222222' }] },
+  { featureType: 'poi',           stylers: [{ visibility: 'off' }] },
+  { featureType: 'road',          elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
+  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
+  { featureType: 'road.highway',  elementType: 'geometry', stylers: [{ color: '#333333' }] },
+  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
+  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
+  { featureType: 'transit.line',  elementType: 'geometry', stylers: [{ color: '#1A1A1A' }] },
+  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#222222' }] },
+  { featureType: 'water',         elementType: 'geometry', stylers: [{ color: '#111111' }] },
+  { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
 ];
 
 // Config des étapes
-const STEPS = [
-  { label: 'Lieu',       sublabel: "Adresse d'intervention",    icon: 'location-outline'          as const },
-  { label: 'Service',    sublabel: "Type d'intervention",       icon: 'construct-outline'         as const },
-  { label: 'Planning',   sublabel: 'Disponibilité',             icon: 'time-outline'              as const },
-  { label: 'Validation', sublabel: 'Paiement & récapitulatif',  icon: 'checkmark-circle-outline'  as const },
+const getStepConfig = (t: any) => [
+  { label: t('stepper.step1_label'), sublabel: t('stepper.step1_sub'), icon: 'location-outline'          as const },
+  { label: t('stepper.step2_label'), sublabel: t('stepper.step2_sub'), icon: 'construct-outline'         as const },
+  { label: t('stepper.step3_label'), sublabel: t('stepper.step3_sub'), icon: 'time-outline'              as const },
+  { label: t('stepper.step4_label'), sublabel: t('stepper.step4_sub'), icon: 'checkmark-circle-outline'  as const },
 ];
 
 function extractArrayPayload(response: any): any[] {
@@ -152,34 +153,93 @@ function useTheme() {
   };
 }
 
-// ─── Progress Bar animée ───────────────────────────────────────────────────────
-function ProgressBar({ step }: { step: number }) {
-  const t        = useTheme();
-  const progress = useRef(new Animated.Value((step - 1) / TOTAL_STEPS)).current;
+// ─── Step Indicator animé ──────────────────────────────────────────────────────
+const STEP_ICONS: Array<'location-outline' | 'construct-outline' | 'time-outline' | 'checkmark-circle-outline'> = [
+  'location-outline', 'construct-outline', 'time-outline', 'checkmark-circle-outline',
+];
+
+function StepIndicator({ step }: { step: number }) {
+  const t = useTheme();
+
+  // One animated value per segment (3 segments for 4 steps)
+  const segmentAnims = useRef(
+    Array.from({ length: TOTAL_STEPS - 1 }, (_, i) => new Animated.Value(i < step - 1 ? 1 : 0))
+  ).current;
+
+  // Scale animation for the active dot
+  const dotScales = useRef(
+    Array.from({ length: TOTAL_STEPS }, (_, i) => new Animated.Value(i === step - 1 ? 1.25 : 1))
+  ).current;
 
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue:  step / TOTAL_STEPS,
-      duration: 400,
-      useNativeDriver: false,
-    }).start();
+    // Animate segments: fill segments up to (step - 1)
+    segmentAnims.forEach((anim, i) => {
+      Animated.timing(anim, {
+        toValue: i < step - 1 ? 1 : 0,
+        duration: 350,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    // Animate dot scales: active = pop, others = normal
+    dotScales.forEach((anim, i) => {
+      if (i === step - 1) {
+        Animated.sequence([
+          Animated.timing(anim, { toValue: 1.35, duration: 180, useNativeDriver: true }),
+          Animated.spring(anim, { toValue: 1.15, useNativeDriver: true, tension: 200, friction: 10 }),
+        ]).start();
+      } else {
+        Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      }
+    });
   }, [step]);
 
-  const animWidth = progress.interpolate({
-    inputRange:  [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
   return (
-    <View style={[pb.track, { backgroundColor: t.progressTrack }]}>
-      <Animated.View style={[pb.fill, { width: animWidth }]} />
+    <View style={si.container}>
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => {
+        const isActive    = i === step - 1;
+        const isCompleted = i < step - 1;
+        const dotBg       = isActive ? '#1A1A1A' : isCompleted ? '#1A1A1A' : t.progressTrack;
+        const iconColor   = isActive || isCompleted ? '#FFF' : t.textMuted as string;
+
+        return (
+          <React.Fragment key={i}>
+            {/* Dot */}
+            <Animated.View style={[
+              si.dot,
+              { backgroundColor: dotBg, transform: [{ scale: dotScales[i] }] },
+              isActive && si.dotActive,
+            ]}>
+              {isCompleted
+                ? <Ionicons name="checkmark" size={14} color={iconColor} />
+                : <Ionicons name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
+              }
+            </Animated.View>
+
+            {/* Segment line between dots */}
+            {i < TOTAL_STEPS - 1 && (
+              <View style={[si.segment, { backgroundColor: t.progressTrack }]}>
+                <Animated.View style={[si.segmentFill, {
+                  width: segmentAnims[i].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                  }),
+                }]} />
+              </View>
+            )}
+          </React.Fragment>
+        );
+      })}
     </View>
   );
 }
 
-const pb = StyleSheet.create({
-  track: { height: 3, marginHorizontal: 24, borderRadius: 2, overflow: 'hidden' },
-  fill:  { height: '100%', backgroundColor: '#000', borderRadius: 2 },
+const si = StyleSheet.create({
+  container:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 6 },
+  dot:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  dotActive:   { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  segment:     { flex: 1, height: 2, borderRadius: 1, overflow: 'hidden', marginHorizontal: 4 },
+  segmentFill: { height: '100%', backgroundColor: '#1A1A1A', borderRadius: 1 },
 });
 
 // ─── Résumé contextuel ─────────────────────────────────────────────────────────
@@ -197,15 +257,20 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
 
   return (
     <View style={ls.wrap}>
-      <Ionicons name="checkmark-circle" size={13} color="#34C759" />
-      <Text style={ls.text} numberOfLines={1}>{parts.join(' · ')}</Text>
+      {parts.map((p, i) => (
+        <View key={i} style={ls.row}>
+          <Ionicons name="checkmark-circle" size={12} color="#aaa" />
+          <Text style={ls.text} numberOfLines={1}>{p}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 const ls = StyleSheet.create({
-  wrap: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 24, marginTop: 8, marginBottom: 2 },
-  text: { fontSize: 12, fontWeight: '500', color: '#888', flex: 1 },
+  wrap: { marginHorizontal: 24, marginTop: 8, marginBottom: 2, gap: 3 },
+  row:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  text: { fontSize: 11, fontWeight: '500', color: '#999', flex: 1 },
 });
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
@@ -232,6 +297,8 @@ function CategoryCard({ cat, selected, onPress }: { cat: any; selected: boolean;
         ]}
         onPress={handlePress}
         activeOpacity={1}
+        accessibilityLabel={cat.name}
+        accessibilityRole="button"
       >
         <View style={[cc.iconWrap, { backgroundColor: t.surface }, selected && cc.iconWrapSelected]}>
           <Ionicons
@@ -289,6 +356,8 @@ function SubChip({ label, price, selected, onPress, icon }: {
         style={[sc.row, { borderBottomColor: t.surfaceBorder }]}
         onPress={handlePress}
         activeOpacity={0.7}
+        accessibilityLabel={label}
+        accessibilityRole="button"
       >
         <View style={[sc.dot, { backgroundColor: t.surfaceBorder }, selected && { backgroundColor: t.text }]} />
         <Text style={[sc.text, { color: t.textSub }, selected && { fontWeight: '700', color: t.text }]}>{label}</Text>
@@ -335,6 +404,8 @@ function TimeSlot({ label, selected, onPress }: { label: string; selected: boole
         ]}
         onPress={handlePress}
         activeOpacity={1}
+        accessibilityLabel={label}
+        accessibilityRole="button"
       >
         {selected && <View style={tslot.dot} />}
         <Text style={[tslot.text, { color: t.textSub }, selected && tslot.textSelected]}>{label}</Text>
@@ -367,6 +438,8 @@ function DayChip({ day, date, month, selected, onPress }: {
       style={dc.wrap}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
       activeOpacity={0.7}
+      accessibilityLabel={`${day} ${date} ${month}`}
+      accessibilityRole="button"
     >
       <Text style={[dc.day,  { color: t.textMuted }, selected && { color: t.text }]}>{day}</Text>
       <Text style={[dc.date, { color: t.textMuted }, selected && { color: t.text }]}>{date}</Text>
@@ -412,6 +485,8 @@ function BottomCTA({ label, onPress, disabled, loading, price }: {
           onPress={handlePress}
           disabled={disabled || loading}
           style={[cta.btn, disabled && cta.btnDisabled]}
+          accessibilityLabel={label}
+          accessibilityRole="button"
         >
           {loading ? (
             <ActivityIndicator color="#FFF" />
@@ -445,15 +520,15 @@ const cta = StyleSheet.create({
 });
 
 // ─── Helpers date ──────────────────────────────────────────────────────────────
-function buildNextDays(count = 10) {
+function buildNextDays(t: any, count = 10) {
   const days: { day: string; date: string; month: string; iso: string }[] = [];
-  const dayNames   = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-  const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+  const dayNames   = [t('stepper.day_sun'), t('stepper.day_mon'), t('stepper.day_tue'), t('stepper.day_wed'), t('stepper.day_thu'), t('stepper.day_fri'), t('stepper.day_sat')];
+  const monthNames = [t('stepper.month_jan'), t('stepper.month_feb'), t('stepper.month_mar'), t('stepper.month_apr'), t('stepper.month_may'), t('stepper.month_jun'), t('stepper.month_jul'), t('stepper.month_aug'), t('stepper.month_sep'), t('stepper.month_oct'), t('stepper.month_nov'), t('stepper.month_dec')];
   for (let i = 0; i < count; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     days.push({
-      day:   i === 0 ? 'Auj.' : dayNames[d.getDay()],
+      day:   i === 0 ? t('stepper.today') : dayNames[d.getDay()],
       date:  String(d.getDate()),
       month: monthNames[d.getMonth()],
       iso:   d.toISOString().split('T')[0],
@@ -462,18 +537,21 @@ function buildNextDays(count = 10) {
   return days;
 }
 
-const TIME_GROUPS = [
-  { label: 'Matin',       slots: ['08:00', '09:00', '10:00', '11:00'] },
-  { label: 'Après-midi',  slots: ['14:00', '15:00', '16:00', '17:00'] },
-  { label: 'Soir',        slots: ['18:00', '19:00'] },
+const getTimeGroups = (t: any) => [
+  { label: t('stepper.morning'),    slots: ['08:00', '09:00', '10:00', '11:00'] },
+  { label: t('stepper.afternoon'),  slots: ['14:00', '15:00', '16:00', '17:00'] },
+  { label: t('stepper.evening'),    slots: ['18:00', '19:00'] },
 ];
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────────
 export default function NewRequestStepper() {
   const router = useRouter();
-  const t      = useTheme();
+  const theme  = useTheme();
+  const { t }  = useTranslation();
   const { selectedCategory: preselectedCategory } = useLocalSearchParams<{ selectedCategory?: string }>();
   const mapRef    = useRef<MapView | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const fadeAnim  = useRef(new Animated.Value(1)).current;
 
@@ -491,7 +569,7 @@ export default function NewRequestStepper() {
   const [noteOpen,      setNoteOpen]      = useState(false);
 
   // Étape 3
-  const days = useMemo(() => buildNextDays(10), []);
+  const days = useMemo(() => buildNextDays(t, 10), [t]);
   const [scheduleMode,   setScheduleMode]   = useState<'now' | 'later' | null>(null);
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
   const [selectedTime,   setSelectedTime]   = useState<string | null>(null);
@@ -505,7 +583,7 @@ export default function NewRequestStepper() {
   const estimatedPrice  = selectedSubcategory?.price || selectedCategory?.price || 0;
   const serviceName     = selectedSubcategory?.name  || selectedCategory?.name  || null;
   const scheduledLabel  = scheduleMode === 'now'
-    ? 'Dès maintenant'
+    ? t('stepper.now')
     : (selectedDayIso && selectedTime
       ? `${days.find(d => d.iso === selectedDayIso)?.day} ${days.find(d => d.iso === selectedDayIso)?.date} à ${selectedTime}`
       : null);
@@ -520,7 +598,7 @@ export default function NewRequestStepper() {
   useEffect(() => {
     (async () => {
       try {
-        const response = await api.request('/categories');
+        const response = await api.get('/categories');
         setCategories(extractArrayPayload(response));
       } catch (e) {
         console.error('Categories load error:', e);
@@ -579,7 +657,7 @@ export default function NewRequestStepper() {
           scheduledFor: scheduledFor || new Date().toISOString(),
           status:       'PENDING_PAYMENT',
         };
-        const reqRes = await api.request('/requests', { method: 'POST', body: payload });
+        const reqRes = await api.post('/requests', payload);
         const rId    = reqRes.id || reqRes.data?.id;
         if (!rId) throw new Error('Request ID manquant');
         setRequestId(rId);
@@ -602,6 +680,60 @@ export default function NewRequestStepper() {
     })();
   }, [step]);
 
+  // Confirme le paiement côté backend avec retry (max 3 tentatives, backoff 1s/2s)
+  const confirmPaymentSuccess = async (rId: string | number): Promise<void> => {
+    let lastErr: any;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (!mountedRef.current) return;
+      try {
+        await api.payments.success(rId);
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000));
+      }
+    }
+    if (!mountedRef.current) return;
+    // Paiement déjà prélevé côté Stripe → ne pas laisser l'utilisateur bloqué
+    Alert.alert(
+      t('stepper.payment_received'),
+      t('stepper.payment_retry'),
+      [{ text: t('common.retry'), onPress: () => { if (mountedRef.current) confirmPaymentSuccess(rId).then(goToMissionView); } }],
+    );
+    throw lastErr;
+  };
+
+  const goToMissionView = () => {
+    if (scheduleMode === 'later') {
+      // Requête planifiée → page de confirmation (pas de recherche de provider)
+      router.replace({
+        pathname: '/request/[id]/scheduled',
+        params: {
+          id:             String(requestId),
+          serviceName:    serviceName    || '',
+          address:        location?.address  || '',
+          price:          String(estimatedPrice),
+          scheduledLabel: scheduledLabel || '',
+          lat:            String(location?.lat  ?? ''),
+          lng:            String(location?.lng  ?? ''),
+        },
+      });
+    } else {
+      router.replace({
+        pathname: '/request/[id]/missionview',
+        params: {
+          id:             String(requestId),
+          serviceName:    serviceName    || '',
+          address:        location?.address  || '',
+          price:          String(estimatedPrice),
+          scheduledLabel: scheduledLabel || t('stepper.now'),
+          lat:            String(location?.lat  ?? ''),
+          lng:            String(location?.lng  ?? ''),
+        },
+      });
+    }
+  };
+
   const handlePay = async () => {
     if (!paymentReady || !requestId) return;
     setLoading(true);
@@ -611,19 +743,8 @@ export default function NewRequestStepper() {
         if (presentError.code !== 'Canceled') console.error('Payment sheet error:', presentError.message);
         return;
       }
-      await api.payments.success(requestId);
-      router.replace({
-        pathname: '/request/[id]/missionview',
-        params: {
-          id:             String(requestId),
-          serviceName:    serviceName    || '',
-          address:        location?.address  || '',
-          price:          String(estimatedPrice),
-          scheduledLabel: scheduledLabel || 'Dès maintenant',
-          lat:            String(location?.lat  ?? ''),
-          lng:            String(location?.lng  ?? ''),
-        },
-      });
+      await confirmPaymentSuccess(requestId);
+      goToMissionView();
     } catch (error: any) {
       console.error('handlePay error:', error);
     } finally {
@@ -644,31 +765,33 @@ export default function NewRequestStepper() {
     return true;
   }, [step, location, categoryId, step3Ready]);
 
+  const STEPS = getStepConfig(t);
+  const TIME_GROUPS = getTimeGroups(t);
   const currentStep = STEPS[step - 1];
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: t.bg }]}>
-      <StatusBar barStyle={t.isDark ? 'light-content' : 'dark-content'} />
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
       {/* ── Header ── */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goBack} style={[s.iconBtn, { backgroundColor: t.iconBtnBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="arrow-back" size={22} color={t.text as string} />
+        <TouchableOpacity onPress={goBack} style={[s.iconBtn, { backgroundColor: theme.iconBtnBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.back')} accessibilityRole="button">
+          <Ionicons name="arrow-back" size={22} color={theme.text as string} />
         </TouchableOpacity>
 
         <View style={s.headerCenter}>
-          <Text style={[s.stepCount, { color: t.textMuted }]}>Étape {step} sur {TOTAL_STEPS}</Text>
-          <Text style={[s.stepName, { color: t.text }]}>{currentStep.label}</Text>
-          <Text style={[s.stepSublabel, { color: t.textMuted }]}>{currentStep.sublabel}</Text>
+          <Text style={[s.stepCount, { color: theme.textMuted }]}>{t('stepper.step_of', { step, total: TOTAL_STEPS })}</Text>
+          <Text style={[s.stepName, { color: theme.text }]}>{currentStep.label}</Text>
+          <Text style={[s.stepSublabel, { color: theme.textMuted }]}>{currentStep.sublabel}</Text>
         </View>
 
-        <TouchableOpacity onPress={() => router.back()} style={s.cancelBtn}>
-          <Text style={[s.cancelText, { color: t.textMuted }]}>Annuler</Text>
+        <TouchableOpacity onPress={() => router.back()} style={s.cancelBtn} accessibilityRole="button">
+          <Text style={[s.cancelText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Progress Bar ── */}
-      <ProgressBar step={step} />
+      {/* ── Step Indicator ── */}
+      <StepIndicator step={step} />
 
       {/* ── Live Summary ── */}
       {step >= 2 && (
@@ -690,7 +813,7 @@ export default function NewRequestStepper() {
               provider={PROVIDER_GOOGLE}
               style={StyleSheet.absoluteFillObject}
               initialRegion={DEFAULT_REGION}
-              customMapStyle={t.isDark ? MAP_STYLE_DARK : MAP_STYLE_SILVER}
+              customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_SILVER}
               showsUserLocation
               showsMyLocationButton={false}
               showsPointsOfInterest={false}
@@ -700,7 +823,9 @@ export default function NewRequestStepper() {
                 <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} anchor={{ x: 0.5, y: 0.5 }}>
                   <View style={s.markerWrap}>
                     <View style={s.markerHalo} />
-                    <View style={s.markerDot} />
+                    <View style={s.markerDot}>
+                      <Ionicons name="location" size={20} color="#FFF" />
+                    </View>
                   </View>
                 </Marker>
               )}
@@ -708,10 +833,10 @@ export default function NewRequestStepper() {
 
             {/* Barre de recherche flottante */}
             <View style={s.searchFloat}>
-              <View style={[s.searchBox, { backgroundColor: t.searchBoxBg }]}>
-                <Ionicons name="search" size={18} color={t.textSub as string} />
+              <View style={[s.searchBox, { backgroundColor: theme.searchBoxBg }]}>
+                <Ionicons name="search" size={18} color={theme.textSub as string} />
                 <GooglePlacesAutocomplete
-                  placeholder="Entrez votre adresse..."
+                  placeholder={t('stepper.enter_address')}
                   fetchDetails
                   onPress={(data, details = null) => {
                     if (details) {
@@ -729,7 +854,7 @@ export default function NewRequestStepper() {
                       height:          36,
                       fontSize:        15,
                       fontWeight:      '600',
-                      color:           t.text as string,
+                      color:           theme.text as string,
                       backgroundColor: 'transparent',
                       padding:         0,
                       margin:          0,
@@ -739,7 +864,7 @@ export default function NewRequestStepper() {
                       top:           54,
                       left:          -42,
                       right:         -16,
-                      backgroundColor: t.dropdownBg as string,
+                      backgroundColor: theme.dropdownBg as string,
                       borderRadius:  20,
                       shadowColor:   '#000',
                       shadowOpacity: 0.15,
@@ -749,11 +874,11 @@ export default function NewRequestStepper() {
                       zIndex:        50,
                       maxHeight:     260,
                     },
-                    row:         { backgroundColor: t.dropdownRow as string, paddingVertical: 14, paddingHorizontal: 18 },
-                    description: { fontSize: 14, color: t.text as string, fontWeight: '500' },
-                    separator:   { backgroundColor: t.dropdownSep as string, height: 1 },
+                    row:         { backgroundColor: theme.dropdownRow as string, paddingVertical: 14, paddingHorizontal: 18 },
+                    description: { fontSize: 14, color: theme.text as string, fontWeight: '500' },
+                    separator:   { backgroundColor: theme.dropdownSep as string, height: 1 },
                   }}
-                  textInputProps={{ placeholderTextColor: t.textPlaceholder as string }}
+                  textInputProps={{ placeholderTextColor: theme.textPlaceholder as string }}
                   enablePoweredByContainer={false}
                   listViewDisplayed="auto"
                   keyboardShouldPersistTaps="handled"
@@ -761,11 +886,11 @@ export default function NewRequestStepper() {
               </View>
 
               {location && (
-                <View style={[s.addrConfirm, { backgroundColor: t.addrConfirmBg }]}>
-                  <View style={[s.addrDot, { backgroundColor: t.text as string }]} />
-                  <Text style={[s.addrText, { color: t.text }]} numberOfLines={1}>{location.address}</Text>
-                  <TouchableOpacity onPress={() => setLocation(null)} style={[s.addrClear, { backgroundColor: t.addrClearBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Ionicons name="close" size={18} color={t.textSub as string} />
+                <View style={[s.addrConfirm, { backgroundColor: theme.addrConfirmBg }]}>
+                  <View style={[s.addrDot, { backgroundColor: theme.text as string }]} />
+                  <Text style={[s.addrText, { color: theme.text }]} numberOfLines={1}>{location.address}</Text>
+                  <TouchableOpacity onPress={() => setLocation(null)} style={[s.addrClear, { backgroundColor: theme.addrClearBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.clear')} accessibilityRole="button">
+                    <Ionicons name="close" size={18} color={theme.textSub as string} />
                   </TouchableOpacity>
                 </View>
               )}
@@ -773,7 +898,7 @@ export default function NewRequestStepper() {
 
             <View style={s.ctaFloating}>
               <BottomCTA
-                label={location ? 'Confirmer cette adresse' : 'Sélectionnez une adresse'}
+                label={location ? t('stepper.confirm_address') : t('stepper.select_address')}
                 onPress={goNext}
                 disabled={!location}
               />
@@ -785,12 +910,12 @@ export default function NewRequestStepper() {
         {step === 2 && (
           <View style={s.flex}>
             <ScrollView style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={[s.step2Title, { color: t.text }]}>De quoi avez-vous besoin ?</Text>
+              <Text style={[s.step2Title, { color: theme.text }]}>{t('stepper.what_do_you_need')}</Text>
 
               {categories.length === 0 ? (
                 <View style={s.loadWrap}>
-                  <ActivityIndicator size="large" color={t.text as string} />
-                  <Text style={[s.loadText, { color: t.textSub }]}>Chargement des services...</Text>
+                  <ActivityIndicator size="large" color={theme.text as string} />
+                  <Text style={[s.loadText, { color: theme.textSub }]}>{t('stepper.loading_services')}</Text>
                 </View>
               ) : (
                 <View style={s.catList}>
@@ -808,9 +933,9 @@ export default function NewRequestStepper() {
               {selectedCategory?.subcategories?.length > 0 && (
                 <View style={s.subSection}>
                   <View style={s.subHeader}>
-                    <Text style={[s.subTitle, { color: t.text }]}>Précisez</Text>
+                    <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
                     {estimatedPrice > 0 && !subcategoryId && (
-                      <Text style={[s.priceInline, { color: t.textSub }]}>dès {estimatedPrice}€</Text>
+                      <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
                     )}
                   </View>
                   <View style={s.subList}>
@@ -827,29 +952,30 @@ export default function NewRequestStepper() {
                 </View>
               )}
 
-              <TouchableOpacity style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} activeOpacity={0.7}>
-                <Ionicons name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={t.textSub as string} />
-                <Text style={[s.noteToggleText, { color: t.textSub }]}>Ajouter une note pour le prestataire</Text>
+              <TouchableOpacity style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} activeOpacity={0.7} accessibilityRole="button">
+                <Ionicons name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
+                <Text style={[s.noteToggleText, { color: theme.textSub }]}>{t('stepper.add_note')}</Text>
               </TouchableOpacity>
 
               {noteOpen && (
                 <TextInput
-                  style={[s.noteInput, { backgroundColor: t.noteInputBg, borderColor: t.noteInputBorder, color: t.text as string }]}
-                  placeholder="Ex : Sonnez à l'interphone, code portail 1234..."
-                  placeholderTextColor={t.textPlaceholder as string}
+                  style={[s.noteInput, { backgroundColor: theme.noteInputBg, borderColor: theme.noteInputBorder, color: theme.text as string }]}
+                  placeholder={t('stepper.note_placeholder')}
+                  placeholderTextColor={theme.textPlaceholder as string}
                   value={description}
                   onChangeText={setDescription}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
                   autoFocus
+                  accessibilityLabel={t('stepper.add_note')}
                 />
               )}
 
               <View style={{ height: 100 }} />
             </ScrollView>
 
-            <BottomCTA label="Continuer" onPress={goNext} disabled={!categoryId} price={estimatedPrice > 0 ? estimatedPrice : undefined} />
+            <BottomCTA label={t('stepper.continue')} onPress={goNext} disabled={!categoryId} price={estimatedPrice > 0 ? estimatedPrice : undefined} />
           </View>
         )}
 
@@ -858,43 +984,49 @@ export default function NewRequestStepper() {
           <View style={s.flex}>
             <ScrollView style={s.flex} contentContainerStyle={s.step3Pad} showsVerticalScrollIndicator={false}>
 
-              <View style={s.modeRow}>
+              <View style={s.modeList}>
                 {/* Maintenant */}
                 <TouchableOpacity
-                  style={[s.modeCard, { backgroundColor: t.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'now' && s.modeCardSelected]}
+                  style={[s.modeRow2, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'now' && s.modeRow2Selected]}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setScheduleMode('now'); setSelectedDayIso(null); setSelectedTime(null); }}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
                 >
-                  <View style={s.modeIconWrap}>
-                    <Ionicons name="flash-outline" size={22} color={scheduleMode === 'now' ? '#FFF' : t.text as string} />
+                  <View style={[s.modeIconSmall, scheduleMode === 'now' && s.modeIconSmallSelected]}>
+                    <Ionicons name="flash-outline" size={18} color={scheduleMode === 'now' ? '#FFF' : theme.text as string} />
                   </View>
-                  <Text style={[s.modeLabel, { color: t.text }, scheduleMode === 'now' && s.modeLabelSelected]}>Maintenant</Text>
-                  <Text style={[s.modeSub, { color: t.textSub }, scheduleMode === 'now' && s.modeSubSelected]}>Intervention rapide</Text>
-                  {scheduleMode === 'now' && <View style={s.modeCheck}><Ionicons name="checkmark" size={12} color="#FFF" /></View>}
+                  <View style={s.modeTextCol}>
+                    <Text style={[s.modeLabel2, { color: theme.text }, scheduleMode === 'now' && s.modeLabelSelected]}>{t('stepper.now')}</Text>
+                    <Text style={[s.modeSub2, { color: theme.textSub }, scheduleMode === 'now' && s.modeSubSelected]}>{t('stepper.quick_intervention')}</Text>
+                  </View>
+                  {scheduleMode === 'now' && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
                 </TouchableOpacity>
 
                 {/* Planifier */}
                 <TouchableOpacity
-                  style={[s.modeCard, { backgroundColor: t.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && s.modeCardSelected]}
+                  style={[s.modeRow2, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && s.modeRow2Selected]}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setScheduleMode('later'); }}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
                 >
-                  <View style={s.modeIconWrap}>
-                    <Ionicons name="calendar-outline" size={22} color={scheduleMode === 'later' ? '#FFF' : t.text as string} />
+                  <View style={[s.modeIconSmall, scheduleMode === 'later' && s.modeIconSmallSelected]}>
+                    <Ionicons name="calendar-outline" size={18} color={scheduleMode === 'later' ? '#FFF' : theme.text as string} />
                   </View>
-                  <Text style={[s.modeLabel, { color: t.text }, scheduleMode === 'later' && s.modeLabelSelected]}>Planifier</Text>
-                  <Text style={[s.modeSub, { color: t.textSub }, scheduleMode === 'later' && s.modeSubSelected]}>Choisir un créneau</Text>
-                  {scheduleMode === 'later' && <View style={s.modeCheck}><Ionicons name="checkmark" size={12} color="#FFF" /></View>}
+                  <View style={s.modeTextCol}>
+                    <Text style={[s.modeLabel2, { color: theme.text }, scheduleMode === 'later' && s.modeLabelSelected]}>{t('stepper.schedule')}</Text>
+                    <Text style={[s.modeSub2, { color: theme.textSub }, scheduleMode === 'later' && s.modeSubSelected]}>{t('stepper.choose_slot')}</Text>
+                  </View>
+                  {scheduleMode === 'later' && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
                 </TouchableOpacity>
               </View>
 
               {/* Mode Maintenant */}
               {scheduleMode === 'now' && (
-                <View style={[s.nowConfirm, { backgroundColor: t.nowConfirmBg }]}>
-                  <Ionicons name="flash" size={22} color={t.text as string} />
+                <View style={[s.nowConfirm, { backgroundColor: theme.nowConfirmBg }]}>
+                  <Ionicons name="flash" size={22} color={theme.text as string} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.nowTitle, { color: t.text }]}>Intervention rapide</Text>
-                    <Text style={[s.nowSub, { color: t.textSub }]}>Un prestataire disponible sera notifié immédiatement</Text>
+                    <Text style={[s.nowTitle, { color: theme.text }]}>{t('stepper.quick_intervention')}</Text>
+                    <Text style={[s.nowSub, { color: theme.textSub }]}>{t('stepper.provider_notified')}</Text>
                   </View>
                 </View>
               )}
@@ -902,7 +1034,7 @@ export default function NewRequestStepper() {
               {/* Mode Plus tard */}
               {scheduleMode === 'later' && (
                 <>
-                  <View style={[s.step3Sep, { backgroundColor: t.sep }]} />
+                  <View style={[s.step3Sep, { backgroundColor: theme.sep }]} />
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dayScroll}>
                     {days.map((d) => (
                       <DayChip
@@ -915,14 +1047,14 @@ export default function NewRequestStepper() {
                       />
                     ))}
                   </ScrollView>
-                  <View style={[s.step3Sep, { backgroundColor: t.sep }]} />
+                  <View style={[s.step3Sep, { backgroundColor: theme.sep }]} />
 
                   {!selectedDayIso ? (
-                    <Text style={[s.step3Hint, { color: t.textMuted }]}>Choisissez un jour ci-dessus</Text>
+                    <Text style={[s.step3Hint, { color: theme.textMuted }]}>{t('stepper.choose_day')}</Text>
                   ) : (
                     TIME_GROUPS.map((group) => (
                       <View key={group.label} style={s.slotGroup}>
-                        <Text style={[s.slotGroupLabel, { color: t.textMuted }]}>{group.label}</Text>
+                        <Text style={[s.slotGroupLabel, { color: theme.textMuted }]}>{group.label}</Text>
                         <View style={s.slotsRow}>
                           {group.slots.map((slot) => (
                             <TimeSlot key={slot} label={slot} selected={selectedTime === slot} onPress={() => setSelectedTime(slot)} />
@@ -938,14 +1070,14 @@ export default function NewRequestStepper() {
             </ScrollView>
 
             <View style={s.floatingCTA}>
-              <View style={[s.floatingGradient, { backgroundColor: t.gradientBg }]} pointerEvents="none" />
+              <View style={[s.floatingGradient, { backgroundColor: theme.gradientBg }]} pointerEvents="none" />
               <BottomCTA
                 label={
                   scheduleMode === 'now'
-                    ? 'Confirmer · Maintenant'
+                    ? t('stepper.confirm_now')
                     : (selectedDayIso && selectedTime
-                      ? `Confirmer · ${days.find(d => d.iso === selectedDayIso)?.day} ${days.find(d => d.iso === selectedDayIso)?.date} à ${selectedTime}`
-                      : 'Confirmer le créneau')
+                      ? t('stepper.confirm_at', { day: days.find(d => d.iso === selectedDayIso)?.day, date: days.find(d => d.iso === selectedDayIso)?.date, time: selectedTime })
+                      : t('stepper.confirm_slot'))
                 }
                 onPress={goNext}
                 disabled={!step3Ready}
@@ -960,43 +1092,43 @@ export default function NewRequestStepper() {
             <View style={s.v4Body}>
 
               {/* Carte récap */}
-              <View style={[s.v4Card, { backgroundColor: t.v4CardBg }]}>
+              <View style={[s.v4Card, { backgroundColor: theme.v4CardBg }]}>
 
                 <View style={s.v4Row}>
-                  <Ionicons name="location-outline" size={16} color={t.textSub as string} />
-                  <Text style={[s.v4Val, { color: t.text }]} numberOfLines={1}>{location?.address?.split(',')[0]}</Text>
-                  <Text style={[s.v4Sub, { color: t.textSub }]} numberOfLines={1}>{location?.address?.split(',').slice(1).join(',').trim()}</Text>
+                  <Ionicons name="location-outline" size={16} color={theme.textSub as string} />
+                  <Text style={[s.v4Val, { color: theme.text }]} numberOfLines={1}>{location?.address?.split(',')[0]}</Text>
+                  <Text style={[s.v4Sub, { color: theme.textSub }]} numberOfLines={1}>{location?.address?.split(',').slice(1).join(',').trim()}</Text>
                 </View>
-                <View style={[s.v4Sep, { backgroundColor: t.v4Sep }]} />
+                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
                 <View style={s.v4Row}>
-                  <Ionicons name={toIoniconName(selectedCategory?.icon, 'construct-outline') as any} size={16} color={t.textSub as string} />
-                  <Text style={[s.v4Val, { color: t.text }]}>{serviceName}</Text>
+                  <Ionicons name={toIoniconName(selectedCategory?.icon, 'construct-outline') as any} size={16} color={theme.textSub as string} />
+                  <Text style={[s.v4Val, { color: theme.text }]}>{serviceName}</Text>
                 </View>
-                <View style={[s.v4Sep, { backgroundColor: t.v4Sep }]} />
+                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
                 <View style={s.v4Row}>
-                  <Ionicons name="time-outline" size={16} color={t.textSub as string} />
-                  <Text style={[s.v4Val, { color: t.text }]}>{scheduledLabel}</Text>
+                  <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
+                  <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
                 </View>
-                <View style={[s.v4Sep, { backgroundColor: t.v4Sep }]} />
+                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
-                <TouchableOpacity style={s.v4Row} onPress={handleChangePayment} activeOpacity={0.7} disabled={!paymentReady}>
-                  <Ionicons name="card-outline" size={16} color={t.textSub as string} />
+                <TouchableOpacity style={s.v4Row} onPress={handleChangePayment} activeOpacity={0.7} disabled={!paymentReady} accessibilityRole="button">
+                  <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
                   {paymentInitLoading ? (
-                    <ActivityIndicator size="small" color={t.textSub as string} style={{ marginLeft: 4 }} />
+                    <ActivityIndicator size="small" color={theme.textSub as string} style={{ marginLeft: 4 }} />
                   ) : (
-                    <Text style={[s.v4Val, { color: t.text }]}>Carte enregistrée</Text>
+                    <Text style={[s.v4Val, { color: theme.text }]}>{t('stepper.card_saved')}</Text>
                   )}
-                  <Ionicons name="chevron-forward" size={14} color={t.textMuted as string} style={s.v4Chevron} />
+                  <Ionicons name="chevron-forward" size={14} color={theme.textMuted as string} style={s.v4Chevron} />
                 </TouchableOpacity>
 
               </View>
 
               {/* Total */}
               <View style={s.v4Total}>
-                <Text style={[s.v4TotalLabel, { color: t.textSub }]}>Total estimé</Text>
-                <Text style={[s.v4TotalValue, { color: t.text }]}>{estimatedPrice} €</Text>
+                <Text style={[s.v4TotalLabel, { color: theme.textSub }]}>{t('stepper.total_estimated')}</Text>
+                <Text style={[s.v4TotalValue, { color: theme.text }]}>{estimatedPrice} €</Text>
               </View>
 
             </View>
@@ -1004,11 +1136,11 @@ export default function NewRequestStepper() {
             {/* Footer */}
             <View style={s.v4Footer}>
               <View style={s.v4SecureRow}>
-                <Ionicons name="lock-closed-outline" size={13} color={t.textMuted as string} />
-                <Text style={[s.v4Secure, { color: t.textMuted }]}>Débité uniquement après validation du service</Text>
+                <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
+                <Text style={[s.v4Secure, { color: theme.textMuted }]}>{t('stepper.charge_after_validation')}</Text>
               </View>
               <BottomCTA
-                label="Confirmer la mission"
+                label={t('stepper.confirm_mission')}
                 onPress={handlePay}
                 disabled={loading || !paymentReady}
                 loading={loading}
@@ -1074,15 +1206,16 @@ const s = StyleSheet.create({
   step3Pad:       { paddingHorizontal: 24, paddingTop: 28 },
   step3Sep:       { height: 1, marginVertical: 20 },
   step3Hint:      { fontSize: 14, fontWeight: '500', textAlign: 'center', paddingVertical: 12 },
-  modeRow:        { flexDirection: 'row', gap: 12, marginBottom: 8 },
-  modeCard:       { flex: 1, borderRadius: 20, padding: 20, alignItems: 'flex-start', gap: 6, borderWidth: 2, position: 'relative' },
-  modeCardSelected: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  modeIconWrap:   { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  modeLabel:      { fontSize: 16, fontWeight: '800' },
+  modeList:       { gap: 8, marginBottom: 8 },
+  modeRow2:       { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 12, borderWidth: 1.5 },
+  modeRow2Selected: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
+  modeIconSmall:  { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center' },
+  modeIconSmallSelected: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  modeTextCol:    { flex: 1 },
+  modeLabel2:     { fontSize: 15, fontWeight: '700' },
   modeLabelSelected: { color: '#FFF' },
-  modeSub:        { fontSize: 12, fontWeight: '500' },
+  modeSub2:       { fontSize: 12, fontWeight: '500', marginTop: 1 },
   modeSubSelected:{ color: 'rgba(255,255,255,0.6)' },
-  modeCheck:      { position: 'absolute', top: 12, right: 12, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
 
   nowConfirm: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 18, padding: 18, marginTop: 4 },
   nowTitle:   { fontSize: 15, fontWeight: '700', marginBottom: 3 },
@@ -1109,9 +1242,9 @@ const s = StyleSheet.create({
   addrClear:   { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   ctaFloating: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5 },
 
-  markerWrap: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  markerHalo: { position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.10)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)' },
-  markerDot:  { width: 16, height: 16, borderRadius: 8, backgroundColor: '#1A1A1A', borderWidth: 3, borderColor: '#FFF', ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }, android: { elevation: 5 } }) },
+  markerWrap: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  markerHalo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.08)', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.06)' },
+  markerDot:  { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 3, borderColor: '#FFF', alignItems: 'center' as const, justifyContent: 'center' as const, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 6 } }) },
 
   pin:      { width: 22, height: 22, borderRadius: 11, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   pinInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
