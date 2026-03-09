@@ -1,6 +1,7 @@
 // lib/storage.ts
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { devError } from './logger';
 
 const TOKEN_KEY = 'auth_token';
 
@@ -36,7 +37,7 @@ class TokenStorage {
       this.currentToken = token;
       return token;
     } catch (e) {
-      console.error('❌ Storage getToken error:', e);
+      devError('❌ Storage getToken error:', e);
       return null;
     }
   }
@@ -53,7 +54,7 @@ class TokenStorage {
       this.currentToken = token;
       this.listeners.forEach(cb => cb(token));
     } catch (e) {
-      console.error('❌ Storage setToken error:', e);
+      devError('❌ Storage setToken error:', e);
       throw e;
     }
   }
@@ -70,7 +71,7 @@ class TokenStorage {
       this.currentToken = null;
       this.listeners.forEach(cb => cb(null));
     } catch (e) {
-      console.error('❌ Storage removeToken error:', e);
+      devError('❌ Storage removeToken error:', e);
       throw e;
     }
   }

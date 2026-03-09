@@ -14,7 +14,7 @@ const config: AppConfig = {
 };
 
 // Log en dev uniquement
-if (config.enableLogs) {
+if (__DEV__ && config.enableLogs) {
   console.log('🔧 App Configuration:', {
     apiUrl: config.apiUrl,
     environment: config.environment,

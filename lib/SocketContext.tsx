@@ -1,4 +1,4 @@
-import { devLog, devWarn } from './logger';
+import { devLog, devWarn, devError } from './logger';
 /* eslint-disable react-hooks/exhaustive-deps */
 // lib/SocketContext.tsx
 // ─── Production-ready Socket context : zéro Alert, redirections automatiques ───
@@ -343,7 +343,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     api.notifications.list().then((res: any) => {
       const items: any[] = res?.data ?? [];
       setUnreadCount(items.filter((n: any) => !n.readAt).length);
-    }).catch(() => {});
+    }).catch(err => devError('Failed to load notification count:', err));
   }, [user?.id]);
 
   // Push token registration is handled by usePushNotifications() in _layout.tsx
@@ -401,7 +401,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           devLog('📝 Registering provider:', providerId);
           newSocket.emit('provider:register', { providerId, userId: u.id });
         } catch (error) {
-          console.error('❌ Error reading provider data:', error);
+          devError('❌ Error reading provider data:', error);
         }
       }
     });
@@ -413,7 +413,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('connect_error', async (error) => {
-      console.error('❌ Socket connection error:', error.message);
+      devError('❌ Socket connection error:', error.message);
       if (error.message === 'AUTH_REQUIRED' || error.message === 'AUTH_INVALID') {
         devWarn('🔒 Socket auth failed — refreshing token and retrying');
         try {
@@ -428,6 +428,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
       setConnectionStatus('disconnected');
+      setIsConnected(false);
+      showSocketToast('Connexion temps réel indisponible', 'error');
     });
 
     newSocket.on('reconnect_attempt', (attempt) => {
@@ -442,7 +444,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('reconnect_failed', () => {
-      console.error('❌ Reconnection failed — all attempts exhausted');
+      devError('❌ Reconnection failed — all attempts exhausted');
       setConnectionStatus('disconnected');
       showSocketToast('Connexion impossible. Vérifiez votre réseau.', 'error');
     });
@@ -569,7 +571,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // ── ERROR HANDLING ────────────────────────────────────────────────────────
 
     newSocket.on('error', async (error: any) => {
-      console.error('❌ Socket Error:', error);
+      devError('❌ Socket Error:', error);
 
       if (
         error?.code === 'PROVIDER_NOT_FOUND' ||

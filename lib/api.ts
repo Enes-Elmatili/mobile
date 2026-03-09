@@ -1,5 +1,6 @@
+import { Alert } from 'react-native';
 import { tokenStorage } from './storage';
-import { devLog, devWarn } from './logger';
+import { devLog, devWarn, devError } from './logger';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 if (!API_BASE_URL) {
@@ -94,12 +95,14 @@ class ApiClient {
       devLog('✅ Token refreshed successfully');
       return newToken;
     } catch (error) {
-      console.error('❌ Token refresh error:', error);
+      devError('❌ Token refresh error:', error);
       return null;
     } finally {
-      this.isRefreshing = false;
-      this.pendingRequests.forEach(cb => cb(newToken));
+      // Flush pending BEFORE clearing flag to prevent duplicate refresh
+      const pending = this.pendingRequests;
       this.pendingRequests = [];
+      this.isRefreshing = false;
+      pending.forEach(cb => cb(newToken));
     }
   }
 
@@ -129,7 +132,7 @@ class ApiClient {
       if (isHTML) {
         const isNgrokError = text.includes('ngrok') || text.includes('ERR_NGROK');
         const label = isNgrokError ? 'Tunnel ngrok indisponible' : 'Serveur indisponible';
-        console.error(`❌ [${response.status}] ${label} — ${config.method} ${endpoint}`);
+        devError(`❌ [${response.status}] ${label} — ${config.method} ${endpoint}`);
 
         const error: any = new Error(
           response.status === 503
@@ -147,8 +150,8 @@ class ApiClient {
       try {
         data = JSON.parse(text);
       } catch {
-        console.error(`❌ API NON-JSON RESPONSE [${response.status}] ${config.method} ${endpoint}`);
-        console.error(`📄 Preview: ${text.slice(0, 200)}`);
+        devError(`❌ API NON-JSON RESPONSE [${response.status}] ${config.method} ${endpoint}`);
+        devError(`📄 Preview: ${text.slice(0, 200)}`);
         const error: any = new Error(`Réponse invalide du serveur (${response.status})`);
         error.status = response.status;
         throw error;
@@ -164,6 +167,7 @@ class ApiClient {
         } else {
           devLog('❌ Token refresh failed, clearing session...');
           await tokenStorage.removeToken();
+          Alert.alert('Session expirée', 'Veuillez vous reconnecter.');
         }
       }
 
@@ -176,7 +180,7 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        console.error(`❌ API ERROR ${response.status}:`, data);
+        devError(`❌ API ERROR ${response.status}:`, data);
         const error: any = new Error(data.error || data.message || `HTTP ${response.status}`);
         error.status = response.status;
         error.data = data;
@@ -188,9 +192,9 @@ class ApiClient {
     } catch (error: any) {
       // Ne pas re-logger les erreurs déjà construites avec un status connu
       if (!error.status) {
-        console.error(`❌ API REQUEST FAILED (network?):`, error.message);
+        devError(`❌ API REQUEST FAILED (network?):`, error.message);
       } else {
-        console.error(`❌ API REQUEST FAILED [${error.status}]:`, error.message);
+        devError(`❌ API REQUEST FAILED [${error.status}]:`, error.message);
       }
       throw error;
     }
@@ -255,7 +259,11 @@ class ApiClient {
       return this.request<any>('/requests');
     },
     get: (id: string) => this.request(`/requests/${id}`),
-    create: (data: any) => this.post('/requests', data),
+    create: (data: any) => {
+      if (data.lat != null && (data.lat < -90 || data.lat > 90)) throw new Error('Latitude invalide');
+      if (data.lng != null && (data.lng < -180 || data.lng > 180)) throw new Error('Longitude invalide');
+      return this.post('/requests', data);
+    },
     accept: (id: string) => this.post(`/requests/${id}/accept`),
     decline: (id: string) => this.post(`/requests/${id}/refuse`),
     start: (id: string) => this.post(`/requests/${id}/start`),

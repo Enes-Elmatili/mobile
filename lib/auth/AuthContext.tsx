@@ -1,4 +1,4 @@
-import { devLog, devWarn } from './../logger';
+import { devLog, devWarn, devError } from './../logger';
 import React, {
   createContext,
   useCallback,
@@ -8,6 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { Alert } from 'react-native';
 import { api, tokenStorage } from '../api';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 
@@ -84,11 +85,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await signOutRef.current();
       }
     } catch (e: any) {
-      console.error('❌ REFRESH ME ERROR:', e.message || e);
+      devError('❌ REFRESH ME ERROR:', e.message || e);
 
       if (e.status === 401) {
         devLog('🔒 Token expired and refresh failed. Signing out.');
         await signOutRef.current();
+        Alert.alert('Session expirée', 'Veuillez vous reconnecter.');
       } else if (e.status >= 500) {
         devWarn('⚠️ Server error during refresh. Keeping local session.');
       }
@@ -130,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsBooting(false);
         devLog('✅ BOOT COMPLETE');
       } catch (error) {
-        console.error('❌ BOOT ERROR:', error);
+        devError('❌ BOOT ERROR:', error);
         if (!cancelled) setIsBooting(false);
       }
     };

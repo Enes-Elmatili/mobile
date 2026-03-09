@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
+import { devError } from '@/lib/logger';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 // Le backend stocke les montants en centimes (entiers). On divise par 100 à l'affichage.
@@ -274,7 +275,7 @@ export default function Wallet() {
       const txs = Array.isArray(txData) ? txData : (txData?.transactions ?? txData?.data ?? []);
       setTransactions(txs);
     } catch (e) {
-      console.error('[Wallet] load error:', e);
+      devError('[Wallet] load error:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);

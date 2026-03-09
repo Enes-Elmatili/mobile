@@ -10,10 +10,13 @@ import { usePushNotifications } from '../lib/usePushNotifications';
 import {
   ActivityIndicator,
   View,
+  Text,
+  TouchableOpacity,
   StyleSheet,
   useColorScheme,
   StatusBar,
 } from 'react-native';
+import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
@@ -130,26 +133,59 @@ function RootLayoutNav() {
   );
 }
 
+// ── Error Boundary global ──────────────────────────────────────────────────
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) {
+    if (__DEV__) console.error('AppErrorBoundary caught:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: '#fff' }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12 }}>Une erreur est survenue</Text>
+          <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 24 }}>
+            L'application a rencontré un problème inattendu.
+          </Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ backgroundColor: '#1A1A1A', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <NetworkProvider>
-        <StripeProvider
-          publishableKey={STRIPE_PUBLISHABLE_KEY}
-          merchantIdentifier="merchant.com.fixed.app"
-          urlScheme="fixed"
-        >
-          <AuthProvider>
-            <OfflineQueueProvider>
-              <SocketProvider>
-                <OfflineBanner />
-                <RootLayoutNav />
-              </SocketProvider>
-            </OfflineQueueProvider>
-          </AuthProvider>
-        </StripeProvider>
-      </NetworkProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={styles.container}>
+        <NetworkProvider>
+          <StripeProvider
+            publishableKey={STRIPE_PUBLISHABLE_KEY}
+            merchantIdentifier="merchant.com.fixed.app"
+            urlScheme="fixed"
+          >
+            <AuthProvider>
+              <OfflineQueueProvider>
+                <SocketProvider>
+                  <OfflineBanner />
+                  <RootLayoutNav />
+                </SocketProvider>
+              </OfflineQueueProvider>
+            </AuthProvider>
+          </StripeProvider>
+        </NetworkProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }
 

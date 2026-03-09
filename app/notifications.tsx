@@ -5,11 +5,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
   TouchableOpacity, ActivityIndicator, RefreshControl,
-  Platform, StatusBar,
+  Platform, StatusBar, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -109,7 +110,8 @@ export default function NotificationsScreen() {
       const data: NotifItem[] = res?.data ?? [];
       setItems(data);
     } catch (e) {
-      console.error('[Notifications] load error:', e);
+      devError('[Notifications] load error:', e);
+      Alert.alert('Erreur', 'Impossible de charger les notifications.');
     } finally {
       setLoading(false);
       setRefreshing(false);

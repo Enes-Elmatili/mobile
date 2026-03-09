@@ -11,9 +11,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 import TicketDetailSheet from '../../components/sheets/TicketDetailSheet';
 
 // ============================================================================
@@ -320,7 +322,8 @@ export default function Documents() {
       setTickets(Array.isArray(data) ? data : []);
       if (response.total) setTotalPages(Math.ceil(response.total / 5));
     } catch (e) {
-      console.error('Documents load error:', e);
+      devError('Documents load error:', e);
+      Alert.alert('Erreur', 'Impossible de charger les documents.');
     } finally {
       setLoading(false);
       setRefreshing(false);

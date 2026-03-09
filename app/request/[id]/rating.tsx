@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
 
@@ -181,7 +182,7 @@ export default function RatingScreen() {
       const response = await api.get(`/requests/${id}`);
       setRequest(response.data || response);
     } catch (error) {
-      console.error('Error loading request:', error);
+      devError('Error loading request:', error);
     } finally {
       setLoading(false);
     }

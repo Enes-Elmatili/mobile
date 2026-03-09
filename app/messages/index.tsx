@@ -134,7 +134,7 @@ export default function MessagesInbox() {
     fetchInbox();
   };
 
-  const renderItem = ({ item }: { item: Conversation }) => (
+  const renderItem = useCallback(({ item }: { item: Conversation }) => (
     <TouchableOpacity
       style={s.row}
       activeOpacity={0.7}
@@ -157,7 +157,7 @@ export default function MessagesInbox() {
       </View>
       {item.unread && <View style={s.unreadDot} />}
     </TouchableOpacity>
-  );
+  ), [router]);
 
   return (
     <SafeAreaView style={s.root}>

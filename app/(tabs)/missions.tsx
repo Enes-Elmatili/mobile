@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -972,7 +973,7 @@ export default function Missions() {
 
       setMissions(list);
     } catch (e: any) {
-      console.error('Missions load error:', e);
+      devError('Missions load error:', e);
       setError('Erreur de chargement');
     } finally {
       setLoading(false);
@@ -1054,7 +1055,7 @@ export default function Missions() {
         createdAt:   r.createdAt,
         scheduledAt: r.preferredTimeStart || r.scheduledAt,
       });
-    } catch { console.error('Error loading mission details'); }
+    } catch { devError('Error loading mission details'); }
     finally   { setLoadingDetails(false); }
   };
 
@@ -1084,15 +1085,15 @@ export default function Missions() {
     try {
       const response = await api.post(`/requests/${mission.id}/complete`);
       const earnings = response.earnings ?? (mission.price * NET_RATE);
-      console.log(`[Missions] Mission ${mission.id} terminée. Gains: ${formatEuros(earnings)}`);
+      devLog(`[Missions] Mission ${mission.id} terminée. Gains: ${formatEuros(earnings)}`);
       await loadMissions();
       router.push({ pathname: '/request/[id]/earnings', params: { id: mission.id } });
     } catch (error: any) {
       if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
         await loadMissions();
-        console.warn('[Missions] Statut mission déjà changé — rechargement');
+        devWarn('[Missions] Statut mission déjà changé — rechargement');
       } else {
-        console.error('[Missions] Impossible de terminer:', error?.message);
+        devError('[Missions] Impossible de terminer:', error?.message);
       }
     } finally {
       setCompleting(null);

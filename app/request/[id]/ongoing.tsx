@@ -27,6 +27,7 @@ import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { tokenStorage } from '@/lib/storage';
+import { devError } from '@/lib/logger';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -320,7 +321,7 @@ export default function MissionOngoing() {
         }
       );
     } catch (error) {
-      console.error('[ONGOING] Location error:', error);
+      devError('[ONGOING] Location error:', error);
     }
   }, [fetchRouteFromGoogle, socket, id]);
 
@@ -419,14 +420,14 @@ export default function MissionOngoing() {
         setBeforePhotoUploaded(true);
         Alert.alert('Photo enregistree', 'Demandez maintenant le code PIN au client.');
       } catch (err: any) {
-        console.error('[ONGOING] Before photo upload error:', err);
+        devError('[ONGOING] Before photo upload error:', err);
         setBeforePhotoUri(null);
         Alert.alert('Erreur', err.message || "Impossible d'envoyer la photo.");
       } finally {
         setActionLoading(false);
       }
     } catch (err) {
-      console.error('[ONGOING] Camera error:', err);
+      devError('[ONGOING] Camera error:', err);
     }
   };
 
@@ -528,14 +529,14 @@ export default function MissionOngoing() {
         setAfterPhotoUploaded(true);
         Alert.alert('Photo enregistree', 'Vous pouvez maintenant terminer la mission.');
       } catch (err: any) {
-        console.error('[ONGOING] After photo upload error:', err);
+        devError('[ONGOING] After photo upload error:', err);
         setAfterPhotoUri(null);
         Alert.alert('Erreur', err.message || "Impossible d'envoyer la photo.");
       } finally {
         setActionLoading(false);
       }
     } catch (err) {
-      console.error('[ONGOING] Camera error:', err);
+      devError('[ONGOING] Camera error:', err);
     }
   };
 

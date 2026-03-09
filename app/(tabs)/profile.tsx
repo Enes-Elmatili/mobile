@@ -232,28 +232,36 @@ export default function Profile() {
     if (!user?.roles?.includes('PROVIDER')) return;
     (async () => {
       try {
-        const [provRes, walletRes] = await Promise.all([
+        const [provResult, walletResult] = await Promise.allSettled([
           api.get<any>('/providers/me'),
           api.wallet.balance(),
         ]);
-        const prov = provRes?.data ?? provRes;
-        const provider = prov?.provider ?? prov;
-        const wallet = walletRes?.data ?? walletRes;
-        setIsVerified(provider?.validationStatus === 'ACTIVE');
-        const avgRating: number = provider?.avgRating ?? 0;
-        const jobsCompleted: number = provider?.jobsCompleted ?? 0;
-        const totalRequests: number = provider?.totalRequests ?? 0;
-        const acceptedRequests: number = provider?.acceptedRequests ?? 0;
-        const balanceCents: number = wallet?.balance ?? 0;
-        const acceptanceRate = totalRequests > 0
-          ? Math.round((acceptedRequests / totalRequests) * 100)
-          : 0;
-        setProfileStats({
-          rating: avgRating > 0 ? avgRating.toFixed(1).replace('.', ',') : '—',
-          missions: String(jobsCompleted),
-          earnings: `${Math.floor(balanceCents / 100).toLocaleString('fr-FR')} €`,
-          acceptance: totalRequests > 0 ? `${acceptanceRate}%` : '—',
-        });
+        if (provResult.status === 'fulfilled') {
+          const prov = provResult.value?.data ?? provResult.value;
+          const provider = prov?.provider ?? prov;
+          setIsVerified(provider?.validationStatus === 'ACTIVE');
+          const avgRating: number = provider?.avgRating ?? 0;
+          const jobsCompleted: number = provider?.jobsCompleted ?? 0;
+          const totalRequests: number = provider?.totalRequests ?? 0;
+          const acceptedRequests: number = provider?.acceptedRequests ?? 0;
+          const acceptanceRate = totalRequests > 0
+            ? Math.round((acceptedRequests / totalRequests) * 100)
+            : 0;
+          setProfileStats(prev => ({
+            ...prev,
+            rating: avgRating > 0 ? avgRating.toFixed(1).replace('.', ',') : '—',
+            missions: String(jobsCompleted),
+            acceptance: totalRequests > 0 ? `${acceptanceRate}%` : '—',
+          }));
+        }
+        if (walletResult.status === 'fulfilled') {
+          const wallet = walletResult.value?.data ?? walletResult.value;
+          const balanceCents: number = wallet?.balance ?? 0;
+          setProfileStats(prev => ({
+            ...prev,
+            earnings: `${Math.floor(balanceCents / 100).toLocaleString('fr-FR')} €`,
+          }));
+        }
       } catch {
         // Garde les placeholders en cas d'erreur réseau
       }
@@ -303,17 +311,23 @@ export default function Profile() {
     // Upload en arrière-plan (optionnel — pour avoir l'URL sur le serveur)
     try {
       const token = await tokenStorage.getToken();
+      if (!token) throw new Error('Not authenticated');
       const formData = new FormData();
       // @ts-ignore
       formData.append('file', { uri: asset.uri, name: 'avatar.jpg', type: asset.mimeType ?? 'image/jpeg' });
-      await fetch(`${process.env.EXPO_PUBLIC_API_URL}/uploads`, {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/uploads`, {
         method: 'POST',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'ngrok-skip-browser-warning': 'true' },
+        headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       showSocketToast(t('common.success'), 'success');
     } catch {
-      // L'URI local est déjà affichée — l'upload serveur est best-effort
+      showSocketToast(t('common.error') || 'Échec de l\'upload', 'error');
     }
   }, [t]);
 

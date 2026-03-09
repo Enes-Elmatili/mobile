@@ -151,7 +151,7 @@ export default function OpportunitiesScreen() {
       const data = res?.data ?? res;
       setOpportunities(Array.isArray(data) ? data : data?.data ?? []);
     } catch (e) {
-      // silently fail
+      Alert.alert('Erreur', 'Impossible de charger les opportunités.');
     } finally {
       setLoading(false);
       setRefreshing(false);

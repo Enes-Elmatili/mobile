@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ export default function ProviderDetailScreen() {
       const list = ratingsRes?.data ?? ratingsRes;
       setReviews(Array.isArray(list) ? list : list?.reviews ?? []);
     }).catch(err => {
-      console.error('[ProviderDetail]', err);
+      devError('[ProviderDetail]', err);
     }).finally(() => setLoading(false));
   }, [id]);
 

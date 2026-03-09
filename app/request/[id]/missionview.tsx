@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-hooks/exhaustive-deps */
 // app/request/[id]/MissionView.tsx
 // ─── Page unifiée : SEARCHING → TRACKING (même écran, transition de phase) ───
 
@@ -18,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 
 const { width, height } = Dimensions.get('window');
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -136,6 +135,7 @@ function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, dest
         Animated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   return (
@@ -383,6 +383,7 @@ function DynamicMessage({ elapsed }: { elapsed: number }) {
       Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: true }),
     ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.title]);
 
   return (
@@ -452,9 +453,25 @@ const pm = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function MissionView() {
   const router = useRouter();
-  const { id, serviceName, address, price, scheduledLabel, expiresAt, lat, lng } =
-    useLocalSearchParams<MissionParams>();
+  const params = useLocalSearchParams<MissionParams>();
+  const id = params.id;
+  const serviceName = params.serviceName;
+  const address = params.address;
+  const price = params.price;
+  const scheduledLabel = params.scheduledLabel;
+  const expiresAt = params.expiresAt;
+  const lat = params.lat;
+  const lng = params.lng;
   const { socket, joinRoom, leaveRoom } = useSocket();
+
+  // Guard: id is required
+  if (!id || !/^\d+$/.test(id)) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Mission introuvable</Text>
+      </SafeAreaView>
+    );
+  }
   const { t } = useTranslation();
   const colorScheme = useColorScheme();
   const mapStyle = colorScheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
@@ -482,6 +499,11 @@ export default function MissionView() {
   // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
   const hasRealLocationRef = useRef(false);
 
+  // ─── PIN state ──────────────────────────────────────────────────────────
+  const [pinCode, setPinCode] = useState<string | null>(null);
+  const [pinVerified, setPinVerified] = useState(false);
+  const [providerArrived, setProviderArrived] = useState(false);
+
   // ─── Shared ───────────────────────────────────────────────────────────────
   const fadeIn  = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(40)).current;
@@ -497,6 +519,7 @@ export default function MissionView() {
       Animated.timing(fadeIn,  { toValue: 1, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       Animated.timing(slideUp, { toValue: 0, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Elapsed (searching) ─────────────────────────────────────────────────
@@ -506,6 +529,24 @@ export default function MissionView() {
     return () => clearInterval(iv);
   }, [phase]);
 
+  // ─── Fetch PIN (silencieux — le 404 NO_PIN est un état normal) ───────────
+  const fetchPin = useCallback(async (requestId: string) => {
+    try {
+      const token = await (await import('@/lib/storage')).tokenStorage.getToken();
+      const baseUrl = (await import('@/lib/config')).default.apiUrl;
+      const res = await fetch(`${baseUrl}/requests/${requestId}/pin`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
+      if (!res.ok) return; // 404 NO_PIN = normal, pas encore généré
+      const data = await res.json();
+      if (data?.pinCode) setPinCode(data.pinCode);
+      if (data?.pinVerified) setPinVerified(true);
+    } catch { /* network error — ignore silently */ }
+  }, []);
+
   // ─── Transition vers TRACKING ─────────────────────────────────────────────
   const transitionToTracking = useCallback((requestData: any) => {
     // Guard : évite la double-transition si le polling et le socket arrivent en même temps
@@ -513,7 +554,12 @@ export default function MissionView() {
     hasTransitionedRef.current = true;
 
     setRequest(requestData);
+    if (requestData.beforePhotoUrl) setProviderArrived(true);
+    if (requestData.pinVerified) setPinVerified(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+
+    // Fetch PIN code
+    fetchPin(String(requestData.id));
 
     Animated.timing(phaseAnim, {
       toValue: 1,
@@ -521,7 +567,8 @@ export default function MissionView() {
       easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
     }).start(() => setPhase('TRACKING'));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPin]);
 
   // ─── ETA Google ──────────────────────────────────────────────────────────
   const fetchETA = useCallback(async (oLat: number, oLng: number, dLat: number, dLng: number) => {
@@ -557,13 +604,15 @@ export default function MissionView() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
           router.replace('/(tabs)/dashboard');
         }
-      } catch (e) { console.error('[MissionView] poll:', e); }
+      } catch (e) { devError('[MissionView] poll:', e); }
     };
     poll();
     pollingRef.current = setInterval(poll, 5000);
     return () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, phase]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (isExpired) router.replace('/(tabs)/dashboard'); }, [isExpired]);
 
   // ─── Socket (TRACKING) ────────────────────────────────────────────────────
@@ -609,16 +658,42 @@ export default function MissionView() {
       }
     };
 
+    // ── PIN / photo events ──────────────────────────────────────────────────
+    const onPinReady = (data: any) => {
+      if (String(data.requestId) === String(id) && data.pinCode) {
+        setPinCode(data.pinCode);
+      }
+    };
+
+    const onBeforePhoto = (data: any) => {
+      if (String(data.requestId) === String(id)) {
+        setProviderArrived(true);
+        showToast('Prestataire arrivé — consultez le code PIN ci-dessous', 'success');
+      }
+    };
+
+    const onPinVerified = (data: any) => {
+      if (String(data.requestId) === String(id)) {
+        setPinVerified(true);
+      }
+    };
+
     socket.on('provider:location_update', onLocation);
     socket.on('request:started', onStarted);
     socket.on('request:completed', onCompleted);
     socket.on('request:cancelled', onCancelled);
+    socket.on('mission:pin_ready', onPinReady);
+    socket.on('mission:before_photo', onBeforePhoto);
+    socket.on('mission:pin_verified', onPinVerified);
     return () => {
       leaveRoom('request', id);
       socket.off('provider:location_update', onLocation);
       socket.off('request:started', onStarted);
       socket.off('request:completed', onCompleted);
       socket.off('request:cancelled', onCancelled);
+      socket.off('mission:pin_ready', onPinReady);
+      socket.off('mission:before_photo', onBeforePhoto);
+      socket.off('mission:pin_verified', onPinVerified);
     };
   }, [socket, id, fetchETA, joinRoom, leaveRoom]);
 
@@ -637,6 +712,7 @@ export default function MissionView() {
       // Seulement si aucun GPS réel reçu — ne pas écraser l'ETA du socket
       setEta(t('mission_view.waiting_location'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
   // ─── Annuler (SEARCHING) ──────────────────────────────────────────────────
@@ -655,6 +731,7 @@ export default function MissionView() {
       showToast(t('mission_view.cancel_failed'), 'error');
       setCancelling(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
   // ─── Annuler (TRACKING) ───────────────────────────────────────────────────
@@ -699,6 +776,7 @@ export default function MissionView() {
         showToast(t('mission_view.call_failed'), 'error');
       }
     }).catch(() => showToast(t('mission_view.call_failed'), 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
   const handleSendMessage = async () => {
@@ -925,6 +1003,40 @@ export default function MissionView() {
 
             {/* Divider */}
             <View style={s.divider} />
+
+            {/* ── PIN Card — shown when provider has arrived ───────────────── */}
+            {status === 'ACCEPTED' && pinCode && providerArrived && !pinVerified && (
+              <View style={s.pinCard}>
+                <View style={s.pinCardHeader}>
+                  <Ionicons name="key" size={20} color="#1A1A1A" />
+                  <Text style={s.pinCardTitle}>Code PIN de vérification</Text>
+                </View>
+                <Text style={s.pinCardSubtitle}>Communiquez ce code à votre prestataire</Text>
+                <View style={s.pinDigitsRow}>
+                  {pinCode.split('').map((digit, i) => (
+                    <View key={i} style={s.pinDigitBox}>
+                      <Text style={s.pinDigitText}>{digit}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* PIN pending — provider not yet arrived */}
+            {status === 'ACCEPTED' && pinCode && !providerArrived && !pinVerified && (
+              <View style={s.pinPendingBanner}>
+                <Ionicons name="time-outline" size={18} color="#888" />
+                <Text style={s.pinPendingText}>Le prestataire est en route. Le code PIN s'affichera à son arrivée.</Text>
+              </View>
+            )}
+
+            {/* PIN verified banner */}
+            {pinVerified && (
+              <View style={s.pinVerifiedBanner}>
+                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+                <Text style={s.pinVerifiedText}>Code PIN vérifié — la mission va démarrer</Text>
+              </View>
+            )}
 
             {/* Champ message */}
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -1185,6 +1297,41 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
   },
   ongoingText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', flex: 1 },
+
+  // ─── PIN ────────────────────────────────────────────────────────────────
+  pinCard: {
+    backgroundColor: '#F9F9F9', borderRadius: 16,
+    padding: 18, marginBottom: 16,
+    borderWidth: 1.5, borderColor: '#EBEBEB',
+  },
+  pinCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  pinCardTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
+  pinCardSubtitle: { fontSize: 12, color: '#888', marginBottom: 14 },
+  pinDigitsRow: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
+  pinDigitBox: {
+    width: 52, height: 60, borderRadius: 14,
+    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E0E0E0',
+    alignItems: 'center', justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 2 },
+    }),
+  },
+  pinDigitText: { fontSize: 28, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
+  pinPendingBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F9F9F9', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12,
+    marginBottom: 16, borderWidth: 1, borderColor: '#EBEBEB',
+  },
+  pinPendingText: { fontSize: 13, fontWeight: '500', color: '#888', flex: 1 },
+  pinVerifiedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F0FDF4', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12,
+    marginBottom: 16, borderWidth: 1, borderColor: '#BBF7D0',
+  },
+  pinVerifiedText: { fontSize: 13, fontWeight: '600', color: '#15803D', flex: 1 },
 
   // ─── Markers ──────────────────────────────────────────────────────────────
   clientMarker: {

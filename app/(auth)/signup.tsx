@@ -158,7 +158,10 @@ export default function Signup() {
   const loadCategories = useCallback(() => {
     setCatsLoading(true);
     setCatsError(false);
-    api.taxonomies.list()
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), 15000)
+    );
+    Promise.race([api.taxonomies.list(), timeout])
       .then((res: any) => setCategories(res?.data ?? res ?? []))
       .catch(() => { setCatsError(true); showToast('Erreur de chargement des catégories'); })
       .finally(() => setCatsLoading(false));

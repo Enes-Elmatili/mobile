@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 import { useInvoice } from '@/hooks/useInvoice';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 
@@ -57,7 +58,7 @@ export default function EarningsScreen() {
         ]),
       ]).start();
     } catch (error) {
-      console.error('Error loading request:', error);
+      devError('Error loading request:', error);
     } finally {
       setLoading(false);
     }

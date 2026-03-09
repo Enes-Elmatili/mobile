@@ -26,6 +26,7 @@ import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { devWarn } from '@/lib/logger';
 
 const TIMER_DURATION = 15;
 
@@ -609,7 +610,7 @@ export default function ProviderDashboard() {
         escrowAmount:  w.escrowAmount   || 0,
       });
     } else {
-      console.warn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
+      devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
     }
 
     if (results[1].status === 'fulfilled') {
@@ -620,7 +621,7 @@ export default function ProviderDashboard() {
         rankScore:     u.rankScore     ?? u.rank               ?? u.score         ?? 0,
       });
     } else {
-      console.warn('Stats failed:', (results[1] as PromiseRejectedResult).reason?.message);
+      devWarn('Stats failed:', (results[1] as PromiseRejectedResult).reason?.message);
     }
 
     setStatsLoading(false);

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, ActivityIndicator, Platform, StatusBar,
+  SafeAreaView, ScrollView, ActivityIndicator, Platform, StatusBar, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -39,7 +39,9 @@ export default function OnboardingCategories() {
   useEffect(() => {
     api.taxonomies.list().then((res: any) => {
       setCategories(res?.data ?? res ?? []);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {
+      Alert.alert('Erreur', 'Impossible de charger les catégories.');
+    }).finally(() => setLoading(false));
   }, []);
 
   const toggle = (id: number) => {

@@ -13,6 +13,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { devError } from '@/lib/logger';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 const fromCents = (n: number) => n / 100;
@@ -214,7 +215,7 @@ export default function WalletTab() {
         setStripeStatus((connectData.value as any) ?? null);
       }
     } catch (e) {
-      console.error('[WalletTab] load error:', e);
+      devError('[WalletTab] load error:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);

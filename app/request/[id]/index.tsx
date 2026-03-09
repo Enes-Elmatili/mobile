@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 
 export default function Wallet() {
   const router = useRouter();
@@ -25,14 +26,14 @@ export default function Wallet() {
 
   const loadWallet = async () => {
     try {
-      const [balanceData, txData] = await Promise.all([
+      const [balResult, txResult] = await Promise.allSettled([
         api.wallet.balance(),
         api.wallet.transactions(20),
       ]);
-      setBalance(balanceData.balance);
-      setTransactions(txData);
+      if (balResult.status === 'fulfilled') setBalance((balResult.value as any).balance ?? 0);
+      if (txResult.status === 'fulfilled') setTransactions(txResult.value as any ?? []);
     } catch (error) {
-      console.error('Wallet load error:', error);
+      devError('Wallet load error:', error);
     } finally {
       setLoading(false);
     }

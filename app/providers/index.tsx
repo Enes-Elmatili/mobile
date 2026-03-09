@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 
 export default function ProvidersListScreen() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function ProvidersListScreen() {
       const response = await api.providers.list();
       setProviders(response.data || response || []);
     } catch (error) {
-      console.error('Providers load error:', error);
+      devError('Providers load error:', error);
     } finally {
       setLoading(false);
     }

@@ -7,7 +7,9 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { devError } from '@/lib/logger';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
@@ -26,7 +28,8 @@ export default function RequestsListScreen() {
       const response = await api.requests.list();
       setRequests(response.data || response || []);
     } catch (error) {
-      console.error('Requests load error:', error);
+      devError('Requests load error:', error);
+      Alert.alert('Erreur', 'Impossible de charger les demandes.');
     } finally {
       setLoading(false);
     }

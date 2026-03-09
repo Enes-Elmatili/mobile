@@ -30,6 +30,7 @@ import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
+import { devError } from '@/lib/logger';
 
 const { width } = Dimensions.get('window');
 
@@ -553,7 +554,7 @@ export default function Dashboard() {
       const response = await api.get('/client/dashboard');
       setData(response.data || response);
     } catch (error) {
-      console.error('Dashboard load error:', error);
+      devError('Dashboard load error:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -611,6 +612,10 @@ export default function Dashboard() {
     const handleAccepted  = (d: any) => {
       const reqId = String(d.id || d.requestId);
       if (acceptedIds.has(reqId)) return; // already handled
+
+      // Ignore events for requests that don't belong to this user
+      if (d.clientId && d.clientId !== user?.id) return;
+
       acceptedIds.add(reqId);
 
       updateRequestStatus(reqId, 'ACCEPTED');
@@ -684,7 +689,7 @@ export default function Dashboard() {
       }
       setSelectedRequest(req);
     } catch (error) {
-      console.error('Error loading request details:', error);
+      devError('Error loading request details:', error);
     } finally {
       setLoadingDetails(false);
     }

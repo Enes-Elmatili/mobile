@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-hooks/exhaustive-deps */
 // app/request/NewRequestStepper.tsx
 // Flow Intervention — 4 étapes premium + dark mode system-adaptive
 
@@ -14,10 +12,8 @@ import {
   SafeAreaView,
   ActivityIndicator,
   TextInput,
-  Dimensions,
   Animated,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   useColorScheme,
   StatusBar,
@@ -30,11 +26,10 @@ import { useStripe } from '@stripe/stripe-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 import { toIoniconName } from '../../lib/iconMapper';
 
-const { width } = Dimensions.get('window');
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-const CARD_W     = (width - 48 - 12) / 2;
 const TOTAL_STEPS = 4;
 
 const DEFAULT_REGION = {
@@ -154,7 +149,7 @@ function useTheme() {
 }
 
 // ─── Step Indicator animé ──────────────────────────────────────────────────────
-const STEP_ICONS: Array<'location-outline' | 'construct-outline' | 'time-outline' | 'checkmark-circle-outline'> = [
+const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | 'checkmark-circle-outline')[] = [
   'location-outline', 'construct-outline', 'time-outline', 'checkmark-circle-outline',
 ];
 
@@ -192,6 +187,7 @@ function StepIndicator({ step }: { step: number }) {
         Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   return (
@@ -431,6 +427,7 @@ function DayChip({ day, date, month, selected, onPress }: {
 
   useEffect(() => {
     Animated.timing(underlineWidth, { toValue: selected ? 1 : 0, duration: 200, useNativeDriver: false }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
   return (
@@ -601,7 +598,7 @@ export default function NewRequestStepper() {
         const response = await api.get('/categories');
         setCategories(extractArrayPayload(response));
       } catch (e) {
-        console.error('Categories load error:', e);
+        devError('Categories load error:', e);
       }
     })();
   }, []);
@@ -614,6 +611,7 @@ export default function NewRequestStepper() {
              c.slug?.toLowerCase() === preselectedCategory.toLowerCase()
     );
     if (match) setCategoryId(match.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, preselectedCategory]);
 
   // Transition animée
@@ -673,11 +671,12 @@ export default function NewRequestStepper() {
         });
         if (!error) setPaymentReady(true);
       } catch (e: any) {
-        console.error('Payment init error:', e);
+        devError('Payment init error:', e);
       } finally {
         setPaymentInitLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   // Confirme le paiement côté backend avec retry (max 3 tentatives, backoff 1s/2s)
@@ -686,7 +685,7 @@ export default function NewRequestStepper() {
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (!mountedRef.current) return;
       try {
-        await api.payments.success(rId);
+        await api.payments.success(String(rId));
         return;
       } catch (e) {
         lastErr = e;
@@ -740,13 +739,13 @@ export default function NewRequestStepper() {
     try {
       const { error: presentError } = await presentPaymentSheet();
       if (presentError) {
-        if (presentError.code !== 'Canceled') console.error('Payment sheet error:', presentError.message);
+        if (presentError.code !== 'Canceled') devError('Payment sheet error:', presentError.message);
         return;
       }
       await confirmPaymentSuccess(requestId);
       goToMissionView();
     } catch (error: any) {
-      console.error('handlePay error:', error);
+      devError('handlePay error:', error);
     } finally {
       setLoading(false);
     }
@@ -757,13 +756,6 @@ export default function NewRequestStepper() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await presentPaymentSheet();
   };
-
-  const canProceed = useMemo(() => {
-    if (step === 1) return !!location;
-    if (step === 2) return !!categoryId;
-    if (step === 3) return step3Ready;
-    return true;
-  }, [step, location, categoryId, step3Ready]);
 
   const STEPS = getStepConfig(t);
   const TIME_GROUPS = getTimeGroups(t);
