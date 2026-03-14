@@ -4,20 +4,32 @@ import { router } from 'expo-router';
 import { api } from '../../../lib/api';
 import { useEffect, useRef, useState } from 'react';
 
+interface DocStatus {
+  id: string;
+  docKey: string;
+  status: string;
+  rejectionReason?: string | null;
+}
+
 export default function PendingValidation() {
-  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected' | 'suspended'>('pending');
   const [stripeConnected, setStripeConnected] = useState(false);
+  const [documents, setDocuments] = useState<DocStatus[]>([]);
   const stripeConnectedRef = useRef(false);
 
   async function checkStatus() {
     try {
-      // Ne re-poller Stripe que si pas encore connecté
       const needsStripeCheck = !stripeConnectedRef.current;
 
-      const [validationRes, stripeRes]: any[] = await Promise.all([
+      const [validationRes, stripeRes, docsRes]: any[] = await Promise.all([
         api.providers.validationStatus(),
         needsStripeCheck ? api.connect.status() : null,
+        api.providerDocs.list(),
       ]);
+
+      if (docsRes?.documents) {
+        setDocuments(docsRes.documents);
+      }
 
       if (stripeRes) {
         const connected = !!(stripeRes.isConnected || stripeRes.isStripeReady);
@@ -31,6 +43,9 @@ export default function PendingValidation() {
         return true;
       } else if (validationRes.providerStatus === 'REJECTED') {
         setStatus('rejected');
+        return true;
+      } else if (validationRes.providerStatus === 'SUSPENDED') {
+        setStatus('suspended');
         return true;
       }
     } catch {
@@ -82,6 +97,34 @@ export default function PendingValidation() {
               ))}
             </View>
 
+            {documents.length > 0 && (
+              <View style={s.docsCard}>
+                <Text style={s.docsTitle}>Vos documents</Text>
+                {documents.map((doc) => (
+                  <View key={doc.id} style={s.docRow}>
+                    <Ionicons
+                      name={doc.status === 'APPROVED' ? 'checkmark-circle' : doc.status === 'REJECTED' ? 'close-circle' : 'time-outline'}
+                      size={16}
+                      color={doc.status === 'APPROVED' ? '#4ADE80' : doc.status === 'REJECTED' ? '#EF4444' : 'rgba(255,255,255,0.35)'}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.docLabel}>{doc.docKey.replace(/_/g, ' ')}</Text>
+                      {doc.status === 'REJECTED' && doc.rejectionReason && (
+                        <Text style={s.docReason}>{doc.rejectionReason}</Text>
+                      )}
+                    </View>
+                    <Text style={[
+                      s.docStatus,
+                      doc.status === 'APPROVED' && { color: '#4ADE80' },
+                      doc.status === 'REJECTED' && { color: '#EF4444' },
+                    ]}>
+                      {doc.status === 'APPROVED' ? 'Validé' : doc.status === 'REJECTED' ? 'Refusé' : 'En attente'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {!stripeConnected && (
               <TouchableOpacity
                 style={s.stripeCta}
@@ -120,6 +163,24 @@ export default function PendingValidation() {
               onPress={() => router.replace('/onboarding/provider/documents')}
             >
               <Text style={s.retryBtnText}>Corriger mon dossier</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {status === 'suspended' && (
+          <>
+            <View style={[s.iconCircle, s.iconCircleRed]}>
+              <Ionicons name="ban-outline" size={40} color="#fff" />
+            </View>
+            <Text style={s.title}>Compte suspendu.</Text>
+            <Text style={s.subtitle}>
+              {'Votre compte prestataire a été temporairement suspendu.\nContactez le support pour plus d\'informations.'}
+            </Text>
+            <TouchableOpacity
+              style={s.retryBtn}
+              onPress={() => router.push('/settings/support')}
+            >
+              <Text style={s.retryBtnText}>Contacter le support</Text>
             </TouchableOpacity>
           </>
         )}
@@ -173,4 +234,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 14, marginTop: 4,
   },
   stripeCtaText: { fontSize: 14, fontWeight: '700', color: '#0a0a0a' },
+  docsCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16, padding: 20, width: '100%', gap: 10, marginTop: 4,
+  },
+  docsTitle: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.6)', marginBottom: 4 },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  docLabel: { fontSize: 13, color: '#fff', fontWeight: '500', textTransform: 'capitalize' },
+  docReason: { fontSize: 12, color: '#EF4444', marginTop: 2 },
+  docStatus: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.35)' },
 });

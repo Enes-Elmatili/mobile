@@ -159,17 +159,26 @@ const ts = StyleSheet.create({
 function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
   const anim    = useRef(new Animated.Value(0)).current;
   const prevRef = useRef<ConnectionStatus>('connected');
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     // 'connecting' = état initial avant première connexion → pas de bannière
     const showing = status === 'reconnecting' || status === 'disconnected';
+
+    if (showing) {
+      setVisible(true); // mount before animating in
+    }
 
     Animated.timing(anim, {
       toValue:  showing ? 1 : 0,
       duration: 300,
       easing:   Easing.out(Easing.quad),
       useNativeDriver: true,
-    }).start();
+    }).start(() => {
+      if (!showing) {
+        setVisible(false); // unmount after animating out
+      }
+    });
 
     // Toast discret quand la connexion revient
     if (prevRef.current === 'reconnecting' && status === 'connected') {
@@ -177,6 +186,8 @@ function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
     }
     prevRef.current = status;
   }, [status]);
+
+  if (!visible) return null;
 
   const translateY    = anim.interpolate({ inputRange: [0, 1], outputRange: [-48, 0] });
   const isReconnecting = status === 'reconnecting';
@@ -393,10 +404,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const u = userRef.current;
       if (u?.roles?.includes('PROVIDER')) {
         try {
-          const raw        = await AsyncStorage.getItem('provider');
-          const providerId = raw
-            ? (JSON.parse(raw).id || JSON.parse(raw)._id || JSON.parse(raw).providerId || u.id)
-            : u.id;
+          // Valider le providerId via l'API pour éviter un cache AsyncStorage stale
+          let providerId: string | null = null;
+          try {
+            const meRes: any = await api.providers.me();
+            const provData = meRes?.data || meRes;
+            if (provData?.id) {
+              providerId = provData.id;
+              // Mettre à jour le cache AsyncStorage avec l'ID validé
+              await AsyncStorage.setItem('provider', JSON.stringify({ id: providerId }));
+            }
+          } catch {
+            // Fallback sur le cache AsyncStorage si l'API est indisponible
+            const raw = await AsyncStorage.getItem('provider');
+            providerId = raw
+              ? (JSON.parse(raw).id || JSON.parse(raw)._id || JSON.parse(raw).providerId || u.id)
+              : u.id;
+          }
+
+          if (!providerId) providerId = u.id;
 
           devLog('📝 Registering provider:', providerId);
           newSocket.emit('provider:register', { providerId, userId: u.id });

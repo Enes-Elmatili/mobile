@@ -563,30 +563,43 @@ export default function ProviderDashboard() {
   }, []);
 
   // Géolocalisation
+  const dashLocSubRef = useRef<Location.LocationSubscription | null>(null);
+  const dashLastEmitRef = useRef(0);
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { setLocationError(true); return; }
+      if (status !== 'granted' || cancelled) { if (!cancelled) setLocationError(true); return; }
 
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (cancelled) return;
       const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setLocation(coords);
       if (loc.coords.heading != null) setHeading(loc.coords.heading);
 
       mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 900);
 
-      Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, distanceInterval: 15 },
+      const sub = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, distanceInterval: 50, timeInterval: 15000 },
         (l) => {
           const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
           setLocation(c);
           if (l.coords.heading != null) setHeading(l.coords.heading);
-          if (socket && isOnline && networkOnline && user?.id) {
+          // Throttle socket emissions to max 1 per 15 seconds
+          const now = Date.now();
+          if (now - dashLastEmitRef.current >= 15_000 && socket && isOnline && networkOnline && user?.id) {
+            dashLastEmitRef.current = now;
             socket.emit('provider:location', { providerId: user.id, ...c });
           }
         }
       );
+      if (cancelled) { sub.remove(); return; }
+      dashLocSubRef.current = sub;
     })();
+    return () => {
+      cancelled = true;
+      if (dashLocSubRef.current) { dashLocSubRef.current.remove(); dashLocSubRef.current = null; }
+    };
   }, []);
 
   // Data

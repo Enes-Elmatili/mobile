@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useAppTheme } from '@/hooks/use-app-theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -80,11 +82,21 @@ const PLANS = [
 // ── Status chip ───────────────────────────────────────────────────────────────
 
 function StatusChip({ status }: { status: string }) {
+  const theme = useAppTheme();
   const isActive = status === 'ACTIVE';
   return (
-    <View style={[chip.wrap, isActive ? chip.active : chip.inactive]}>
-      <View style={[chip.dot, isActive ? chip.dotActive : chip.dotInactive]} />
-      <Text style={[chip.text, isActive ? chip.textActive : chip.textInactive]}>
+    <View style={[
+      chip.wrap,
+      { backgroundColor: isActive ? (theme.isDark ? '#0D2818' : '#F0FDF4') : theme.surface },
+    ]}>
+      <View style={[
+        chip.dot,
+        { backgroundColor: isActive ? '#22C55E' : theme.textMuted },
+      ]} />
+      <Text style={[
+        chip.text,
+        { color: isActive ? (theme.isDark ? '#4ADE80' : '#15803D') : theme.textMuted },
+      ]}>
         {isActive ? 'Actif' : status === 'CANCELLED' ? 'Résilié' : 'En attente'}
       </Text>
     </View>
@@ -93,14 +105,8 @@ function StatusChip({ status }: { status: string }) {
 
 const chip = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  active: { backgroundColor: '#F0FDF4' },
-  inactive: { backgroundColor: '#F5F5F5' },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  dotActive: { backgroundColor: '#22C55E' },
-  dotInactive: { backgroundColor: '#ADADAD' },
   text: { fontSize: 12, fontWeight: '700' },
-  textActive: { color: '#15803D' },
-  textInactive: { color: '#888' },
 });
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
@@ -116,41 +122,57 @@ function PlanCard({
   onSubscribe: (priceId: string) => void;
   loading: boolean;
 }) {
+  const theme = useAppTheme();
   return (
-    <View style={[pl.card, plan.highlight && pl.cardHighlight, isCurrent && pl.cardCurrent]}>
+    <View style={[
+      pl.card,
+      { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity },
+      plan.highlight && { backgroundColor: theme.accent, borderColor: theme.accent },
+      isCurrent && { borderColor: theme.accent, borderWidth: 2 },
+    ]}>
       {plan.highlight && !isCurrent && (
-        <View style={pl.badge}>
-          <Text style={pl.badgeText}>Recommandé</Text>
+        <View style={[pl.badge, { backgroundColor: theme.accent }]}>
+          <Text style={[pl.badgeText, { color: theme.accentText }]}>Recommandé</Text>
         </View>
       )}
       {isCurrent && (
-        <View style={[pl.badge, pl.badgeCurrent]}>
+        <View style={[pl.badge, { backgroundColor: theme.textSub }]}>
           <Text style={pl.badgeText}>Plan actuel</Text>
         </View>
       )}
       <View style={pl.top}>
-        <Text style={[pl.name, plan.highlight && pl.nameHighlight]}>{plan.name}</Text>
-        <Text style={[pl.price, plan.highlight && pl.priceHighlight]}>{plan.priceLabel}</Text>
+        <Text style={[pl.name, { color: plan.highlight ? theme.accentText : theme.textAlt }]}>
+          {plan.name}
+        </Text>
+        <Text style={[pl.price, { color: plan.highlight ? 'rgba(255,255,255,0.6)' : theme.textMuted }]}>
+          {plan.priceLabel}
+        </Text>
       </View>
       <View style={pl.features}>
         {plan.features.map((f, i) => (
           <View key={i} style={pl.featureRow}>
-            <Ionicons name="checkmark-circle" size={14} color={plan.highlight ? '#FFF' : '#22C55E'} />
-            <Text style={[pl.featureText, plan.highlight && pl.featureTextHighlight]}>{f}</Text>
+            <Ionicons name="checkmark-circle" size={14} color={plan.highlight ? theme.accentText : '#22C55E'} />
+            <Text style={[pl.featureText, { color: plan.highlight ? 'rgba(255,255,255,0.8)' : theme.textSub }]}>
+              {f}
+            </Text>
           </View>
         ))}
       </View>
       {!isCurrent && (
         <TouchableOpacity
-          style={[pl.btn, plan.highlight && pl.btnHighlight, loading && pl.btnDisabled]}
+          style={[
+            pl.btn,
+            { backgroundColor: plan.highlight ? theme.accentText : theme.accent },
+            loading && pl.btnDisabled,
+          ]}
           onPress={() => onSubscribe(plan.priceId)}
           disabled={loading}
           activeOpacity={0.8}
         >
           {loading ? (
-            <ActivityIndicator size="small" color={plan.highlight ? '#1A1A1A' : '#FFF'} />
+            <ActivityIndicator size="small" color={plan.highlight ? theme.accent : theme.accentText} />
           ) : (
-            <Text style={[pl.btnText, plan.highlight && pl.btnTextHighlight]}>
+            <Text style={[pl.btnText, { color: plan.highlight ? theme.accent : theme.accentText }]}>
               S'abonner
             </Text>
           )}
@@ -162,40 +184,32 @@ function PlanCard({
 
 const pl = StyleSheet.create({
   card: {
-    backgroundColor: '#FFF', borderRadius: 20, padding: 20,
+    borderRadius: 20, padding: 20,
     marginBottom: 12, gap: 16,
-    borderWidth: 1, borderColor: '#F0F0F0',
+    borderWidth: 1,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 2 },
     }),
   },
-  cardHighlight: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  cardCurrent: { borderColor: '#1A1A1A', borderWidth: 2 },
   badge: {
     position: 'absolute', top: -10, right: 16,
-    backgroundColor: '#1A1A1A', borderRadius: 8,
+    borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 4,
   },
-  badgeCurrent: { backgroundColor: '#555' },
   badgeText: { fontSize: 10, fontWeight: '800', color: '#FFF', textTransform: 'uppercase', letterSpacing: 0.5 },
   top:  { gap: 4, marginTop: 8 },
-  name: { fontSize: 20, fontWeight: '900', color: '#1A1A1A' },
-  nameHighlight: { color: '#FFF' },
-  price: { fontSize: 14, fontWeight: '600', color: '#ADADAD' },
-  priceHighlight: { color: 'rgba(255,255,255,0.6)' },
+  name: { fontSize: 20, fontWeight: '900' },
+  price: { fontSize: 14, fontWeight: '600' },
   features: { gap: 8 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureText: { fontSize: 13, color: '#555', fontWeight: '500', flex: 1 },
-  featureTextHighlight: { color: 'rgba(255,255,255,0.8)' },
+  featureText: { fontSize: 13, fontWeight: '500', flex: 1 },
   btn: {
-    backgroundColor: '#1A1A1A', borderRadius: 12,
+    borderRadius: 12,
     paddingVertical: 13, alignItems: 'center',
   },
-  btnHighlight: { backgroundColor: '#FFF' },
   btnDisabled: { opacity: 0.6 },
-  btnText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
-  btnTextHighlight: { color: '#1A1A1A' },
+  btnText: { fontSize: 15, fontWeight: '800' },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -204,6 +218,7 @@ export default function SubscriptionScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const theme = useAppTheme();
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -282,8 +297,9 @@ export default function SubscriptionScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.center}>
-        <ActivityIndicator size="large" color="#1A1A1A" />
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </SafeAreaView>
     );
   }
@@ -291,13 +307,19 @@ export default function SubscriptionScreen() {
   const currentPlanName = subscription?.planName?.toLowerCase() || null;
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
       {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <TouchableOpacity
+          style={[s.backBtn, { backgroundColor: theme.surface }]}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{t('profile.subscription')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('profile.subscription')}</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -305,20 +327,20 @@ export default function SubscriptionScreen() {
 
         {/* Current plan summary */}
         {subscription ? (
-          <View style={s.currentCard}>
+          <View style={[s.currentCard, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
             <View style={s.currentRow}>
               <View>
-                <Text style={s.currentLabel}>Abonnement actuel</Text>
-                <Text style={s.currentPlan}>{subscription.planName}</Text>
+                <Text style={[s.currentLabel, { color: theme.textMuted }]}>Abonnement actuel</Text>
+                <Text style={[s.currentPlan, { color: theme.textAlt }]}>{subscription.planName}</Text>
               </View>
               <StatusChip status={subscription.status} />
             </View>
             <View style={s.currentMeta}>
-              <Text style={s.currentMetaText}>
+              <Text style={[s.currentMetaText, { color: theme.textMuted }]}>
                 Depuis le {new Date(subscription.startDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
               </Text>
               {subscription.endDate && (
-                <Text style={s.currentMetaText}>
+                <Text style={[s.currentMetaText, { color: theme.textMuted }]}>
                   Fin le {new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </Text>
               )}
@@ -331,21 +353,21 @@ export default function SubscriptionScreen() {
                 activeOpacity={0.7}
               >
                 {cancelling
-                  ? <ActivityIndicator size="small" color="#DC2626" />
-                  : <Text style={s.cancelBtnText}>{t('subscription.cancel_btn')}</Text>
+                  ? <ActivityIndicator size="small" color={theme.danger} />
+                  : <Text style={[s.cancelBtnText, { color: theme.danger }]}>{t('subscription.cancel_btn')}</Text>
                 }
               </TouchableOpacity>
             )}
           </View>
         ) : (
-          <View style={s.noPlanCard}>
+          <View style={[s.noPlanCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
             <Ionicons name="wallet-outline" size={36} color="#D1D5DB" />
-            <Text style={s.noPlanTitle}>Aucun abonnement actif</Text>
-            <Text style={s.noPlanSub}>Choisissez un plan pour accéder aux clients premium.</Text>
+            <Text style={[s.noPlanTitle, { color: theme.textAlt }]}>Aucun abonnement actif</Text>
+            <Text style={[s.noPlanSub, { color: theme.textMuted }]}>Choisissez un plan pour accéder aux clients premium.</Text>
           </View>
         )}
 
-        <Text style={s.plansTitle}>Nos plans</Text>
+        <Text style={[s.plansTitle, { color: theme.textAlt }]}>Nos plans</Text>
 
         {PLANS.map(plan => (
           <PlanCard
@@ -357,9 +379,9 @@ export default function SubscriptionScreen() {
           />
         ))}
 
-        <Text style={s.legal}>
+        <Text style={[s.legal, { color: theme.textMuted }]}>
           En vous abonnant, vous acceptez nos {' '}
-          <Text style={s.legalLink} onPress={() => router.push('/settings/cgu' as any)}>
+          <Text style={[s.legalLink, { color: theme.textSub }]} onPress={() => router.push('/settings/cgu' as any)}>
             Conditions Générales
           </Text>
           . Les paiements sont sécurisés par Stripe.
@@ -373,52 +395,52 @@ export default function SubscriptionScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#F8F9FB' },
+  root:   { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17, fontWeight: '800' },
 
   scroll: { padding: 16, gap: 4, paddingBottom: 48 },
 
   currentCard: {
-    backgroundColor: '#FFF', borderRadius: 20, padding: 20,
+    borderRadius: 20, padding: 20,
     gap: 12, marginBottom: 20,
-    borderWidth: 1, borderColor: '#F0F0F0',
+    borderWidth: 1,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 2 },
     }),
   },
   currentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  currentLabel: { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  currentPlan: { fontSize: 22, fontWeight: '900', color: '#1A1A1A' },
+  currentLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  currentPlan: { fontSize: 22, fontWeight: '900' },
   currentMeta: { gap: 3 },
-  currentMetaText: { fontSize: 13, color: '#ADADAD', fontWeight: '500' },
+  currentMetaText: { fontSize: 13, fontWeight: '500' },
   cancelBtn: {
     borderWidth: 1, borderColor: '#FECACA', borderRadius: 12,
     paddingVertical: 10, alignItems: 'center',
   },
-  cancelBtnText: { fontSize: 14, fontWeight: '700', color: '#DC2626' },
+  cancelBtnText: { fontSize: 14, fontWeight: '700' },
 
   noPlanCard: {
-    backgroundColor: '#FFF', borderRadius: 20, padding: 24,
+    borderRadius: 20, padding: 24,
     alignItems: 'center', gap: 8, marginBottom: 20,
-    borderWidth: 1, borderColor: '#F0F0F0',
+    borderWidth: 1,
   },
-  noPlanTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
-  noPlanSub: { fontSize: 13, color: '#ADADAD', textAlign: 'center' },
+  noPlanTitle: { fontSize: 16, fontWeight: '700' },
+  noPlanSub: { fontSize: 13, textAlign: 'center' },
 
-  plansTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A1A', marginBottom: 8, paddingHorizontal: 4 },
+  plansTitle: { fontSize: 15, fontWeight: '800', marginBottom: 8, paddingHorizontal: 4 },
 
-  legal: { fontSize: 12, color: '#ADADAD', textAlign: 'center', marginTop: 8, lineHeight: 18 },
-  legalLink: { color: '#555', fontWeight: '600' },
+  legal: { fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 18 },
+  legalLink: { fontWeight: '600' },
 });

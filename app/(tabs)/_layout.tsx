@@ -91,10 +91,10 @@ export default function TabLayout() {
 
   const opportunitiesOptions = useMemo(() => ({
     title: 'Opportunités',
-    href: isProvider ? undefined : null,
+    href: null as null,
     tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
       <Ionicons name={focused ? 'compass' : 'compass-outline'} size={22} color={color} />,
-  }), [isProvider]);
+  }), []);
 
   const missionsOptions = useMemo(() => ({
     title: 'Missions',

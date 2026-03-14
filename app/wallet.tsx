@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
 import { devError } from '@/lib/logger';
+import { useAppTheme } from '@/hooks/use-app-theme';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 // Le backend stocke les montants en centimes (entiers). On divise par 100 à l'affichage.
@@ -59,6 +60,7 @@ interface WithdrawModalProps {
 }
 
 function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalProps) {
+  const theme = useAppTheme();
   const [amount, setAmount] = useState('');
   const [iban, setIban] = useState('');
   const [note, setNote] = useState('');
@@ -99,61 +101,61 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView style={wm.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={wm.sheet}>
-          <View style={wm.handle} />
-          <Text style={wm.title}>Retirer des fonds</Text>
-          <Text style={wm.subtitle}>Solde disponible : {fmtEur(fromCents(balance))}</Text>
+        <View style={[wm.sheet, { backgroundColor: theme.cardBg }]}>
+          <View style={[wm.handle, { backgroundColor: theme.border }]} />
+          <Text style={[wm.title, { color: theme.textAlt }]}>Retirer des fonds</Text>
+          <Text style={[wm.subtitle, { color: theme.textMuted }]}>Solde disponible : {fmtEur(fromCents(balance))}</Text>
 
-          <Text style={wm.label}>Montant (€)</Text>
+          <Text style={[wm.label, { color: theme.textMuted }]}>Montant (€)</Text>
           <TextInput
-            style={wm.input}
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt }]}
             placeholder="Ex : 50,00"
-            placeholderTextColor="#ADADAD"
+            placeholderTextColor={theme.textMuted}
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
             returnKeyType="next"
           />
 
-          <Text style={wm.label}>IBAN (optionnel)</Text>
+          <Text style={[wm.label, { color: theme.textMuted }]}>IBAN (optionnel)</Text>
           <TextInput
-            style={wm.input}
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt }]}
             placeholder="BE12 3456 7890 1234"
-            placeholderTextColor="#ADADAD"
+            placeholderTextColor={theme.textMuted}
             value={iban}
             onChangeText={setIban}
             autoCapitalize="characters"
             returnKeyType="next"
           />
 
-          <Text style={wm.label}>Note (optionnelle)</Text>
+          <Text style={[wm.label, { color: theme.textMuted }]}>Note (optionnelle)</Text>
           <TextInput
-            style={wm.input}
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt }]}
             placeholder="Référence virement…"
-            placeholderTextColor="#ADADAD"
+            placeholderTextColor={theme.textMuted}
             value={note}
             onChangeText={setNote}
             returnKeyType="done"
           />
 
-          <Text style={wm.notice}>
+          <Text style={[wm.notice, { color: theme.textMuted }]}>
             Les retraits sont traités sous 2–3 jours ouvrés. Un administrateur validera votre demande.
           </Text>
 
           <TouchableOpacity
-            style={[wm.btn, loading && wm.btnDisabled]}
+            style={[wm.btn, { backgroundColor: theme.accent }, loading && wm.btnDisabled]}
             onPress={handleSubmit}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading
-              ? <ActivityIndicator color="#FFF" />
-              : <Text style={wm.btnText}>Confirmer le retrait</Text>
+              ? <ActivityIndicator color={theme.accentText} />
+              : <Text style={[wm.btnText, { color: theme.accentText }]}>Confirmer le retrait</Text>
             }
           </TouchableOpacity>
 
           <TouchableOpacity style={wm.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={wm.cancelText}>Annuler</Text>
+            <Text style={[wm.cancelText, { color: theme.textMuted }]}>Annuler</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -165,58 +167,59 @@ const wm = StyleSheet.create({
   overlay:    { flex: 1, justifyContent: 'flex-end' },
   backdrop:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: {
-    backgroundColor: '#FFF', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
   },
-  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20 },
-  title:      { fontSize: 22, fontWeight: '800', color: '#1A1A1A', marginBottom: 4 },
-  subtitle:   { fontSize: 14, color: '#ADADAD', marginBottom: 22 },
-  label:      { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 7 },
+  handle:     { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  title:      { fontSize: 22, fontWeight: '800', marginBottom: 4 },
+  subtitle:   { fontSize: 14, marginBottom: 22 },
+  label:      { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 7 },
   input: {
-    backgroundColor: '#F5F5F5', borderRadius: 14, height: 50, paddingHorizontal: 16,
-    fontSize: 15, color: '#1A1A1A', marginBottom: 14,
-    borderWidth: 1, borderColor: '#EBEBEB',
+    borderRadius: 14, height: 50, paddingHorizontal: 16,
+    fontSize: 15, marginBottom: 14,
+    borderWidth: 1,
   },
-  notice:     { fontSize: 12, color: '#ADADAD', lineHeight: 18, marginBottom: 20, marginTop: 4 },
-  btn:        { backgroundColor: '#1A1A1A', borderRadius: 16, height: 54, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  notice:     { fontSize: 12, lineHeight: 18, marginBottom: 20, marginTop: 4 },
+  btn:        { borderRadius: 16, height: 54, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   btnDisabled:{ opacity: 0.6 },
-  btnText:    { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  btnText:    { fontSize: 16, fontWeight: '700' },
   cancelBtn:  { alignItems: 'center', paddingVertical: 12 },
-  cancelText: { fontSize: 15, fontWeight: '600', color: '#ADADAD' },
+  cancelText: { fontSize: 15, fontWeight: '600' },
 });
 
 // ─── Ligne de transaction ──────────────────────────────────────────────────────
 function TxRow({ item }: { item: any }) {
+  const theme = useAppTheme();
   const isCredit = item.type === 'CREDIT';
   const label    = parseTxLabel(item.type, item.reference);
 
   return (
-    <View style={tx.card}>
+    <View style={[tx.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
       {/* Icône */}
-      <View style={[tx.iconWrap, isCredit ? tx.iconCredit : tx.iconDebit]}>
+      <View style={[tx.iconWrap, isCredit ? tx.iconCredit : { backgroundColor: theme.surface }]}>
         <Ionicons
           name={isCredit ? 'arrow-down-outline' : 'arrow-up-outline'}
           size={17}
-          color={isCredit ? '#059669' : '#1A1A1A'}
+          color={isCredit ? '#059669' : theme.textAlt}
         />
       </View>
 
       {/* Infos */}
       <View style={tx.info}>
-        <Text style={tx.label} numberOfLines={1}>{label}</Text>
-        <Text style={tx.date}>{fmtDate(item.createdAt)} · {fmtTime(item.createdAt)}</Text>
+        <Text style={[tx.label, { color: theme.textAlt }]} numberOfLines={1}>{label}</Text>
+        <Text style={[tx.date, { color: theme.textMuted }]}>{fmtDate(item.createdAt)} · {fmtTime(item.createdAt)}</Text>
         {item.balanceAfter != null && (
-          <Text style={tx.balance}>Solde après : {fmtEur(fromCents(item.balanceAfter))}</Text>
+          <Text style={[tx.balance, { color: theme.textVeryMuted }]}>Solde après : {fmtEur(fromCents(item.balanceAfter))}</Text>
         )}
       </View>
 
       {/* Montant */}
       <View style={tx.amountWrap}>
-        <Text style={[tx.amount, isCredit ? tx.amountCredit : tx.amountDebit]}>
+        <Text style={[tx.amount, isCredit ? tx.amountCredit : { color: theme.textAlt }]}>
           {isCredit ? '+' : '−'}{fmtEur(fromCents(Math.abs(item.amount)))}
         </Text>
-        <View style={[tx.badge, isCredit ? tx.badgeCredit : tx.badgeDebit]}>
-          <Text style={[tx.badgeText, isCredit ? tx.badgeTextCredit : tx.badgeTextDebit]}>
+        <View style={[tx.badge, isCredit ? tx.badgeCredit : { backgroundColor: theme.surface }]}>
+          <Text style={[tx.badgeText, isCredit ? tx.badgeTextCredit : { color: theme.textMuted }]}>
             {isCredit ? 'Reçu' : 'Débité'}
           </Text>
         </View>
@@ -228,30 +231,26 @@ function TxRow({ item }: { item: any }) {
 const tx = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#FFF', borderRadius: 18,
+    borderRadius: 18,
     paddingHorizontal: 16, paddingVertical: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: '#F0F0F0',
+    borderWidth: 1,
   },
   iconWrap: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   iconCredit: { backgroundColor: '#ECFDF5' },
-  iconDebit:  { backgroundColor: '#F5F5F5' },
   info:       { flex: 1 },
-  label:      { fontSize: 14, fontWeight: '700', color: '#1A1A1A', marginBottom: 2 },
-  date:       { fontSize: 11, color: '#ADADAD', fontWeight: '500' },
-  balance:    { fontSize: 11, color: '#CACBCE', fontWeight: '500', marginTop: 2 },
+  label:      { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  date:       { fontSize: 11, fontWeight: '500' },
+  balance:    { fontSize: 11, fontWeight: '500', marginTop: 2 },
   amountWrap: { alignItems: 'flex-end', gap: 5 },
   amount:     { fontSize: 15, fontWeight: '800' },
   amountCredit: { color: '#059669' },
-  amountDebit:  { color: '#1A1A1A' },
   badge:      { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgeCredit: { backgroundColor: '#ECFDF5' },
-  badgeDebit:  { backgroundColor: '#F5F5F5' },
   badgeText:  { fontSize: 10, fontWeight: '700' },
   badgeTextCredit: { color: '#059669' },
-  badgeTextDebit:  { color: '#888' },
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -259,6 +258,7 @@ const tx = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Wallet() {
   const router = useRouter();
+  const theme = useAppTheme();
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
   const [balance,      setBalance]      = useState(0);
@@ -297,24 +297,24 @@ export default function Wallet() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.loadingContainer}>
-        <ActivityIndicator size="large" color="#1A1A1A" />
+      <SafeAreaView style={[s.loadingContainer, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.root}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* ── Header ── */}
-      <View style={s.header}>
+      <View style={[s.header, { backgroundColor: theme.bg }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Portefeuille</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]}>Portefeuille</Text>
         <TouchableOpacity onPress={onRefresh} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="refresh-outline" size={20} color="#1A1A1A" />
+          <Ionicons name="refresh-outline" size={20} color={theme.textAlt} />
         </TouchableOpacity>
       </View>
 
@@ -343,18 +343,18 @@ export default function Wallet() {
         contentContainerStyle={s.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1A1A1A" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
         }
         ListHeaderComponent={
-          <Text style={s.listTitle}>
+          <Text style={[s.listTitle, { color: theme.textMuted }]}>
             Transactions {transactions.length > 0 ? `(${transactions.length})` : ''}
           </Text>
         }
         ListEmptyComponent={
           <View style={s.empty}>
-            <Ionicons name="wallet-outline" size={52} color="#E0E0E0" />
-            <Text style={s.emptyTitle}>Aucune transaction</Text>
-            <Text style={s.emptySubtitle}>Vos gains apparaîtront ici une fois vos missions terminées.</Text>
+            <Ionicons name="wallet-outline" size={52} color={theme.textDisabled} />
+            <Text style={[s.emptyTitle, { color: theme.textSub }]}>Aucune transaction</Text>
+            <Text style={[s.emptySubtitle, { color: theme.textMuted }]}>Vos gains apparaîtront ici une fois vos missions terminées.</Text>
           </View>
         }
       />
@@ -372,17 +372,16 @@ export default function Wallet() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root:             { flex: 1, backgroundColor: '#F5F5F5' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  root:             { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 14,
-    backgroundColor: '#F5F5F5',
   },
   backBtn:     { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
 
   // Héro balance
   hero: {
@@ -408,10 +407,10 @@ const s = StyleSheet.create({
 
   // Liste
   listContent: { paddingHorizontal: 16, paddingBottom: 40 },
-  listTitle:   { fontSize: 13, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 14 },
+  listTitle:   { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 14 },
 
   // Vide
   empty:         { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyTitle:    { fontSize: 17, fontWeight: '700', color: '#888' },
-  emptySubtitle: { fontSize: 13, color: '#ADADAD', textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
+  emptyTitle:    { fontSize: 17, fontWeight: '700' },
+  emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
 });

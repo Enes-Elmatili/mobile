@@ -498,6 +498,7 @@ export default function MissionView() {
   const [message, setMessage] = useState('');
   // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
   const hasRealLocationRef = useRef(false);
+  const hasNavigatedToPinRef = useRef(false);
 
   // ─── PIN state ──────────────────────────────────────────────────────────
   const [pinCode, setPinCode] = useState<string | null>(null);
@@ -556,17 +557,34 @@ export default function MissionView() {
     setRequest(requestData);
     if (requestData.beforePhotoUrl) setProviderArrived(true);
     if (requestData.pinVerified) setPinVerified(true);
+
+    // Fix : set provider location depuis la réponse polling
+    if (requestData.provider?.lat && requestData.provider?.lng) {
+      setProviderLocation({
+        latitude: requestData.provider.lat,
+        longitude: requestData.provider.lng,
+      });
+    }
+
+    // Fix PIN : set directement depuis la réponse REST (évite race condition socket)
+    const resolvedPin = requestData.pinCode || null;
+    if (__DEV__) console.log('[MissionView] transitionToTracking — pinCode:', resolvedPin, 'pinVerified:', requestData.pinVerified);
+    if (resolvedPin) {
+      setPinCode(resolvedPin);
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    fetchPin(String(requestData.id)); // fallback si pinCode absent de la réponse
 
-    // Fetch PIN code
-    fetchPin(String(requestData.id));
-
+    // Fix : setPhase AVANT l'animation pour que la PIN card s'affiche immédiatement
+    setPhase('TRACKING');
+    if (__DEV__) console.log('[MissionView] phase → TRACKING, pinCode:', resolvedPin);
     Animated.timing(phaseAnim, {
       toValue: 1,
       duration: 600,
       easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
-    }).start(() => setPhase('TRACKING'));
+    }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPin]);
 
@@ -587,12 +605,14 @@ export default function MissionView() {
 
   // ─── Polling SEARCHING (5s) — s'arrête dès que phase passe en TRACKING ──
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pinPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!id || phase !== 'SEARCHING') return;
     const poll = async () => {
       try {
         const res = await api.get(`/requests/${id}`);
         const data = res?.data || res;
+        if (__DEV__) console.log('[MissionView] poll data keys:', Object.keys(data || {}), 'pinCode:', data?.pinCode, 'status:', data?.status);
         const status = (data?.status || '').toUpperCase();
         if (status === 'ACCEPTED' || status === 'ONGOING') {
           // Stop polling before transitioning
@@ -615,6 +635,44 @@ export default function MissionView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (isExpired) router.replace('/(tabs)/dashboard'); }, [isExpired]);
 
+  // ─── Polling PIN de sécurité (fallback si socket raté) ────────────────────
+  useEffect(() => {
+    if (phase !== 'TRACKING' || pinCode || pinVerified) return;
+
+    fetchPin(id);
+    pinPollRef.current = setInterval(() => fetchPin(id), 5000);
+
+    return () => {
+      if (pinPollRef.current) { clearInterval(pinPollRef.current); pinPollRef.current = null; }
+    };
+  }, [phase, pinCode, pinVerified, id, fetchPin]);
+
+  useEffect(() => {
+    if (pinCode && pinPollRef.current) {
+      clearInterval(pinPollRef.current);
+      pinPollRef.current = null;
+    }
+  }, [pinCode]);
+
+  // ─── Navigation automatique vers page PIN ─────────────────────────────────
+  // S'affiche seulement quand le prestataire est arrivé (before_photo) ET que le PIN est dispo
+  useEffect(() => {
+    if (__DEV__) console.log('[MissionView] PIN nav check — phase:', phase, 'pinCode:', pinCode, 'pinVerified:', pinVerified, 'providerArrived:', providerArrived, 'alreadyNav:', hasNavigatedToPinRef.current);
+    if (phase !== 'TRACKING' || !pinCode || pinVerified || !providerArrived) return;
+    if (hasNavigatedToPinRef.current) return;
+    hasNavigatedToPinRef.current = true;
+    if (__DEV__) console.log('[MissionView] → Navigating to PIN page');
+    router.push({
+      pathname: '/request/[id]/pin',
+      params: {
+        id: String(id),
+        pinCode,
+        providerName: request?.provider?.name || '',
+        serviceName: request?.serviceType || serviceName || '',
+      },
+    });
+  }, [phase, pinCode, pinVerified, providerArrived, id, request, serviceName, router]);
+
   // ─── Socket (TRACKING) ────────────────────────────────────────────────────
   const destRef = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
@@ -625,13 +683,20 @@ export default function MissionView() {
     if (!socket || !id) return;
     joinRoom('request', id);
 
+    let lastEtaFetch = 0;
     const onLocation = async (data: any) => {
       if (String(data.requestId) !== String(id)) return;
-      hasRealLocationRef.current = true; // GPS réel reçu — ne plus afficher "En attente"
+      hasRealLocationRef.current = true;
       const loc = { latitude: data.lat, longitude: data.lng };
       setProviderLocation(loc);
-      if (destRef.current) await fetchETA(data.lat, data.lng, destRef.current.lat, destRef.current.lng);
-      else if (data.eta) setEta(data.eta);
+      // Throttle ETA fetch to max 1 per 30 seconds
+      const now = Date.now();
+      if (destRef.current && now - lastEtaFetch >= 30_000) {
+        lastEtaFetch = now;
+        await fetchETA(data.lat, data.lng, destRef.current.lat, destRef.current.lng);
+      } else if (data.eta) {
+        setEta(data.eta);
+      }
       mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 });
     };
 
@@ -668,7 +733,7 @@ export default function MissionView() {
     const onBeforePhoto = (data: any) => {
       if (String(data.requestId) === String(id)) {
         setProviderArrived(true);
-        showToast('Prestataire arrivé — consultez le code PIN ci-dessous', 'success');
+        // La navigation vers /pin est gérée par le useEffect dédié
       }
     };
 
@@ -1004,37 +1069,11 @@ export default function MissionView() {
             {/* Divider */}
             <View style={s.divider} />
 
-            {/* ── PIN Card — shown when provider has arrived ───────────────── */}
-            {status === 'ACCEPTED' && pinCode && providerArrived && !pinVerified && (
-              <View style={s.pinCard}>
-                <View style={s.pinCardHeader}>
-                  <Ionicons name="key" size={20} color="#1A1A1A" />
-                  <Text style={s.pinCardTitle}>Code PIN de vérification</Text>
-                </View>
-                <Text style={s.pinCardSubtitle}>Communiquez ce code à votre prestataire</Text>
-                <View style={s.pinDigitsRow}>
-                  {pinCode.split('').map((digit, i) => (
-                    <View key={i} style={s.pinDigitBox}>
-                      <Text style={s.pinDigitText}>{digit}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* PIN pending — provider not yet arrived */}
-            {status === 'ACCEPTED' && pinCode && !providerArrived && !pinVerified && (
-              <View style={s.pinPendingBanner}>
-                <Ionicons name="time-outline" size={18} color="#888" />
-                <Text style={s.pinPendingText}>Le prestataire est en route. Le code PIN s'affichera à son arrivée.</Text>
-              </View>
-            )}
-
-            {/* PIN verified banner */}
+            {/* PIN vérifié — petit banner de confirmation */}
             {pinVerified && (
               <View style={s.pinVerifiedBanner}>
                 <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-                <Text style={s.pinVerifiedText}>Code PIN vérifié — la mission va démarrer</Text>
+                <Text style={s.pinVerifiedText}>Code PIN vérifié — mission en cours</Text>
               </View>
             )}
 
@@ -1127,7 +1166,7 @@ const s = StyleSheet.create({
   },
   radarZone: {
     width: '100%',
-    height: height * 0.40,
+    height: height * 0.35,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1135,9 +1174,9 @@ const s = StyleSheet.create({
   searchingSheet: {
     width: '100%',
     backgroundColor: 'rgba(255,255,255,0.97)',
-    borderRadius: 28,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 10,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
       android: { elevation: 6 },
@@ -1145,13 +1184,13 @@ const s = StyleSheet.create({
   },
 
   sheetHandle: {
-    width: 36, height: 4, borderRadius: 2,
+    width: 32, height: 4, borderRadius: 2,
     backgroundColor: '#E0E0E0',
     alignSelf: 'center',
-    marginBottom: 18,
+    marginBottom: 12,
   },
 
-  missionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  missionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   missionName: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
   metaText: { fontSize: 12, color: '#ADADAD', fontWeight: '500', flex: 1 },
@@ -1165,7 +1204,7 @@ const s = StyleSheet.create({
 
   cancelSearchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    width: '100%', paddingVertical: 14, borderRadius: 14,
+    width: '100%', paddingVertical: 11, borderRadius: 12,
     borderWidth: 1.5, borderColor: '#FF3B30',
     backgroundColor: 'rgba(255,59,48,0.05)',
   },
@@ -1213,33 +1252,33 @@ const s = StyleSheet.create({
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
     backgroundColor: '#FFF',
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
       android: { elevation: 8 },
     }),
   },
 
-  etaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  etaLabel: { fontSize: 13, color: '#888', fontWeight: '500', marginBottom: 4 },
-  etaTime: { fontSize: 36, fontWeight: '900', color: '#1A1A1A', letterSpacing: -1 },
+  etaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  etaLabel: { fontSize: 12, color: '#888', fontWeight: '500', marginBottom: 2 },
+  etaTime: { fontSize: 28, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.8 },
   etaBadge: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: '#F4F4F4',
     alignItems: 'center', justifyContent: 'center',
   },
 
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginBottom: 18 },
+  divider: { height: 1, backgroundColor: '#F0F0F0', marginBottom: 12 },
 
-  providerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  providerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   avatar: {
-    width: 54, height: 54, borderRadius: 27,
+    width: 46, height: 46, borderRadius: 23,
     backgroundColor: '#F4F4F4',
     alignItems: 'center', justifyContent: 'center',
-    marginRight: 14,
+    marginRight: 12,
     borderWidth: 1.5, borderColor: '#EBEBEB',
   },
   providerInfo: { flex: 1 },
@@ -1262,14 +1301,14 @@ const s = StyleSheet.create({
 
   messageRow: {
     flexDirection: 'row', alignItems: 'center',
-    gap: 10, marginBottom: 16,
+    gap: 8, marginBottom: 10,
   },
   messageInput: {
     flex: 1,
-    height: 48,
+    height: 42,
     backgroundColor: '#F6F6F6',
-    borderRadius: 24,
-    paddingHorizontal: 18,
+    borderRadius: 21,
+    paddingHorizontal: 16,
     fontSize: 14,
     color: '#1A1A1A',
     fontWeight: '500',
@@ -1277,14 +1316,14 @@ const s = StyleSheet.create({
     borderColor: '#EBEBEB',
   },
   sendBtn: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 42, height: 42, borderRadius: 21,
     backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
   },
   sendBtnOff: { backgroundColor: '#D0D0D0' },
 
   cancelTrackBtn: {
-    paddingVertical: 14, borderRadius: 14,
+    paddingVertical: 11, borderRadius: 12,
     borderWidth: 1.5, borderColor: '#FF3B30',
     backgroundColor: 'rgba(255,59,48,0.05)',
     alignItems: 'center', marginBottom: 0,
@@ -1293,43 +1332,17 @@ const s = StyleSheet.create({
 
   ongoingBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F4F4F4', borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: '#F4F4F4', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   ongoingText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', flex: 1 },
 
   // ─── PIN ────────────────────────────────────────────────────────────────
-  pinCard: {
-    backgroundColor: '#F9F9F9', borderRadius: 16,
-    padding: 18, marginBottom: 16,
-    borderWidth: 1.5, borderColor: '#EBEBEB',
-  },
-  pinCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  pinCardTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
-  pinCardSubtitle: { fontSize: 12, color: '#888', marginBottom: 14 },
-  pinDigitsRow: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
-  pinDigitBox: {
-    width: 52, height: 60, borderRadius: 14,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E0E0E0',
-    alignItems: 'center', justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 2 },
-    }),
-  },
-  pinDigitText: { fontSize: 28, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
-  pinPendingBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F9F9F9', borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 12,
-    marginBottom: 16, borderWidth: 1, borderColor: '#EBEBEB',
-  },
-  pinPendingText: { fontSize: 13, fontWeight: '500', color: '#888', flex: 1 },
   pinVerifiedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F0FDF4', borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 12,
-    marginBottom: 16, borderWidth: 1, borderColor: '#BBF7D0',
+    backgroundColor: '#F0FDF4', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+    marginBottom: 10, borderWidth: 1, borderColor: '#BBF7D0',
   },
   pinVerifiedText: { fontSize: 13, fontWeight: '600', color: '#15803D', flex: 1 },
 

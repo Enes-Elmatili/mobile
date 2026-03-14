@@ -1,7 +1,7 @@
 // components/OfflineBanner.tsx
 // Bandeau persistant offline + bandeau fugace reconnexion
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNetwork } from '../lib/NetworkContext';
@@ -14,58 +14,78 @@ export function OfflineBanner() {
   const { t } = useTranslation();
   const slideAnim = useRef(new Animated.Value(-80)).current;
   const reconnectAnim = useRef(new Animated.Value(-80)).current;
+  const [offlineVisible, setOfflineVisible] = useState(false);
+  const [reconnectVisible, setReconnectVisible] = useState(false);
 
-  // Slide down quand offline
+  // Slide down quand offline, unmount quand online
   useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: isOnline ? -80 : 0,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 10,
-    }).start();
+    if (!isOnline) {
+      setOfflineVisible(true);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 10,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: -80,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setOfflineVisible(false);
+      });
+    }
   }, [isOnline]);
 
-  // Bandeau "Reconnecte" fugace
+  // Bandeau "Reconnecté" fugace
   useEffect(() => {
     if (wasOffline) {
+      setReconnectVisible(true);
       Animated.sequence([
         Animated.spring(reconnectAnim, { toValue: 0, useNativeDriver: true, tension: 100, friction: 10 }),
         Animated.delay(2500),
-        Animated.spring(reconnectAnim, { toValue: -80, useNativeDriver: true, tension: 100, friction: 10 }),
-      ]).start();
+        Animated.timing(reconnectAnim, { toValue: -80, duration: 300, useNativeDriver: true }),
+      ]).start(() => {
+        setReconnectVisible(false);
+      });
     }
   }, [wasOffline]);
 
   return (
     <>
       {/* Bandeau offline persistant */}
-      <Animated.View
-        style={[styles.offlineBanner, { transform: [{ translateY: slideAnim }] }]}
-        accessibilityRole="alert"
-        accessibilityLabel={t('offline.banner')}
-        accessibilityLiveRegion="polite"
-        pointerEvents="none"
-      >
-        <Ionicons name="cloud-offline-outline" size={16} color="#fff" />
-        <Text style={styles.bannerText}>
-          {isProcessing
-            ? t('offline.syncing', { count: pendingCount })
-            : pendingCount > 0
-              ? t('offline.offline', { count: pendingCount })
-              : t('offline.offline_zero')}
-        </Text>
-      </Animated.View>
+      {offlineVisible && (
+        <Animated.View
+          style={[styles.offlineBanner, { transform: [{ translateY: slideAnim }] }]}
+          accessibilityRole="alert"
+          accessibilityLabel={t('offline.banner')}
+          accessibilityLiveRegion="polite"
+          pointerEvents="none"
+        >
+          <Ionicons name="cloud-offline-outline" size={16} color="#fff" />
+          <Text style={styles.bannerText}>
+            {isProcessing
+              ? t('offline.syncing', { count: pendingCount })
+              : pendingCount > 0
+                ? t('offline.offline', { count: pendingCount })
+                : t('offline.offline_zero')}
+          </Text>
+        </Animated.View>
+      )}
 
       {/* Bandeau reconnexion fugace */}
-      <Animated.View
-        style={[styles.onlineBanner, { transform: [{ translateY: reconnectAnim }] }]}
-        accessibilityRole="alert"
-        accessibilityLiveRegion="polite"
-        pointerEvents="none"
-      >
-        <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-        <Text style={styles.bannerText}>{t('offline.reconnected')}</Text>
-      </Animated.View>
+      {reconnectVisible && (
+        <Animated.View
+          style={[styles.onlineBanner, { transform: [{ translateY: reconnectAnim }] }]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          pointerEvents="none"
+        >
+          <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+          <Text style={styles.bannerText}>{t('offline.reconnected')}</Text>
+        </Animated.View>
+      )}
     </>
   );
 }

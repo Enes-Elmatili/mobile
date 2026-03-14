@@ -3,7 +3,7 @@
 // Design : monochrome strict (blanc client / sombre provider)
 // TVA 21% belge, montants tabular-nums alignés à droite
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import BottomSheet, {
   BottomSheetScrollView,
@@ -21,6 +22,7 @@ import BottomSheet, {
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { Invoice, InvoiceItem } from '@/hooks/useInvoice';
 import { api } from '@/lib/api';
@@ -151,6 +153,8 @@ export default function InvoiceSheet({
   onNavigateToWallet,
 }: InvoiceSheetProps) {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const isProvider = userRole === 'provider';
   const dark = theme.isDark;
 
@@ -210,10 +214,20 @@ export default function InvoiceSheet({
 
   // ── PDF download ──
   const [downloading, setDownloading] = useState(false);
+  const downloadingRef = useRef(false);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleDownloadPDF = useCallback(async () => {
-    if (!invoice?.id) return;
+    if (!invoice?.id || downloadingRef.current) return;
+    downloadingRef.current = true;
     setDownloading(true);
+
+    // Filet de sécurité : reset automatique après 15s quoi qu'il arrive
+    safetyTimerRef.current = setTimeout(() => {
+      downloadingRef.current = false;
+      setDownloading(false);
+    }, 15000);
+
     try {
       const url = api.invoices.getPdfUrl(invoice.id);
       const token = await tokenStorage.getToken();
@@ -222,9 +236,16 @@ export default function InvoiceSheet({
 
       devLog('📄 Downloading PDF:', url);
 
-      const result = await FileSystem.downloadAsync(url, fileUri, {
+      const downloadPromise = FileSystem.downloadAsync(url, fileUri, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+
+      // Timeout de 30s sur le téléchargement réseau
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 30000)
+      );
+
+      const result = await Promise.race([downloadPromise, timeoutPromise]);
 
       if (result.status !== 200) {
         Alert.alert('Erreur', 'Impossible de télécharger la facture.');
@@ -236,6 +257,8 @@ export default function InvoiceSheet({
         await Sharing.shareAsync(result.uri, {
           mimeType: 'application/pdf',
           dialogTitle: 'Facture FIXED',
+        }).catch(() => {
+          // L'utilisateur a annulé le partage — pas une erreur
         });
       } else {
         Alert.alert('Succès', 'Facture téléchargée.');
@@ -244,6 +267,8 @@ export default function InvoiceSheet({
       devLog('📄 PDF download failed:', e?.message);
       Alert.alert('Erreur', 'Impossible de télécharger la facture.');
     } finally {
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+      downloadingRef.current = false;
       setDownloading(false);
     }
   }, [invoice?.id, invoice?.number]);
@@ -532,7 +557,7 @@ export default function InvoiceSheet({
   return (
     <BottomSheet
       index={0}
-      snapPoints={[isProvider ? '65%' : '88%']}
+      enableDynamicSizing
       enablePanDownToClose
       onClose={onClose}
       backdropComponent={renderBackdrop}
@@ -541,6 +566,7 @@ export default function InvoiceSheet({
         { backgroundColor: theme.textDisabled },
       ]}
       backgroundStyle={{ backgroundColor: bg }}
+      maxDynamicContentSize={Dimensions.get('window').height * 0.88}
       animationConfigs={{
         damping: 20,
         stiffness: 200,
@@ -548,7 +574,7 @@ export default function InvoiceSheet({
       }}
     >
       <BottomSheetScrollView
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={[s.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
         {isProvider ? providerContent : clientContent}

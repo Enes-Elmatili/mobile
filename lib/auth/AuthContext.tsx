@@ -8,7 +8,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Alert } from 'react-native';
 import { api, tokenStorage } from '../api';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 
@@ -90,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (e.status === 401) {
         devLog('🔒 Token expired and refresh failed. Signing out.');
         await signOutRef.current();
-        Alert.alert('Session expirée', 'Veuillez vous reconnecter.');
+        // Pas d'Alert ici : l'ApiClient gère déjà l'Alert "Session expirée" sur 401
       } else if (e.status >= 500) {
         devWarn('⚠️ Server error during refresh. Keeping local session.');
       }

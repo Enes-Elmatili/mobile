@@ -623,7 +623,7 @@ export default function NewRequestStepper() {
     setTimeout(cb, 100);
   };
 
-  const goNext = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); animateStep(() => setStep((p) => p + 1)); };
+  const goNext = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); animateStep(() => setStep((p) => Math.min(p + 1, TOTAL_STEPS))); };
   const goBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === 1) router.back();
@@ -687,8 +687,10 @@ export default function NewRequestStepper() {
       try {
         await api.payments.success(String(rId));
         return;
-      } catch (e) {
+      } catch (e: any) {
         lastErr = e;
+        // Don't retry on auth errors — session is gone, retrying is pointless
+        if (e.status === 401 || e.status === 403) break;
         if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000));
       }
     }
@@ -759,7 +761,7 @@ export default function NewRequestStepper() {
 
   const STEPS = getStepConfig(t);
   const TIME_GROUPS = getTimeGroups(t);
-  const currentStep = STEPS[step - 1];
+  const currentStep = STEPS[step - 1] || STEPS[STEPS.length - 1];
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>

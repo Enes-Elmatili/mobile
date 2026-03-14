@@ -8,10 +8,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme } from '@/hooks/use-app-theme';
 import {
   useProviderDiscovery,
   type DiscoveredProvider,
@@ -22,6 +25,7 @@ import { FilterSheet } from '../components/discovery/FilterSheet';
 export default function DiscoveryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const theme = useAppTheme();
   const { providers, filters, updateFilters, isLoading, error, refresh } =
     useProviderDiscovery();
   const [showFilters, setShowFilters] = useState(false);
@@ -37,22 +41,25 @@ export default function DiscoveryScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.headerBg }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
-          style={styles.headerBack}
+          style={[styles.headerBack, { backgroundColor: theme.surface }]}
         >
-          <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t('discovery.title')}</Text>
+        <Text style={[styles.title, { color: theme.textAlt }]}>{t('discovery.title')}</Text>
         <TouchableOpacity
           style={[
             styles.filterButton,
-            activeFiltersCount > 0 && styles.filterButtonActive,
+            { borderColor: theme.border },
+            activeFiltersCount > 0 && { backgroundColor: theme.accent, borderColor: theme.accent },
           ]}
           onPress={() => setShowFilters(true)}
           accessibilityRole="button"
@@ -63,18 +70,18 @@ export default function DiscoveryScreen() {
           <Ionicons
             name="options-outline"
             size={18}
-            color={activeFiltersCount > 0 ? '#fff' : '#1A1A1A'}
+            color={activeFiltersCount > 0 ? theme.accentText : theme.textAlt}
           />
           {activeFiltersCount > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+            <View style={[styles.filterBadge, { backgroundColor: theme.accent }]}>
+              <Text style={[styles.filterBadgeText, { color: theme.accentText }]}>{activeFiltersCount}</Text>
             </View>
           )}
         </TouchableOpacity>
       </View>
 
       {/* Subtitle */}
-      <Text style={styles.subtitle}>
+      <Text style={[styles.subtitle, { color: theme.textMuted, backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
         {isLoading
           ? t('discovery.searching')
           : t('discovery.found', {
@@ -86,30 +93,30 @@ export default function DiscoveryScreen() {
       {/* Content */}
       {isLoading && providers.length === 0 ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#1A1A1A" />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : error === 'permission_denied' ? (
         <View style={styles.center}>
           <Ionicons
             name="location-outline"
             size={48}
-            color="rgba(0,0,0,0.2)"
+            color={theme.textDisabled}
           />
-          <Text style={styles.emptyText}>{t('discovery.locationDenied')}</Text>
+          <Text style={[styles.emptyText, { color: theme.textMuted }]}>{t('discovery.locationDenied')}</Text>
         </View>
       ) : providers.length === 0 && !isLoading ? (
         <View style={styles.center}>
           <Ionicons
             name="search-outline"
             size={48}
-            color="rgba(0,0,0,0.2)"
+            color={theme.textDisabled}
           />
-          <Text style={styles.emptyText}>{t('discovery.noProviders')}</Text>
+          <Text style={[styles.emptyText, { color: theme.textMuted }]}>{t('discovery.noProviders')}</Text>
           <TouchableOpacity
             onPress={() => updateFilters({ radiusKm: filters.radiusKm + 5 })}
-            style={styles.expandButton}
+            style={[styles.expandButton, { backgroundColor: theme.accent }]}
           >
-            <Text style={styles.expandText}>
+            <Text style={[styles.expandText, { color: theme.accentText }]}>
               {t('discovery.expandRadius')}
             </Text>
           </TouchableOpacity>
@@ -146,32 +153,29 @@ export default function DiscoveryScreen() {
           </View>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 20,
     paddingTop: 60,
-    backgroundColor: '#fff',
   },
   headerBack: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1A1A1A',
     letterSpacing: -0.5,
   },
   filterButton: {
@@ -179,11 +183,9 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterButtonActive: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
   filterBadge: {
     position: 'absolute',
     top: -4,
@@ -191,35 +193,29 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterBadgeText: { fontSize: 9, fontWeight: '700', color: '#fff' },
+  filterBadgeText: { fontSize: 9, fontWeight: '700' },
   subtitle: {
     fontSize: 13,
-    color: 'rgba(0,0,0,0.4)',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   list: { padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyText: {
     fontSize: 15,
-    color: 'rgba(0,0,0,0.4)',
     fontWeight: '500',
     textAlign: 'center',
   },
   expandButton: {
-    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  expandText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  expandText: { fontWeight: '600', fontSize: 14 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 100,

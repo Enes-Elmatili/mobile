@@ -2,6 +2,7 @@
 // Client view — Track provider arriving (like Uber)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -170,6 +171,13 @@ export default function RequestTracking() {
   }, [id, fetchETAFromGoogle, router]);
 
   useEffect(() => { loadRequestDetails(); }, [loadRequestDetails]);
+
+  // Re-fetch les données quand l'écran regagne le focus (retour d'app switch)
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading && request) loadRequestDetails();
+    }, [loading, request, loadRequestDetails])
+  );
 
   // ── Socket ───────────────────────────────────────────────────────────────────
 
@@ -503,14 +511,14 @@ export default function RequestTracking() {
           <Text style={s.missionPrice}>{formatEuros(request?.price || 0)}</Text>
         </View>
 
-        {/* PIN Card — provider arrived */}
-        {status === 'ACCEPTED' && pinCode && providerArrived && !pinVerified && (
+        {/* PIN Card — visible dès que le provider accepte */}
+        {(status === 'ACCEPTED' || status === 'ONGOING') && pinCode && !pinVerified && (
           <View style={s.pinCard}>
             <View style={s.pinCardHeader}>
               <Ionicons name="key" size={20} color={t.text} />
-              <Text style={s.pinCardTitle}>Code PIN de verification</Text>
+              <Text style={s.pinCardTitle}>Code PIN de vérification</Text>
             </View>
-            <Text style={s.pinCardSubtitle}>Communiquez ce code a votre prestataire</Text>
+            <Text style={s.pinCardSubtitle}>Communiquez ce code à votre prestataire</Text>
             <View style={s.pinDigitsRow}>
               {pinCode.split('').map((digit, i) => (
                 <View key={i} style={s.pinDigitBox}>
@@ -522,18 +530,10 @@ export default function RequestTracking() {
         )}
 
         {/* PIN verified */}
-        {status === 'ACCEPTED' && pinVerified && (
+        {(status === 'ACCEPTED' || status === 'ONGOING') && pinVerified && (
           <View style={s.verifiedBanner}>
             <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-            <Text style={s.verifiedBannerText}>Code PIN verifie — la mission va demarrer</Text>
-          </View>
-        )}
-
-        {/* PIN pending (provider en route) */}
-        {status === 'ACCEPTED' && pinCode && !providerArrived && !pinVerified && (
-          <View style={s.pinCardPending}>
-            <Ionicons name="time-outline" size={18} color={t.textSub} />
-            <Text style={s.pinCardPendingText}>Le prestataire est en route. Le code PIN s'affichera a son arrivee.</Text>
+            <Text style={s.verifiedBannerText}>Code PIN vérifié — la mission va démarrer</Text>
           </View>
         )}
 

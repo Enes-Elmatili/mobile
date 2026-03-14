@@ -5,11 +5,12 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
-  Platform, Pressable, Alert,
+  Platform, Pressable, Alert, Dimensions,
 } from 'react-native';
 import { api } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 
@@ -216,6 +217,8 @@ const ab = StyleSheet.create({
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose, onNavigateToOngoing }: TicketDetailSheetProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const [pendingRating, setPendingRating] = useState(0);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
@@ -335,15 +338,16 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   return (
     <BottomSheet
       index={0}
-      snapPoints={['92%']}
+      enableDynamicSizing
       enablePanDownToClose
       onClose={onClose}
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={sd.indicator}
       backgroundStyle={sd.sheetBg}
+      maxDynamicContentSize={Dimensions.get('window').height * 0.9}
     >
       <BottomSheetScrollView
-        contentContainerStyle={sd.scroll}
+        contentContainerStyle={[sd.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
 

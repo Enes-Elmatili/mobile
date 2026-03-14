@@ -1,11 +1,10 @@
 // app/(tabs)/wallet.tsx — Onglet Gains (Provider)
-// Écran complet : solde · dashboard Stripe · historique transactions
+// Solde · filtres · historique consolidé par mission
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   FlatList, ActivityIndicator,
-  Platform, RefreshControl,
-  StatusBar,
+  Platform, RefreshControl, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -17,176 +16,179 @@ import { devError } from '@/lib/logger';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 const fromCents = (n: number) => n / 100;
-
 const fmtEur = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-
 const fmtTime = (d: string) =>
   new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-// ─── Label de transaction ─────────────────────────────────────────────────────
-function parseTxLabel(type: string, reference?: string | null): string {
-  if (!reference) return type === 'CREDIT' ? 'Crédit' : 'Débit';
-  const ref = reference.toLowerCase();
-  const missionMatch = reference.match(/request[_-](\d+)/i);
-  if (missionMatch) return `Mission #${missionMatch[1]}`;
-  if (ref.includes('withdraw') || ref.includes('retrait')) return 'Retrait bancaire';
-  if (ref.includes('stripe_transfer')) return 'Virement mission';
-  if (ref.includes('subscription') || ref.includes('abonnement')) return 'Abonnement';
-  return reference
-    .replace(/stripe_transfer_/gi, '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase())
-    .slice(0, 36);
+// ─── Date relative pour les en-têtes ─────────────────────────────────────────
+function dateGroup(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const txDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = (today.getTime() - txDay.getTime()) / 86_400_000;
+  if (diff === 0) return "Aujourd'hui";
+  if (diff === 1) return 'Hier';
+  if (diff < 7) return `Il y a ${Math.floor(diff)} jours`;
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-// ─── Statut des retraits ──────────────────────────────────────────────────────
-const WITHDRAW_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  PENDING:   { label: 'En attente', color: '#888',    bg: '#F5F5F5' },
-  APPROVED:  { label: 'Approuvé',   color: '#1A1A1A', bg: '#F5F5F5' },
-  REJECTED:  { label: 'Refusé',     color: '#888',    bg: '#F5F5F5' },
-  COMPLETED: { label: 'Effectué',   color: '#ADADAD', bg: '#F5F5F5' },
+// ─── Label lisible depuis la reference ───────────────────────────────────────
+function readableLabel(type: string, reference?: string | null): string {
+  if (!reference) return type === 'CREDIT' ? 'Crédit' : type === 'DEBIT' ? 'Débit' : type;
+  const m = reference.match(/request[_-](\d+)/i);
+  if (m) return `Mission #${m[1]}`;
+  if (/withdraw|retrait/i.test(reference)) return 'Retrait bancaire';
+  if (/stripe_transfer/i.test(reference)) return 'Virement Stripe';
+  return reference.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).slice(0, 36);
+}
+
+// ─── Onglets de filtre ───────────────────────────────────────────────────────
+type Filter = 'all' | 'gains' | 'pending' | 'withdrawals';
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: 'all', label: 'Tout' },
+  { key: 'gains', label: 'Gains' },
+  { key: 'pending', label: 'En attente' },
+  { key: 'withdrawals', label: 'Retraits' },
+];
+
+// ─── Statut des retraits ─────────────────────────────────────────────────────
+const WD_STATUS: Record<string, { label: string; color: string }> = {
+  PENDING:   { label: 'En attente', color: '#E8A838' },
+  APPROVED:  { label: 'Approuvé',   color: '#34C759' },
+  REJECTED:  { label: 'Refusé',     color: '#FF3B30' },
+  COMPLETED: { label: 'Effectué',   color: '#34C759' },
 };
 
-// ─── Ligne transaction ─────────────────────────────────────────────────────────
-const tx = StyleSheet.create({
-  card: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#FFF', borderRadius: 18,
-    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 10,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-      android: { elevation: 2 },
-    }),
-  },
-  iconWrap:   { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  iconCredit: { backgroundColor: '#F5F5F5' },
-  iconDebit:  { backgroundColor: '#F5F5F5' },
-  iconHold:   { backgroundColor: '#F5F5F5' },
-  info:       { flex: 1 },
-  label:      { fontSize: 14, fontWeight: '700', color: '#1A1A1A', marginBottom: 2 },
-  date:       { fontSize: 11, color: '#ADADAD', fontWeight: '500' },
-  balance:    { fontSize: 11, color: '#CACBCE', fontWeight: '500', marginTop: 2 },
-  amountWrap:      { alignItems: 'flex-end', gap: 5 },
-  amount:          { fontSize: 15, fontWeight: '800' },
-  amountCredit:    { color: '#1A1A1A' },
-  amountDebit:     { color: '#1A1A1A' },
-  amountHold:      { color: '#ADADAD' },
-  badge:           { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeCredit:     { backgroundColor: '#F5F5F5' },
-  badgeDebit:      { backgroundColor: '#F5F5F5' },
-  badgeHold:       { backgroundColor: '#F5F5F5' },
-  badgeText:       { fontSize: 10, fontWeight: '700' },
-  badgeTextCredit: { color: '#1A1A1A' },
-  badgeTextDebit:  { color: '#888' },
-  badgeTextHold:   { color: '#ADADAD' },
-});
+// ─── Consolidation : fusionne HOLD+RELEASE d'une même mission ────────────────
+interface ConsolidatedTx {
+  id: string;
+  missionId: string | null;
+  label: string;
+  amount: number;
+  status: 'released' | 'pending' | 'credit' | 'debit';
+  date: string;
+  balanceAfter: number | null;
+}
 
-function TxRow({ item }: { item: any }) {
-  const t = useAppTheme();
-  const isCredit = item.type === 'CREDIT' || item.type === 'RELEASE';
-  const isHold = item.type === 'HOLD';
-  const label = parseTxLabel(item.type, item.reference);
+function consolidateTxs(raw: any[]): ConsolidatedTx[] {
+  // Index des RELEASE par mission reference (escrow_ → release_)
+  const releasedMissions = new Set<string>();
+  for (const t of raw) {
+    if (t.type === 'RELEASE' && t.reference) {
+      // release_request_29_provider_xxx → request_29
+      const m = t.reference.match(/request[_-](\d+)/i);
+      if (m) releasedMissions.add(m[1]);
+    }
+  }
 
-  const iconName = isHold ? 'time-outline' : isCredit ? 'arrow-down-outline' : 'arrow-up-outline';
-  const iconColor = isHold ? '#ADADAD' : isCredit ? '#1A1A1A' : '#1A1A1A';
-  const iconBg = isHold ? tx.iconHold : isCredit ? tx.iconCredit : tx.iconDebit;
-  const amountStyle = isHold ? tx.amountHold : isCredit ? tx.amountCredit : tx.amountDebit;
-  const badgeStyle = isHold ? tx.badgeHold : isCredit ? tx.badgeCredit : tx.badgeDebit;
-  const badgeTextStyle = isHold ? tx.badgeTextHold : isCredit ? tx.badgeTextCredit : tx.badgeTextDebit;
-  const badgeLabel = isHold ? 'En attente' : item.type === 'RELEASE' ? 'Libéré' : isCredit ? 'Reçu' : 'Débité';
-  const sign = isHold ? '' : isCredit ? '+' : '−';
+  const result: ConsolidatedTx[] = [];
+  const seenMissions = new Set<string>();
+
+  for (const t of raw) {
+    const missionMatch = t.reference?.match(/request[_-](\d+)/i);
+    const missionId = missionMatch?.[1] ?? null;
+
+    // Skip HOLD if the same mission already has a RELEASE (show only RELEASE)
+    if (t.type === 'HOLD' && missionId && releasedMissions.has(missionId)) continue;
+
+    // Skip duplicate mission entries (RELEASE already shown)
+    if (missionId && (t.type === 'RELEASE' || t.type === 'HOLD')) {
+      if (seenMissions.has(missionId)) continue;
+      seenMissions.add(missionId);
+    }
+
+    let status: ConsolidatedTx['status'];
+    if (t.type === 'HOLD') status = 'pending';
+    else if (t.type === 'RELEASE' || t.type === 'CREDIT') status = t.type === 'RELEASE' ? 'released' : 'credit';
+    else status = 'debit';
+
+    result.push({
+      id: t.id,
+      missionId,
+      label: readableLabel(t.type, t.reference),
+      amount: t.amount,
+      status,
+      date: t.createdAt,
+      balanceAfter: t.type !== 'HOLD' ? t.balanceAfter : null,
+    });
+  }
+
+  return result;
+}
+
+// ─── Ligne transaction ───────────────────────────────────────────────────────
+function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
+  const cfg = {
+    released: { icon: 'checkmark-circle-outline' as const, iconColor: '#34C759', badge: 'Libéré', badgeColor: '#34C759', sign: '+' },
+    credit:   { icon: 'arrow-down-outline' as const,       iconColor: '#34C759', badge: 'Reçu',   badgeColor: '#34C759', sign: '+' },
+    pending:  { icon: 'time-outline' as const,             iconColor: '#E8A838', badge: 'En validation', badgeColor: '#E8A838', sign: '' },
+    debit:    { icon: 'arrow-up-outline' as const,         iconColor: '#FF3B30', badge: 'Débité', badgeColor: '#FF3B30', sign: '−' },
+  }[item.status];
+
+  const isGain = item.status === 'released' || item.status === 'credit';
 
   return (
-    <View style={[tx.card, { backgroundColor: t.cardBg }]}>
-      <View style={[tx.iconWrap, iconBg, { backgroundColor: t.surface }]}>
-        <Ionicons name={iconName} size={17} color={iconColor} />
+    <View style={[styles.txCard, { backgroundColor: t.cardBg }]}>
+      <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
+        <Ionicons name={cfg.icon} size={18} color={cfg.iconColor} />
       </View>
-      <View style={tx.info}>
-        <Text style={[tx.label, { color: t.text }]} numberOfLines={1}>{label}</Text>
-        <Text style={[tx.date, { color: t.textMuted }]}>{fmtDate(item.createdAt)} · {fmtTime(item.createdAt)}</Text>
-        {item.balanceAfter != null && !isHold && (
-          <Text style={[tx.balance, { color: t.textVeryMuted }]}>Solde après : {fmtEur(fromCents(item.balanceAfter))}</Text>
-        )}
+      <View style={styles.txInfo}>
+        <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{item.label}</Text>
+        <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.date)} · {fmtTime(item.date)}</Text>
       </View>
-      <View style={tx.amountWrap}>
-        <Text style={[tx.amount, amountStyle, { color: isHold ? t.textMuted : t.text }]}>
-          {sign}{fmtEur(fromCents(Math.abs(item.amount)))}
+      <View style={styles.txRight}>
+        <Text style={[styles.txAmount, { color: isGain ? '#34C759' : item.status === 'pending' ? t.textMuted : '#FF3B30' }]}>
+          {cfg.sign}{fmtEur(fromCents(item.amount))}
         </Text>
-        <View style={[tx.badge, badgeStyle, { backgroundColor: t.surface }]}>
-          <Text style={[tx.badgeText, badgeTextStyle, { color: isHold ? t.textMuted : isCredit ? t.text : t.textSub }]}>{badgeLabel}</Text>
+        <View style={[styles.txBadge, { backgroundColor: cfg.badgeColor + '18' }]}>
+          <Text style={[styles.txBadgeText, { color: cfg.badgeColor }]}>{cfg.badge}</Text>
         </View>
       </View>
     </View>
   );
 }
 
-// ─── Ligne retrait (historique) ───────────────────────────────────────────────
-function WithdrawRow({ item }: { item: any }) {
-  const t = useAppTheme();
-  const st = WITHDRAW_STATUS[item.status] ?? WITHDRAW_STATUS.PENDING;
+// ─── Ligne retrait ───────────────────────────────────────────────────────────
+function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
+  const st = WD_STATUS[item.status] ?? WD_STATUS.PENDING;
   return (
-    <View style={[wr.card, { backgroundColor: t.cardBg }]}>
-      <View style={[wr.iconWrap, { backgroundColor: t.surface }]}>
-        <Ionicons name="arrow-up-circle-outline" size={18} color="#1A1A1A" />
+    <View style={[styles.txCard, { backgroundColor: t.cardBg }]}>
+      <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
+        <Ionicons name="wallet-outline" size={18} color={st.color} />
       </View>
-      <View style={wr.info}>
-        <Text style={[wr.label, { color: t.text }]}>Demande de retrait</Text>
-        <Text style={[wr.date, { color: t.textMuted }]}>{fmtDate(item.createdAt)}</Text>
-        {item.destination ? <Text style={[wr.iban, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
+      <View style={styles.txInfo}>
+        <Text style={[styles.txLabel, { color: t.text }]}>Retrait</Text>
+        <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.createdAt)}</Text>
+        {item.destination ? <Text style={[styles.txDate, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
       </View>
-      <View style={wr.right}>
-        <Text style={[wr.amount, { color: t.text }]}>−{fmtEur(fromCents(item.amount))}</Text>
-        <View style={[wr.badge, { backgroundColor: t.surface }]}>
-          <Text style={[wr.badgeText, { color: st.color }]}>{st.label}</Text>
+      <View style={styles.txRight}>
+        <Text style={[styles.txAmount, { color: '#FF3B30' }]}>−{fmtEur(fromCents(item.amount))}</Text>
+        <View style={[styles.txBadge, { backgroundColor: st.color + '18' }]}>
+          <Text style={[styles.txBadgeText, { color: st.color }]}>{st.label}</Text>
         </View>
       </View>
     </View>
   );
 }
 
-const wr = StyleSheet.create({
-  card: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#FFF', borderRadius: 18,
-    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 10,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-      android: { elevation: 2 },
-    }),
-  },
-  iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  info:     { flex: 1 },
-  label:    { fontSize: 14, fontWeight: '700', color: '#1A1A1A', marginBottom: 2 },
-  date:     { fontSize: 11, color: '#ADADAD', fontWeight: '500' },
-  iban:     { fontSize: 11, color: '#ADADAD', fontWeight: '500', marginTop: 1 },
-  right:    { alignItems: 'flex-end', gap: 5 },
-  amount:   { fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
-  badge:    { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText:{ fontSize: 10, fontWeight: '700' },
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
-// ═══════════════════════════════════════════════════════════════════════════════
-interface StripeStatus {
-  isProvider: boolean;
-  isConnected: boolean;
-  isStripeReady: boolean;
-}
-
+// ═════════════════════════════════════════════════════════════════════════════
 export default function WalletTab() {
-  const [loading,      setLoading]      = useState(true);
-  const [refreshing,   setRefreshing]   = useState(false);
-  const [balance,      setBalance]      = useState(0);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [balance, setBalance]           = useState(0);
   const [escrowAmount, setEscrowAmount] = useState(0);
+  const [totalEarnings, setTotalEarnings] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [withdrawals,  setWithdrawals]  = useState<any[]>([]);
-  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [withdrawals, setWithdrawals]   = useState<any[]>([]);
+  const [stripeReady, setStripeReady]   = useState(false);
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [filter, setFilter]             = useState<Filter>('all');
   const t = useAppTheme();
 
   const load = useCallback(async () => {
@@ -199,9 +201,10 @@ export default function WalletTab() {
       ]);
 
       if (balData.status === 'fulfilled') {
-        const bal = balData.value as any;
-        setBalance(bal?.balance ?? 0);
-        setEscrowAmount(bal?.escrowAmount ?? 0);
+        const b = balData.value as any;
+        setBalance(b?.balance ?? 0);
+        setEscrowAmount(b?.escrowAmount ?? 0);
+        setTotalEarnings(b?.totalEarnings ?? 0);
       }
       if (txData.status === 'fulfilled') {
         const raw = txData.value as any;
@@ -212,7 +215,8 @@ export default function WalletTab() {
         setWithdrawals(Array.isArray(raw) ? raw : (raw?.data ?? []));
       }
       if (connectData.status === 'fulfilled') {
-        setStripeStatus((connectData.value as any) ?? null);
+        const c = connectData.value as any;
+        setStripeReady(c?.isStripeReady || c?.isConnected || false);
       }
     } catch (e) {
       devError('[WalletTab] load error:', e);
@@ -222,16 +226,15 @@ export default function WalletTab() {
     }
   }, []);
 
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const onRefresh = () => { setRefreshing(true); load(); };
+
   const handleOpenStripeDashboard = useCallback(async () => {
     setStripeLoading(true);
     try {
       const res: any = await api.connect.dashboard();
-      const url = res?.url;
-      if (url) {
-        await WebBrowser.openBrowserAsync(url);
-      } else {
-        showSocketToast('Impossible d\'ouvrir le dashboard Stripe.', 'error');
-      }
+      if (res?.url) await WebBrowser.openBrowserAsync(res.url);
+      else showSocketToast("Impossible d'ouvrir le dashboard Stripe.", 'error');
     } catch (e: any) {
       showSocketToast(e?.message || 'Erreur Stripe', 'error');
     } finally {
@@ -239,136 +242,153 @@ export default function WalletTab() {
     }
   }, []);
 
-  // Recharge à chaque fois que l'onglet devient actif
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const onRefresh = () => { setRefreshing(true); load(); };
-
-  // ── Stats calculées depuis les transactions ────────────────────────────────
-  const totalEarnings = useMemo(() =>
-    transactions
-      .filter(t => t.type === 'CREDIT' || t.type === 'RELEASE')
-      .reduce((sum, t) => sum + (t.amount ?? 0), 0),
-    [transactions]
-  );
+  // ── Consolidation et filtrage ──────────────────────────────────────────────
+  const consolidated = useMemo(() => consolidateTxs(transactions), [transactions]);
 
   const pendingWithdrawTotal = useMemo(() =>
-    withdrawals
-      .filter(w => w.status === 'PENDING')
-      .reduce((sum, w) => sum + (w.amount ?? 0), 0),
-    [withdrawals]
+    withdrawals.filter(w => w.status === 'PENDING').reduce((s, w) => s + (w.amount ?? 0), 0),
+    [withdrawals],
   );
 
-  // ── Sections FlatList ──────────────────────────────────────────────────────
-  const sections: any[] = useMemo(() => {
-    const items: any[] = [];
+  const filteredItems = useMemo(() => {
+    type ListItem =
+      | { key: string; type: 'date-header'; title: string }
+      | { key: string; type: 'tx'; data: ConsolidatedTx }
+      | { key: string; type: 'withdraw'; data: any }
+      | { key: string; type: 'empty' };
 
-    // Retraits en attente (historique, si existants)
-    if (withdrawals.length > 0) {
-      items.push({ key: 'wd-header', type: 'section-header', title: `Retraits (${withdrawals.length})` });
-      withdrawals.forEach(w => items.push({ key: `wd-${w.id}`, type: 'withdraw', data: w }));
+    let txList: ConsolidatedTx[] = [];
+    let wdList: any[] = [];
+
+    switch (filter) {
+      case 'gains':
+        txList = consolidated.filter(t => t.status === 'released' || t.status === 'credit');
+        break;
+      case 'pending':
+        txList = consolidated.filter(t => t.status === 'pending');
+        break;
+      case 'withdrawals':
+        wdList = withdrawals;
+        break;
+      default: // all
+        txList = consolidated;
+        wdList = withdrawals;
     }
 
-    // Transactions
-    items.push({ key: 'tx-header', type: 'section-header', title: transactions.length > 0 ? `Transactions (${transactions.length})` : 'Transactions' });
-    if (transactions.length === 0) {
-      items.push({ key: 'tx-empty', type: 'tx-empty' });
+    const items: ListItem[] = [];
+
+    // Group by date
+    let lastGroup = '';
+
+    // Merge tx + withdrawals into a single sorted list
+    const combined: { date: string; type: 'tx' | 'withdraw'; data: any }[] = [
+      ...txList.map(tx => ({ date: tx.date, type: 'tx' as const, data: tx })),
+      ...wdList.map(wd => ({ date: wd.createdAt, type: 'withdraw' as const, data: wd })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (combined.length === 0) {
+      items.push({ key: 'empty', type: 'empty' });
     } else {
-      transactions.forEach(t => items.push({ key: `tx-${t.id}`, type: 'tx', data: t }));
+      for (const entry of combined) {
+        const group = dateGroup(entry.date);
+        if (group !== lastGroup) {
+          items.push({ key: `dh-${group}`, type: 'date-header', title: group });
+          lastGroup = group;
+        }
+        if (entry.type === 'tx') {
+          items.push({ key: `tx-${entry.data.id}`, type: 'tx', data: entry.data });
+        } else {
+          items.push({ key: `wd-${entry.data.id}`, type: 'withdraw', data: entry.data });
+        }
+      }
     }
 
     return items;
-  }, [transactions, withdrawals]);
+  }, [consolidated, withdrawals, filter]);
 
+  // ── Rendu ──────────────────────────────────────────────────────────────────
   const renderItem = useCallback(({ item }: { item: any }) => {
-    if (item.type === 'stats') {
-      return (
-        <View style={s.statsRow}>
-          <View style={[s.statCard, { backgroundColor: t.cardBg }]}>
-            <Ionicons name="trending-up-outline" size={18} color={t.text} />
-            <Text style={[s.statValue, { color: t.text }]}>{fmtEur(fromCents(totalEarnings))}</Text>
-            <Text style={[s.statLabel, { color: t.textMuted }]}>Total gagné</Text>
-          </View>
-          <View style={[s.statCard, { backgroundColor: t.cardBg }]}>
-            <Ionicons name="receipt-outline" size={18} color={t.text} />
-            <Text style={[s.statValue, { color: t.text }]}>{transactions.length}</Text>
-            <Text style={[s.statLabel, { color: t.textMuted }]}>Transactions</Text>
-          </View>
-          <View style={[s.statCard, { backgroundColor: t.cardBg }]}>
-            <Ionicons name="time-outline" size={18} color={t.textMuted} />
-            <Text style={[s.statValue, { color: t.text }]}>{fmtEur(fromCents(pendingWithdrawTotal))}</Text>
-            <Text style={[s.statLabel, { color: t.textMuted }]}>En attente</Text>
-          </View>
-        </View>
-      );
+    if (item.type === 'date-header') {
+      return <Text style={[styles.dateHeader, { color: t.textMuted }]}>{item.title}</Text>;
     }
-    if (item.type === 'section-header') {
-      return <Text style={[s.sectionTitle, { color: t.textMuted }]}>{item.title}</Text>;
-    }
-    if (item.type === 'withdraw') return <WithdrawRow item={item.data} />;
-    if (item.type === 'tx') return <TxRow item={item.data} />;
-    if (item.type === 'tx-empty') {
+    if (item.type === 'tx') return <TxRow item={item.data} theme={t} />;
+    if (item.type === 'withdraw') return <WithdrawRow item={item.data} theme={t} />;
+    if (item.type === 'empty') {
       return (
-        <View style={s.empty}>
-          <Ionicons name="wallet-outline" size={52} color={t.textDisabled} />
-          <Text style={[s.emptyTitle, { color: t.textSub }]}>Aucune transaction</Text>
-          <Text style={[s.emptySubtitle, { color: t.textMuted }]}>Vos gains apparaîtront ici après vos missions.</Text>
+        <View style={styles.empty}>
+          <Ionicons name="wallet-outline" size={48} color={t.textDisabled} />
+          <Text style={[styles.emptyTitle, { color: t.textSub }]}>Aucune transaction</Text>
+          <Text style={[styles.emptySubtitle, { color: t.textMuted }]}>
+            Vos gains apparaîtront ici après vos missions.
+          </Text>
         </View>
       );
     }
     return null;
-  }, [totalEarnings, pendingWithdrawTotal, transactions.length]);
+  }, [t]);
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.root, { backgroundColor: t.bg }]}>
+      <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
         <StatusBar barStyle={t.statusBar} />
-        <View style={s.loadingCenter}>
+        <View style={styles.loadingCenter}>
           <ActivityIndicator size="large" color={t.accent} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const balanceEur = fromCents(balance);
-  const canOpenDashboard = stripeStatus?.isStripeReady || stripeStatus?.isConnected;
-
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: t.bg }]}>
+    <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <StatusBar barStyle={t.statusBar} />
 
       {/* ── Header ── */}
-      <View style={[s.header, { backgroundColor: t.bg }]}>
-        <Text style={[s.headerTitle, { color: t.text }]}>Gains</Text>
-        <TouchableOpacity onPress={onRefresh} style={s.refreshBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <View style={[styles.header, { backgroundColor: t.bg }]}>
+        <Text style={[styles.headerTitle, { color: t.text }]}>Gains</Text>
+        <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="refresh-outline" size={20} color={t.accent} />
         </TouchableOpacity>
       </View>
 
       {/* ── Hero solde ── */}
-      <View style={[s.hero, { backgroundColor: t.heroBg }]}>
-        <Text style={s.heroLabel}>Solde disponible</Text>
-        <Text style={s.heroAmount}>{fmtEur(balanceEur)}</Text>
-        {escrowAmount > 0 && (
-          <Text style={s.escrowInline}>
-            +{fmtEur(fromCents(escrowAmount))} en validation
-          </Text>
-        )}
+      <View style={[styles.hero, { backgroundColor: t.heroBg }]}>
+        <Text style={styles.heroLabel}>Solde disponible</Text>
+        <Text style={styles.heroAmount}>{fmtEur(fromCents(balance))}</Text>
 
-        {!canOpenDashboard && (
-          <View style={s.payoutNotice}>
+        {/* Sous-stats inline */}
+        <View style={styles.heroStats}>
+          {escrowAmount > 0 && (
+            <View style={styles.heroStatItem}>
+              <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.heroStatText}>{fmtEur(fromCents(escrowAmount))} en validation</Text>
+            </View>
+          )}
+          {pendingWithdrawTotal > 0 && (
+            <View style={styles.heroStatItem}>
+              <Ionicons name="arrow-up-outline" size={13} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.heroStatText}>{fmtEur(fromCents(pendingWithdrawTotal))} en retrait</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Total gagné */}
+        <View style={styles.heroTotalRow}>
+          <Text style={styles.heroTotalLabel}>Total gagné</Text>
+          <Text style={styles.heroTotalValue}>{fmtEur(fromCents(totalEarnings))}</Text>
+        </View>
+
+        {!stripeReady && (
+          <View style={styles.payoutNotice}>
             <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.5)" />
-            <Text style={s.payoutNoticeText}>
-              Configurez Stripe pour recevoir vos virements.
-            </Text>
+            <Text style={styles.payoutNoticeText}>Configurez Stripe pour recevoir vos virements.</Text>
           </View>
         )}
       </View>
 
-      {/* ── Stripe dashboard — lien discret sous le hero ── */}
-      {canOpenDashboard && (
+      {/* ── Stripe link ── */}
+      {stripeReady && (
         <TouchableOpacity
-          style={s.stripeLinkRow}
+          style={styles.stripeLink}
           onPress={handleOpenStripeDashboard}
           disabled={stripeLoading}
           activeOpacity={0.7}
@@ -377,97 +397,138 @@ export default function WalletTab() {
             ? <ActivityIndicator size="small" color={t.accent} />
             : <>
                 <Ionicons name="card-outline" size={15} color={t.accent} />
-                <Text style={[s.stripeLinkText, { color: t.text }]}>Gérer mes paiements</Text>
+                <Text style={[styles.stripeLinkText, { color: t.text }]}>Gérer mes paiements</Text>
                 <Ionicons name="chevron-forward" size={13} color={t.textVeryMuted} />
               </>
           }
         </TouchableOpacity>
       )}
 
-      {/* ── Liste principale ── */}
+      {/* ── Filtres ── */}
+      <View style={styles.filterRow}>
+        {FILTERS.map(f => {
+          const active = filter === f.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterChip, active && { backgroundColor: t.text }]}
+              onPress={() => setFilter(f.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, { color: active ? t.bg : t.textMuted }]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* ── Liste ── */}
       <FlatList
-        data={sections}
+        data={filteredItems}
         keyExtractor={item => item.key}
         renderItem={renderItem}
-        contentContainerStyle={s.listContent}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
       />
     </SafeAreaView>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#FFFFFF' },
+// ─── Styles ──────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  root: { flex: 1 },
   loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 6, paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
   },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: '#1A1A1A' },
-  refreshBtn:  { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 28, fontWeight: '800' },
 
-  // Héro balance
+  // Hero
   hero: {
     backgroundColor: '#1A1A1A',
     marginHorizontal: 16, borderRadius: 24,
-    paddingVertical: 28, paddingHorizontal: 24,
-    marginBottom: 12, alignItems: 'center',
+    paddingVertical: 24, paddingHorizontal: 24, marginBottom: 12,
+    alignItems: 'center',
     ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
+      ios: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
       android: { elevation: 10 },
     }),
   },
-  heroLabel:  { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5, marginBottom: 8 },
-  heroAmount: { fontSize: 48, fontWeight: '900', color: '#FFF', letterSpacing: -1.5, marginBottom: 12 },
+  heroLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5, marginBottom: 6 },
+  heroAmount: { fontSize: 44, fontWeight: '900', color: '#FFF', letterSpacing: -1.5, marginBottom: 8 },
 
-  // Escrow inline text (under hero amount)
-  escrowInline: {
-    fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.45)',
-    marginBottom: 4,
-  },
+  heroStats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
+  heroStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  heroStatText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.45)' },
 
-  // Notice payout non configuré
-  payoutNotice: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
+  heroTotalRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    width: '100%', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.12)',
+    paddingTop: 12,
   },
-  payoutNoticeText: {
-    fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: '500',
-  },
+  heroTotalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
+  heroTotalValue: { fontSize: 16, fontWeight: '800', color: '#FFF' },
 
-  // Stripe link row
-  stripeLinkRow: {
+  payoutNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  payoutNoticeText: { fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: '500' },
+
+  // Stripe link
+  stripeLink: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    marginHorizontal: 16, marginBottom: 12,
-    paddingVertical: 10,
+    marginHorizontal: 16, marginBottom: 8, paddingVertical: 10,
   },
-  stripeLinkText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
+  stripeLinkText: { fontSize: 13, fontWeight: '600' },
 
-  // Stats
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  statCard: {
-    flex: 1, backgroundColor: '#FFF', borderRadius: 18,
-    padding: 14, alignItems: 'center', gap: 6,
+  // Filters
+  filterRow: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 16, marginBottom: 14,
+  },
+  filterChip: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 20, backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+  },
+  filterChipText: { fontSize: 13, fontWeight: '600' },
+
+  // Date headers
+  dateHeader: {
+    fontSize: 13, fontWeight: '700', textTransform: 'uppercase',
+    letterSpacing: 0.5, marginBottom: 10, marginTop: 8,
+  },
+
+  // Tx card
+  txCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
+    marginBottom: 8,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-      android: { elevation: 2 },
+      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+      android: { elevation: 1 },
     }),
   },
-  statValue: { fontSize: 15, fontWeight: '800', color: '#1A1A1A', textAlign: 'center' },
-  statLabel: { fontSize: 10, fontWeight: '600', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center' },
+  txIcon: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  txInfo: { flex: 1 },
+  txLabel: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  txDate: { fontSize: 11, fontWeight: '500' },
+  txRight: { alignItems: 'flex-end', gap: 4 },
+  txAmount: { fontSize: 15, fontWeight: '800' },
+  txBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  txBadgeText: { fontSize: 10, fontWeight: '700' },
 
-  // Liste
-  listContent:  { paddingHorizontal: 16, paddingBottom: 100 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 12, marginTop: 6 },
+  // List
+  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
 
-  // Vide
-  empty:         { alignItems: 'center', paddingVertical: 50, gap: 12 },
-  emptyTitle:    { fontSize: 17, fontWeight: '700', color: '#888' },
-  emptySubtitle: { fontSize: 13, color: '#ADADAD', textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
+  // Empty
+  empty: { alignItems: 'center', paddingVertical: 50, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '700' },
+  emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
 });

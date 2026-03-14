@@ -24,8 +24,9 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
@@ -540,9 +541,11 @@ export default function Dashboard() {
   const [showAllRequests, setShowAllRequests] = useState(false);
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
 
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['50%', '85%'], []);
+  // Dynamic sizing — sheet wraps its content instead of forcing fixed snap points
 
   // Invoice hook — fetches invoice for selected DONE request
   const invoiceRequestId = selectedRequest?.status?.toUpperCase() === 'DONE' ? selectedRequest?.id : null;
@@ -875,17 +878,18 @@ export default function Dashboard() {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={snapPoints}
+        enableDynamicSizing
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
         handleIndicatorStyle={s.sheetIndicator}
+        maxDynamicContentSize={Dimensions.get('window').height * 0.85}
       >
-        <BottomSheetView style={s.sheet}>
+        <BottomSheetScrollView contentContainerStyle={[s.sheet, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           {loadingDetails ? (
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 50 }} />
           ) : selectedRequest ? (
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <>
               <Text style={[s.sheetTitle, { color: theme.textAlt }]}>{selectedRequest.title || selectedRequest.serviceType}</Text>
 
               {/* Status badge */}
@@ -988,9 +992,9 @@ export default function Dashboard() {
                   </TouchableOpacity>
                 </>
               )}
-            </ScrollView>
+            </>
           ) : null}
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheet>
 
       {/* ── Invoice Sheet ── */}
@@ -1122,7 +1126,7 @@ const s = StyleSheet.create({
   // Bottom sheet
   sheetBg:        { backgroundColor: '#FFF', borderRadius: 28 },
   sheetIndicator: { backgroundColor: '#E8E8E8', width: 36 },
-  sheet: { flex: 1, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 32 },
+  sheet: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
 
   sheetTitle: { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 10, letterSpacing: -0.5 },
   statusBadge: {

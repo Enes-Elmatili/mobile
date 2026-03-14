@@ -1,5 +1,5 @@
 // app/(tabs)/profile.tsx — Provider Profile Hub
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Image,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -25,8 +26,9 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tokenStorage } from '../../lib/storage';
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const avatarKey = (userId: string) => `@fixed:profile:avatarUri:${userId}`;
 
@@ -86,7 +88,6 @@ const av = StyleSheet.create({
   badge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 26, height: 26, borderRadius: 13,
-    backgroundColor: '#111',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2.5, borderColor: 'transparent',
     ...Platform.select({
@@ -123,8 +124,8 @@ const sb = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
-  value: { fontSize: 16, fontWeight: '800', color: '#111' },
-  label: { fontSize: 10, color: '#ADADAD', fontWeight: '500', textAlign: 'center' },
+  value: { fontSize: 16, fontWeight: '800' },
+  label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
 });
 
 // ============================================================================
@@ -170,12 +171,12 @@ function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
 const ms = StyleSheet.create({
   wrap: { marginBottom: 8 },
   title: {
-    fontSize: 11, fontWeight: '700', color: '#ADADAD',
+    fontSize: 11, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.6,
     marginBottom: 8, paddingHorizontal: 4,
   },
   card: {
-    backgroundColor: '#FFF', borderRadius: 18, overflow: 'hidden',
+    borderRadius: 18, overflow: 'hidden',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 2 },
@@ -190,10 +191,10 @@ const ms = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   content: { flex: 1 },
-  label: { fontSize: 15, fontWeight: '600', color: '#111' },
+  label: { fontSize: 15, fontWeight: '600' },
   labelDanger: { color: '#DC2626' },
-  sublabel: { fontSize: 12, color: '#ADADAD', marginTop: 1 },
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 64 },
+  sublabel: { fontSize: 12, marginTop: 1 },
+  divider: { height: 1, marginLeft: 64 },
 });
 
 // ============================================================================
@@ -205,9 +206,11 @@ export default function Profile() {
   const { t }                        = useTranslation();
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
 
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['40%', '70%'], []);
+  // Dynamic sizing — sheet wraps its content
 
   const [editVisible, setEditVisible] = useState(false);
   const [editName,    setEditName]    = useState('');
@@ -380,16 +383,21 @@ export default function Profile() {
       label: t('profile.personal_info'), sublabel: t('profile.personal_info_sub'),
       onPress: openEditInfo,
     },
-    {
-      icon: 'chatbubbles-outline', iconColor: theme.textSub, iconBg: theme.surface,
-      label: t('profile.messages'), sublabel: t('profile.messages_sub'),
-      onPress: () => router.push('/messages'),
-    },
-    {
-      icon: 'wallet-outline', iconColor: theme.textSub, iconBg: theme.surface,
-      label: t('profile.subscription'), sublabel: t('profile.subscription_sub'),
-      onPress: () => router.push('/subscription'),
-    },
+    // Messages & Abonnement visibles uniquement pour les prestataires
+    ...(!isClientOnly
+      ? [
+          {
+            icon: 'chatbubbles-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
+            label: t('profile.messages'), sublabel: t('profile.messages_sub'),
+            onPress: () => router.push('/messages'),
+          },
+          {
+            icon: 'wallet-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
+            label: t('profile.subscription'), sublabel: t('profile.subscription_sub'),
+            onPress: () => router.push('/subscription'),
+          },
+        ]
+      : []),
     ...(isClientOnly
       ? [{
           icon: 'briefcase-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
@@ -397,14 +405,6 @@ export default function Profile() {
           onPress: () => router.push('/onboarding'),
         }]
       : []),
-  ];
-
-  const invoiceItems: MenuItem[] = [
-    {
-      icon: 'receipt-outline', iconColor: theme.textSub, iconBg: theme.surface,
-      label: 'Mes factures', sublabel: 'Historique et téléchargement',
-      onPress: () => router.push('/invoices'),
-    },
   ];
 
   const prefItems: MenuItem[] = [
@@ -494,21 +494,22 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Stats Row */}
-        <View style={[s.statsCard, { backgroundColor: theme.cardBg }]}>
-          <StatBadge icon="star" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.rating} label="Note" />
-          <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
-          <StatBadge icon="checkmark-circle-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.missions} label="Missions" />
-          <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
-          <StatBadge icon="cash-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.earnings} label="Wallet" />
-          <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
-          <StatBadge icon="trending-up-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.acceptance} label="Taux accept." />
-        </View>
+        {/* Stats Row — visible uniquement pour les prestataires */}
+        {!isClientOnly && (
+          <View style={[s.statsCard, { backgroundColor: theme.cardBg }]}>
+            <StatBadge icon="star" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.rating} label="Note" />
+            <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
+            <StatBadge icon="checkmark-circle-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.missions} label="Missions" />
+            <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
+            <StatBadge icon="cash-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.earnings} label="Wallet" />
+            <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
+            <StatBadge icon="trending-up-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.acceptance} label="Taux accept." />
+          </View>
+        )}
 
         {/* Menus */}
         <View style={s.sections}>
           <MenuSection title="Mon compte" items={accountItems} />
-          <MenuSection title="Facturation" items={invoiceItems} />
           <MenuSection title="Préférences" items={prefItems} />
           <MenuSection title="Support" items={supportItems} />
           <MenuSection items={dangerItems} />
@@ -556,32 +557,31 @@ export default function Profile() {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={snapPoints}
+        enableDynamicSizing
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={{ backgroundColor: theme.cardBg }}
         handleIndicatorStyle={{ backgroundColor: theme.border }}
+        maxDynamicContentSize={Dimensions.get('window').height * 0.7}
       >
-        <BottomSheetView style={s.sheetContent}>
+        <BottomSheetScrollView contentContainerStyle={[s.sheetContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
           <View style={[s.sheetHandle, { backgroundColor: theme.border }]} />
           <Text style={[s.sheetTitle, { color: theme.textAlt }]}>Paramètres</Text>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {sheetItems.map((item, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[s.sheetRow, { borderBottomColor: theme.border }]}
-                activeOpacity={0.7}
-                onPress={item.onPress}
-              >
-                <View style={[s.sheetIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
-                </View>
-                <Text style={[s.sheetLabel, { color: theme.textAlt }]}>{item.label}</Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </BottomSheetView>
+          {sheetItems.map((item, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[s.sheetRow, { borderBottomColor: theme.border }]}
+              activeOpacity={0.7}
+              onPress={item.onPress}
+            >
+              <View style={[s.sheetIcon, { backgroundColor: theme.surface }]}>
+                <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
+              </View>
+              <Text style={[s.sheetLabel, { color: theme.textAlt }]}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </BottomSheetScrollView>
       </BottomSheet>
     </SafeAreaView>
   );
@@ -592,25 +592,24 @@ export default function Profile() {
 // ============================================================================
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  root: { flex: 1 },
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: '#111' },
+  headerTitle: { fontSize: 26, fontWeight: '800' },
   settingsBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 48 },
 
   identityCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', borderRadius: 20,
+    borderRadius: 20,
     padding: 20, gap: 16, marginBottom: 12,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } },
@@ -619,26 +618,26 @@ const s = StyleSheet.create({
   },
   identityInfo: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  identityName: { fontSize: 20, fontWeight: '800', color: '#111' },
+  identityName: { fontSize: 20, fontWeight: '800' },
   verifiedBadge: { marginTop: 1 },
-  identityEmail: { fontSize: 13, color: '#ADADAD', fontWeight: '500' },
+  identityEmail: { fontSize: 13, fontWeight: '500' },
   pillsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   rolesPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#F5F5F5', borderRadius: 8,
+    borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 4,
   },
-  rolesText: { fontSize: 11, fontWeight: '700', color: '#555' },
+  rolesText: { fontSize: 11, fontWeight: '700' },
   stripeBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#EEF0FF', borderRadius: 8,
+    borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 4,
   },
   stripeBadgeText: { fontSize: 11, fontWeight: '700', color: '#635BFF' },
 
   statsCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', borderRadius: 20,
+    borderRadius: 20,
     paddingVertical: 16, paddingHorizontal: 12,
     marginBottom: 20,
     ...Platform.select({
@@ -646,48 +645,48 @@ const s = StyleSheet.create({
       android: { elevation: 3 },
     }),
   },
-  statsDivider: { width: 1, height: 40, backgroundColor: '#F0F0F0' },
+  statsDivider: { width: 1, height: 40 },
 
   sections: { gap: 16 },
 
   version: {
-    textAlign: 'center', fontSize: 12, color: '#ADADAD',
+    textAlign: 'center', fontSize: 12,
     marginTop: 24, fontWeight: '500',
   },
 
-  sheetContent: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
+  sheetContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 40 },
   sheetHandle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: '#EFEFEF', alignSelf: 'center', marginBottom: 20,
+    alignSelf: 'center', marginBottom: 20,
   },
-  sheetTitle: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 16 },
+  sheetTitle: { fontSize: 22, fontWeight: '800', marginBottom: 16 },
   sheetRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 13,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   sheetIcon: {
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  sheetLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111' },
+  sheetLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
 });
 
 const em = StyleSheet.create({
-  root:  { flex: 1, backgroundColor: '#FFFFFF' },
+  root:  { flex: 1 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0', backgroundColor: '#FFF',
+    borderBottomWidth: 1,
   },
-  title:        { fontSize: 17, fontWeight: '700', color: '#111' },
-  cancel:       { fontSize: 16, color: '#ADADAD' },
-  save:         { fontSize: 16, fontWeight: '700', color: '#111' },
+  title:        { fontSize: 17, fontWeight: '700' },
+  cancel:       { fontSize: 16 },
+  save:         { fontSize: 16, fontWeight: '700' },
   saveDisabled: { color: '#ADADAD' },
   body:  { padding: 20, gap: 4 },
-  label: { fontSize: 11, fontWeight: '700', color: '#ADADAD', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6, marginTop: 16 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6, marginTop: 16 },
   input: {
-    backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#F0F0F0',
-    paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: '#111',
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 13, fontSize: 16,
   },
 });

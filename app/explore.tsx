@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  StatusBar,
 } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { useAppTheme } from '@/hooks/use-app-theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,27 +59,28 @@ function distanceLabel(m?: number) {
 // ── Provider Card (bottom list) ───────────────────────────────────────────────
 
 function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () => void }) {
+  const theme = useAppTheme();
   const isOnline = provider.status === 'ONLINE' || provider.status === 'READY';
   const init = initials(provider.name);
   const cat = provider.categories?.[0]?.name;
 
   return (
-    <TouchableOpacity style={pc.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={pc.avatar}>
-        <Text style={pc.avatarText}>{init}</Text>
-        {isOnline && <View style={pc.dot} />}
+    <TouchableOpacity style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress} activeOpacity={0.8}>
+      <View style={[pc.avatar, { backgroundColor: theme.accent }]}>
+        <Text style={[pc.avatarText, { color: theme.accentText }]}>{init}</Text>
+        {isOnline && <View style={[pc.dot, { borderColor: theme.cardBg }]} />}
       </View>
       <View style={pc.info}>
-        <Text style={pc.name} numberOfLines={1}>{provider.name || 'Prestataire'}</Text>
-        <Text style={pc.sub} numberOfLines={1}>
+        <Text style={[pc.name, { color: theme.textAlt }]} numberOfLines={1}>{provider.name || 'Prestataire'}</Text>
+        <Text style={[pc.sub, { color: theme.textMuted }]} numberOfLines={1}>
           {cat ?? provider.city ?? ''}
           {provider.avgRating ? `  ★ ${provider.avgRating.toFixed(1)}` : ''}
         </Text>
       </View>
       {provider.distance !== undefined && (
-        <Text style={pc.dist}>{distanceLabel(provider.distance)}</Text>
+        <Text style={[pc.dist, { color: theme.textSub }]}>{distanceLabel(provider.distance)}</Text>
       )}
-      <Ionicons name="chevron-forward" size={14} color="#ADADAD" />
+      <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -86,24 +89,23 @@ const pc = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 10, paddingHorizontal: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   avatar: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
-  avatarText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  avatarText: { fontSize: 14, fontWeight: '700' },
   dot: {
     position: 'absolute', bottom: 1, right: 1,
     width: 11, height: 11, borderRadius: 6,
-    backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#FFF',
+    backgroundColor: '#22C55E', borderWidth: 2,
   },
   info:  { flex: 1, gap: 2 },
-  name:  { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
-  sub:   { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
-  dist:  { fontSize: 12, fontWeight: '600', color: '#555', marginRight: 4 },
+  name:  { fontSize: 14, fontWeight: '700' },
+  sub:   { fontSize: 12, fontWeight: '500' },
+  dist:  { fontSize: 12, fontWeight: '600', marginRight: 4 },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -111,6 +113,7 @@ const pc = StyleSheet.create({
 export default function ExploreScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const mapRef = useRef<MapView>(null);
 
   const [location, setLocation]   = useState<{ lat: number; lng: number } | null>(null);
@@ -164,12 +167,13 @@ export default function ExploreScreen() {
 
   if (locError) {
     return (
-      <SafeAreaView style={s.center}>
-        <Ionicons name="location-outline" size={52} color="#D1D5DB" />
-        <Text style={s.errTitle}>Localisation requise</Text>
-        <Text style={s.errSub}>Autorisez l'accès à votre position pour voir les prestataires proches.</Text>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-          <Text style={s.backBtnText}>Retour</Text>
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <Ionicons name="location-outline" size={52} color={theme.textDisabled} />
+        <Text style={[s.errTitle, { color: theme.textAlt }]}>Localisation requise</Text>
+        <Text style={[s.errSub, { color: theme.textMuted }]}>Autorisez l'accès à votre position pour voir les prestataires proches.</Text>
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => router.back()}>
+          <Text style={[s.backBtnText, { color: theme.accentText }]}>Retour</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -178,16 +182,18 @@ export default function ExploreScreen() {
   const selectedProvider = providers.find(p => p.id === selected);
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
       {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.headerBack} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{t('explore.title')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('explore.title')}</Text>
         <View style={s.headerCount}>
           {!loading && (
-            <Text style={s.headerCountText}>{providers.length} disponibles</Text>
+            <Text style={[s.headerCountText, { color: theme.textMuted }]}>{providers.length} disponibles</Text>
           )}
         </View>
       </View>
@@ -236,21 +242,21 @@ export default function ExploreScreen() {
             })}
           </MapView>
         ) : (
-          <View style={s.mapLoading}>
-            <ActivityIndicator size="large" color="#1A1A1A" />
+          <View style={[s.mapLoading, { backgroundColor: theme.surface }]}>
+            <ActivityIndicator size="large" color={theme.accent} />
           </View>
         )}
 
         {/* Radius filter overlay */}
-        <View style={s.radiusBar}>
+        <View style={[s.radiusBar, { backgroundColor: theme.isDark ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)' }]}>
           {RADII.map((r, i) => (
             <TouchableOpacity
               key={r.label}
-              style={[s.radiusBtn, i === radiusIdx && s.radiusBtnActive]}
+              style={[s.radiusBtn, i === radiusIdx && [s.radiusBtnActive, { backgroundColor: theme.accent }]]}
               onPress={() => setRadiusIdx(i)}
               activeOpacity={0.7}
             >
-              <Text style={[s.radiusBtnText, i === radiusIdx && s.radiusBtnTextActive]}>
+              <Text style={[s.radiusBtnText, { color: theme.textMuted }, i === radiusIdx && { color: theme.accentText }]}>
                 {r.label}
               </Text>
             </TouchableOpacity>
@@ -261,7 +267,7 @@ export default function ExploreScreen() {
       {/* Selected provider callout */}
       {selectedProvider && (
         <TouchableOpacity
-          style={s.callout}
+          style={[s.callout, { backgroundColor: theme.heroBg }]}
           onPress={() => router.push(`/providers/${selectedProvider.id}` as any)}
           activeOpacity={0.85}
         >
@@ -282,12 +288,12 @@ export default function ExploreScreen() {
       )}
 
       {/* Provider list bottom panel */}
-      <View style={s.list}>
-        <View style={s.listHeader}>
-          <Text style={s.listTitle}>
+      <View style={[s.list, { backgroundColor: theme.cardBg }]}>
+        <View style={[s.listHeader, { borderBottomColor: theme.border }]}>
+          <Text style={[s.listTitle, { color: theme.textAlt }]}>
             {loading ? 'Recherche…' : `${providers.length} prestataire${providers.length !== 1 ? 's' : ''}`}
           </Text>
-          {loading && <ActivityIndicator size="small" color="#1A1A1A" />}
+          {loading && <ActivityIndicator size="small" color={theme.accent} />}
         </View>
         <FlatList
           data={providers}
@@ -302,8 +308,8 @@ export default function ExploreScreen() {
           ListEmptyComponent={
             !loading ? (
               <View style={s.empty}>
-                <Ionicons name="people-outline" size={36} color="#E0E0E0" />
-                <Text style={s.emptyText}>{t('explore.no_providers')}</Text>
+                <Ionicons name="people-outline" size={36} color={theme.textDisabled} />
+                <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('explore.no_providers')}</Text>
               </View>
             ) : null
           }
@@ -334,29 +340,28 @@ const pin = StyleSheet.create({
 // ── Screen styles ─────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#F8F9FB' },
+  root:   { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 12 },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   headerBack: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17, fontWeight: '800' },
   headerCount: { minWidth: 38, alignItems: 'flex-end' },
-  headerCountText: { fontSize: 12, color: '#ADADAD', fontWeight: '600' },
+  headerCountText: { fontSize: 12, fontWeight: '600' },
 
   mapWrap: { height: '40%', position: 'relative' },
-  mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F0F0' },
+  mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   radiusBar: {
     position: 'absolute', top: 12, alignSelf: 'center',
     flexDirection: 'row', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 20, paddingHorizontal: 6, paddingVertical: 4,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8 },
@@ -366,13 +371,11 @@ const s = StyleSheet.create({
   radiusBtn: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
   },
-  radiusBtnActive: { backgroundColor: '#1A1A1A' },
-  radiusBtnText: { fontSize: 12, fontWeight: '700', color: '#888' },
-  radiusBtnTextActive: { color: '#FFF' },
+  radiusBtnActive: {},
+  radiusBtnText: { fontSize: 12, fontWeight: '700' },
 
   callout: {
     margin: 12, borderRadius: 16,
-    backgroundColor: '#1A1A1A',
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14,
     ...Platform.select({
@@ -395,19 +398,19 @@ const s = StyleSheet.create({
   },
   calloutCTAText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
 
-  list: { flex: 1, backgroundColor: '#FFF' },
+  list: { flex: 1 },
   listHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
-  listTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+  listTitle: { fontSize: 13, fontWeight: '700' },
 
   empty: { alignItems: 'center', paddingVertical: 32, gap: 10 },
-  emptyText: { fontSize: 14, color: '#ADADAD', fontWeight: '500' },
+  emptyText: { fontSize: 14, fontWeight: '500' },
 
-  errTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', marginTop: 8 },
-  errSub:   { fontSize: 14, color: '#ADADAD', textAlign: 'center', lineHeight: 20 },
-  backBtn:  { marginTop: 16, backgroundColor: '#1A1A1A', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  backBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  errTitle: { fontSize: 18, fontWeight: '800', marginTop: 8 },
+  errSub:   { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  backBtn:  { marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  backBtnText: { fontSize: 15, fontWeight: '700' },
 });

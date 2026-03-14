@@ -7,7 +7,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, SafeAreaView,
   Animated, Easing, Dimensions, Linking, Platform,
-  TextInput, ScrollView, Modal, Pressable,
+  TextInput, ScrollView, Modal, Pressable, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,10 @@ import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom
 import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useSocket } from '@/lib/SocketContext';
+import * as Haptics from 'expo-haptics';
 
 
 const { width } = Dimensions.get('window');
@@ -91,7 +94,40 @@ type Mission = {
   lng?: number;
 };
 
-type Tab = 'upcoming' | 'history';
+type Tab = 'opportunities' | 'upcoming' | 'history';
+
+// ─── Opportunity types ───────────────────────────────────────────────────────
+interface Opportunity {
+  id: number;
+  serviceType: string;
+  description: string;
+  address: string;
+  lat: number;
+  lng: number;
+  price: number | null;
+  preferredTimeStart: string;
+  category: { id: number; name: string; icon: string | null };
+  subcategory: { id: number; name: string } | null;
+  client: { name: string };
+}
+
+function formatScheduledDate(iso: string): { day: string; time: string; relative: string } {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = d.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  const day = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  let relative = '';
+  if (diffDays === 0) relative = "Aujourd'hui";
+  else if (diffDays === 1) relative = 'Demain';
+  else if (diffDays <= 7) relative = `Dans ${diffDays} jours`;
+  else relative = `Dans ${Math.ceil(diffDays / 7)} sem.`;
+
+  return { day, time, relative };
+}
 
 // ============================================================================
 // UTILS
@@ -597,6 +633,124 @@ const es = StyleSheet.create({
 });
 
 // ============================================================================
+// OPPORTUNITY CARD
+// ============================================================================
+
+function OpportunityCard({
+  item, theme, onAccept, accepting,
+}: {
+  item: Opportunity; theme: ReturnType<typeof useAppTheme>;
+  onAccept: (id: number) => void; accepting: number | null;
+}) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const { day, time, relative } = formatScheduledDate(item.preferredTimeStart);
+  const net = item.price ? (item.price * NET_RATE).toFixed(0) : null;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }),
+    ]).start();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onAccept(item.id);
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
+        <View style={opp.cardHead}>
+          <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
+            <Ionicons name="construct-outline" size={14} color={theme.text} />
+            <Text style={[opp.catBadgeText, { color: theme.text }]}>{item.category.name}</Text>
+          </View>
+          <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
+            <Text style={[opp.relText, { color: theme.textSub }]}>{relative}</Text>
+          </View>
+        </View>
+
+        <Text style={[opp.serviceName, { color: theme.text }]} numberOfLines={1}>
+          {item.serviceType}
+        </Text>
+        {item.description ? (
+          <Text style={[opp.desc, { color: theme.textSub }]} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+
+        <View style={opp.infoRow}>
+          <View style={opp.infoItem}>
+            <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
+            <Text style={[opp.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
+          </View>
+          <View style={opp.infoItem}>
+            <Ionicons name="location-outline" size={14} color={theme.textMuted} />
+            <Text style={[opp.infoText, { color: theme.textSub }]} numberOfLines={1}>
+              {item.address.split(',')[0]}
+            </Text>
+          </View>
+        </View>
+
+        <View style={opp.cardFoot}>
+          {net ? (
+            <View>
+              <Text style={[opp.priceNet, { color: theme.text }]}>{net} €</Text>
+              <Text style={[opp.priceLabel, { color: theme.textMuted }]}>net estimé</Text>
+            </View>
+          ) : (
+            <View />
+          )}
+          <TouchableOpacity
+            style={opp.acceptBtn}
+            onPress={handlePress}
+            disabled={accepting !== null}
+            activeOpacity={0.8}
+          >
+            {accepting === item.id ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                <Text style={opp.acceptText}>Accepter</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+const opp = StyleSheet.create({
+  card: {
+    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  catBadgeText: { fontSize: 12, fontWeight: '600' },
+  relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  relText: { fontSize: 11, fontWeight: '600' },
+  serviceName: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  desc: { fontSize: 13, fontWeight: '500', lineHeight: 18, marginBottom: 10 },
+  infoRow: { gap: 6, marginBottom: 14 },
+  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  infoText: { fontSize: 13, fontWeight: '500' },
+  cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  priceNet: { fontSize: 20, fontWeight: '800' },
+  priceLabel: { fontSize: 11, fontWeight: '500' },
+  acceptBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#1A1A1A', borderRadius: 12,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
+  acceptText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', marginTop: 8, textAlign: 'center' },
+  emptySub: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 20 },
+});
+
+// ============================================================================
 // CLIENT AVATAR
 // ============================================================================
 
@@ -618,29 +772,37 @@ const cav = StyleSheet.create({
 // TAB BAR
 // ============================================================================
 
-function TabBar({ tab, onChange, upcomingCount }: {
-  tab: Tab; onChange: (t: Tab) => void; upcomingCount: number;
+function TabBar({ tab, onChange, upcomingCount, opportunityCount }: {
+  tab: Tab; onChange: (t: Tab) => void; upcomingCount: number; opportunityCount: number;
 }) {
   const t = useAppTheme();
   const indicatorX = useRef(new Animated.Value(0)).current;
 
+  const TAB_INDEX: Record<Tab, number> = { opportunities: 0, upcoming: 1, history: 2 };
+  const TAB_LABELS: Record<Tab, string> = { opportunities: 'Opportunités', upcoming: 'À venir', history: 'Historique' };
+
   useEffect(() => {
-    Animated.spring(indicatorX, { toValue: tab === 'upcoming' ? 0 : 1, tension: 220, friction: 22, useNativeDriver: false }).start();
+    Animated.spring(indicatorX, { toValue: TAB_INDEX[tab], tension: 220, friction: 22, useNativeDriver: false }).start();
   }, [tab]);
 
-  const indicatorLeft = indicatorX.interpolate({ inputRange: [0, 1], outputRange: ['0%', '50%'] });
+  const indicatorLeft = indicatorX.interpolate({ inputRange: [0, 1, 2], outputRange: ['0%', '33.33%', '66.66%'] });
 
   return (
     <View style={[tb.wrap, { backgroundColor: t.surface }]}>
-      <Animated.View style={[tb.indicator, { backgroundColor: t.cardBg }, { left: indicatorLeft }]} />
-      {(['upcoming', 'history'] as Tab[]).map(tb2 => (
+      <Animated.View style={[tb.indicator, tb.indicator3, { backgroundColor: t.cardBg }, { left: indicatorLeft }]} />
+      {(['opportunities', 'upcoming', 'history'] as Tab[]).map(tb2 => (
         <TouchableOpacity key={tb2} style={tb.tab} onPress={() => onChange(tb2)} activeOpacity={0.75}>
           <Text style={[tb.label, { color: t.textMuted }, tab === tb2 && [tb.labelActive, { color: t.text }]]}>
-            {tb2 === 'upcoming' ? 'À venir' : 'Historique'}
+            {TAB_LABELS[tb2]}
           </Text>
           {tb2 === 'upcoming' && upcomingCount > 0 && (
             <View style={[tb.badge, { backgroundColor: t.accent }]}>
               <Text style={[tb.badgeText, { color: t.accentText }]}>{upcomingCount}</Text>
+            </View>
+          )}
+          {tb2 === 'opportunities' && opportunityCount > 0 && (
+            <View style={[tb.badge, { backgroundColor: t.accent }]}>
+              <Text style={[tb.badgeText, { color: t.accentText }]}>{opportunityCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -653,8 +815,9 @@ const tb = StyleSheet.create({
   wrap:      { flexDirection: 'row', backgroundColor: '#F5F5F5', marginHorizontal: 16, marginTop: 10, marginBottom: 4, borderRadius: 14, padding: 4, position: 'relative' },
   indicator: { position: 'absolute', top: 4, bottom: 4, width: '50%', backgroundColor: '#FFF', borderRadius: 11,
     ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6 }, android: { elevation: 2 } }) },
-  tab:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 6 },
-  label:     { fontSize: 14, fontWeight: '600', color: '#ADADAD' },
+  indicator3: { width: '33.33%' },
+  tab:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 4 },
+  label:     { fontSize: 13, fontWeight: '600', color: '#ADADAD' },
   labelActive:{ color: '#1A1A1A', fontWeight: '700' },
   badge:     { backgroundColor: '#1A1A1A', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, minWidth: 18, alignItems: 'center' },
   badgeText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
@@ -668,6 +831,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   mission: Mission; onNavigate: () => void; onComplete: () => void; onViewFull: () => void;
 }) {
   const t = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_H = Platform.OS === 'ios' ? 70 : 54;
   const cfg         = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const net         = mission.price * NET_RATE;
   const canComplete = mission.status === 'ONGOING';
@@ -687,7 +852,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
 
   return (
-    <BottomSheetScrollView contentContainerStyle={sd.scroll} showsVerticalScrollIndicator={false}>
+    <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: TAB_BAR_H + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
       {/* ── Mini-carte Silver ── */}
       {hasCoords ? (
         <View style={sd.mapContainer}>
@@ -928,13 +1093,14 @@ const sd = StyleSheet.create({
 
 export default function Missions() {
   const router = useRouter();
+  const { socket } = useSocket();
   const [missions,        setMissions]        = useState<Mission[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [refreshing,      setRefreshing]      = useState(false);
   const [error,           setError]           = useState<string | null>(null);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [loadingDetails,  setLoadingDetails]  = useState(false);
-  const [tab,             setTab]             = useState<Tab>('upcoming');
+  const [tab,             setTab]             = useState<Tab>('opportunities');
   const [historyFilter,   setHistoryFilter]   = useState<string>('all');
   const [completing,      setCompleting]      = useState<string | null>(null);
   const [searchQuery,     setSearchQuery]     = useState('');
@@ -942,11 +1108,16 @@ export default function Missions() {
   const [selectedDay,     setSelectedDay]     = useState<string | null>(null);
   const t = useAppTheme();
 
+  // Opportunity state
+  const [opportunities,    setOpportunities]    = useState<Opportunity[]>([]);
+  const [loadingOpps,      setLoadingOpps]      = useState(true);
+  const [acceptingOpp,     setAcceptingOpp]     = useState<number | null>(null);
+
   // Modals
   const [completeModal, setCompleteModal] = useState<Mission | null>(null);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints     = useMemo(() => ['70%', '92%'], []);
+  // Dynamic sizing — sheet wraps its content
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const loadMissions = useCallback(async () => {
@@ -981,8 +1152,69 @@ export default function Missions() {
     }
   }, []);
 
-  useEffect(() => { loadMissions(); }, [loadMissions]);
-  const onRefresh = () => { setRefreshing(true); loadMissions(); };
+  // ── Opportunities ───────────────────────────────────────────────────────
+  const fetchOpportunities = useCallback(async () => {
+    try {
+      const res = await api.get('/requests/opportunities');
+      const data = res?.data ?? res;
+      setOpportunities(Array.isArray(data) ? data : data?.data ?? []);
+    } catch (e) {
+      devError('Opportunities load error:', e);
+    } finally {
+      setLoadingOpps(false);
+    }
+  }, []);
+
+  const handleAcceptOpp = useCallback(async (requestId: number) => {
+    setAcceptingOpp(requestId);
+    try {
+      await api.post(`/requests/${requestId}/accept`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
+      await loadMissions();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Erreur';
+      Alert.alert('Impossible', msg);
+    } finally {
+      setAcceptingOpp(null);
+    }
+  }, [loadMissions]);
+
+  // Real-time socket listener for new opportunities
+  useEffect(() => {
+    if (!socket) return;
+    const handler = () => { fetchOpportunities(); };
+    socket.on('new_opportunity', handler);
+    return () => { socket.off('new_opportunity', handler); };
+  }, [socket, fetchOpportunities]);
+
+  useEffect(() => { loadMissions(); fetchOpportunities(); }, [loadMissions, fetchOpportunities]);
+  const onRefresh = () => { setRefreshing(true); loadMissions(); fetchOpportunities(); };
+
+  // ── Auto-redirect quand l'heure planifiée d'une mission ACCEPTED arrive ──
+  const redirectedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const accepted = missions.filter(m => m.status === 'ACCEPTED' && m.scheduledAt);
+    if (accepted.length === 0) return;
+
+    const check = () => {
+      const now = Date.now();
+      for (const m of accepted) {
+        if (redirectedRef.current.has(m.id)) continue;
+        const scheduled = new Date(m.scheduledAt!).getTime();
+        if (now >= scheduled) {
+          redirectedRef.current.add(m.id);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          router.push({ pathname: '/request/[id]/ongoing', params: { id: m.id } });
+          return; // une seule redirection à la fois
+        }
+      }
+    };
+
+    check();
+    const interval = setInterval(check, 30_000); // vérifier toutes les 30s
+    return () => clearInterval(interval);
+  }, [missions, router]);
 
   // ── Filtered lists ────────────────────────────────────────────────────────
   const upcomingMissions = useMemo(() => missions.filter(m => UPCOMING_STATUSES.includes(m.status)), [missions]);
@@ -1170,7 +1402,37 @@ export default function Missions() {
       </View>
 
       {/* ── Tabs ── */}
-      <TabBar tab={tab} onChange={setTab} upcomingCount={upcomingMissions.length} />
+      <TabBar tab={tab} onChange={setTab} upcomingCount={upcomingMissions.length} opportunityCount={opportunities.length} />
+
+      {/* ── Opportunités tab ── */}
+      {tab === 'opportunities' && (
+        loadingOpps ? (
+          <View style={s.center}>
+            <ActivityIndicator size="large" color={t.accent} />
+          </View>
+        ) : opportunities.length === 0 ? (
+          <View style={opp.emptyWrap}>
+            <Ionicons name="telescope-outline" size={48} color={t.textMuted} />
+            <Text style={[opp.emptyTitle, { color: t.text }]}>Aucune opportunité</Text>
+            <Text style={[opp.emptySub, { color: t.textSub }]}>
+              Les missions planifiées correspondant à vos compétences apparaîtront ici.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={opportunities}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} accepting={acceptingOpp} />
+            )}
+            contentContainerStyle={s.list}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />
+            }
+          />
+        )
+      )}
 
       {/* ── DayPicker (uniquement À venir) ── */}
       {tab === 'upcoming' && (
@@ -1188,7 +1450,7 @@ export default function Missions() {
       )}
 
       {/* ── Erreur ── */}
-      {error && (
+      {error && tab !== 'opportunities' && (
         <View style={[s.errorBanner, { backgroundColor: t.surface }]}>
           <Ionicons name="alert-circle-outline" size={15} color={t.text} />
           <Text style={[s.errorText, { color: t.text }]}>{error}</Text>
@@ -1198,21 +1460,23 @@ export default function Missions() {
         </View>
       )}
 
-      {/* ── Liste ── */}
-      <FlatList
-        data={displayedList}
-        renderItem={renderMission}
-        keyExtractor={item => item.id}
-        contentContainerStyle={[s.list, !displayedList.length && s.listEmpty]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
-        ListEmptyComponent={
-          <EmptyState tab={tab} onGoOnline={() => router.replace('/(tabs)/dashboard')} dayEarnings={tab === 'upcoming' ? todayDoneEarnings : undefined} />
-        }
-        showsVerticalScrollIndicator={false}
-      />
+      {/* ── Liste missions (À venir / Historique) ── */}
+      {tab !== 'opportunities' && (
+        <FlatList
+          data={displayedList}
+          renderItem={renderMission}
+          keyExtractor={item => item.id}
+          contentContainerStyle={[s.list, !displayedList.length && s.listEmpty]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+          ListEmptyComponent={
+            <EmptyState tab={tab} onGoOnline={() => router.replace('/(tabs)/dashboard')} dayEarnings={tab === 'upcoming' ? todayDoneEarnings : undefined} />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       {/* ── Bottom Sheet Detail ── */}
-      <BottomSheet ref={bottomSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }}>
+      <BottomSheet ref={bottomSheetRef} index={-1} enableDynamicSizing enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={Dimensions.get('window').height * 0.85}>
         {loadingDetails ? (
           <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
         ) : selectedMission ? (

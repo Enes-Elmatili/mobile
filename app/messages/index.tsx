@@ -2,13 +2,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  SafeAreaView, RefreshControl, Platform, ActivityIndicator,
+  SafeAreaView, RefreshControl, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { onIncomingMessage, useSocket } from '../../lib/SocketContext';
+import { useAppTheme } from '../../hooks/use-app-theme';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -76,6 +77,7 @@ export default function MessagesInbox() {
   const { user } = useAuth();
   const { clearUnreadMessages } = useSocket();
   const router = useRouter();
+  const theme = useAppTheme();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,7 +138,7 @@ export default function MessagesInbox() {
 
   const renderItem = useCallback(({ item }: { item: Conversation }) => (
     <TouchableOpacity
-      style={s.row}
+      style={[s.row, { backgroundColor: theme.cardBg }]}
       activeOpacity={0.7}
       onPress={() =>
         router.push({ pathname: '/messages/[userId]', params: { userId: item.userId } })
@@ -145,45 +147,47 @@ export default function MessagesInbox() {
       <Avatar name={item.displayName} />
       <View style={s.rowContent}>
         <View style={s.rowTop}>
-          <Text style={[s.rowName, item.unread && s.rowNameBold]}>{item.displayName}</Text>
-          <Text style={s.rowTime}>{timeAgo(item.lastAt)}</Text>
+          <Text style={[s.rowName, { color: theme.textAlt }, item.unread && s.rowNameBold]}>{item.displayName}</Text>
+          <Text style={[s.rowTime, { color: theme.textMuted }]}>{timeAgo(item.lastAt)}</Text>
         </View>
         <Text
-          style={[s.rowPreview, item.unread && s.rowPreviewBold]}
+          style={[s.rowPreview, { color: theme.textMuted }, item.unread && { color: theme.textAlt, fontWeight: '600' }]}
           numberOfLines={1}
         >
           {item.lastMessage}
         </Text>
       </View>
-      {item.unread && <View style={s.unreadDot} />}
+      {item.unread && <View style={[s.unreadDot, { backgroundColor: theme.accent }]} />}
     </TouchableOpacity>
-  ), [router]);
+  ), [router, theme]);
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
       {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#111" />
+      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={[s.backBtn, { backgroundColor: theme.surface }]}>
+          <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Messages</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]}>Messages</Text>
         <View style={{ width: 38 }} />
       </View>
 
       {loading ? (
         <View style={s.centered}>
-          <ActivityIndicator size="large" color="#111" />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : conversations.length === 0 ? (
         <View style={s.centered}>
-          <Text style={s.emptyTitle}>Aucun message.</Text>
+          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>Aucun message.</Text>
           <TouchableOpacity
-            style={s.emptyBtn}
+            style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.replace('/(tabs)/dashboard')}
             activeOpacity={0.85}
           >
-            <Text style={s.emptyBtnText}>TROUVER UN PRO</Text>
-            <Ionicons name="arrow-forward" size={15} color="#FFF" />
+            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>TROUVER UN PRO</Text>
+            <Ionicons name="arrow-forward" size={15} color={theme.accentText} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -192,10 +196,10 @@ export default function MessagesInbox() {
           keyExtractor={item => item.userId}
           renderItem={renderItem}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#111" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
           }
           contentContainerStyle={s.list}
-          ItemSeparatorComponent={() => <View style={s.separator} />}
+          ItemSeparatorComponent={() => <View style={[s.separator, { backgroundColor: theme.border }]} />}
         />
       )}
     </SafeAreaView>
@@ -205,48 +209,45 @@ export default function MessagesInbox() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1 },
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#111' },
+  headerTitle: { fontSize: 20, fontWeight: '800' },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyTitle: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', marginBottom: 20 },
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#111', borderRadius: 4,
+    borderRadius: 14,
     paddingHorizontal: 22, paddingVertical: 14,
   },
-  emptyBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF', letterSpacing: 1 },
+  emptyBtnText: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
 
   list: { paddingVertical: 8 },
 
   row: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14, gap: 13,
-    backgroundColor: '#FFF',
   },
   rowContent: { flex: 1, gap: 4 },
   rowTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  rowName: { fontSize: 15, fontWeight: '600', color: '#111' },
+  rowName: { fontSize: 15, fontWeight: '600' },
   rowNameBold: { fontWeight: '800' },
-  rowTime: { fontSize: 12, color: '#ADADAD' },
-  rowPreview: { fontSize: 13, color: '#ADADAD' },
-  rowPreviewBold: { color: '#111', fontWeight: '600' },
+  rowTime: { fontSize: 12 },
+  rowPreview: { fontSize: 13 },
   unreadDot: {
     width: 10, height: 10, borderRadius: 5,
-    backgroundColor: '#111', flexShrink: 0,
+    flexShrink: 0,
   },
-  separator: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 75 },
+  separator: { height: 1, marginLeft: 75 },
 });

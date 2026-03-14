@@ -2,13 +2,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator,
+  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { onIncomingMessage } from '../../lib/SocketContext';
+import { useAppTheme } from '../../hooks/use-app-theme';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -37,6 +38,7 @@ export default function ConversationScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const theme = useAppTheme();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messageIdsRef = useRef(new Set<string>());
@@ -115,11 +117,16 @@ export default function ConversationScreen() {
     return (
       <View>
         {showTime && (
-          <Text style={b.timestamp}>{fmtTime(item.createdAt)}</Text>
+          <Text style={[b.timestamp, { color: theme.textMuted }]}>{fmtTime(item.createdAt)}</Text>
         )}
         <View style={[b.row, isMine ? b.rowRight : b.rowLeft]}>
-          <View style={[b.bubble, isMine ? b.bubbleMine : b.bubbleOther]}>
-            <Text style={[b.text, isMine ? b.textMine : b.textOther]}>{item.text}</Text>
+          <View style={[
+            b.bubble,
+            isMine
+              ? [b.bubbleMine, { backgroundColor: theme.accent }]
+              : [b.bubbleOther, { backgroundColor: theme.cardBg }],
+          ]}>
+            <Text style={[b.text, isMine ? { color: theme.accentText } : { color: theme.textAlt }]}>{item.text}</Text>
           </View>
         </View>
       </View>
@@ -129,13 +136,15 @@ export default function ConversationScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
       {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#111" />
+      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={[s.backBtn, { backgroundColor: theme.surface }]}>
+          <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={s.headerTitle} numberOfLines={1}>{headerName}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]} numberOfLines={1}>{headerName}</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -146,7 +155,7 @@ export default function ConversationScreen() {
       >
         {loading ? (
           <View style={s.centered}>
-            <ActivityIndicator size="large" color="#111" />
+            <ActivityIndicator size="large" color={theme.accent} />
           </View>
         ) : (
           <FlatList
@@ -159,33 +168,33 @@ export default function ConversationScreen() {
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListEmptyComponent={
               <View style={s.emptyWrap}>
-                <Ionicons name="chatbubble-outline" size={44} color="#ADADAD" />
-                <Text style={s.emptyText}>Démarrez la conversation</Text>
+                <Ionicons name="chatbubble-outline" size={44} color={theme.textMuted} />
+                <Text style={[s.emptyText, { color: theme.textMuted }]}>Démarrez la conversation</Text>
               </View>
             }
           />
         )}
 
         {/* Input bar */}
-        <View style={s.inputBar}>
+        <View style={[s.inputBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
           <TextInput
-            style={s.input}
+            style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
             value={inputText}
             onChangeText={setInputText}
             placeholder="Votre message…"
-            placeholderTextColor="#ADADAD"
+            placeholderTextColor={theme.textMuted}
             multiline
             maxLength={2000}
             blurOnSubmit={false}
           />
           <TouchableOpacity
-            style={[s.sendBtn, (!inputText.trim() || sending) && s.sendBtnDisabled]}
+            style={[s.sendBtn, { backgroundColor: theme.accent }, (!inputText.trim() || sending) && s.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!inputText.trim() || sending}
           >
             {sending
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Ionicons name="send" size={18} color="#FFF" />}
+              ? <ActivityIndicator size="small" color={theme.accentText} />
+              : <Ionicons name="send" size={18} color={theme.accentText} />}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -196,55 +205,49 @@ export default function ConversationScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1 },
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: {
     flex: 1, textAlign: 'center',
-    fontSize: 17, fontWeight: '700', color: '#111', marginHorizontal: 8,
+    fontSize: 17, fontWeight: '700', marginHorizontal: 8,
   },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: 12, paddingVertical: 16 },
 
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 8 },
-  emptyText: { fontSize: 14, color: '#ADADAD' },
+  emptyText: { fontSize: 14 },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: '#FFF',
-    borderTopWidth: 1, borderTopColor: '#F0F0F0',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: -2 } },
-      android: { elevation: 4 },
-    }),
+    borderTopWidth: 1,
   },
   input: {
-    flex: 1, backgroundColor: '#F5F5F5', borderRadius: 22,
+    flex: 1, borderRadius: 22,
     paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    fontSize: 15, color: '#111', maxHeight: 120,
+    fontSize: 15, maxHeight: 120,
   },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     marginBottom: 1,
   },
-  sendBtnDisabled: { backgroundColor: '#D1D5DB' },
+  sendBtnDisabled: { opacity: 0.4 },
 });
 
 const b = StyleSheet.create({
   timestamp: {
-    textAlign: 'center', fontSize: 11, color: '#ADADAD',
+    textAlign: 'center', fontSize: 11,
     marginVertical: 8, fontWeight: '500',
   },
   row: { marginVertical: 2 },
@@ -255,11 +258,9 @@ const b = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9,
   },
   bubbleMine: {
-    backgroundColor: '#111',
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: '#FFF',
     borderBottomLeftRadius: 4,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
@@ -267,6 +268,4 @@ const b = StyleSheet.create({
     }),
   },
   text: { fontSize: 15, lineHeight: 21 },
-  textMine: { color: '#FFF' },
-  textOther: { color: '#111' },
 });

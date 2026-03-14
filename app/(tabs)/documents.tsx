@@ -1,10 +1,9 @@
-// app/(tabs)/documents.tsx — Client Document Hub
+// app/(tabs)/documents.tsx — Client Document Hub (v3 — Factures only + dark mode)
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
@@ -12,28 +11,14 @@ import {
   RefreshControl,
   Platform,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
-import TicketDetailSheet from '../../components/sheets/TicketDetailSheet';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-type Ticket = {
-  id: string | number;
-  serviceType?: string;
-  title?: string;
-  createdAt: string;
-  status?: string;
-  price?: number;
-  address?: string;
-  provider?: { name?: string };
-};
-
-type DocStatus = 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT' | string;
+import { useAppTheme } from '@/hooks/use-app-theme';
+import InvoiceSheet from '../../components/sheets/InvoiceSheet';
+import type { Invoice } from '@/hooks/useInvoice';
 
 // ============================================================================
 // UTILS
@@ -42,70 +27,56 @@ type DocStatus = 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT' | string;
 const formatEuros = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  DONE:            { label: 'Terminé',    color: '#111', bg: '#F5F5F5', icon: 'checkmark-circle-outline' },
-  CANCELLED:       { label: 'Annulé',    color: '#888', bg: '#F5F5F5', icon: 'close-circle-outline' },
-  PENDING_PAYMENT: { label: 'Paiement',  color: '#555', bg: '#F5F5F5', icon: 'card-outline' },
-  PUBLISHED:       { label: 'En attente', color: '#888', bg: '#F5F5F5', icon: 'time-outline' },
-  ONGOING:         { label: 'En cours',  color: '#555', bg: '#F5F5F5', icon: 'flash-outline' },
-};
-
-const getStatus = (status?: string) =>
-  STATUS_CFG[status || ''] ?? { label: status || '—', color: '#888', bg: '#F5F5F5', icon: 'ellipse-outline' };
-
 // ============================================================================
-// RECEIPT CARD — un justificatif dans la liste
+// INVOICE CARD
 // ============================================================================
 
-function ReceiptCard({
-  ticket,
-  onPress,
-  isLast,
+function InvoiceCard({
+  invoice, onPress, isLast, theme,
 }: {
-  ticket: Ticket;
-  onPress: () => void;
-  isLast: boolean;
+  invoice: Invoice; onPress: () => void; isLast: boolean;
+  theme: ReturnType<typeof useAppTheme>;
 }) {
-  const cfg = getStatus(ticket.status);
-  const label = ticket.serviceType || ticket.title || 'Service';
-  const ref = String(ticket.id).slice(-6).toUpperCase();
-  const date = new Date(ticket.createdAt).toLocaleDateString('fr-FR', {
+  const isPaid = invoice.status === 'PAID';
+  const number = invoice.number
+    ? `#${invoice.number}`
+    : `#${String(invoice.id).slice(-5).toUpperCase()}`;
+  const date = new Date(invoice.issuedAt).toLocaleDateString('fr-FR', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
+  const service = (invoice as any).request?.serviceType || 'Service';
 
   return (
     <>
-      <TouchableOpacity style={rc.row} onPress={onPress} activeOpacity={0.7}>
-        {/* Icône service */}
-        <View style={[rc.iconBox, { backgroundColor: cfg.bg }]}>
-          <Ionicons name="receipt-outline" size={18} color={cfg.color} />
+      <TouchableOpacity style={ic.row} onPress={onPress} activeOpacity={0.7}>
+        <View style={[ic.iconBox, { backgroundColor: theme.surface }]}>
+          <Ionicons name="document-text-outline" size={18} color={theme.textSub} />
         </View>
-
-        {/* Contenu */}
-        <View style={rc.content}>
-          <Text style={rc.label} numberOfLines={1}>{label}</Text>
-          <Text style={rc.ref}>Réf. {ref} · {date}</Text>
-          {/* Status badge */}
-          <View style={[rc.statusBadge, { backgroundColor: cfg.bg }]}>
-            <Ionicons name={cfg.icon as any} size={10} color={cfg.color} />
-            <Text style={[rc.statusText, { color: cfg.color }]}>{cfg.label}</Text>
+        <View style={ic.content}>
+          <Text style={[ic.label, { color: theme.textAlt }]} numberOfLines={1}>{service}</Text>
+          <Text style={[ic.ref, { color: theme.textMuted }]}>{number} · {date}</Text>
+          <View style={[ic.statusBadge, { backgroundColor: theme.surface }]}>
+            <Ionicons
+              name={isPaid ? 'checkmark-circle' : 'time-outline'}
+              size={10}
+              color={isPaid ? '#22C55E' : '#F59E0B'}
+            />
+            <Text style={[ic.statusText, { color: isPaid ? '#22C55E' : '#F59E0B' }]}>
+              {isPaid ? 'Payée' : 'En attente'}
+            </Text>
           </View>
         </View>
-
-        {/* Prix + flèche */}
-        <View style={rc.right}>
-          {ticket.price != null && (
-            <Text style={rc.price}>{formatEuros(ticket.price)}</Text>
-          )}
-          <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginTop: 4 }} />
+        <View style={ic.right}>
+          <Text style={[ic.price, { color: theme.textAlt }]}>{formatEuros(invoice.amount)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.textDisabled} style={{ marginTop: 4 }} />
         </View>
       </TouchableOpacity>
-      {!isLast && <View style={rc.divider} />}
+      {!isLast && <View style={[ic.divider, { backgroundColor: theme.border }]} />}
     </>
   );
 }
 
-const rc = StyleSheet.create({
+const ic = StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'flex-start',
     paddingVertical: 14, paddingHorizontal: 16, gap: 12,
@@ -115,8 +86,8 @@ const rc = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
   },
   content: { flex: 1, gap: 3 },
-  label: { fontSize: 14, fontWeight: '700', color: '#111' },
-  ref: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
+  label: { fontSize: 14, fontWeight: '700' },
+  ref: { fontSize: 12, fontWeight: '500' },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
@@ -124,22 +95,22 @@ const rc = StyleSheet.create({
   },
   statusText: { fontSize: 10, fontWeight: '700' },
   right: { alignItems: 'flex-end', flexShrink: 0, gap: 2 },
-  price: { fontSize: 15, fontWeight: '800', color: '#111' },
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 68 },
+  price: { fontSize: 15, fontWeight: '800' },
+  divider: { height: 1, marginLeft: 68 },
 });
 
 // ============================================================================
-// SECTION HEADER
+// SHARED SUB-COMPONENTS
 // ============================================================================
 
-function SectionHeader({ icon, label, count }: { icon: string; label: string; count?: number }) {
+function SectionHeader({ icon, label, count, theme }: { icon: string; label: string; count?: number; theme: ReturnType<typeof useAppTheme> }) {
   return (
     <View style={sh.wrap}>
-      <Ionicons name={icon as any} size={15} color="#888" />
-      <Text style={sh.label}>{label}</Text>
+      <Ionicons name={icon as any} size={15} color={theme.textMuted} />
+      <Text style={[sh.label, { color: theme.textMuted }]}>{label}</Text>
       {count != null && (
-        <View style={sh.badge}>
-          <Text style={sh.badgeText}>{count}</Text>
+        <View style={[sh.badge, { backgroundColor: theme.surface }]}>
+          <Text style={[sh.badgeText, { color: theme.textSub }]}>{count}</Text>
         </View>
       )}
     </View>
@@ -147,56 +118,38 @@ function SectionHeader({ icon, label, count }: { icon: string; label: string; co
 }
 
 const sh = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: 8, paddingHorizontal: 2,
-  },
-  label: { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.6 },
-  badge: {
-    backgroundColor: '#EFEFEF', borderRadius: 8,
-    paddingHorizontal: 6, paddingVertical: 1,
-  },
-  badgeText: { fontSize: 10, fontWeight: '700', color: '#888' },
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, paddingHorizontal: 2 },
+  label: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
+  badge: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
+  badgeText: { fontSize: 10, fontWeight: '700' },
 });
 
-// ============================================================================
-// EMPTY STATE CARD
-// ============================================================================
-
-function EmptyCard({ icon, text, sub }: { icon: string; text: string; sub?: string }) {
+function EmptyCard({ icon, text, sub, theme }: { icon: string; text: string; sub?: string; theme: ReturnType<typeof useAppTheme> }) {
   return (
     <View style={ec.wrap}>
-      <View style={ec.iconWrap}>
-        <Ionicons name={icon as any} size={26} color="#D1D5DB" />
+      <View style={[ec.iconWrap, { backgroundColor: theme.surface }]}>
+        <Ionicons name={icon as any} size={26} color={theme.textDisabled} />
       </View>
-      <Text style={ec.text}>{text}</Text>
-      {sub && <Text style={ec.sub}>{sub}</Text>}
+      <Text style={[ec.text, { color: theme.textAlt }]}>{text}</Text>
+      {sub && <Text style={[ec.sub, { color: theme.textMuted }]}>{sub}</Text>}
     </View>
   );
 }
 
 const ec = StyleSheet.create({
   wrap: { alignItems: 'center', paddingVertical: 28, gap: 8 },
-  iconWrap: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-  },
-  text: { fontSize: 14, fontWeight: '600', color: '#111' },
-  sub: { fontSize: 13, color: '#ADADAD', textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
+  iconWrap: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  text: { fontSize: 14, fontWeight: '600' },
+  sub: { fontSize: 13, textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
 });
 
-// ============================================================================
-// CARD WRAPPER (ombre + radius)
-// ============================================================================
-
-function Card({ children, style }: { children: React.ReactNode; style?: any }) {
-  return <View style={[cw.card, style]}>{children}</View>;
+function Card({ children, theme }: { children: React.ReactNode; theme: ReturnType<typeof useAppTheme> }) {
+  return <View style={[cw.card, { backgroundColor: theme.cardBg }]}>{children}</View>;
 }
 
 const cw = StyleSheet.create({
   card: {
-    backgroundColor: '#FFF', borderRadius: 18, overflow: 'hidden',
-    marginBottom: 0,
+    borderRadius: 18, overflow: 'hidden', marginBottom: 0,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
       android: { elevation: 2 },
@@ -204,34 +157,26 @@ const cw = StyleSheet.create({
   },
 });
 
-// ============================================================================
-// PAGINATION
-// ============================================================================
-
 function Pagination({
-  page, total, onPrev, onNext,
+  page, total, onPrev, onNext, theme,
 }: {
-  page: number; total: number; onPrev: () => void; onNext: () => void;
+  page: number; total: number; onPrev: () => void; onNext: () => void; theme: ReturnType<typeof useAppTheme>;
 }) {
   if (total <= 1) return null;
   return (
-    <View style={pg.wrap}>
+    <View style={[pg.wrap, { borderTopColor: theme.border }]}>
       <TouchableOpacity
-        style={[pg.btn, page === 1 && pg.btnDisabled]}
-        onPress={onPrev}
-        disabled={page === 1}
-        activeOpacity={0.7}
+        style={[pg.btn, { backgroundColor: theme.surface }, page === 1 && pg.btnDisabled]}
+        onPress={onPrev} disabled={page === 1} activeOpacity={0.7}
       >
-        <Ionicons name="chevron-back" size={18} color={page === 1 ? '#ADADAD' : '#111'} />
+        <Ionicons name="chevron-back" size={18} color={page === 1 ? theme.textMuted : theme.textAlt} />
       </TouchableOpacity>
-      <Text style={pg.text}>Page {page} sur {total}</Text>
+      <Text style={[pg.text, { color: theme.textSub }]}>Page {page} sur {total}</Text>
       <TouchableOpacity
-        style={[pg.btn, page === total && pg.btnDisabled]}
-        onPress={onNext}
-        disabled={page === total}
-        activeOpacity={0.7}
+        style={[pg.btn, { backgroundColor: theme.surface }, page === total && pg.btnDisabled]}
+        onPress={onNext} disabled={page === total} activeOpacity={0.7}
       >
-        <Ionicons name="chevron-forward" size={18} color={page === total ? '#ADADAD' : '#111'} />
+        <Ionicons name="chevron-forward" size={18} color={page === total ? theme.textMuted : theme.textAlt} />
       </TouchableOpacity>
     </View>
   );
@@ -240,268 +185,147 @@ function Pagination({
 const pg = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: '#F0F0F0',
+    paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1,
   },
-  btn: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-  },
+  btn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { opacity: 0.4 },
-  text: { fontSize: 13, fontWeight: '600', color: '#888' },
-});
-
-// ============================================================================
-// FILTER BAR — chips de période
-// ============================================================================
-
-function FilterBar({
-  options,
-  selected,
-  onSelect,
-}: {
-  options: { key: string; label: string }[];
-  selected: string;
-  onSelect: (k: string) => void;
-}) {
-  if (options.length <= 1) return null;
-  return (
-    <FlatList
-      horizontal
-      data={options}
-      keyExtractor={item => item.key}
-      showsHorizontalScrollIndicator={false}
-      style={{ flexGrow: 0, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}
-      renderItem={({ item }) => {
-        const active = item.key === selected;
-        return (
-          <TouchableOpacity
-            style={[fl.chip, active && fl.chipActive]}
-            onPress={() => onSelect(item.key)}
-            activeOpacity={0.8}
-          >
-            <Text numberOfLines={1} style={[fl.chipText, active && fl.chipTextActive]}>
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      }}
-    />
-  );
-}
-
-const fl = StyleSheet.create({
-  chip: {
-    paddingHorizontal: 18, paddingVertical: 0, height: 32,
-    borderRadius: 20, backgroundColor: '#F5F5F5',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: '#111' },
-  chipText: { fontSize: 14, fontWeight: '500', color: '#888', textAlign: 'center' },
-  chipTextActive: { color: '#FFF', fontWeight: '700' },
+  text: { fontSize: 13, fontWeight: '600' },
 });
 
 // ============================================================================
 // MAIN SCREEN
 // ============================================================================
 
+const PER_PAGE = 5;
+
 export default function Documents() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const theme = useAppTheme();
+
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
 
-  const loadTickets = useCallback(async (pageNum = 1) => {
+  const loadInvoices = useCallback(async () => {
     try {
-      const response = await api.requests.list({ page: pageNum, limit: 5 });
-      const data = response.data || response;
-      setTickets(Array.isArray(data) ? data : []);
-      if (response.total) setTotalPages(Math.ceil(response.total / 5));
+      const res = await api.invoices.list();
+      const data = res.data || res;
+      setInvoices(Array.isArray(data) ? data : []);
     } catch (e) {
       devError('Documents load error:', e);
-      Alert.alert('Erreur', 'Impossible de charger les documents.');
+      Alert.alert('Erreur', 'Impossible de charger les factures.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { loadTickets(page); }, [page]);
+  useEffect(() => { loadInvoices(); }, []);
 
-  const onRefresh = () => { setRefreshing(true); loadTickets(page); };
+  const onRefresh = () => { setRefreshing(true); loadInvoices(); };
 
-  // Génère dynamiquement les mois depuis les vraies données
-  const periodOptions = React.useMemo(() => {
-    const monthSet = new Map<string, string>();
-    tickets.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      monthSet.set(key, label);
-    });
-    const sorted = Array.from(monthSet.entries())
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([key, label]) => ({ key, label }));
-    return [{ key: 'all', label: 'Tous' }, ...sorted];
-  }, [tickets]);
-
-  // Filtre les tickets selon la période sélectionnée
-  const filteredTickets = React.useMemo(() => {
-    if (selectedPeriod === 'all') return tickets;
-    return tickets.filter(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      return key === selectedPeriod;
-    });
-  }, [tickets, selectedPeriod]);
+  // Pagination locale (max 5 par page)
+  const totalPages = Math.max(1, Math.ceil(invoices.length / PER_PAGE));
+  const pagedInvoices = invoices.slice((invoicePage - 1) * PER_PAGE, invoicePage * PER_PAGE);
 
   if (loading) {
     return (
-      <SafeAreaView style={s.center}>
-        <ActivityIndicator size="large" color="#111" />
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator size="large" color={theme.textAlt} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
       {/* ── Header ── */}
-      <View style={s.header}>
+      <View style={[s.header, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
         <View>
-          <Text style={s.headerTitle}>Documents</Text>
-          <Text style={s.headerSub}>Justificatifs et historique</Text>
+          <Text style={[s.headerTitle, { color: theme.textAlt }]}>Documents</Text>
+          <Text style={[s.headerSub, { color: theme.textMuted }]}>Vos factures</Text>
         </View>
-        <TouchableOpacity style={s.helpBtn} activeOpacity={0.7}
-          onPress={() => {/* support */ }}
+        <TouchableOpacity
+          style={[s.helpBtn, { backgroundColor: theme.surface }]}
+          activeOpacity={0.7}
+          onPress={() => {/* support */}}
         >
-          <Ionicons name="help-circle-outline" size={20} color="#111" />
+          <Ionicons name="help-circle-outline" size={20} color={theme.textAlt} />
         </TouchableOpacity>
       </View>
-
-      {/* ── Period Filter Chips ── */}
-      <FilterBar
-        options={periodOptions}
-        selected={selectedPeriod}
-        onSelect={(k) => { setSelectedPeriod(k); setPage(1); }}
-      />
 
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#111" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.textAlt} />}
       >
 
-        {/* ══ JUSTIFICATIFS DE SERVICE ══ */}
+        {/* ══ FACTURES ══ */}
         <View style={s.section}>
           <SectionHeader
-            icon="receipt-outline"
-            label="Justificatifs de service"
-            count={filteredTickets.length}
+            icon="document-text-outline"
+            label="Factures"
+            count={invoices.length}
+            theme={theme}
           />
-          <Card>
-            {filteredTickets.length === 0 ? (
+          <Card theme={theme}>
+            {invoices.length === 0 ? (
               <EmptyCard
-                icon="receipt-outline"
-                text="Aucun justificatif"
-                sub="Vos récapitulatifs de services apparaîtront ici une fois vos demandes terminées."
+                icon="document-text-outline"
+                text="Aucune facture"
+                sub="Vos factures apparaîtront ici après chaque service terminé."
+                theme={theme}
               />
             ) : (
               <>
-                {filteredTickets.map((ticket, i) => (
-                  <ReceiptCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    onPress={() => setSelectedTicket(ticket)}
-                    isLast={i === filteredTickets.length - 1}
+                {pagedInvoices.map((inv, i) => (
+                  <InvoiceCard
+                    key={inv.id}
+                    invoice={inv}
+                    onPress={() => setSelectedInvoice(inv)}
+                    isLast={i === pagedInvoices.length - 1}
+                    theme={theme}
                   />
                 ))}
                 <Pagination
-                  page={page}
+                  page={invoicePage}
                   total={totalPages}
-                  onPrev={() => setPage(p => Math.max(1, p - 1))}
-                  onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+                  onPrev={() => setInvoicePage(p => Math.max(1, p - 1))}
+                  onNext={() => setInvoicePage(p => Math.min(totalPages, p + 1))}
+                  theme={theme}
                 />
               </>
             )}
           </Card>
         </View>
 
-        {/* ══ CONTRATS ══ */}
+        {/* ══ ASSISTANCE ══ */}
         <View style={s.section}>
-          <SectionHeader icon="document-text-outline" label="Contrats" />
-          <Card>
-            <EmptyCard
-              icon="document-text-outline"
-              text="Aucun contrat actif"
-              sub="Retrouvez ici vos abonnements et contrats de maintenance récurrents."
-            />
-            {/* Bouton CTA si besoin futur */}
-            {/* <TouchableOpacity style={s.ctaBtn}>...</TouchableOpacity> */}
-          </Card>
-        </View>
-
-        {/* ══ FACTURES ══ */}
-        <View style={s.section}>
-          <SectionHeader icon="card-outline" label="Factures" />
-          <Card>
-            <EmptyCard
-              icon="card-outline"
-              text="Aucune facture disponible"
-              sub="Vos factures officielles (PDF / Peppol) apparaîtront après chaque service facturé."
-            />
-          </Card>
-          {/* Peppol CTA */}
-          <TouchableOpacity style={s.peppolBtn} activeOpacity={0.8}>
-            <View style={s.peppolIcon}>
-              <Ionicons name="cloud-upload-outline" size={18} color="#555" />
-            </View>
-            <View style={s.peppolContent}>
-              <Text style={s.peppolTitle}>Réseau Peppol</Text>
-              <Text style={s.peppolSub}>Envoyez vos factures directement à votre comptabilité</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-          </TouchableOpacity>
-        </View>
-
-        {/* ══ SUPPORT ══ */}
-        <View style={s.section}>
-          <SectionHeader icon="shield-checkmark-outline" label="Assistance" />
-          <Card>
+          <SectionHeader icon="shield-checkmark-outline" label="Assistance" theme={theme} />
+          <Card theme={theme}>
             <TouchableOpacity style={s.supportRow} activeOpacity={0.7}>
-              <View style={[s.supportIcon, { backgroundColor: '#F5F5F5' }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#555" />
+              <View style={[s.supportIcon, { backgroundColor: theme.surface }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.textSub} />
               </View>
               <View style={s.supportContent}>
-                <Text style={s.supportLabel}>Un problème avec un document ?</Text>
-                <Text style={s.supportSub}>Contactez notre support client</Text>
+                <Text style={[s.supportLabel, { color: theme.textAlt }]}>Un problème avec une facture ?</Text>
+                <Text style={[s.supportSub, { color: theme.textMuted }]}>Contactez notre support client</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#ADADAD" />
-            </TouchableOpacity>
-            <View style={s.supportDivider} />
-            <TouchableOpacity style={s.supportRow} activeOpacity={0.7}>
-              <View style={[s.supportIcon, { backgroundColor: '#F5F5F5' }]}>
-                <Ionicons name="shield-checkmark-outline" size={18} color="#555" />
-              </View>
-              <View style={s.supportContent}>
-                <Text style={s.supportLabel}>Politique de remboursement</Text>
-                <Text style={s.supportSub}>Vos droits en tant que client</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#ADADAD" />
+              <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
             </TouchableOpacity>
           </Card>
         </View>
 
       </ScrollView>
 
-      {/* BottomSheet détail */}
-      <TicketDetailSheet
-        ticket={selectedTicket}
-        isVisible={!!selectedTicket}
-        onClose={() => setSelectedTicket(null)}
+      {/* BottomSheet facture */}
+      <InvoiceSheet
+        invoice={selectedInvoice}
+        isVisible={!!selectedInvoice}
+        onClose={() => setSelectedInvoice(null)}
+        userRole="client"
       />
     </SafeAreaView>
   );
@@ -512,47 +336,24 @@ export default function Documents() {
 // ============================================================================
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FB' },
+  root: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Header
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: '#111' },
-  headerSub: { fontSize: 13, color: '#ADADAD', fontWeight: '500', marginTop: 2 },
+  headerTitle: { fontSize: 26, fontWeight: '800' },
+  headerSub: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   helpBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   scroll: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 48 },
-
   section: { marginBottom: 20 },
 
-  // Peppol banner
-  peppolBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#FFF', borderRadius: 14,
-    padding: 14, marginTop: 8,
-    borderWidth: 1, borderColor: '#F0F0F0',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 1 },
-    }),
-  },
-  peppolIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-  },
-  peppolContent: { flex: 1 },
-  peppolTitle: { fontSize: 14, fontWeight: '700', color: '#111' },
-  peppolSub: { fontSize: 12, color: '#ADADAD', marginTop: 1 },
-
-  // Support rows
   supportRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 13, paddingHorizontal: 16,
@@ -562,7 +363,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   supportContent: { flex: 1 },
-  supportLabel: { fontSize: 14, fontWeight: '600', color: '#111' },
-  supportSub: { fontSize: 12, color: '#ADADAD', marginTop: 1 },
-  supportDivider: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 64 },
+  supportLabel: { fontSize: 14, fontWeight: '600' },
+  supportSub: { fontSize: 12, marginTop: 1 },
 });

@@ -216,25 +216,24 @@ export default function NotificationsScreen() {
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#F5F5F5' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  root:   { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: '#F5F5F5',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
   headerBadge: {
-    backgroundColor: '#1A1A1A', borderRadius: 10,
+    borderRadius: 10,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  headerBadgeText: { fontSize: 11, fontWeight: '800', color: '#FFF' },
+  headerBadgeText: { fontSize: 11, fontWeight: '800' },
   markAllBtn: { paddingHorizontal: 8, paddingVertical: 6 },
-  markAllText: { fontSize: 13, fontWeight: '600', color: '#888' },
+  markAllText: { fontSize: 13, fontWeight: '600' },
 
   // Liste
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
@@ -243,39 +242,37 @@ const s = StyleSheet.create({
   // Ligne
   row: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', borderRadius: 18,
+    borderRadius: 18,
     padding: 14, gap: 12,
-    borderWidth: 1, borderColor: '#F0F0F0',
+    borderWidth: 1,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 1 },
     }),
   },
-  rowUnread: { borderColor: '#E8E8E8', backgroundColor: '#FAFAFA' },
+  rowUnread: {},
   unreadDot: {
     position: 'absolute', top: 14, left: 14,
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: '#1A1A1A',
   },
   iconWrap: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   content: { flex: 1 },
-  title:   { fontSize: 14, fontWeight: '600', color: '#555', marginBottom: 2 },
-  titleUnread: { fontWeight: '800', color: '#1A1A1A' },
-  message: { fontSize: 13, color: '#888', lineHeight: 18, marginBottom: 4 },
-  time:    { fontSize: 11, color: '#C0C0C0', fontWeight: '500' },
+  title:   { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  titleUnread: { fontWeight: '800' },
+  message: { fontSize: 13, lineHeight: 18, marginBottom: 4 },
+  time:    { fontSize: 11, fontWeight: '500' },
   deleteBtn: { padding: 4 },
 
   // Empty
   empty: { alignItems: 'center', paddingVertical: 80, gap: 12 },
   emptyIcon: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: '#F0F0F0',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle:    { fontSize: 17, fontWeight: '700', color: '#888' },
-  emptySubtitle: { fontSize: 13, color: '#C0C0C0', textAlign: 'center', lineHeight: 19, paddingHorizontal: 40 },
+  emptyTitle:    { fontSize: 17, fontWeight: '700' },
+  emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 40 },
 });

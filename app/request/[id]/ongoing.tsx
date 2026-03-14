@@ -1,12 +1,12 @@
 // app/request/[id]/ongoing.tsx
-// v3 — Photo + PIN verification flow
+// v4 — Step-by-step guided mission flow for providers
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Linking,
   ActivityIndicator,
@@ -15,10 +15,12 @@ import {
   StatusBar,
   BackHandler,
   TextInput,
-  Image,
-  ScrollView,
   KeyboardAvoidingView,
+  Pressable,
+  Animated,
+  Easing,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,43 +28,28 @@ import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-// ============================================================================
-// UTILS
-// ============================================================================
+// ─── Utils ───────────────────────────────────────────────────────────────────
 
 const formatEuros = (amount: number): string =>
   amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const decodePolyline = (encoded: string) => {
-  const points = [];
-  let index = 0;
-  const len = encoded.length;
-  let lat = 0, lng = 0;
-
-  while (index < len) {
+  const points: { latitude: number; longitude: number }[] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
     let b, shift = 0, result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
-
-    shift = 0;
-    result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
-
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
     points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
   }
   return points;
@@ -72,72 +59,41 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// ─── Map style Silver ────────────────────────────────────────────────────────
-const SILVER_MAP_STYLE = [
-  { elementType: 'geometry',            stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.text.fill',    stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke',  stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'landscape',           elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'road',                elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road',                elementType: 'geometry.stroke', stylers: [{ color: '#e0e0e0' }] },
-  { featureType: 'road',                elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'road.arterial',       elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.highway',        elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-  { featureType: 'road.highway',        elementType: 'geometry.stroke', stylers: [{ color: '#cfcfcf' }] },
-  { featureType: 'road.local',          elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'water',               elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
-  { featureType: 'water',               elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'administrative',      elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
-  { featureType: 'poi',                 stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',             stylers: [{ visibility: 'off' }] },
+const MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
 ];
 
-// ============================================================================
-// VALID STATES
-// ============================================================================
-
-const ACTIONABLE_STATUSES   = ['ACCEPTED', 'ONGOING'];
-const TRANSITIONAL_STATUSES = ['PUBLISHED', 'PENDING'];
-
-const RETRY_MAX   = 6;
+const RETRY_MAX = 6;
 const RETRY_DELAY = 800;
-const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-// ============================================================================
-// UPLOAD HELPER — multipart/form-data for mission photos
-// ============================================================================
+// ─── Upload helper ───────────────────────────────────────────────────────────
 
 async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', imageUri: string): Promise<string> {
   const token = await tokenStorage.getToken();
   const endpoint = type === 'before' ? 'before-photo' : 'after-photo';
   const url = `${API_BASE_URL}/requests/${requestId}/${endpoint}`;
-
   const formData = new FormData();
   const filename = imageUri.split('/').pop() || `mission_${type}.jpg`;
   const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
   const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-
-  formData.append('photo', {
-    uri: imageUri,
-    name: filename,
-    type: mimeType,
-  } as any);
-
+  formData.append('photo', { uri: imageUri, name: filename, type: mimeType } as any);
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      'ngrok-skip-browser-warning': 'true',
-    },
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'ngrok-skip-browser-warning': 'true' },
     body: formData,
   });
-
   const text = await response.text();
   let data: any;
   try { data = JSON.parse(text); } catch { throw new Error('Reponse invalide du serveur'); }
@@ -145,826 +101,762 @@ async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', i
   return data.photoUrl;
 }
 
-// ============================================================================
-// COMPONENT
-// ============================================================================
+// ─── Step indicator component ────────────────────────────────────────────────
+
+type MissionStep = 1 | 2 | 3 | 4 | 5;
+
+const STEP_LABELS: Record<number, { title: string; icon: string }> = {
+  1: { title: 'Photo avant', icon: 'camera-outline' },
+  2: { title: 'Code PIN', icon: 'key-outline' },
+  3: { title: 'Démarrer', icon: 'play-outline' },
+  4: { title: 'Photo après', icon: 'camera-outline' },
+  5: { title: 'Terminer', icon: 'checkmark-circle-outline' },
+};
+
+function StepIndicator({ current, total }: { current: number; total: number }) {
+  return (
+    <View style={si.row}>
+      {Array.from({ length: total }, (_, i) => {
+        const step = i + 1;
+        const isDone = step < current;
+        const isActive = step === current;
+        return (
+          <React.Fragment key={step}>
+            {i > 0 && <View style={[si.line, isDone && si.lineDone]} />}
+            <View style={[si.dot, isDone && si.dotDone, isActive && si.dotActive]}>
+              {isDone ? (
+                <Ionicons name="checkmark" size={10} color="#FFF" />
+              ) : (
+                <Text style={[si.dotText, isActive && si.dotTextActive]}>{step}</Text>
+              )}
+            </View>
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+const si = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  dot: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center',
+  },
+  dotDone: { backgroundColor: '#22C55E' },
+  dotActive: { backgroundColor: '#1A1A1A', ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 3 } }) },
+  dotText: { fontSize: 12, fontWeight: '700', color: '#ADADAD' },
+  dotTextActive: { color: '#FFF' },
+  line: { width: 28, height: 2, backgroundColor: '#EBEBEB', marginHorizontal: 4 },
+  lineDone: { backgroundColor: '#22C55E' },
+});
+
+// ─── Action card component ───────────────────────────────────────────────────
+
+function ActionCard({ icon, title, subtitle, children }: {
+  icon: string; title: string; subtitle: string; children: React.ReactNode;
+}) {
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(slideUp, { toValue: 0, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[ac.card, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
+      <View style={ac.header}>
+        <View style={ac.iconCircle}>
+          <Ionicons name={icon as any} size={22} color="#1A1A1A" />
+        </View>
+        <View style={ac.headerText}>
+          <Text style={ac.title}>{title}</Text>
+          <Text style={ac.subtitle}>{subtitle}</Text>
+        </View>
+      </View>
+      {children}
+    </Animated.View>
+  );
+}
+
+const ac = StyleSheet.create({
+  card: {
+    backgroundColor: '#FFF', borderRadius: 16, padding: 14,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 3 },
+    }),
+  },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  iconCircle: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: '#F4F4F4',
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+  },
+  headerText: { flex: 1 },
+  title: { fontSize: 17, fontWeight: '800', color: '#1A1A1A', marginBottom: 2 },
+  subtitle: { fontSize: 13, color: '#888' },
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═════════════════════════════════════════════════════════════════════════════
 
 export default function MissionOngoing() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { socket, joinRoom, leaveRoom } = useSocket();
   const mapRef = useRef<MapView>(null);
-  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const locationSub = useRef<Location.LocationSubscription | null>(null);
 
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [myLocation, setMyLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [distance, setDistance] = useState('');
   const [duration, setDuration] = useState('');
-  const [routeCoordinates, setRouteCoordinates] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // ── Photo + PIN state ──────────────────────────────────────────────────────
-  const [beforePhotoUri, setBeforePhotoUri] = useState<string | null>(null);
+  // Photo + PIN state
   const [beforePhotoUploaded, setBeforePhotoUploaded] = useState(false);
-  const [pinDigits, setPinDigits] = useState(['', '', '', '']);
+  const [pin, setPin] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
-  const [afterPhotoUri, setAfterPhotoUri] = useState<string | null>(null);
   const [afterPhotoUploaded, setAfterPhotoUploaded] = useState(false);
-  const pinInputRefs = useRef<(TextInput | null)[]>([]);
+  const pinInputRef = useRef<TextInput>(null);
 
-  // ============================================================================
-  // ROUTE FETCH
-  // ============================================================================
+  // ─── Route fetch ──────────────────────────────────────────────────────────
 
-  const fetchRouteFromGoogle = useCallback(async (
-    originLat: number,
-    originLng: number,
-    destLat: number,
-    destLng: number
-  ): Promise<{ distance: string; duration: string }> => {
+  const fetchRoute = useCallback(async (oLat: number, oLng: number, dLat: number, dLng: number) => {
     try {
-      if (!GOOGLE_MAPS_API_KEY) throw new Error('No API key');
-
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_MAPS_API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.status !== 'OK') throw new Error(`Google API: ${data.status}`);
-
+      if (!GOOGLE_MAPS_API_KEY) throw new Error('No key');
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}&key=${GOOGLE_MAPS_API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status !== 'OK') throw new Error(data.status);
       const leg = data.routes[0].legs[0];
-      const distText = leg.distance.text;
-      const durText = leg.duration.text;
-
-      setDistance(distText);
-      setDuration(durText);
-      setRouteCoordinates(decodePolyline(data.routes[0].overview_polyline.points));
-
-      return { distance: distText, duration: durText };
-    } catch (error) {
-      const dist = calculateDistance(originLat, originLng, destLat, destLng);
-      const distText = `${dist.toFixed(1)} km`;
-      const durText = `${Math.ceil(dist * 3)} min`;
-      setDistance(distText);
-      setDuration(durText);
-      return { distance: distText, duration: durText };
+      setDistance(leg.distance.text);
+      setDuration(leg.duration.text);
+      setRouteCoords(decodePolyline(data.routes[0].overview_polyline.points));
+      return { distance: leg.distance.text, duration: leg.duration.text };
+    } catch {
+      const d = calculateDistance(oLat, oLng, dLat, dLng);
+      setDistance(`${d.toFixed(1)} km`);
+      setDuration(`${Math.ceil(d * 3)} min`);
+      return { distance: `${d.toFixed(1)} km`, duration: `${Math.ceil(d * 3)} min` };
     }
   }, []);
 
-  // ============================================================================
-  // LOAD REQUEST
-  // ============================================================================
+  // ─── Load request ─────────────────────────────────────────────────────────
 
-  const loadRequestDetails = useCallback(async (attempt = 0) => {
+  const loadRequest = useCallback(async (attempt = 0) => {
     try {
       const response = await api.get(`/requests/${id}`);
       const data = response.data || response;
-      const status = (data?.status || '').toUpperCase();
+      const st = (data?.status || '').toUpperCase();
 
-      if (TRANSITIONAL_STATUSES.includes(status)) {
-        if (attempt < RETRY_MAX) {
-          setLoading(true);
-          await sleep(RETRY_DELAY);
-          return loadRequestDetails(attempt + 1);
-        }
-        Alert.alert(
-          'Mission non disponible',
-          "La mission n'a pas pu etre confirmee. Revenez au tableau de bord.",
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]
-        );
+      if (['PUBLISHED', 'PENDING'].includes(st)) {
+        if (attempt < RETRY_MAX) { setLoading(true); await sleep(RETRY_DELAY); return loadRequest(attempt + 1); }
+        Alert.alert('Mission non disponible', "La mission n'a pas pu être confirmée.", [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
         return;
       }
 
-      if (!ACTIONABLE_STATUSES.includes(status)) {
-        if (status === 'DONE') {
-          Alert.alert('Mission deja terminee', 'Cette mission a deja ete cloturee.',
-            [{ text: 'OK', onPress: () => router.replace(`/request/${id}/earnings`) }]);
-        } else if (status === 'CANCELLED' || status === 'EXPIRED') {
-          Alert.alert('Mission annulee', 'Cette mission a ete annulee ou a expire.',
-            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
-        } else {
-          Alert.alert('Mission non disponible', `Statut : ${status}.`,
-            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
-        }
+      if (!['ACCEPTED', 'ONGOING'].includes(st)) {
+        if (st === 'DONE') router.replace(`/request/${id}/earnings`);
+        else router.replace('/(tabs)/dashboard');
         return;
       }
 
-      // Restore photo/PIN state from server data
-      if (data.beforePhotoUrl) {
-        setBeforePhotoUploaded(true);
-        setBeforePhotoUri(data.beforePhotoUrl);
-      }
-      if (data.pinVerified) {
-        setPinVerified(true);
-      }
-      if (data.afterPhotoUrl) {
-        setAfterPhotoUploaded(true);
-        setAfterPhotoUri(data.afterPhotoUrl);
-      }
-
+      if (data.beforePhotoUrl) setBeforePhotoUploaded(true);
+      if (data.pinVerified) setPinVerified(true);
+      if (data.afterPhotoUrl) setAfterPhotoUploaded(true);
       setRequest(data);
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les details de la mission', [
-        { text: 'Retour', onPress: () => router.back() },
-      ]);
+    } catch {
+      Alert.alert('Erreur', 'Impossible de charger la mission', [{ text: 'Retour', onPress: () => router.back() }]);
     } finally {
       setLoading(false);
     }
   }, [id, router]);
 
-  useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => sub.remove();
-  }, []);
+  useEffect(() => { BackHandler.addEventListener('hardwareBackPress', () => true); }, []);
+  useEffect(() => { loadRequest(); }, [loadRequest]);
 
-  useEffect(() => {
-    loadRequestDetails();
-  }, [loadRequestDetails]);
+  // Re-fetch les données quand l'écran regagne le focus (retour d'app switch)
+  const hasMountedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      // Skip first mount (loadRequest already called via useEffect)
+      if (!hasMountedRef.current) { hasMountedRef.current = true; return; }
+      loadRequest();
+    }, [loadRequest])
+  );
 
-  // ============================================================================
-  // LOCATION TRACKING
-  // ============================================================================
+  // ─── Location tracking ────────────────────────────────────────────────────
 
-  const startLocationTracking = useCallback(async (req: any) => {
+  const requestRef = useRef<any>(null);
+  const trackingStartedRef = useRef(false);
+  const lastEmitRef = useRef(0);
+
+  // Keep requestRef in sync without re-triggering effects
+  useEffect(() => { requestRef.current = request; }, [request]);
+
+  const startTracking = useCallback(async () => {
+    if (trackingStartedRef.current) return; // Prevent duplicate watchers
+    trackingStartedRef.current = true;
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission refusee', 'Activez la localisation pour utiliser cette fonctionnalite');
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const coords = { latitude: location.coords.latitude, longitude: location.coords.longitude };
+      if (status !== 'granted') { trackingStartedRef.current = false; return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setMyLocation(coords);
+      const req = requestRef.current;
+      if (req?.lat && req?.lng) await fetchRoute(coords.latitude, coords.longitude, req.lat, req.lng);
 
-      if (req?.lat && req?.lng) {
-        await fetchRouteFromGoogle(coords.latitude, coords.longitude, req.lat, req.lng);
-      }
-
-      locationSubscription.current = await Location.watchPositionAsync(
+      locationSub.current = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 10000, distanceInterval: 30 },
-        async (newLocation) => {
-          const newCoords = { latitude: newLocation.coords.latitude, longitude: newLocation.coords.longitude };
-          setMyLocation(newCoords);
-
-          if (req?.lat && req?.lng) {
-            const routeData = await fetchRouteFromGoogle(newCoords.latitude, newCoords.longitude, req.lat, req.lng);
-            if (socket?.connected) {
-              socket.emit('provider:location_update', {
-                requestId: Number(id),
-                lat: newCoords.latitude,
-                lng: newCoords.longitude,
-                eta: routeData.duration,
-              });
+        async (newLoc) => {
+          const c = { latitude: newLoc.coords.latitude, longitude: newLoc.coords.longitude };
+          setMyLocation(c);
+          const curReq = requestRef.current;
+          if (curReq?.lat && curReq?.lng) {
+            const rd = await fetchRoute(c.latitude, c.longitude, curReq.lat, curReq.lng);
+            // Throttle socket emissions to max 1 per 10 seconds
+            const now = Date.now();
+            if (now - lastEmitRef.current >= 10_000 && socket?.connected) {
+              lastEmitRef.current = now;
+              socket.emit('provider:location_update', { requestId: Number(id), lat: c.latitude, lng: c.longitude, eta: rd.duration });
             }
           }
         }
       );
-    } catch (error) {
-      devError('[ONGOING] Location error:', error);
-    }
-  }, [fetchRouteFromGoogle, socket, id]);
+    } catch (e) { devError('[ONGOING] Location:', e); trackingStartedRef.current = false; }
+  }, [fetchRoute, socket, id]);
 
   useEffect(() => {
-    if (request) startLocationTracking(request);
+    if (request && !trackingStartedRef.current) startTracking();
     return () => {
-      if (locationSubscription.current) {
-        locationSubscription.current.remove();
-        locationSubscription.current = null;
-      }
+      if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
+      trackingStartedRef.current = false;
     };
-  }, [request]);
+  }, [!!request]); // Only trigger on request existence change (null→object), not on every update
 
-  // ============================================================================
-  // SOCKET
-  // ============================================================================
+  // ─── Socket ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!socket || !id) return;
     joinRoom('request', id);
-
-    const handleRequestCancelled = (data: any) => {
+    const onCancelled = (data: any) => {
       if (String(data.requestId || data.id) === String(id)) {
-        if (locationSubscription.current) {
-          locationSubscription.current.remove();
-          locationSubscription.current = null;
-        }
+        if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
         router.replace('/(tabs)/dashboard');
       }
     };
-
-    socket.on('request:cancelled', handleRequestCancelled);
-    return () => {
-      leaveRoom('request', id);
-      socket.off('request:cancelled', handleRequestCancelled);
-    };
+    socket.on('request:cancelled', onCancelled);
+    return () => { leaveRoom('request', id); socket.off('request:cancelled', onCancelled); };
   }, [socket, id, router, joinRoom, leaveRoom]);
 
-  // ============================================================================
-  // ACTIONS — Photo + PIN flow
-  // ============================================================================
+  // ─── Actions ──────────────────────────────────────────────────────────────
 
-  const handleCallClient = () => {
-    if (request?.client?.phone) {
-      Linking.openURL(`tel:${request.client.phone}`);
-    } else {
-      Alert.alert('Numero indisponible', "Le numero du client n'est pas disponible.");
-    }
+  const handleCall = () => {
+    if (request?.client?.phone) Linking.openURL(`tel:${request.client.phone}`);
+    else Alert.alert('Indisponible', "Le numéro du client n'est pas disponible.");
   };
 
   const handleNavigate = async () => {
     if (!request?.lat || !request?.lng) return;
     const { lat, lng } = request;
-
     if (Platform.OS === 'ios') {
-      const googleMapsUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
-      const appleMapsUrl  = `maps://?daddr=${lat},${lng}`;
-      const webFallback   = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-      const canGoogle = await Linking.canOpenURL(googleMapsUrl);
-      if (canGoogle) { Linking.openURL(googleMapsUrl); }
-      else {
-        const canApple = await Linking.canOpenURL(appleMapsUrl);
-        Linking.openURL(canApple ? appleMapsUrl : webFallback);
-      }
+      const gUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+      const aUrl = `maps://?daddr=${lat},${lng}`;
+      const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      const canG = await Linking.canOpenURL(gUrl);
+      if (canG) Linking.openURL(gUrl);
+      else { const canA = await Linking.canOpenURL(aUrl); Linking.openURL(canA ? aUrl : web); }
     } else {
-      const googleNavUrl = `google.navigation:q=${lat},${lng}&mode=d`;
-      const webFallback  = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-      const canOpen = await Linking.canOpenURL(googleNavUrl);
-      Linking.openURL(canOpen ? googleNavUrl : webFallback);
+      const gNav = `google.navigation:q=${lat},${lng}&mode=d`;
+      const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      const can = await Linking.canOpenURL(gNav);
+      Linking.openURL(can ? gNav : web);
     }
   };
 
-  // ── Step 1: Take BEFORE photo ─────────────────────────────────────────────
-  const handleTakeBeforePhoto = async () => {
+  // Step 1: Before photo
+  const handleBeforePhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Autorisez la camera pour prendre une photo.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.7,
-      });
-
+      if (status !== 'granted') { Alert.alert('Permission requise', 'Autorisez la caméra.'); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
       if (result.canceled || !result.assets?.[0]?.uri) return;
-
-      const uri = result.assets[0].uri;
-      setBeforePhotoUri(uri);
       setActionLoading(true);
-
       try {
-        await uploadMissionPhoto(id!, 'before', uri);
+        await uploadMissionPhoto(id!, 'before', result.assets[0].uri);
         setBeforePhotoUploaded(true);
-        Alert.alert('Photo enregistree', 'Demandez maintenant le code PIN au client.');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
-        devError('[ONGOING] Before photo upload error:', err);
-        setBeforePhotoUri(null);
+        devError('[ONGOING] Before photo:', err);
         Alert.alert('Erreur', err.message || "Impossible d'envoyer la photo.");
-      } finally {
-        setActionLoading(false);
-      }
-    } catch (err) {
-      devError('[ONGOING] Camera error:', err);
-    }
+      } finally { setActionLoading(false); }
+    } catch (err) { devError('[ONGOING] Camera:', err); }
   };
 
-  // ── Step 2: Verify PIN ────────────────────────────────────────────────────
-  const handlePinChange = (text: string, index: number) => {
-    const digit = text.replace(/[^0-9]/g, '').slice(-1);
-    const newDigits = [...pinDigits];
-    newDigits[index] = digit;
-    setPinDigits(newDigits);
-
-    if (digit && index < 3) {
-      pinInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePinKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !pinDigits[index] && index > 0) {
-      pinInputRefs.current[index - 1]?.focus();
-    }
+  // Step 2: PIN
+  const handlePinChange = (value: string) => {
+    const cleaned = value.replace(/[^0-9]/g, '').slice(0, 4);
+    setPin(cleaned);
+    requestAnimationFrame(() => pinInputRef.current?.focus());
   };
 
   const handleVerifyPin = async () => {
-    const pin = pinDigits.join('');
-    if (pin.length !== 4) {
-      Alert.alert('Code incomplet', 'Saisissez les 4 chiffres du code PIN.');
-      return;
-    }
-
+    if (pin.length !== 4) return;
     setActionLoading(true);
     try {
       await api.post(`/requests/${id}/verify-pin`, { pin });
       setPinVerified(true);
-      Alert.alert('Code verifie', 'Vous pouvez maintenant demarrer la mission.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (error: any) {
       const code = error?.data?.code;
       if (code === 'PIN_INCORRECT') {
-        Alert.alert('Code incorrect', error.data?.message || 'Reessayez.');
-        setPinDigits(['', '', '', '']);
-        pinInputRefs.current[0]?.focus();
+        Alert.alert('Code incorrect', error.data?.message || 'Réessayez.');
+        setPin('');
+        pinInputRef.current?.focus();
       } else if (code === 'PIN_EXPIRED') {
-        Alert.alert('Code expire', 'Le code PIN a expire. Contactez le support.');
+        Alert.alert('Code expiré', 'Le code PIN a expiré.');
       } else if (code === 'PIN_MAX_ATTEMPTS') {
-        Alert.alert('Trop de tentatives', 'Nombre maximum de tentatives atteint. Contactez le support.');
+        Alert.alert('Trop de tentatives', 'Contactez le support.');
       } else {
-        Alert.alert('Erreur', error.message || 'Impossible de verifier le code.');
+        Alert.alert('Erreur', error.message || 'Impossible de vérifier le code.');
       }
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
-  // ── Step 3: Start mission (photo + PIN both verified) ─────────────────────
-  const handleStartMission = async () => {
-    if (!request || request.status?.toUpperCase() !== 'ACCEPTED') {
-      Alert.alert('Action impossible', `La mission est deja en statut "${request?.status}".`);
-      return;
-    }
-
+  // Step 3: Start
+  const handleStart = async () => {
     setActionLoading(true);
     try {
       await api.post(`/requests/${id}/start`);
-      setRequest((prev: any) => ({ ...prev, status: 'ONGOING' }));
-      Alert.alert('Mission demarree', 'Le client a ete notifie.');
+      setRequest((p: any) => ({ ...p, status: 'ONGOING' }));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (error: any) {
-      if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
-        await loadRequestDetails();
-        Alert.alert('Statut mis a jour', 'La mission etait deja dans un etat different.');
-      } else {
-        Alert.alert('Erreur', error.message || 'Impossible de demarrer la mission');
-      }
-    } finally {
-      setActionLoading(false);
-    }
+      if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
+      else Alert.alert('Erreur', error.message || 'Impossible de démarrer.');
+    } finally { setActionLoading(false); }
   };
 
-  // ── Step 4: Take AFTER photo ──────────────────────────────────────────────
-  const handleTakeAfterPhoto = async () => {
+  // Step 4: After photo
+  const handleAfterPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Autorisez la camera pour prendre une photo.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.7,
-      });
-
+      if (status !== 'granted') { Alert.alert('Permission requise', 'Autorisez la caméra.'); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
       if (result.canceled || !result.assets?.[0]?.uri) return;
-
-      const uri = result.assets[0].uri;
-      setAfterPhotoUri(uri);
       setActionLoading(true);
-
       try {
-        await uploadMissionPhoto(id!, 'after', uri);
+        await uploadMissionPhoto(id!, 'after', result.assets[0].uri);
         setAfterPhotoUploaded(true);
-        Alert.alert('Photo enregistree', 'Vous pouvez maintenant terminer la mission.');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
-        devError('[ONGOING] After photo upload error:', err);
-        setAfterPhotoUri(null);
+        devError('[ONGOING] After photo:', err);
         Alert.alert('Erreur', err.message || "Impossible d'envoyer la photo.");
-      } finally {
-        setActionLoading(false);
-      }
-    } catch (err) {
-      devError('[ONGOING] Camera error:', err);
-    }
+      } finally { setActionLoading(false); }
+    } catch (err) { devError('[ONGOING] Camera:', err); }
   };
 
-  // ── Step 5: Complete mission ──────────────────────────────────────────────
-  const handleCompleteMission = () => {
-    if (!request || request.status?.toUpperCase() !== 'ONGOING') {
-      Alert.alert('Action impossible', `La mission est en statut "${request?.status}".`);
-      return;
-    }
-
-    Alert.alert(
-      'Terminer la mission',
-      'Confirmer que la mission est terminee ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              const response = await api.post(`/requests/${id}/complete`);
-
-              if (locationSubscription.current) {
-                locationSubscription.current.remove();
-                locationSubscription.current = null;
-              }
-
-              const earnings = response.earnings ?? (request?.price * 0.85);
-              router.replace({
-                pathname: '/request/[id]/earnings',
-                params: { id: String(id), earnings: String(earnings) },
-              });
-            } catch (error: any) {
-              if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
-                await loadRequestDetails();
-                Alert.alert('Statut inattendu', 'La mission a ete mise a jour.');
-              } else {
-                const msg = error.data?.message || error.message || 'Une erreur est survenue';
-                Alert.alert('Erreur', msg);
-              }
-            } finally {
-              setActionLoading(false);
-            }
-          },
+  // Step 5: Complete
+  const handleComplete = () => {
+    Alert.alert('Terminer la mission', 'Confirmer que la mission est terminée ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Confirmer',
+        onPress: async () => {
+          setActionLoading(true);
+          try {
+            const response = await api.post(`/requests/${id}/complete`);
+            if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            const earnings = response.earnings ?? (request?.price * 0.85);
+            router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id), earnings: String(earnings) } });
+          } catch (error: any) {
+            if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
+            else Alert.alert('Erreur', error.data?.message || error.message || 'Une erreur est survenue.');
+          } finally { setActionLoading(false); }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  // ─── Computed ─────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#000" />
-        <Text style={styles.loadingText}>Chargement...</Text>
+      <View style={s.loadingWrap}>
+        <ActivityIndicator size="large" color="#1A1A1A" />
+        <Text style={s.loadingText}>Chargement de la mission...</Text>
       </View>
     );
   }
 
   if (!request) return null;
 
-  const clientLocation = {
-    latitude: request?.lat || 50.8503,
-    longitude: request?.lng || 4.3517,
-  };
-
-  const mapInitialRegion = myLocation
-    ? { ...myLocation, latitudeDelta: 0.05, longitudeDelta: 0.05 }
-    : { ...clientLocation, latitudeDelta: 0.05, longitudeDelta: 0.05 };
-
+  const clientLoc = { latitude: request?.lat || 50.8503, longitude: request?.lng || 4.3517 };
+  const mapRegion = myLocation
+    ? { ...myLocation, latitudeDelta: 0.04, longitudeDelta: 0.04 }
+    : { ...clientLoc, latitudeDelta: 0.04, longitudeDelta: 0.04 };
   const status = (request.status || '').toUpperCase();
 
-  // ── Determine current step for ACCEPTED state ─────────────────────────────
-  const needsBeforePhoto = status === 'ACCEPTED' && !beforePhotoUploaded;
-  const needsPin = status === 'ACCEPTED' && beforePhotoUploaded && !pinVerified;
-  const readyToStart = status === 'ACCEPTED' && beforePhotoUploaded && pinVerified;
-  const needsAfterPhoto = status === 'ONGOING' && !afterPhotoUploaded;
-  const readyToComplete = status === 'ONGOING' && afterPhotoUploaded;
+  // Current step — toujours sur 5, flow linéaire continu
+  let currentStep: MissionStep = 1;
+  if (!beforePhotoUploaded) currentStep = 1;
+  else if (!pinVerified) currentStep = 2;
+  else if (status === 'ACCEPTED') currentStep = 3;
+  else if (status === 'ONGOING' && !afterPhotoUploaded) currentStep = 4;
+  else currentStep = 5;
+
+  const stepInfo = STEP_LABELS[currentStep];
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═════════════════════════════════════════════════════════════════════════
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={s.root}>
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+
+      {/* ── Carte ── */}
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        customMapStyle={SILVER_MAP_STYLE}
-        initialRegion={mapInitialRegion}
+        style={s.map}
+        customMapStyle={MAP_STYLE}
+        initialRegion={mapRegion}
         showsUserLocation
         followsUserLocation
         showsMyLocationButton={false}
         showsCompass={false}
       >
-        <Marker coordinate={clientLocation} title="Client" pinColor="#111111" />
-        {routeCoordinates.length > 0 ? (
-          <Polyline coordinates={routeCoordinates} strokeColor="#111111" strokeWidth={4} />
+        <Marker coordinate={clientLoc} anchor={{ x: 0.5, y: 0.5 }}>
+          <View style={s.clientPin}>
+            <Ionicons name="location" size={18} color="#FFF" />
+          </View>
+        </Marker>
+        {routeCoords.length > 0 ? (
+          <Polyline coordinates={routeCoords} strokeColor="#1A1A1A" strokeWidth={4} />
         ) : myLocation ? (
-          <Polyline
-            coordinates={[myLocation, clientLocation]}
-            strokeColor="#ADADAD"
-            strokeWidth={3}
-            lineDashPattern={[8, 6]}
-          />
+          <Polyline coordinates={[myLocation, clientLoc]} strokeColor="#ADADAD" strokeWidth={3} lineDashPattern={[8, 6]} />
         ) : null}
       </MapView>
 
-      {/* Back button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
-      </TouchableOpacity>
+      {/* ── Top bar flottant ── */}
+      <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+        </TouchableOpacity>
 
-      {/* Info card */}
+        {/* ETA pills */}
+        <View style={s.etaPills}>
+          <View style={s.etaPill}>
+            <Ionicons name="car-outline" size={14} color="#1A1A1A" />
+            <Text style={s.etaPillText}>{duration || '...'}</Text>
+          </View>
+          <View style={s.etaPill}>
+            <Ionicons name="navigate-outline" size={14} color="#1A1A1A" />
+            <Text style={s.etaPillText}>{distance || '...'}</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+
+      {/* ── Bottom sheet ── */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'position' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-        style={styles.infoCardWrapper}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -20 : 0}
+        style={s.sheetWrapper}
       >
-        <View style={styles.infoCard}>
-          {/* ETA */}
-          <View style={styles.etaContainer}>
-            <View style={styles.etaItem}>
-              <Text style={styles.etaLabel}>Distance</Text>
-              <Text style={styles.etaValue}>{distance || 'Calcul...'}</Text>
-            </View>
-            <View style={styles.etaDivider} />
-            <View style={styles.etaItem}>
-              <Text style={styles.etaLabel}>Temps</Text>
-              <Text style={styles.etaValue}>{duration || 'Calcul...'}</Text>
-            </View>
-          </View>
+        <View style={s.sheet}>
+          <View style={s.sheetHandle} />
 
-          {/* Client info */}
-          {request?.client && (
-            <View style={styles.clientDetails}>
-              <View style={styles.clientAvatar}>
-                <Ionicons name="person" size={28} color="#666" />
-              </View>
-              <View style={styles.clientInfo}>
-                <Text style={styles.clientName}>{request.client.name}</Text>
-                <Text style={styles.clientAddress}>{request.address}</Text>
-              </View>
-              <TouchableOpacity style={styles.callButton} onPress={handleCallClient}>
-                <Ionicons name="call" size={24} color="#FFF" />
-              </TouchableOpacity>
+          {/* Client row + quick actions */}
+          <View style={s.clientRow}>
+            <View style={s.avatar}>
+              <Ionicons name="person" size={22} color="#1A1A1A" />
             </View>
-          )}
-
-          {/* Mission details */}
-          <View style={styles.missionDetails}>
-            <Text style={styles.missionTitle}>{request?.serviceType}</Text>
-            <Text style={styles.missionPrice}>{formatEuros(request?.price || 0)}</Text>
-          </View>
-
-          {/* ── Step progress indicator ──────────────────────────────────────── */}
-          {status === 'ACCEPTED' && (
-            <View style={styles.stepProgress}>
-              <View style={[styles.stepDot, beforePhotoUploaded && styles.stepDotDone]} />
-              <View style={[styles.stepLine, beforePhotoUploaded && styles.stepLineDone]} />
-              <View style={[styles.stepDot, pinVerified && styles.stepDotDone]} />
-              <View style={[styles.stepLine, readyToStart && styles.stepLineDone]} />
-              <View style={[styles.stepDot, readyToStart && styles.stepDotDone]} />
+            <View style={s.clientInfo}>
+              <Text style={s.clientName}>{request.client?.name || 'Client'}</Text>
+              <Text style={s.address} numberOfLines={1}>{request.address}</Text>
             </View>
-          )}
-
-          {/* Actions */}
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.navigateButton} onPress={handleNavigate}>
-              <Ionicons name="navigate" size={20} color="#FFF" />
-              <Text style={styles.navigateButtonText}>Navigation GPS</Text>
+            <TouchableOpacity style={s.actionBtn} onPress={handleCall} activeOpacity={0.75}>
+              <Ionicons name="call" size={18} color="#FFF" />
             </TouchableOpacity>
+            <TouchableOpacity style={s.actionBtnOutline} onPress={handleNavigate} activeOpacity={0.75}>
+              <Ionicons name="navigate" size={18} color="#1A1A1A" />
+            </TouchableOpacity>
+          </View>
 
-            {/* ── ACCEPTED: Step 1 — Before photo ──────────────────────────── */}
-            {needsBeforePhoto && (
+          {/* Mission + price */}
+          <View style={s.missionRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.missionName}>{request.serviceType}</Text>
+              <Text style={s.stepLabel}>
+                Étape {currentStep}/5 · {stepInfo.title}
+              </Text>
+            </View>
+            <Text style={s.price}>{formatEuros(request.price || 0)}</Text>
+          </View>
+
+          {/* Step indicator — toujours 5 étapes */}
+          <StepIndicator current={currentStep} total={5} />
+
+          {/* ── Step content ───────────────────────────────────────────────── */}
+
+          {/* STEP 1: Before photo */}
+          {currentStep === 1 && (
+            <ActionCard icon="camera-outline" title="Photo avant intervention" subtitle="Prenez une photo de l'état actuel avant de commencer">
               <TouchableOpacity
-                style={[styles.photoButton, actionLoading && styles.buttonDisabled]}
-                onPress={handleTakeBeforePhoto}
+                style={[s.primaryBtn, actionLoading && s.btnDisabled]}
+                onPress={handleBeforePhoto}
                 disabled={actionLoading}
+                activeOpacity={0.75}
               >
-                {actionLoading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
+                {actionLoading ? <ActivityIndicator color="#FFF" /> : (
                   <>
                     <Ionicons name="camera" size={20} color="#FFF" />
-                    <Text style={styles.photoButtonText}>Prendre la photo AVANT</Text>
+                    <Text style={s.primaryBtnText}>Ouvrir la caméra</Text>
                   </>
                 )}
               </TouchableOpacity>
-            )}
+            </ActionCard>
+          )}
 
-            {/* Before photo preview */}
-            {beforePhotoUploaded && beforePhotoUri && status === 'ACCEPTED' && (
-              <View style={styles.photoPreviewRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-                <Text style={styles.photoPreviewText}>Photo avant enregistree</Text>
-              </View>
-            )}
-
-            {/* ── ACCEPTED: Step 2 — PIN entry ─────────────────────────────── */}
-            {needsPin && (
-              <View style={styles.pinSection}>
-                <Text style={styles.pinTitle}>Code PIN du client</Text>
-                <Text style={styles.pinSubtitle}>Demandez le code a 4 chiffres au client</Text>
-                <View style={styles.pinInputRow}>
+          {/* STEP 2: PIN */}
+          {currentStep === 2 && (
+            <Pressable onPress={() => pinInputRef.current?.focus()}>
+              <ActionCard icon="key-outline" title="Code PIN du client" subtitle="Demandez le code à 4 chiffres au client">
+                <TextInput
+                  ref={pinInputRef}
+                  value={pin}
+                  onChangeText={handlePinChange}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  autoFocus
+                  caretHidden
+                  style={s.hiddenInput}
+                />
+                <View style={s.pinRow}>
                   {[0, 1, 2, 3].map((i) => (
-                    <TextInput
-                      key={i}
-                      ref={(ref) => { pinInputRefs.current[i] = ref; }}
-                      style={styles.pinInput}
-                      keyboardType="number-pad"
-                      maxLength={1}
-                      value={pinDigits[i]}
-                      onChangeText={(text) => handlePinChange(text, i)}
-                      onKeyPress={(e) => handlePinKeyPress(e, i)}
-                      selectTextOnFocus
-                    />
+                    <View key={i} style={[s.pinBox, pin.length === i && s.pinBoxActive]}>
+                      {pin.length > i ? (
+                        <Text style={s.pinDigit}>{pin[i]}</Text>
+                      ) : (
+                        <View style={s.pinEmpty} />
+                      )}
+                    </View>
                   ))}
                 </View>
                 <TouchableOpacity
-                  style={[styles.verifyPinButton, actionLoading && styles.buttonDisabled]}
+                  style={[s.primaryBtn, (actionLoading || pin.length < 4) && s.btnDisabled]}
                   onPress={handleVerifyPin}
-                  disabled={actionLoading}
+                  disabled={actionLoading || pin.length < 4}
+                  activeOpacity={0.75}
                 >
-                  {actionLoading ? (
-                    <ActivityIndicator color="#FFF" />
-                  ) : (
-                    <Text style={styles.verifyPinButtonText}>Verifier le code</Text>
+                  {actionLoading ? <ActivityIndicator color="#FFF" /> : (
+                    <Text style={s.primaryBtnText}>Vérifier le code</Text>
                   )}
                 </TouchableOpacity>
-              </View>
-            )}
+              </ActionCard>
+            </Pressable>
+          )}
 
-            {/* PIN verified indicator */}
-            {pinVerified && status === 'ACCEPTED' && (
-              <View style={styles.photoPreviewRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-                <Text style={styles.photoPreviewText}>Code PIN verifie</Text>
-              </View>
-            )}
-
-            {/* ── ACCEPTED: Step 3 — Start mission ─────────────────────────── */}
-            {readyToStart && (
+          {/* STEP 3: Start mission */}
+          {currentStep === 3 && (
+            <ActionCard icon="play-outline" title="Tout est prêt" subtitle="Confirmez le début de l'intervention">
               <TouchableOpacity
-                style={[styles.startButton, actionLoading && styles.buttonDisabled]}
-                onPress={handleStartMission}
+                style={[s.successBtn, actionLoading && s.btnDisabled]}
+                onPress={handleStart}
                 disabled={actionLoading}
+                activeOpacity={0.75}
               >
-                {actionLoading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.startButtonText}>Demarrer la mission</Text>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {/* ── ONGOING: Step 4 — After photo ───────────────────────────── */}
-            {needsAfterPhoto && (
-              <TouchableOpacity
-                style={[styles.photoButton, actionLoading && styles.buttonDisabled]}
-                onPress={handleTakeAfterPhoto}
-                disabled={actionLoading}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
+                {actionLoading ? <ActivityIndicator color="#FFF" /> : (
                   <>
-                    <Ionicons name="camera" size={20} color="#FFF" />
-                    <Text style={styles.photoButtonText}>Prendre la photo APRES</Text>
+                    <Ionicons name="play" size={20} color="#FFF" />
+                    <Text style={s.successBtnText}>Démarrer la mission</Text>
                   </>
                 )}
               </TouchableOpacity>
-            )}
+            </ActionCard>
+          )}
 
-            {/* After photo preview */}
-            {afterPhotoUploaded && (
-              <View style={styles.photoPreviewRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-                <Text style={styles.photoPreviewText}>Photo apres enregistree</Text>
+          {/* STEP 4: After photo */}
+          {currentStep === 4 && (
+            <ActionCard icon="camera-outline" title="Photo après intervention" subtitle="Prenez une photo du résultat final">
+              <View style={s.ongoingBadge}>
+                <View style={s.liveDot} />
+                <Text style={s.ongoingBadgeText}>Mission en cours</Text>
               </View>
-            )}
-
-            {/* ── ONGOING: Step 5 — Complete mission ──────────────────────── */}
-            {readyToComplete && (
               <TouchableOpacity
-                style={[styles.completeButton, actionLoading && styles.buttonDisabled]}
-                onPress={handleCompleteMission}
+                style={[s.primaryBtn, actionLoading && s.btnDisabled]}
+                onPress={handleAfterPhoto}
                 disabled={actionLoading}
+                activeOpacity={0.75}
               >
-                {actionLoading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.completeButtonText}>Terminer la mission</Text>
+                {actionLoading ? <ActivityIndicator color="#FFF" /> : (
+                  <>
+                    <Ionicons name="camera" size={20} color="#FFF" />
+                    <Text style={s.primaryBtnText}>Ouvrir la caméra</Text>
+                  </>
                 )}
               </TouchableOpacity>
-            )}
-          </View>
+            </ActionCard>
+          )}
+
+          {/* STEP 5: Complete */}
+          {currentStep === 5 && (
+            <ActionCard icon="checkmark-circle-outline" title="Terminer la mission" subtitle="Confirmez la fin de la prestation">
+              <TouchableOpacity
+                style={[s.successBtn, actionLoading && s.btnDisabled]}
+                onPress={handleComplete}
+                disabled={actionLoading}
+                activeOpacity={0.75}
+              >
+                {actionLoading ? <ActivityIndicator color="#FFF" /> : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                    <Text style={s.successBtnText}>Terminer la mission</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ActionCard>
+          )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ============================================================================
+// ═════════════════════════════════════════════════════════════════════════════
 // STYLES
-// ============================================================================
+// ═════════════════════════════════════════════════════════════════════════════
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#E8E9EC' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#E8E9EC' },
-  loadingText: { fontSize: 16, color: '#666', fontWeight: '500' },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   map: { flex: 1 },
-  backButton: {
-    position: 'absolute',
-    top: 60, left: 20, width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#F0F1F4',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#DCDDE0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8,
-    elevation: 4,
+
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#FFF' },
+  loadingText: { fontSize: 15, color: '#888', fontWeight: '500' },
+
+  // ── Client pin on map ──
+  clientPin: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: '#FFF',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+      android: { elevation: 6 },
+    }),
   },
-  infoCardWrapper: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-  },
-  infoCard: {
-    backgroundColor: '#F0F1F4',
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    padding: 24,
-    borderTopWidth: 1, borderTopColor: '#DCDDE0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 16,
-    elevation: 8,
-  },
-  etaContainer: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    marginBottom: 24, paddingBottom: 24,
-    borderBottomWidth: 1, borderBottomColor: '#DCDDE0',
-  },
-  etaItem: { alignItems: 'center' },
-  etaDivider: { width: 1, backgroundColor: '#CACBCE' },
-  etaLabel: { fontSize: 11, fontWeight: '500', color: '#ADADAD', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  etaValue: { fontSize: 24, fontWeight: '900', color: '#000' },
-  clientDetails: {
+
+  // ── Top bar ──
+  topBar: {
+    position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
-    marginBottom: 20, paddingBottom: 20,
-    borderBottomWidth: 1, borderBottomColor: '#DCDDE0',
+    paddingHorizontal: 20, gap: 10, zIndex: 10,
   },
-  clientAvatar: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#E2E3E6',
-    justifyContent: 'center', alignItems: 'center', marginRight: 16,
+  backBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 4 },
+    }),
+  },
+  etaPills: { flexDirection: 'row', gap: 8 },
+  etaPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 3 },
+    }),
+  },
+  etaPillText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+
+  // ── Bottom sheet ──
+  sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  sheet: {
+    backgroundColor: '#F9F9F9',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 16, paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
+      android: { elevation: 8 },
+    }),
+  },
+  sheetHandle: {
+    width: 32, height: 4, borderRadius: 2, backgroundColor: '#DCDCDC',
+    alignSelf: 'center', marginBottom: 10,
+  },
+
+  // ── Client row ──
+  clientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  avatar: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center',
+    marginRight: 12,
   },
   clientInfo: { flex: 1 },
-  clientName: { fontSize: 18, fontWeight: '700', color: '#000', marginBottom: 4 },
-  clientAddress: { fontSize: 13, color: '#888' },
-  callButton: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#111111',
-    justifyContent: 'center', alignItems: 'center',
+  clientName: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 2 },
+  address: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
+  actionBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center',
+    marginLeft: 8,
   },
-  missionDetails: { marginBottom: 20 },
-  missionTitle: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 8 },
-  missionPrice: { fontSize: 20, fontWeight: '900', color: '#000' },
+  actionBtnOutline: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
+    marginLeft: 8, borderWidth: 1.5, borderColor: '#EBEBEB',
+  },
 
-  // ── Step progress ──
-  stepProgress: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20, gap: 0,
+  // ── Mission row ──
+  missionRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingBottom: 8, marginBottom: 2,
+    borderBottomWidth: 1, borderBottomColor: '#EBEBEB',
   },
-  stepDot: {
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#DCDDE0', borderWidth: 2, borderColor: '#CACBCE',
-  },
-  stepDotDone: { backgroundColor: '#22C55E', borderColor: '#16A34A' },
-  stepLine: { width: 40, height: 2, backgroundColor: '#DCDDE0' },
-  stepLineDone: { backgroundColor: '#22C55E' },
+  missionName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 3 },
+  stepLabel: { fontSize: 12, color: '#888', fontWeight: '500' },
+  price: { fontSize: 22, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
 
-  // ── Actions ──
-  actions: { gap: 12 },
-  navigateButton: {
-    flexDirection: 'row', backgroundColor: '#000',
-    paddingVertical: 16, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', gap: 8,
+  // ── Buttons ──
+  primaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#1A1A1A', paddingVertical: 13, borderRadius: 14, minHeight: 48,
   },
-  navigateButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-
-  // ── Photo button ──
-  photoButton: {
-    flexDirection: 'row',
-    backgroundColor: '#374151', paddingVertical: 16, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 52,
+  primaryBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  successBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#22C55E', paddingVertical: 13, borderRadius: 14, minHeight: 48,
   },
-  photoButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  successBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  btnDisabled: { opacity: 0.5 },
 
-  // ── Photo preview ──
-  photoPreviewRow: {
+  // ── PIN ──
+  hiddenInput: { position: 'absolute', opacity: 0, width: 1, height: 1 },
+  pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 12 },
+  pinBox: {
+    width: 52, height: 60, borderRadius: 14,
+    backgroundColor: '#F4F4F4', borderWidth: 2, borderColor: '#E8E8E8',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pinBoxActive: { borderColor: '#1A1A1A' },
+  pinDigit: { fontSize: 28, fontWeight: '900', color: '#1A1A1A' },
+  pinEmpty: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#DCDCDC' },
+
+  // ── Ongoing badge ──
+  ongoingBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 8, paddingHorizontal: 16,
-    backgroundColor: '#F0FDF4', borderRadius: 12,
+    backgroundColor: '#F0FDF4', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10,
   },
-  photoPreviewText: { fontSize: 14, fontWeight: '600', color: '#15803D' },
-
-  // ── PIN section ──
-  pinSection: { alignItems: 'center', paddingVertical: 8 },
-  pinTitle: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 4 },
-  pinSubtitle: { fontSize: 13, color: '#888', marginBottom: 16 },
-  pinInputRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  pinInput: {
-    width: 56, height: 64, borderRadius: 14,
-    backgroundColor: '#FFF', borderWidth: 2, borderColor: '#DCDDE0',
-    textAlign: 'center', fontSize: 28, fontWeight: '900', color: '#000',
-  },
-  verifyPinButton: {
-    backgroundColor: '#111111', paddingVertical: 14, paddingHorizontal: 40,
-    borderRadius: 16, minHeight: 48,
-  },
-  verifyPinButtonText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
-
-  // ── Start / Complete ──
-  startButton: {
-    backgroundColor: '#111111', paddingVertical: 16, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', minHeight: 52,
-  },
-  startButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  completeButton: {
-    backgroundColor: '#111111', paddingVertical: 16, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', minHeight: 52,
-  },
-  completeButtonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  buttonDisabled: { opacity: 0.6 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  ongoingBadgeText: { fontSize: 13, fontWeight: '600', color: '#15803D' },
 });
