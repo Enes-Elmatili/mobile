@@ -1,28 +1,21 @@
-// app/onboarding/documents.tsx — Upload documents KYC (thème sombre unifié)
-import React, { useEffect, useState } from 'react';
-import {
-  View, Text, StyleSheet, ActivityIndicator, Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../../lib/api';
-import { OnboardingLayout } from '../../components/onboarding/OnboardingLayout';
-import { DocumentUploadCard } from '../../components/onboarding/DocumentUploadCard';
-import { PROVIDER_FLOW } from '../../constants/onboardingFlows';
-import {
-  getRequiredDocuments,
-  type DocumentRequirement,
-  type DocumentType,
-} from '../../constants/kycRequirements';
+// app/onboarding/documents.tsx — Upload documents KYC (dark design)
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api } from "../../lib/api";
+import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
+import { DocumentUploadCard } from "../../components/onboarding/DocumentUploadCard";
+import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
+import { getRequiredDocuments, type DocumentRequirement, type DocumentType } from "../../constants/kycRequirements";
+import { FONTS } from "@/hooks/use-app-theme";
+
+const C = { white: "#FAFAFA", grey: "#888888" };
 
 function toSlug(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z]/g, '');
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
 }
 
 interface UploadState {
@@ -31,30 +24,22 @@ interface UploadState {
 
 export default function OnboardingDocuments() {
   const router = useRouter();
-
   const [requirements, setRequirements] = useState<DocumentRequirement[]>([]);
   const [uploads, setUploads] = useState<UploadState>({});
   const [loading, setLoading] = useState(true);
 
-  // Charge les métiers sélectionnés et calcule les documents requis
   useEffect(() => {
     (async () => {
-      const raw = await AsyncStorage.getItem('onboarding_data');
+      const raw = await AsyncStorage.getItem("onboarding_data");
       const data = raw ? JSON.parse(raw) : {};
       const categories: { id: number; name: string }[] = data.categories ?? [];
       const categoryNames = categories.map(c => c.name);
-
-      // Documents locaux (toujours au minimum carte d'identité + justificatif)
       const localDocs = getRequiredDocuments(categoryNames);
       setRequirements(localDocs);
 
-      // Initialiser l'état des uploads
       const initialState: UploadState = {};
-      localDocs.forEach(doc => {
-        initialState[doc.type] = { uri: null, uploading: false };
-      });
+      localDocs.forEach(doc => { initialState[doc.type] = { uri: null, uploading: false }; });
 
-      // Aussi tenter de charger les configs côté API (complémentaires)
       if (categories.length > 0) {
         const seenKeys = new Set<string>(localDocs.map(d => d.type));
         await Promise.allSettled(
@@ -69,9 +54,7 @@ export default function OnboardingDocuments() {
                   initialState[doc.key] = { uri: null, uploading: false };
                 }
               }
-            } catch {
-              // Catégorie sans config KYC côté API — on a les fallbacks locaux
-            }
+            } catch {}
           })
         );
       }
@@ -83,43 +66,24 @@ export default function OnboardingDocuments() {
 
   const handleUpload = async (docType: DocumentType | string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Accès refusé',
-        'Autorisez l\'accès à la galerie pour téléverser vos documents.',
-      );
+    if (status !== "granted") {
+      Alert.alert("Acces refuse", "Autorisez l'acces a la galerie pour televerser vos documents.");
       return;
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.85,
-      allowsEditing: false,
-    });
-
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
     if (result.canceled || !result.assets[0]) return;
 
     const asset = result.assets[0];
     setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: true } }));
-
     try {
       const formData = new FormData();
-      formData.append('file', {
-        uri: asset.uri,
-        name: asset.fileName || `${docType}_${Date.now()}.jpg`,
-        type: asset.mimeType || 'image/jpeg',
-      } as any);
-      formData.append('docKey', docType);
-
+      formData.append("file", { uri: asset.uri, name: asset.fileName || `${docType}_${Date.now()}.jpg`, type: asset.mimeType || "image/jpeg" } as any);
+      formData.append("docKey", docType);
       await api.providerDocs.upload(formData);
-
-      setUploads(prev => ({
-        ...prev,
-        [docType]: { uri: asset.uri, uploading: false },
-      }));
+      setUploads(prev => ({ ...prev, [docType]: { uri: asset.uri, uploading: false } }));
     } catch (e: any) {
       setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: false } }));
-      Alert.alert('Échec du téléversement', e?.message || 'Réessayez.');
+      Alert.alert("Echec du televersement", e?.message || "Reessayez.");
     }
   };
 
@@ -130,15 +94,8 @@ export default function OnboardingDocuments() {
 
   if (loading) {
     return (
-      <OnboardingLayout
-        currentStep={PROVIDER_FLOW.steps.DOCUMENTS}
-        totalSteps={PROVIDER_FLOW.totalSteps}
-        title={'Vos\ndocuments.'}
-        subtitle="Chargement des exigences…"
-      >
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color="rgba(255,255,255,0.4)" />
-        </View>
+      <OnboardingLayout currentStep={PROVIDER_FLOW.steps.DOCUMENTS} totalSteps={PROVIDER_FLOW.totalSteps} title={"Vos\ndocuments."} subtitle="Chargement des exigences...">
+        <View style={s.centered}><ActivityIndicator size="large" color={C.grey} /></View>
       </OnboardingLayout>
     );
   }
@@ -147,46 +104,27 @@ export default function OnboardingDocuments() {
     <OnboardingLayout
       currentStep={PROVIDER_FLOW.steps.DOCUMENTS}
       totalSteps={PROVIDER_FLOW.totalSteps}
-      title={'Vos\ndocuments.'}
-      subtitle="Téléversez vos justificatifs pour activer votre profil. Les documents requis sont marqués en orange."
-      cta={{
-        label: allMandatoryUploaded ? 'Continuer' : 'Passer cette étape',
-        onPress: () => router.push('/onboarding/quiz'),
-        disabled: false,
-      }}
+      title={"Vos\ndocuments."}
+      subtitle="Televersez vos justificatifs pour activer votre profil. Les documents requis sont marques en orange."
+      cta={{ label: allMandatoryUploaded ? "Continuer" : "Passer cette etape", onPress: () => router.push("/onboarding/quiz"), disabled: false }}
     >
-      {/* Progress */}
-      <Text style={s.docProgress}>
-        {uploadedCount} / {totalDocs} envoyé{uploadedCount > 1 ? 's' : ''}
-      </Text>
+      <Text style={s.docProgress}>{uploadedCount} / {totalDocs} envoye{uploadedCount > 1 ? "s" : ""}</Text>
 
-      {/* Document cards */}
       {requirements.map(req => (
-        <DocumentUploadCard
-          key={req.type}
-          requirement={req}
-          uploadedUri={uploads[req.type]?.uri ?? null}
-          uploading={uploads[req.type]?.uploading}
-          onUpload={() => handleUpload(req.type)}
-        />
+        <DocumentUploadCard key={req.type} requirement={req} uploadedUri={uploads[req.type]?.uri ?? null} uploading={uploads[req.type]?.uploading} onUpload={() => handleUpload(req.type)} />
       ))}
 
-      {/* Security note */}
       <View style={s.securityNote}>
         <Ionicons name="lock-closed-outline" size={12} color="rgba(255,255,255,0.2)" />
-        <Text style={s.securityText}>
-          Documents chiffrés et stockés de façon sécurisée. Jamais partagés avec les clients.
-        </Text>
+        <Text style={s.securityText}>Documents chiffres et stockes de facon securisee. Jamais partages avec les clients.</Text>
       </View>
     </OnboardingLayout>
   );
 }
 
 const s = StyleSheet.create({
-  centered: { alignItems: 'center', paddingVertical: 40 },
-  docProgress: { fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 20 },
-  securityNote: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12,
-  },
-  securityText: { fontSize: 11, color: 'rgba(255,255,255,0.2)' },
+  centered: { alignItems: "center", paddingVertical: 40 },
+  docProgress: { fontFamily: FONTS.sans, fontSize: 13, color: C.grey, marginBottom: 20 },
+  securityNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
+  securityText: { fontFamily: FONTS.sansLight, fontSize: 11, color: "rgba(255,255,255,0.2)" },
 });

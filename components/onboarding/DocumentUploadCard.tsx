@@ -1,10 +1,20 @@
-// components/onboarding/DocumentUploadCard.tsx — Carte d'upload KYC (thème sombre)
-import React from 'react';
+// components/onboarding/DocumentUploadCard.tsx — Carte d'upload KYC (dark design)
+import React from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import type { DocumentRequirement, DocumentType } from '../../constants/kycRequirements';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { FONTS } from "@/hooks/use-app-theme";
+import type { DocumentRequirement, DocumentType } from "../../constants/kycRequirements";
+
+const C = {
+  white: "#FAFAFA",
+  grey: "#888888",
+  border: "rgba(255,255,255,0.08)",
+  cardBg: "#141414",
+  surface: "rgba(255,255,255,0.04)",
+  green: "#3D8B3D",
+};
 
 interface DocumentUploadCardProps {
   requirement: DocumentRequirement;
@@ -18,22 +28,21 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
 
   return (
     <TouchableOpacity
-      style={[styles.docCard, isUploaded && styles.docCardUploaded]}
+      style={[styles.docCard, isUploaded && styles.docCardDone]}
       onPress={() => !isUploaded && !uploading && onUpload(requirement.type)}
       disabled={isUploaded || uploading}
-      accessibilityRole="button"
-      accessibilityLabel={`${requirement.label} — ${isUploaded ? 'Téléversé' : 'Appuyer pour téléverser'}`}
+      activeOpacity={0.7}
     >
       <View style={styles.docCardLeft}>
         <Ionicons
-          name={isUploaded ? 'checkmark-circle' : requirement.required ? 'document-outline' : 'document-attach-outline'}
+          name={isUploaded ? "checkmark-circle" : requirement.required ? "document-outline" : "document-attach-outline"}
           size={24}
-          color={isUploaded ? '#fff' : requirement.required ? '#fff' : 'rgba(255,255,255,0.4)'}
+          color={isUploaded ? C.green : C.white}
         />
       </View>
       <View style={styles.docCardContent}>
         <View style={styles.docCardHeader}>
-          <Text style={[styles.docCardLabel, isUploaded && styles.docCardLabelDone]} numberOfLines={2}>
+          <Text style={[styles.docCardLabel, isUploaded && { color: C.grey }]} numberOfLines={2}>
             {requirement.label}
           </Text>
           {requirement.required && !isUploaded && (
@@ -43,19 +52,19 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
           )}
           {isUploaded && (
             <View style={styles.doneBadge}>
-              <Text style={styles.doneBadgeText}>Téléversé</Text>
+              <Text style={styles.doneBadgeText}>Televerse</Text>
             </View>
           )}
         </View>
         <Text style={styles.docCardDesc} numberOfLines={2}>{requirement.description}</Text>
       </View>
       {uploading ? (
-        <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" />
+        <ActivityIndicator size="small" color={C.grey} />
       ) : (
         <Ionicons
-          name={isUploaded ? 'checkmark' : 'cloud-upload-outline'}
+          name={isUploaded ? "checkmark" : "cloud-upload-outline"}
           size={20}
-          color={isUploaded ? '#fff' : 'rgba(255,255,255,0.3)'}
+          color={isUploaded ? C.green : C.grey}
         />
       )}
     </TouchableOpacity>
@@ -64,69 +73,67 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
 
 const styles = StyleSheet.create({
   docCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.cardBg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
+    borderColor: C.border,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 10,
     gap: 12,
   },
-  docCardUploaded: {
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  docCardDone: {
+    borderColor: "rgba(61,139,61,0.2)",
+    backgroundColor: "rgba(61,139,61,0.05)",
   },
   docCardLeft: {
     width: 32,
-    alignItems: 'center',
+    alignItems: "center",
   },
   docCardContent: {
     flex: 1,
     gap: 4,
   },
   docCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   docCardLabel: {
+    fontFamily: FONTS.sansMedium,
     fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
+    color: C.white,
     flexShrink: 1,
   },
-  docCardLabelDone: {
-    color: 'rgba(255,255,255,0.6)',
-  },
   docCardDesc: {
+    fontFamily: FONTS.sansLight,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
     lineHeight: 17,
+    color: C.grey,
   },
   requiredBadge: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: C.border,
+    backgroundColor: C.surface,
   },
   requiredBadgeText: {
+    fontFamily: FONTS.mono,
     fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
+    color: C.grey,
   },
   doneBadge: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2,
+    backgroundColor: "rgba(61,139,61,0.1)",
   },
   doneBadgeText: {
+    fontFamily: FONTS.mono,
     fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
+    color: C.green,
   },
 });

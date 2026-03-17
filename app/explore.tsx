@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,18 +67,18 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
   return (
     <TouchableOpacity style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress} activeOpacity={0.8}>
       <View style={[pc.avatar, { backgroundColor: theme.accent }]}>
-        <Text style={[pc.avatarText, { color: theme.accentText }]}>{init}</Text>
+        <Text style={[pc.avatarText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{init}</Text>
         {isOnline && <View style={[pc.dot, { borderColor: theme.cardBg }]} />}
       </View>
       <View style={pc.info}>
-        <Text style={[pc.name, { color: theme.textAlt }]} numberOfLines={1}>{provider.name || 'Prestataire'}</Text>
-        <Text style={[pc.sub, { color: theme.textMuted }]} numberOfLines={1}>
+        <Text style={[pc.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{provider.name || 'Prestataire'}</Text>
+        <Text style={[pc.sub, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
           {cat ?? provider.city ?? ''}
           {provider.avgRating ? `  ★ ${provider.avgRating.toFixed(1)}` : ''}
         </Text>
       </View>
       {provider.distance !== undefined && (
-        <Text style={[pc.dist, { color: theme.textSub }]}>{distanceLabel(provider.distance)}</Text>
+        <Text style={[pc.dist, { color: theme.textSub, fontFamily: FONTS.mono }]}>{distanceLabel(provider.distance)}</Text>
       )}
       <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
     </TouchableOpacity>
@@ -96,16 +96,16 @@ const pc = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
-  avatarText: { fontSize: 14, fontWeight: '700' },
+  avatarText: { fontSize: 14 },
   dot: {
     position: 'absolute', bottom: 1, right: 1,
     width: 11, height: 11, borderRadius: 6,
-    backgroundColor: '#22C55E', borderWidth: 2,
+    backgroundColor: COLORS.green, borderWidth: 2,
   },
   info:  { flex: 1, gap: 2 },
-  name:  { fontSize: 14, fontWeight: '700' },
-  sub:   { fontSize: 12, fontWeight: '500' },
-  dist:  { fontSize: 12, fontWeight: '600', marginRight: 4 },
+  name:  { fontSize: 14 },
+  sub:   { fontSize: 12 },
+  dist:  { fontSize: 12, marginRight: 4 },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -170,10 +170,10 @@ export default function ExploreScreen() {
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <Ionicons name="location-outline" size={52} color={theme.textDisabled} />
-        <Text style={[s.errTitle, { color: theme.textAlt }]}>Localisation requise</Text>
-        <Text style={[s.errSub, { color: theme.textMuted }]}>Autorisez l'accès à votre position pour voir les prestataires proches.</Text>
+        <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Localisation requise</Text>
+        <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Autorisez l'accès à votre position pour voir les prestataires proches.</Text>
         <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => router.back()}>
-          <Text style={[s.backBtnText, { color: theme.accentText }]}>Retour</Text>
+          <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Retour</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -190,10 +190,10 @@ export default function ExploreScreen() {
         <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('explore.title')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('explore.title')}</Text>
         <View style={s.headerCount}>
           {!loading && (
-            <Text style={[s.headerCountText, { color: theme.textMuted }]}>{providers.length} disponibles</Text>
+            <Text style={[s.headerCountText, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{providers.length} disponibles</Text>
           )}
         </View>
       </View>
@@ -217,8 +217,8 @@ export default function ExploreScreen() {
             <Circle
               center={{ latitude: location.lat, longitude: location.lng }}
               radius={radiusM}
-              strokeColor="rgba(0,0,0,0.12)"
-              fillColor="rgba(0,0,0,0.04)"
+              strokeColor={theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}
+              fillColor={theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}
               strokeWidth={1}
             />
 
@@ -232,8 +232,8 @@ export default function ExploreScreen() {
                   coordinate={{ latitude: p.lat, longitude: p.lng }}
                   onPress={() => setSelected(p.id)}
                 >
-                  <View style={[pin.wrap, isSelected && pin.wrapSelected]}>
-                    <Text style={[pin.text, isSelected && pin.textSelected]}>
+                  <View style={[pin.wrap, { backgroundColor: theme.heroBg, borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, isSelected && { backgroundColor: theme.accent, transform: [{ scale: 1.2 }] }]}>
+                    <Text style={[pin.text, { color: theme.heroText, fontFamily: FONTS.sansMedium }]}>
                       {initials(p.name)}
                     </Text>
                   </View>
@@ -256,7 +256,7 @@ export default function ExploreScreen() {
               onPress={() => setRadiusIdx(i)}
               activeOpacity={0.7}
             >
-              <Text style={[s.radiusBtnText, { color: theme.textMuted }, i === radiusIdx && { color: theme.accentText }]}>
+              <Text style={[s.radiusBtnText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }, i === radiusIdx && { color: theme.accentText }]}>
                 {r.label}
               </Text>
             </TouchableOpacity>
@@ -267,22 +267,22 @@ export default function ExploreScreen() {
       {/* Selected provider callout */}
       {selectedProvider && (
         <TouchableOpacity
-          style={[s.callout, { backgroundColor: theme.heroBg }]}
+          style={[s.callout, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity }]}
           onPress={() => router.push(`/providers/${selectedProvider.id}` as any)}
           activeOpacity={0.85}
         >
-          <View style={s.calloutAvatar}>
-            <Text style={s.calloutAvatarText}>{initials(selectedProvider.name)}</Text>
+          <View style={[s.calloutAvatar, { backgroundColor: theme.surface }]}>
+            <Text style={[s.calloutAvatarText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{initials(selectedProvider.name)}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.calloutName}>{selectedProvider.name || 'Prestataire'}</Text>
-            <Text style={s.calloutSub}>
+            <Text style={[s.calloutName, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{selectedProvider.name || 'Prestataire'}</Text>
+            <Text style={[s.calloutSub, { color: theme.heroSub }]}>
               {selectedProvider.categories?.[0]?.name ?? selectedProvider.city ?? ''}
             </Text>
           </View>
-          <View style={s.calloutCTA}>
-            <Text style={s.calloutCTAText}>Voir le profil</Text>
-            <Ionicons name="arrow-forward" size={12} color="#FFF" />
+          <View style={[s.calloutCTA, { backgroundColor: theme.surface }]}>
+            <Text style={[s.calloutCTAText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>Voir le profil</Text>
+            <Ionicons name="arrow-forward" size={12} color={theme.heroText} />
           </View>
         </TouchableOpacity>
       )}
@@ -290,8 +290,8 @@ export default function ExploreScreen() {
       {/* Provider list bottom panel */}
       <View style={[s.list, { backgroundColor: theme.cardBg }]}>
         <View style={[s.listHeader, { borderBottomColor: theme.border }]}>
-          <Text style={[s.listTitle, { color: theme.textAlt }]}>
-            {loading ? 'Recherche…' : `${providers.length} prestataire${providers.length !== 1 ? 's' : ''}`}
+          <Text style={[s.listTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>
+            {loading ? 'Recherche...' : `${providers.length} prestataire${providers.length !== 1 ? 's' : ''}`}
           </Text>
           {loading && <ActivityIndicator size="small" color={theme.accent} />}
         </View>
@@ -309,7 +309,7 @@ export default function ExploreScreen() {
             !loading ? (
               <View style={s.empty}>
                 <Ionicons name="people-outline" size={36} color={theme.textDisabled} />
-                <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('explore.no_providers')}</Text>
+                <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('explore.no_providers')}</Text>
               </View>
             ) : null
           }
@@ -324,17 +324,14 @@ export default function ExploreScreen() {
 const pin = StyleSheet.create({
   wrap: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#FFF',
+    borderWidth: 2,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4 },
+      ios: { shadowColor: '#000', shadowRadius: 4 },
       android: { elevation: 3 },
     }),
   },
-  wrapSelected: { backgroundColor: '#555', transform: [{ scale: 1.2 }] },
-  text: { fontSize: 11, fontWeight: '800', color: '#FFF' },
-  textSelected: { color: '#FFF' },
+  text: { fontSize: 11 },
 });
 
 // ── Screen styles ─────────────────────────────────────────────────────────────
@@ -352,9 +349,9 @@ const s = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 17, fontWeight: '800' },
+  headerTitle: { fontSize: 17 },
   headerCount: { minWidth: 38, alignItems: 'flex-end' },
-  headerCountText: { fontSize: 12, fontWeight: '600' },
+  headerCountText: { fontSize: 12 },
 
   mapWrap: { height: '40%', position: 'relative' },
   mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -372,31 +369,29 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
   },
   radiusBtnActive: {},
-  radiusBtnText: { fontSize: 12, fontWeight: '700' },
+  radiusBtnText: { fontSize: 12 },
 
   callout: {
     margin: 12, borderRadius: 16,
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 5 },
     }),
   },
   calloutAvatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
-  calloutAvatarText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
-  calloutName: { fontSize: 15, fontWeight: '700', color: '#FFF' },
-  calloutSub: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
+  calloutAvatarText: { fontSize: 14 },
+  calloutName: { fontSize: 15 },
+  calloutSub: { fontSize: 12, marginTop: 2 },
   calloutCTA: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.15)',
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10,
   },
-  calloutCTAText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
+  calloutCTAText: { fontSize: 12 },
 
   list: { flex: 1 },
   listHeader: {
@@ -404,13 +399,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10,
     borderBottomWidth: 1,
   },
-  listTitle: { fontSize: 13, fontWeight: '700' },
+  listTitle: { fontSize: 13 },
 
   empty: { alignItems: 'center', paddingVertical: 32, gap: 10 },
-  emptyText: { fontSize: 14, fontWeight: '500' },
+  emptyText: { fontSize: 14 },
 
-  errTitle: { fontSize: 18, fontWeight: '800', marginTop: 8 },
+  errTitle: { fontSize: 28, marginTop: 8 },
   errSub:   { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   backBtn:  { marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  backBtnText: { fontSize: 15, fontWeight: '700' },
+  backBtnText: { fontSize: 15 },
 });

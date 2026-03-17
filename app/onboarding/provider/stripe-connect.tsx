@@ -1,22 +1,29 @@
-import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
-import { api } from '../../../lib/api';
-import { OnboardingLayout } from '../../../components/onboarding/OnboardingLayout';
-import { PROVIDER_FLOW } from '../../../constants/onboardingFlows';
+// app/onboarding/provider/stripe-connect.tsx — Stripe Connect (dark design)
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import { api } from "../../../lib/api";
+import { OnboardingLayout } from "../../../components/onboarding/OnboardingLayout";
+import { PROVIDER_FLOW } from "../../../constants/onboardingFlows";
+import { FONTS } from "@/hooks/use-app-theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
+const C = {
+  white: "#FAFAFA",
+  grey: "#888888",
+  border: "rgba(255,255,255,0.08)",
+  cardBg: "#141414",
+  stripe: "#635BFF",
+};
+
 const BENEFITS = [
-  { icon: 'flash-outline' as const, title: 'Virements rapides', desc: 'Recevez vos paiements sous 2 jours ouvrés.' },
-  { icon: 'shield-checkmark-outline' as const, title: 'Protection Stripe', desc: 'Transactions sécurisées et conformité PCI DSS.' },
-  { icon: 'bar-chart-outline' as const, title: 'Suivi des paiements', desc: 'Tableau de bord pour gérer virements et factures.' },
+  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvres." },
+  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions securisees et conformite PCI DSS." },
+  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord pour gerer virements et factures." },
 ];
 
 export default function ProviderStripeConnect() {
@@ -26,39 +33,34 @@ export default function ProviderStripeConnect() {
   async function handleConfigure() {
     setLoading(true);
     try {
-      const returnUrl = Linking.createURL('onboarding/provider/stripe-return');
-      const refreshUrl = Linking.createURL('onboarding/provider/stripe-refresh');
+      const returnUrl = Linking.createURL("onboarding/provider/stripe-return");
+      const refreshUrl = Linking.createURL("onboarding/provider/stripe-refresh");
       const res: any = await api.connect.onboarding(returnUrl, refreshUrl);
       const url: string = res?.url;
-      if (!url) throw new Error('URL Stripe manquante');
+      if (!url) throw new Error("URL Stripe manquante");
 
-      // openAuthSessionAsync intercepte le redirect vers le deep link et ferme le browser
       const result = await WebBrowser.openAuthSessionAsync(url, returnUrl);
-      if (__DEV__) console.log('🔍 AUTH SESSION RESULT:', JSON.stringify(result));
+      if (__DEV__) console.log("AUTH SESSION RESULT:", JSON.stringify(result));
 
-      if (result.type === 'success') {
+      if (result.type === "success") {
         const status: any = await api.connect.status();
-        if (__DEV__) console.log('🔍 STRIPE STATUS AFTER RETURN:', JSON.stringify(status));
+        if (__DEV__) console.log("STRIPE STATUS AFTER RETURN:", JSON.stringify(status));
         if (status?.isStripeReady) {
-          router.replace('/onboarding/provider/pending');
+          router.replace("/onboarding/provider/pending");
           return;
         }
       }
-      // Si dismiss/cancel ou Stripe pas encore ready, on va à pending quand même
-      router.replace('/onboarding/provider/pending');
+      router.replace("/onboarding/provider/pending");
     } catch (err: any) {
-      Alert.alert(
-        'Erreur Stripe',
-        "Impossible d'ouvrir la configuration. Vérifiez votre connexion.",
-        [{ text: 'Réessayer', onPress: handleConfigure }, { text: 'Plus tard', onPress: handleSkip }]
-      );
-    } finally {
-      setLoading(false);
-    }
+      Alert.alert("Erreur Stripe", "Impossible d'ouvrir la configuration. Verifiez votre connexion.", [
+        { text: "Reessayer", onPress: handleConfigure },
+        { text: "Plus tard", onPress: handleSkip },
+      ]);
+    } finally { setLoading(false); }
   }
 
   function handleSkip() {
-    router.replace('/onboarding/provider/pending');
+    router.replace("/onboarding/provider/pending");
   }
 
   return (
@@ -68,20 +70,15 @@ export default function ProviderStripeConnect() {
       showBack={false}
       title="Compte de paiement."
       subtitle="FIXED utilise Stripe pour virer vos gains directement sur votre compte bancaire."
-      cta={{
-        label: loading ? 'Chargement…' : 'Configurer mon compte Stripe',
-        onPress: handleConfigure,
-        disabled: loading,
-        loading,
-      }}
+      cta={{ label: loading ? "Chargement..." : "Configurer mon compte Stripe", onPress: handleConfigure, disabled: loading, loading }}
       secondaryCta={{ label: "Passer pour l'instant", onPress: handleSkip }}
     >
       <View style={s.heroWrap}>
         <View style={s.heroCircle}>
-          <Ionicons name="card-outline" size={44} color="#FFF" />
+          <Ionicons name="card-outline" size={44} color={C.white} />
         </View>
         <View style={s.stripeBadge}>
-          <Ionicons name="lock-closed" size={10} color="rgba(255,255,255,0.5)" />
+          <Ionicons name="lock-closed" size={10} color={C.stripe} />
           <Text style={s.stripeBadgeText}>Stripe</Text>
         </View>
       </View>
@@ -90,7 +87,7 @@ export default function ProviderStripeConnect() {
         {BENEFITS.map((b, i) => (
           <View key={i} style={s.benefitRow}>
             <View style={s.benefitIcon}>
-              <Ionicons name={b.icon} size={18} color="#FFF" />
+              <Ionicons name={b.icon} size={18} color={C.white} />
             </View>
             <View style={s.benefitText}>
               <Text style={s.benefitTitle}>{b.title}</Text>
@@ -104,27 +101,33 @@ export default function ProviderStripeConnect() {
 }
 
 const s = StyleSheet.create({
-  heroWrap: { alignItems: 'center', marginBottom: 28 },
+  heroWrap: { alignItems: "center", marginBottom: 28 },
   heroCircle: {
     width: 96, height: 96, borderRadius: 48,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
   },
   stripeBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(99,91,255,0.1)", borderRadius: 20,
     paddingHorizontal: 10, paddingVertical: 4, marginTop: 12,
   },
-  stripeBadgeText: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)' },
+  stripeBadgeText: { fontFamily: FONTS.sansMedium, fontSize: 12, color: C.stripe },
+
   benefitList: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
     borderRadius: 20, padding: 4, marginBottom: 20,
   },
-  benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
-  benefitIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
+  benefitRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 14,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  benefitIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center", justifyContent: "center",
+  },
   benefitText: { flex: 1, gap: 2 },
-  benefitTitle: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  benefitDesc: { fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 17 },
+  benefitTitle: { fontFamily: FONTS.sansMedium, fontSize: 14, color: C.white },
+  benefitDesc: { fontFamily: FONTS.sansLight, fontSize: 12, lineHeight: 17, color: C.grey },
 });

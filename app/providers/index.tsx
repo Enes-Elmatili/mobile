@@ -7,14 +7,17 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 export default function ProvidersListScreen() {
   const router = useRouter();
+  const theme = useAppTheme();
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +38,7 @@ export default function ProvidersListScreen() {
 
   const renderProvider = ({ item }: any) => (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
       onPress={() => {
         router.push({
           pathname: '/providers/[id]',
@@ -43,32 +46,34 @@ export default function ProvidersListScreen() {
         });
       }}
     >
-      <View style={styles.avatar}>
-        <Ionicons name="person" size={32} color="#172247" />
+      <View style={[styles.avatar, { backgroundColor: theme.surface }]}>
+        <Ionicons name="person" size={32} color={theme.textAlt} />
       </View>
       <View style={styles.info}>
-        <Text style={styles.name}>{item.name || item.email}</Text>
-        <Text style={styles.email}>{item.email}</Text>
+        <Text style={[styles.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{item.name || item.email}</Text>
+        <Text style={[styles.email, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{item.email}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+      <Ionicons name="chevron-forward" size={24} color={theme.textMuted} />
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color="#172247" />
+      <SafeAreaView style={[styles.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={styles.title}>Providers</Text>
+        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Providers</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -79,8 +84,8 @@ export default function ProvidersListScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="people-outline" size={64} color="#D1D5DB" />
-            <Text style={styles.emptyText}>Aucun provider disponible</Text>
+            <Ionicons name="people-outline" size={64} color={theme.textDisabled} />
+            <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucun provider disponible</Text>
           </View>
         }
       />
@@ -89,29 +94,25 @@ export default function ProvidersListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
-  title: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  title: { fontSize: 20 },
   list: { padding: 16 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -119,14 +120,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   info: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '600', color: '#111827' },
-  email: { fontSize: 14, color: '#6B7280', marginTop: 4 },
+  name: { fontSize: 16 },
+  email: { fontSize: 14, marginTop: 4 },
   empty: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 16, color: '#6B7280', marginTop: 16 },
+  emptyText: { fontSize: 16, marginTop: 16 },
 });

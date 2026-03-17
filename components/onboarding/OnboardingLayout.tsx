@@ -1,18 +1,60 @@
-// components/onboarding/OnboardingLayout.tsx — Wrapper unifié pour TOUS les écrans d'onboarding
-import React from 'react';
+// components/onboarding/OnboardingLayout.tsx — Dark premium wrapper for onboarding screens
+import React, { useRef, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, StatusBar,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useNavigation } from 'expo-router';
+  Dimensions, Animated, Easing,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Line } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { FONTS } from "@/hooks/use-app-theme";
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+const GRID_SIZE = 40;
+
+const C = {
+  bg: "#0A0A0A",
+  white: "#FAFAFA",
+  grey: "#888888",
+  border: "rgba(255,255,255,0.08)",
+  cardBg: "#141414",
+  outlineText: "rgba(255,255,255,0.3)",
+};
+
+function GridLines() {
+  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
+  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
+  const stroke = "rgba(255,255,255,0.025)";
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
+        {Array.from({ length: cols }, (_, i) => (
+          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
+        ))}
+        {Array.from({ length: rows }, (_, i) => (
+          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
+        ))}
+      </Svg>
+      <LinearGradient
+        colors={["transparent", "transparent", C.bg]}
+        locations={[0, 0.35, 0.75]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+      />
+    </View>
+  );
+}
 
 interface Props {
   children: React.ReactNode;
   currentStep: number;
   totalSteps: number;
   onBack?: () => void;
-  /** Show back button. Defaults to true but auto-hides if there's no screen to go back to. */
   showBack?: boolean;
   title: string;
   subtitle?: string;
@@ -39,94 +81,124 @@ export function OnboardingLayout({
   cta,
   secondaryCta,
 }: Props) {
-  // Only show the back button if there's actually a screen to go back to
   const canGoBack = router.canGoBack();
   const shouldShowBack = showBack && (!!onBack || canGoBack);
 
   const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else if (router.canGoBack()) {
-      router.back();
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onBack) onBack();
+    else if (router.canGoBack()) router.back();
   };
 
+  // Glow animation
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowOp = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
+          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
+        ]),
+      ])
+    ).start();
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      <GridLines />
+      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0.025)", "transparent"]}
+          style={s.glowGradient}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </Animated.View>
 
       {/* Header */}
-      <View style={styles.header}>
-        {shouldShowBack ? (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            accessibilityRole="button"
-            accessibilityLabel="Retour"
-          >
-            <Ionicons name="chevron-back" size={20} color="#fff" />
-          </TouchableOpacity>
-        ) : <View style={styles.backPlaceholder} />}
+      <View style={s.header}>
+        <View style={s.navRow}>
+          {shouldShowBack ? (
+            <TouchableOpacity
+              style={s.backBtn}
+              onPress={handleBack}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
 
-        <Text style={styles.logo}>FIXED</Text>
-
-        <View style={styles.stepBadge}>
-          <Text style={styles.stepText}>
-            {String(currentStep).padStart(2, '0')} / {totalSteps}
-          </Text>
+          <View style={s.stepIndicator}>
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <View key={i} style={[s.stepBar, i < currentStep ? s.stepBarActive : s.stepBarInactive]} />
+            ))}
+            <Text style={s.stepLabel}>
+              <Text style={s.stepLabelBold}>{String(currentStep).padStart(2, "0")}</Text>
+              {" / "}
+              {String(totalSteps).padStart(2, "0")}
+            </Text>
+          </View>
         </View>
-      </View>
-
-      {/* Progress bar */}
-      <View style={styles.progressBar}>
-        {Array.from({ length: totalSteps }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.progressSegment,
-              i < currentStep && styles.progressSegmentActive,
-            ]}
-          />
-        ))}
       </View>
 
       {/* Content */}
       <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={s.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          style={s.flex}
+          contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>{title}</Text>
-          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-          <View style={styles.content}>{children}</View>
+          <Text style={s.title}>{title}</Text>
+          {subtitle && <Text style={s.subtitle}>{subtitle}</Text>}
+          <View style={s.content}>{children}</View>
         </ScrollView>
 
-        {/* CTA fixe en bas */}
+        {/* CTA */}
         {cta && (
-          <View style={styles.footer}>
+          <View style={s.footer}>
             <TouchableOpacity
-              style={[styles.ctaButton, cta.disabled && styles.ctaDisabled]}
-              onPress={cta.onPress}
+              style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                cta.onPress();
+              }}
               disabled={cta.disabled || cta.loading}
-              accessibilityRole="button"
-              accessibilityLabel={cta.label}
-              accessibilityState={{ disabled: cta.disabled }}
+              activeOpacity={0.9}
             >
-              <Text style={[styles.ctaText, cta.disabled && styles.ctaTextDisabled]}>
-                {cta.loading ? 'Chargement…' : cta.label}
+              <Text style={s.btnPrimaryText}>
+                {cta.loading ? "CHARGEMENT..." : cta.label.toUpperCase()}
               </Text>
               {!cta.loading && !cta.disabled && (
-                <Ionicons name="arrow-forward" size={16} color="#000" />
+                <View style={s.arrowPill}>
+                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                </View>
               )}
             </TouchableOpacity>
+
             {secondaryCta && (
-              <TouchableOpacity onPress={secondaryCta.onPress} style={styles.secondaryCta}>
-                <Text style={styles.secondaryCtaText}>{secondaryCta.label}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  secondaryCta.onPress();
+                }}
+                style={s.secondaryCta}
+                activeOpacity={0.7}
+              >
+                <Text style={s.secondaryCtaText}>{secondaryCta.label}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -136,59 +208,81 @@ export function OnboardingLayout({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
+
+  glowWrap: {
+    position: "absolute", top: -80,
+    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
+  },
+  glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
+
+  // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 56 : 40,
-    paddingBottom: 16,
+    paddingTop: Platform.OS === "ios" ? 70 : 50,
+    paddingHorizontal: 28,
+    zIndex: 2,
   },
-  backButton: {
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  backBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
   },
-  backPlaceholder: { width: 36 },
-  logo: {
-    fontSize: 16, fontWeight: '900', color: '#fff',
-    letterSpacing: 3,
+  stepIndicator: {
+    flexDirection: "row", alignItems: "center", gap: 6,
   },
-  stepBadge: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
+  stepBar: { height: 2, borderRadius: 2 },
+  stepBarActive: { width: 36, backgroundColor: C.white },
+  stepBarInactive: { width: 20, backgroundColor: "rgba(255,255,255,0.12)" },
+  stepLabel: {
+    fontFamily: FONTS.sans, fontSize: 10, letterSpacing: 2,
+    color: "rgba(255,255,255,0.25)", marginLeft: 4,
   },
-  stepText: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
-  progressBar: {
-    flexDirection: 'row', gap: 4,
-    paddingHorizontal: 20, marginBottom: 8,
+  stepLabelBold: { color: "rgba(255,255,255,0.5)" },
+
+  // Content
+  scrollContent: {
+    paddingHorizontal: 28, paddingTop: 24, paddingBottom: 24,
   },
-  progressSegment: {
-    flex: 1, height: 2, borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  progressSegmentActive: { backgroundColor: '#fff' },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 },
   title: {
-    fontSize: 30, fontWeight: '800', color: '#fff',
-    lineHeight: 36, marginBottom: 8,
+    fontFamily: FONTS.bebas, fontSize: 36, color: C.white,
+    letterSpacing: 1, lineHeight: 40, marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14, color: 'rgba(255,255,255,0.4)',
-    lineHeight: 22, marginBottom: 32,
+    fontFamily: FONTS.sansLight, fontSize: 14, lineHeight: 22,
+    color: C.grey, marginBottom: 28,
   },
   content: { flex: 1 },
-  footer: { paddingHorizontal: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, paddingTop: 12, gap: 12 },
-  ctaButton: {
-    backgroundColor: '#fff', borderRadius: 16, height: 56,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+
+  // Footer
+  footer: {
+    paddingHorizontal: 28,
+    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingTop: 12, gap: 12, zIndex: 2,
   },
-  ctaDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
-  ctaText: { fontSize: 15, fontWeight: '700', color: '#000' },
-  ctaTextDisabled: { color: 'rgba(255,255,255,0.2)' },
-  secondaryCta: { alignItems: 'center', paddingVertical: 4 },
-  secondaryCtaText: { fontSize: 13, color: 'rgba(255,255,255,0.35)', fontWeight: '500' },
+  btnPrimary: {
+    width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
+  },
+  btnPrimaryText: {
+    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
+  },
+  arrowPill: {
+    width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
+    alignItems: "center", justifyContent: "center",
+  },
+  secondaryCta: { alignItems: "center", paddingVertical: 4 },
+  secondaryCtaText: {
+    fontFamily: FONTS.sansMedium, fontSize: 13,
+    color: C.outlineText,
+    textDecorationLine: "underline",
+    textDecorationColor: "rgba(255,255,255,0.12)",
+  },
 });

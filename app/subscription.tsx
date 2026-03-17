@@ -19,7 +19,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -87,15 +87,15 @@ function StatusChip({ status }: { status: string }) {
   return (
     <View style={[
       chip.wrap,
-      { backgroundColor: isActive ? (theme.isDark ? '#0D2818' : '#F0FDF4') : theme.surface },
+      { backgroundColor: isActive ? theme.badgeDoneBg : theme.surface },
     ]}>
       <View style={[
         chip.dot,
-        { backgroundColor: isActive ? '#22C55E' : theme.textMuted },
+        { backgroundColor: isActive ? COLORS.green : theme.textMuted },
       ]} />
       <Text style={[
         chip.text,
-        { color: isActive ? (theme.isDark ? '#4ADE80' : '#15803D') : theme.textMuted },
+        { color: isActive ? COLORS.green : theme.textMuted, fontFamily: FONTS.sansMedium },
       ]}>
         {isActive ? 'Actif' : status === 'CANCELLED' ? 'Résilié' : 'En attente'}
       </Text>
@@ -106,7 +106,7 @@ function StatusChip({ status }: { status: string }) {
 const chip = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  text: { fontSize: 12, fontWeight: '700' },
+  text: { fontSize: 12 },
 });
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
@@ -132,27 +132,27 @@ function PlanCard({
     ]}>
       {plan.highlight && !isCurrent && (
         <View style={[pl.badge, { backgroundColor: theme.accent }]}>
-          <Text style={[pl.badgeText, { color: theme.accentText }]}>Recommandé</Text>
+          <Text style={[pl.badgeText, { color: theme.accentText, fontFamily: FONTS.mono }]}>Recommandé</Text>
         </View>
       )}
       {isCurrent && (
         <View style={[pl.badge, { backgroundColor: theme.textSub }]}>
-          <Text style={pl.badgeText}>Plan actuel</Text>
+          <Text style={[pl.badgeText, { fontFamily: FONTS.mono }]}>Plan actuel</Text>
         </View>
       )}
       <View style={pl.top}>
-        <Text style={[pl.name, { color: plan.highlight ? theme.accentText : theme.textAlt }]}>
+        <Text style={[pl.name, { color: plan.highlight ? theme.accentText : theme.textAlt, fontFamily: FONTS.bebas }]}>
           {plan.name}
         </Text>
-        <Text style={[pl.price, { color: plan.highlight ? 'rgba(255,255,255,0.6)' : theme.textMuted }]}>
+        <Text style={[pl.price, { color: plan.highlight ? theme.heroSub : theme.textMuted, fontFamily: FONTS.sansMedium }]}>
           {plan.priceLabel}
         </Text>
       </View>
       <View style={pl.features}>
         {plan.features.map((f, i) => (
           <View key={i} style={pl.featureRow}>
-            <Ionicons name="checkmark-circle" size={14} color={plan.highlight ? theme.accentText : '#22C55E'} />
-            <Text style={[pl.featureText, { color: plan.highlight ? 'rgba(255,255,255,0.8)' : theme.textSub }]}>
+            <Ionicons name="checkmark-circle" size={14} color={plan.highlight ? theme.accentText : COLORS.green} />
+            <Text style={[pl.featureText, { color: plan.highlight ? theme.heroText : theme.textSub, fontFamily: FONTS.sans }]}>
               {f}
             </Text>
           </View>
@@ -172,7 +172,7 @@ function PlanCard({
           {loading ? (
             <ActivityIndicator size="small" color={plan.highlight ? theme.accent : theme.accentText} />
           ) : (
-            <Text style={[pl.btnText, { color: plan.highlight ? theme.accent : theme.accentText }]}>
+            <Text style={[pl.btnText, { color: plan.highlight ? theme.accent : theme.accentText, fontFamily: FONTS.sansMedium }]}>
               S'abonner
             </Text>
           )}
@@ -197,19 +197,19 @@ const pl = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 4,
   },
-  badgeText: { fontSize: 10, fontWeight: '800', color: '#FFF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  badgeText: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   top:  { gap: 4, marginTop: 8 },
-  name: { fontSize: 20, fontWeight: '900' },
-  price: { fontSize: 14, fontWeight: '600' },
+  name: { fontSize: 20 },
+  price: { fontSize: 14 },
   features: { gap: 8 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureText: { fontSize: 13, fontWeight: '500', flex: 1 },
+  featureText: { fontSize: 13, flex: 1 },
   btn: {
     borderRadius: 12,
     paddingVertical: 13, alignItems: 'center',
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { fontSize: 15, fontWeight: '800' },
+  btnText: { fontSize: 15 },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -319,7 +319,7 @@ export default function SubscriptionScreen() {
         >
           <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('profile.subscription')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.subscription')}</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -330,44 +330,44 @@ export default function SubscriptionScreen() {
           <View style={[s.currentCard, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
             <View style={s.currentRow}>
               <View>
-                <Text style={[s.currentLabel, { color: theme.textMuted }]}>Abonnement actuel</Text>
-                <Text style={[s.currentPlan, { color: theme.textAlt }]}>{subscription.planName}</Text>
+                <Text style={[s.currentLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>Abonnement actuel</Text>
+                <Text style={[s.currentPlan, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{subscription.planName}</Text>
               </View>
               <StatusChip status={subscription.status} />
             </View>
             <View style={s.currentMeta}>
-              <Text style={[s.currentMetaText, { color: theme.textMuted }]}>
+              <Text style={[s.currentMetaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
                 Depuis le {new Date(subscription.startDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
               </Text>
               {subscription.endDate && (
-                <Text style={[s.currentMetaText, { color: theme.textMuted }]}>
+                <Text style={[s.currentMetaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
                   Fin le {new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </Text>
               )}
             </View>
             {subscription.status === 'ACTIVE' && (
               <TouchableOpacity
-                style={s.cancelBtn}
+                style={[s.cancelBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : '#FECACA' }]}
                 onPress={handleCancel}
                 disabled={cancelling}
                 activeOpacity={0.7}
               >
                 {cancelling
                   ? <ActivityIndicator size="small" color={theme.danger} />
-                  : <Text style={[s.cancelBtnText, { color: theme.danger }]}>{t('subscription.cancel_btn')}</Text>
+                  : <Text style={[s.cancelBtnText, { color: theme.danger, fontFamily: FONTS.sansMedium }]}>{t('subscription.cancel_btn')}</Text>
                 }
               </TouchableOpacity>
             )}
           </View>
         ) : (
           <View style={[s.noPlanCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-            <Ionicons name="wallet-outline" size={36} color="#D1D5DB" />
-            <Text style={[s.noPlanTitle, { color: theme.textAlt }]}>Aucun abonnement actif</Text>
-            <Text style={[s.noPlanSub, { color: theme.textMuted }]}>Choisissez un plan pour accéder aux clients premium.</Text>
+            <Ionicons name="wallet-outline" size={36} color={theme.textVeryMuted} />
+            <Text style={[s.noPlanTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucun abonnement actif</Text>
+            <Text style={[s.noPlanSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Choisissez un plan pour accéder aux clients premium.</Text>
           </View>
         )}
 
-        <Text style={[s.plansTitle, { color: theme.textAlt }]}>Nos plans</Text>
+        <Text style={[s.plansTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Nos plans</Text>
 
         {PLANS.map(plan => (
           <PlanCard
@@ -379,9 +379,9 @@ export default function SubscriptionScreen() {
           />
         ))}
 
-        <Text style={[s.legal, { color: theme.textMuted }]}>
+        <Text style={[s.legal, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
           En vous abonnant, vous acceptez nos {' '}
-          <Text style={[s.legalLink, { color: theme.textSub }]} onPress={() => router.push('/settings/cgu' as any)}>
+          <Text style={[s.legalLink, { color: theme.textSub, fontFamily: FONTS.sansMedium }]} onPress={() => router.push('/settings/cgu' as any)}>
             Conditions Générales
           </Text>
           . Les paiements sont sécurisés par Stripe.
@@ -407,7 +407,7 @@ const s = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 17, fontWeight: '800' },
+  headerTitle: { fontSize: 17 },
 
   scroll: { padding: 16, gap: 4, paddingBottom: 48 },
 
@@ -421,26 +421,26 @@ const s = StyleSheet.create({
     }),
   },
   currentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  currentLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  currentPlan: { fontSize: 22, fontWeight: '900' },
+  currentLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  currentPlan: { fontSize: 22 },
   currentMeta: { gap: 3 },
-  currentMetaText: { fontSize: 13, fontWeight: '500' },
+  currentMetaText: { fontSize: 13 },
   cancelBtn: {
-    borderWidth: 1, borderColor: '#FECACA', borderRadius: 12,
+    borderWidth: 1, borderRadius: 12,
     paddingVertical: 10, alignItems: 'center',
   },
-  cancelBtnText: { fontSize: 14, fontWeight: '700' },
+  cancelBtnText: { fontSize: 14 },
 
   noPlanCard: {
     borderRadius: 20, padding: 24,
     alignItems: 'center', gap: 8, marginBottom: 20,
     borderWidth: 1,
   },
-  noPlanTitle: { fontSize: 16, fontWeight: '700' },
+  noPlanTitle: { fontSize: 16 },
   noPlanSub: { fontSize: 13, textAlign: 'center' },
 
-  plansTitle: { fontSize: 15, fontWeight: '800', marginBottom: 8, paddingHorizontal: 4 },
+  plansTitle: { fontSize: 15, marginBottom: 8, paddingHorizontal: 4 },
 
   legal: { fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 18 },
-  legalLink: { fontWeight: '600' },
+  legalLink: { fontSize: 12 },
 });

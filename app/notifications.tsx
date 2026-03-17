@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ─── Formatage date relative ───────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -59,7 +59,18 @@ function NotifRow({
 
   return (
     <TouchableOpacity
-      style={[s.row, { backgroundColor: theme.cardBg, borderColor: theme.border }, isUnread && { borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : '#E8E8E8', backgroundColor: theme.surface }]}
+      style={[
+        s.row,
+        {
+          backgroundColor: theme.cardBg,
+          borderColor: theme.border,
+          ...Platform.select({
+            ios: { shadowColor: theme.text, shadowOpacity: theme.shadowOpacity, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+            android: { elevation: 1 },
+          }),
+        },
+        isUnread && { borderColor: theme.borderLight, backgroundColor: theme.surface },
+      ]}
       onPress={() => { if (isUnread) onRead(item.id); }}
       activeOpacity={0.75}
     >
@@ -73,11 +84,18 @@ function NotifRow({
 
       {/* Contenu */}
       <View style={s.content}>
-        <Text style={[s.title, { color: theme.textSub }, isUnread && { fontWeight: '800', color: theme.textAlt }]} numberOfLines={1}>
+        <Text
+          style={[
+            s.title,
+            { color: theme.textSub, fontFamily: FONTS.sansMedium },
+            isUnread && { color: theme.textAlt, fontFamily: FONTS.sansMedium },
+          ]}
+          numberOfLines={1}
+        >
           {item.title}
         </Text>
-        <Text style={[s.message, { color: theme.textMuted }]} numberOfLines={2}>{item.message}</Text>
-        <Text style={[s.time, { color: theme.textMuted }]}>{timeAgo(item.createdAt)}</Text>
+        <Text style={[s.message, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={2}>{item.message}</Text>
+        <Text style={[s.time, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{timeAgo(item.createdAt)}</Text>
       </View>
 
       {/* Supprimer */}
@@ -148,6 +166,7 @@ export default function NotificationsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
         <ActivityIndicator size="large" color={theme.accent} />
       </SafeAreaView>
     );
@@ -168,17 +187,17 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
 
         <View style={s.headerCenter}>
-          <Text style={[s.headerTitle, { color: theme.textAlt }]}>Notifications</Text>
+          <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Notifications</Text>
           {unreadCount > 0 && (
             <View style={[s.headerBadge, { backgroundColor: theme.accent }]}>
-              <Text style={[s.headerBadgeText, { color: theme.accentText }]}>{unreadCount}</Text>
+              <Text style={[s.headerBadgeText, { color: theme.accentText, fontFamily: FONTS.monoMedium }]}>{unreadCount}</Text>
             </View>
           )}
         </View>
 
         {unreadCount > 0 ? (
           <TouchableOpacity onPress={handleMarkAllRead} style={s.markAllBtn}>
-            <Text style={[s.markAllText, { color: theme.textMuted }]}>Tout lire</Text>
+            <Text style={[s.markAllText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Tout lire</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ width: 60 }} />
@@ -203,8 +222,8 @@ export default function NotificationsScreen() {
             <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
               <Ionicons name="notifications-off-outline" size={36} color={theme.textMuted} />
             </View>
-            <Text style={[s.emptyTitle, { color: theme.textSub }]}>Aucune notification</Text>
-            <Text style={[s.emptySubtitle, { color: theme.textMuted }]}>
+            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.bebas }]}>Aucune notification</Text>
+            <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               Vos notifications apparaîtront ici (nouvelles missions, statuts, gains…)
             </Text>
           </View>
@@ -226,14 +245,14 @@ const s = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
+  headerTitle: { fontSize: 22, letterSpacing: 1 },
   headerBadge: {
     borderRadius: 10,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  headerBadgeText: { fontSize: 11, fontWeight: '800' },
+  headerBadgeText: { fontSize: 11 },
   markAllBtn: { paddingHorizontal: 8, paddingVertical: 6 },
-  markAllText: { fontSize: 13, fontWeight: '600' },
+  markAllText: { fontSize: 13 },
 
   // Liste
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
@@ -245,10 +264,6 @@ const s = StyleSheet.create({
     borderRadius: 18,
     padding: 14, gap: 12,
     borderWidth: 1,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 1 },
-    }),
   },
   rowUnread: {},
   unreadDot: {
@@ -260,10 +275,10 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   content: { flex: 1 },
-  title:   { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-  titleUnread: { fontWeight: '800' },
+  title:   { fontSize: 14, marginBottom: 2 },
+  titleUnread: {},
   message: { fontSize: 13, lineHeight: 18, marginBottom: 4 },
-  time:    { fontSize: 11, fontWeight: '500' },
+  time:    { fontSize: 11 },
   deleteBtn: { padding: 4 },
 
   // Empty
@@ -273,6 +288,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle:    { fontSize: 17, fontWeight: '700' },
+  emptyTitle:    { fontSize: 22, letterSpacing: 1 },
   emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 40 },
 });

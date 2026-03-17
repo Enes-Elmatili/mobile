@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import type { DiscoveredProvider } from '../../hooks/useProviderDiscovery';
 
 interface Props {
@@ -22,23 +23,24 @@ function initials(name?: string) {
 
 export function ProviderCard({ provider, onPress }: Props) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const isOnline = provider.status === 'ONLINE' || provider.status === 'READY';
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
       onPress={() => onPress(provider)}
       accessibilityRole="button"
       accessibilityLabel={`${provider.name}, ${provider.avgRating} ${t('providers.rating')}, ${provider.distanceKm.toFixed(1)} km`}
     >
       {/* Avatar */}
       <View style={styles.avatarContainer}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarInitial}>{initials(provider.name)}</Text>
+        <View style={[styles.avatar, { backgroundColor: theme.accent }]}>
+          <Text style={[styles.avatarInitial, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{initials(provider.name)}</Text>
         </View>
         {isOnline && (
           <View
-            style={styles.onlineDot}
+            style={[styles.onlineDot, { backgroundColor: COLORS.green, borderColor: theme.cardBg }]}
             accessibilityLabel={t('providers.online')}
           />
         )}
@@ -46,13 +48,13 @@ export function ProviderCard({ provider, onPress }: Props) {
 
       {/* Infos */}
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
           {provider.name}
         </Text>
 
         <View style={styles.metaRow}>
-          <Ionicons name="star" size={12} color="#1A1A1A" />
-          <Text style={styles.metaText}>
+          <Ionicons name="star" size={12} color={theme.text} />
+          <Text style={[styles.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             {provider.avgRating.toFixed(1)} · {provider.jobsCompleted}{' '}
             {t('providers.missions')}
           </Text>
@@ -61,8 +63,8 @@ export function ProviderCard({ provider, onPress }: Props) {
         {/* Categories */}
         <View style={styles.tagsRow}>
           {provider.categories.slice(0, 3).map((c) => (
-            <View key={c.id} style={styles.tag}>
-              <Text style={styles.tagText}>{c.name}</Text>
+            <View key={c.id} style={[styles.tag, { backgroundColor: theme.surfaceAlt }]}>
+              <Text style={[styles.tagText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{c.name}</Text>
             </View>
           ))}
         </View>
@@ -70,10 +72,10 @@ export function ProviderCard({ provider, onPress }: Props) {
 
       {/* Distance + ETA */}
       <View style={styles.distanceCol}>
-        <Text style={styles.distance}>
+        <Text style={[styles.distance, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
           {provider.distanceKm.toFixed(1)} {t('providers.km')}
         </Text>
-        <Text style={styles.eta}>~{provider.responseTimeMinutes} min</Text>
+        <Text style={[styles.eta, { color: theme.textMuted, fontFamily: FONTS.sans }]}>~{provider.responseTimeMinutes} min</Text>
       </View>
     </TouchableOpacity>
   );
@@ -83,24 +85,21 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
   },
   avatarContainer: { position: 'relative' },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitial: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  avatarInitial: { fontSize: 16 },
   onlineDot: {
     position: 'absolute',
     bottom: 0,
@@ -108,17 +107,13 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#16a34a',
     borderWidth: 2,
-    borderColor: '#fff',
   },
   info: { flex: 1, gap: 3 },
-  name: { fontSize: 14, fontWeight: '700', color: '#1A1A1A', flex: 1 },
+  name: { fontSize: 14, flex: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: {
     fontSize: 12,
-    color: 'rgba(0,0,0,0.5)',
-    fontWeight: '500',
   },
   tagsRow: {
     flexDirection: 'row',
@@ -127,13 +122,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   tag: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  tagText: { fontSize: 10, fontWeight: '600', color: '#1A1A1A' },
+  tagText: { fontSize: 10 },
   distanceCol: { alignItems: 'flex-end', gap: 2 },
-  distance: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-  eta: { fontSize: 11, color: 'rgba(0,0,0,0.4)', fontWeight: '500' },
+  distance: { fontSize: 13 },
+  eta: { fontSize: 11 },
 });

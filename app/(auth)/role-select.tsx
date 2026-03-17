@@ -1,86 +1,183 @@
-// app/(auth)/role-select.tsx — Sélection du rôle
-import React, { useRef, useState } from 'react';
+// app/(auth)/role-select.tsx — Sélection du rôle (premium dark)
+import React, { useRef, useState, useEffect } from 'react';
 import {
-  View, Text, Pressable, StyleSheet,
-  SafeAreaView, Platform, StatusBar, Animated,
+  View, Text, Pressable, TouchableOpacity, StyleSheet,
+  Platform, StatusBar, Animated, Easing, Alert, Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Line } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { api } from '@/lib/api';
+import { FONTS } from '@/hooks/use-app-theme';
 
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const GRID_SIZE = 40;
 const ROLE_INTENT_KEY = '@fixed:signup:role';
 
-/* ── Carte avec micro-interaction scale ────────────────────────── */
+// ── Colors (dark-only) ──────────────────────────────────────────────────────
+const C = {
+  bg: '#0A0A0A',
+  white: '#FAFAFA',
+  grey: '#888888',
+  border: 'rgba(255,255,255,0.08)',
+  cardBg: '#141414',
+  iconBg: 'rgba(255,255,255,0.06)',
+  iconBorder: 'rgba(255,255,255,0.08)',
+  selectedCardBg: 'rgba(255,255,255,0.04)',
+  outlineText: 'rgba(255,255,255,0.3)',
+  radioBorder: 'rgba(255,255,255,0.2)',
+  loginMuted: 'rgba(255,255,255,0.3)',
+  loginText: 'rgba(255,255,255,0.7)',
+};
+
+// ── Grid background ─────────────────────────────────────────────────────────
+function GridLines() {
+  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
+  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
+  const stroke = 'rgba(255,255,255,0.025)';
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
+        {Array.from({ length: cols }, (_, i) => (
+          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
+        ))}
+        {Array.from({ length: rows }, (_, i) => (
+          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
+        ))}
+      </Svg>
+      <LinearGradient
+        colors={['transparent', 'transparent', C.bg]}
+        locations={[0, 0.35, 0.75]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+      />
+    </View>
+  );
+}
+
+// ── Role Card ───────────────────────────────────────────────────────────────
 function RoleCard({
-  role, icon, title, tagline, isSelected, onPress,
+  icon, title, subtitle, isSelected, onPress,
 }: {
-  role: 'CLIENT' | 'PROVIDER';
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
-  tagline: string;
+  subtitle: string;
   isSelected: boolean;
   onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const radioDot = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(radioDot, {
+      toValue: isSelected ? 1 : 0,
+      friction: 6, tension: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isSelected]);
 
   const onPressIn = () => {
-    Animated.spring(scale, {
-      toValue: 0.97,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
-    }).start();
+    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
   };
-
   const onPressOut = () => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 30,
-      bounciness: 6,
-    }).start();
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
   };
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        style={[s.card, isSelected && s.cardSelected]}
+        style={[
+          s.card,
+          isSelected && s.cardSelected,
+        ]}
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
       >
-        <View style={s.cardRow}>
-          <View style={[s.iconWrap, isSelected && s.iconWrapSelected]}>
-            <Ionicons
-              name={icon}
-              size={26}
-              color={isSelected ? '#111' : '#FFF'}
-            />
-          </View>
-          <View style={s.cardTextWrap}>
-            <Text style={[s.cardTitle, isSelected && s.cardTitleSelected]}>
-              {title}
-            </Text>
-            <Text style={[s.cardTagline, isSelected && s.cardTaglineSelected]}>
-              {tagline}
-            </Text>
-          </View>
-          <View style={[s.radio, isSelected && s.radioSelected]}>
-            {isSelected && (
-              <Ionicons name="checkmark" size={13} color="#FFF" />
-            )}
-          </View>
+        {/* Icon */}
+        <View style={[s.cardIcon, isSelected && s.cardIconSelected]}>
+          <Ionicons name={icon} size={20} color={isSelected ? C.bg : 'rgba(255,255,255,0.7)'} />
+        </View>
+
+        {/* Text */}
+        <View style={s.cardText}>
+          <Text style={s.cardTitle}>{title}</Text>
+          <Text style={s.cardSub}>{subtitle}</Text>
+        </View>
+
+        {/* Radio */}
+        <View style={[s.radio, isSelected && s.radioSelected]}>
+          <Animated.View style={[s.radioInner, { transform: [{ scale: radioDot }] }]} />
         </View>
       </Pressable>
     </Animated.View>
   );
 }
 
-/* ── Écran principal ───────────────────────────────────────────── */
+// ── Main Screen ─────────────────────────────────────────────────────────────
 export default function RoleSelect() {
   const router = useRouter();
+  const { user, signIn } = useAuth();
   const [selected, setSelected] = useState<'CLIENT' | 'PROVIDER' | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isAuthenticated = !!user;
+
+  // Entrance animations
+  const headerOp = useRef(new Animated.Value(0)).current;
+  const headerTy = useRef(new Animated.Value(-12)).current;
+  const heroOp = useRef(new Animated.Value(0)).current;
+  const heroTy = useRef(new Animated.Value(16)).current;
+  const cardsOp = useRef(new Animated.Value(0)).current;
+  const cardsTy = useRef(new Animated.Value(16)).current;
+  const actionsOp = useRef(new Animated.Value(0)).current;
+  const actionsTy = useRef(new Animated.Value(16)).current;
+
+  // Glow
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowOp = useRef(new Animated.Value(0.6)).current;
+
+  const ease = Easing.bezier(0.16, 1, 0.3, 1);
+
+  useEffect(() => {
+    Animated.stagger(80, [
+      Animated.parallel([
+        Animated.timing(headerOp, { toValue: 1, duration: 500, easing: ease, useNativeDriver: true }),
+        Animated.timing(headerTy, { toValue: 0, duration: 500, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(heroOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(heroTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(cardsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(cardsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(actionsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(actionsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
+          Animated.timing(glowOp, { toValue: 0.6, duration: 3000, useNativeDriver: true }),
+        ]),
+      ])
+    ).start();
+  }, []);
 
   const select = (role: 'CLIENT' | 'PROVIDER') => {
     setSelected(role);
@@ -88,195 +185,329 @@ export default function RoleSelect() {
   };
 
   const confirm = async () => {
-    if (!selected) return;
+    if (!selected || submitting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await AsyncStorage.setItem(ROLE_INTENT_KEY, selected);
-    router.push('/(auth)/signup');
+
+    if (isAuthenticated) {
+      setSubmitting(true);
+      try {
+        const res = await api.auth.assignRole(selected);
+        if (res?.token) {
+          await signIn(res.token);
+        }
+        if (selected === 'PROVIDER') {
+          router.replace('/onboarding/documents');
+          return;
+        }
+      } catch (e: any) {
+        Alert.alert('Erreur', e?.message || "Impossible d'attribuer le role");
+        setSubmitting(false);
+      }
+    } else {
+      await AsyncStorage.setItem(ROLE_INTENT_KEY, selected);
+      router.push('/(auth)/signup');
+    }
   };
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      <SafeAreaView style={s.safe}>
-        {/* Header */}
-        <View style={s.header}>
-          <Pressable
-            style={s.backBtn}
-            onPress={() => { Haptics.selectionAsync(); router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'); }}
-            hitSlop={12}
-          >
-            <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.45)" />
-          </Pressable>
-          <Text style={s.logo}>FIXED</Text>
+      {/* Background */}
+      <GridLines />
+      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.03)', 'transparent']}
+          style={s.glowGradient}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </Animated.View>
+
+      {/* Header */}
+      <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+        <View style={s.headerRow}>
+          {!isAuthenticated ? (
+            <Pressable
+              style={s.backBtn}
+              onPress={() => { Haptics.selectionAsync(); router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'); }}
+              hitSlop={12}
+            >
+              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
+          <Text style={s.logoEyebrow}>Inscription</Text>
           <View style={{ width: 36 }} />
         </View>
+      </Animated.View>
 
-        {/* Contenu centré */}
-        <View style={s.content}>
-          <Text style={s.title}>Vous êtes…</Text>
-          <Text style={s.subtitle}>
-            Choisissez votre profil pour commencer.
-          </Text>
-
-          <View style={s.cards}>
-            <RoleCard
-              role="CLIENT"
-              icon="sparkles-outline"
-              title="Client"
-              tagline="Trouvez un pro en 2 minutes."
-              isSelected={selected === 'CLIENT'}
-              onPress={() => select('CLIENT')}
-            />
-            <RoleCard
-              role="PROVIDER"
-              icon="flash-outline"
-              title="Prestataire"
-              tagline="Accédez à des missions qualifiées."
-              isSelected={selected === 'PROVIDER'}
-              onPress={() => select('PROVIDER')}
-            />
-          </View>
+      {/* Hero */}
+      <Animated.View style={[s.hero, { opacity: heroOp, transform: [{ translateY: heroTy }] }]}>
+        <Text style={s.heroKicker}>Etape 1 sur 3</Text>
+        <View>
+          <Text style={s.heroTitle}>JE SUIS</Text>
+          <Text style={[s.heroTitle, s.heroTitleOutline]}>QUI ?</Text>
         </View>
+        <Text style={s.heroSub}>Choisissez votre profil pour personnaliser l'experience.</Text>
+      </Animated.View>
 
-        {/* Footer */}
-        <View style={s.footer}>
-          <Pressable
-            style={[s.confirmBtn, !selected && s.confirmBtnDisabled]}
-            onPress={confirm}
-            disabled={!selected}
-          >
-            <Text style={[s.confirmText, !selected && s.confirmTextDisabled]}>
-              Continuer
-            </Text>
-          </Pressable>
+      {/* Cards — flex spacer pushes actions to bottom */}
+      <View style={{ flex: 1, justifyContent: 'flex-start' }}>
+        <Animated.View style={[s.cards, { opacity: cardsOp, transform: [{ translateY: cardsTy }] }]}>
+          <RoleCard
+            icon="person-outline"
+            title="CLIENT"
+            subtitle={'Je cherche un prestataire\npour mon domicile'}
+            isSelected={selected === 'CLIENT'}
+            onPress={() => select('CLIENT')}
+          />
+          <RoleCard
+            icon="construct-outline"
+            title="PRESTATAIRE"
+            subtitle={'Je propose mes services\net gere mes missions'}
+            isSelected={selected === 'PROVIDER'}
+            onPress={() => select('PROVIDER')}
+          />
+        </Animated.View>
+      </View>
 
-          <Pressable
-            style={s.loginLink}
+      {/* Actions */}
+      <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+        <TouchableOpacity
+          style={[s.btnPrimary, !selected && s.btnPrimaryDisabled, submitting && { opacity: 0.6 }]}
+          activeOpacity={0.9}
+          onPress={confirm}
+          disabled={!selected || submitting}
+        >
+          <Text style={s.btnPrimaryText}>{submitting ? 'CHARGEMENT...' : 'CONTINUER'}</Text>
+          {selected && (
+            <View style={s.arrowPill}>
+              <Ionicons name="arrow-forward" size={14} color={C.white} />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {!isAuthenticated && (
+          <TouchableOpacity
+            style={s.loginRow}
+            activeOpacity={0.7}
             onPress={() => { Haptics.selectionAsync(); router.push('/(auth)/login'); }}
-            hitSlop={8}
           >
-            <Text style={s.loginText}>
-              Déjà un compte ?{'  '}
-              <Text style={s.loginBold}>Se connecter</Text>
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+            <Text style={s.loginLabel}>Deja un compte ?</Text>
+            <Text style={s.loginLink}>Se connecter</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
     </View>
   );
 }
 
+// ── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  safe: { flex: 1, paddingHorizontal: 24 },
+  root: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
 
-  /* Header */
+  // ── Glow ──
+  glowWrap: {
+    position: 'absolute',
+    top: -120,
+    left: (SCREEN_W - 480) / 2,
+    width: 480,
+    height: 480,
+  },
+  glowGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 240,
+  },
+
+  // ── Header ──
   header: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 44,
+    paddingHorizontal: 28,
+    zIndex: 2,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 8,
   },
   backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  logo: {
-    fontSize: 16, fontWeight: '900', color: '#FFF',
-    letterSpacing: 3,
-  },
-
-  /* Centre */
-  content: {
-    flex: 1,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
   },
-  title: {
-    fontSize: 32, fontWeight: '900', color: '#FFF',
-    marginBottom: 6,
+  logoEyebrow: {
+    fontFamily: FONTS.sans,
+    fontSize: 11,
+    letterSpacing: 3,
+    color: C.grey,
+    textTransform: 'uppercase',
   },
-  subtitle: {
-    fontSize: 15, color: 'rgba(255,255,255,0.4)',
-    marginBottom: 32,
-  },
-  cards: { gap: 12 },
 
-  /* Card */
+  // ── Hero ──
+  hero: {
+    paddingTop: 28,
+    paddingHorizontal: 32,
+    zIndex: 2,
+  },
+  heroKicker: {
+    fontFamily: FONTS.sans,
+    fontSize: 11,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    color: C.grey,
+    marginBottom: 10,
+  },
+  heroTitle: {
+    fontFamily: FONTS.bebas,
+    fontSize: SCREEN_H < 700 ? 50 : 58,
+    lineHeight: SCREEN_H < 700 ? 60 : 68,
+    color: C.white,
+    letterSpacing: 1,
+  },
+  heroTitleOutline: {
+    color: C.outlineText,
+  },
+  heroSub: {
+    fontFamily: FONTS.sansLight,
+    fontSize: 13,
+    lineHeight: 20,
+    color: C.grey,
+    marginTop: 6,
+  },
+
+  // ── Cards ──
+  cards: {
+    paddingTop: 28,
+    paddingHorizontal: 28,
+    gap: 14,
+    zIndex: 2,
+  },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  cardSelected: {
-    backgroundColor: '#FFF',
-    borderColor: '#FFF',
-  },
-  cardRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 20,
+    backgroundColor: C.cardBg,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 22,
+    padding: 24,
   },
-  iconWrap: {
-    width: 52, height: 52, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
+  cardSelected: {
+    borderColor: C.white,
+    backgroundColor: C.selectedCardBg,
   },
-  iconWrapSelected: { backgroundColor: 'rgba(0,0,0,0.07)' },
-  cardTextWrap: {
+  cardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: C.iconBg,
+    borderWidth: 1,
+    borderColor: C.iconBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardIconSelected: {
+    backgroundColor: C.white,
+    borderColor: C.white,
+  },
+  cardText: {
     flex: 1,
-    marginLeft: 16,
   },
   cardTitle: {
-    fontSize: 18, fontWeight: '700', color: '#FFF',
-    marginBottom: 2,
+    fontFamily: FONTS.bebas,
+    fontSize: 26,
+    color: C.white,
+    letterSpacing: 2,
+    lineHeight: 30,
+    marginBottom: 3,
   },
-  cardTitleSelected: { color: '#111' },
-  cardTagline: {
-    fontSize: 13, color: 'rgba(255,255,255,0.4)',
-    lineHeight: 18,
+  cardSub: {
+    fontFamily: FONTS.sansLight,
+    fontSize: 12,
+    color: C.grey,
+    lineHeight: 17,
   },
-  cardTaglineSelected: { color: 'rgba(0,0,0,0.45)' },
-
-  /* Radio check */
   radio: {
-    width: 24, height: 24, borderRadius: 12,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-    marginLeft: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: C.radioBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   radioSelected: {
-    backgroundColor: '#111',
-    borderColor: '#111',
+    borderColor: C.white,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: C.white,
   },
 
-  /* Footer */
-  footer: {
-    paddingBottom: Platform.OS === 'ios' ? 8 : 20,
-    alignItems: 'center',
+  // ── Actions ──
+  actions: {
+    paddingHorizontal: 28,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    gap: 12,
+    zIndex: 2,
   },
-  confirmBtn: {
+  btnPrimary: {
     width: '100%',
-    backgroundColor: '#FFF',
-    borderRadius: 14,
-    paddingVertical: 16,
+    height: 60,
+    backgroundColor: C.white,
+    borderRadius: 18,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
   },
-  confirmBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  btnPrimaryDisabled: {
+    opacity: 0.3,
   },
-  confirmText: {
-    fontSize: 16, fontWeight: '700', color: '#000',
+  btnPrimaryText: {
+    fontFamily: FONTS.bebas,
+    fontSize: 20,
+    letterSpacing: 3,
+    color: C.bg,
   },
-  confirmTextDisabled: {
-    color: 'rgba(255,255,255,0.2)',
+  arrowPill: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: C.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  loginLink: { paddingVertical: 16 },
-  loginText: { fontSize: 14, color: 'rgba(255,255,255,0.35)' },
-  loginBold: { color: '#FFF', fontWeight: '700' },
+  loginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  loginLabel: {
+    fontFamily: FONTS.sansLight,
+    fontSize: 13,
+    color: C.loginMuted,
+  },
+  loginLink: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 13,
+    color: C.loginText,
+    textDecorationLine: 'underline',
+    textDecorationColor: 'rgba(255,255,255,0.2)',
+  },
 });

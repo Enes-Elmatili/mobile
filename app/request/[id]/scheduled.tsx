@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import * as Haptics from 'expo-haptics';
 
 export default function ScheduledConfirmation() {
@@ -31,7 +31,7 @@ export default function ScheduledConfirmation() {
 
   return (
     <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={theme.statusBar} />
 
       <View style={st.center}>
         {/* Animated check icon */}
@@ -42,8 +42,8 @@ export default function ScheduledConfirmation() {
         </Animated.View>
 
         <Animated.View style={[st.content, { opacity: fadeAnim }]}>
-          <Text style={[st.title, { color: theme.text }]}>Demande planifiée</Text>
-          <Text style={[st.subtitle, { color: theme.textSub }]}>
+          <Text style={[st.title, { color: theme.text, fontFamily: FONTS.bebas }]}>Demande planifiée</Text>
+          <Text style={[st.subtitle, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             Votre demande a bien été enregistrée. Les prestataires qualifiés pourront la consulter et l'accepter.
           </Text>
 
@@ -51,24 +51,24 @@ export default function ScheduledConfirmation() {
           <View style={[st.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={st.row}>
               <Ionicons name="construct-outline" size={16} color={theme.textSub} />
-              <Text style={[st.rowText, { color: theme.text }]}>{serviceName}</Text>
+              <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{serviceName}</Text>
             </View>
             <View style={[st.sep, { backgroundColor: theme.border }]} />
             <View style={st.row}>
               <Ionicons name="calendar-outline" size={16} color={theme.textSub} />
-              <Text style={[st.rowText, { color: theme.text }]}>{scheduledLabel}</Text>
+              <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{scheduledLabel}</Text>
             </View>
             <View style={[st.sep, { backgroundColor: theme.border }]} />
             <View style={st.row}>
               <Ionicons name="location-outline" size={16} color={theme.textSub} />
-              <Text style={[st.rowText, { color: theme.text }]} numberOfLines={1}>{address}</Text>
+              <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sans }]} numberOfLines={1}>{address}</Text>
             </View>
             {price && (
               <>
                 <View style={[st.sep, { backgroundColor: theme.border }]} />
                 <View style={st.row}>
                   <Ionicons name="card-outline" size={16} color={theme.textSub} />
-                  <Text style={[st.rowText, { color: theme.text }]}>{price} €</Text>
+                  <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.monoMedium }]}>{price} €</Text>
                 </View>
               </>
             )}
@@ -76,7 +76,7 @@ export default function ScheduledConfirmation() {
 
           <View style={[st.infoBadge, { backgroundColor: theme.surface }]}>
             <Ionicons name="information-circle-outline" size={16} color={theme.textSub} />
-            <Text style={[st.infoText, { color: theme.textSub }]}>
+            <Text style={[st.infoText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
               Vous recevrez une notification dès qu'un prestataire accepte votre demande.
             </Text>
           </View>
@@ -86,14 +86,14 @@ export default function ScheduledConfirmation() {
       {/* Bottom CTA */}
       <View style={st.bottom}>
         <TouchableOpacity
-          style={st.btn}
+          style={[st.btn, { backgroundColor: theme.accent }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.replace('/(tabs)/dashboard');
           }}
           activeOpacity={0.85}
         >
-          <Text style={st.btnText}>Retour à l'accueil</Text>
+          <Text style={[st.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Retour à l'accueil</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -104,7 +104,7 @@ export default function ScheduledConfirmation() {
           }}
           activeOpacity={0.85}
         >
-          <Text style={[st.btnSecondaryText, { color: theme.text }]}>Suivre la demande</Text>
+          <Text style={[st.btnSecondaryText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Suivre la demande</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -119,20 +119,20 @@ const st = StyleSheet.create({
   iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center' },
 
   content:  { alignItems: 'center', width: '100%' },
-  title:    { fontSize: 24, fontWeight: '800', marginBottom: 8, letterSpacing: -0.3 },
-  subtitle: { fontSize: 15, fontWeight: '500', textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  title:    { fontSize: 28, marginBottom: 8, letterSpacing: -0.3 },
+  subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
 
   card:     { width: '100%', borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16 },
   row:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  rowText:  { fontSize: 15, fontWeight: '600', flex: 1 },
+  rowText:  { fontSize: 15, flex: 1 },
   sep:      { height: 1, marginVertical: 8 },
 
   infoBadge:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 14, borderRadius: 12, width: '100%' },
-  infoText:   { fontSize: 13, fontWeight: '500', lineHeight: 18, flex: 1 },
+  infoText:   { fontSize: 13, lineHeight: 18, flex: 1 },
 
   bottom:          { paddingHorizontal: 20, paddingBottom: 36, gap: 10 },
-  btn:             { backgroundColor: '#1A1A1A', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  btnText:         { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  btn:             { borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  btnText:         { fontSize: 16 },
   btnSecondary:    { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5 },
-  btnSecondaryText:{ fontSize: 15, fontWeight: '600' },
+  btnSecondaryText:{ fontSize: 15 },
 });

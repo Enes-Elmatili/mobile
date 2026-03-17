@@ -4,8 +4,11 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
 import { router } from 'expo-router';
 import { api } from '../../lib/api';
+import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function StripeConnectSuccess() {
+  const theme = useAppTheme();
+
   useEffect(() => {
     async function checkStatus() {
       try {
@@ -24,13 +27,13 @@ export default function StripeConnectSuccess() {
   }, []);
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" />
-      <ActivityIndicator size="large" color="#FFF" />
+    <View style={[s.root, { backgroundColor: theme.heroBg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      <ActivityIndicator size="large" color={theme.heroText} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' },
+  root: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

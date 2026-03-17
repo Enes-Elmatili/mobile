@@ -1,20 +1,22 @@
 // app/settings/cgu.tsx — Conditions Générales d'Utilisation
 import React from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
 function Article({ n, title, body }: { n: string; title: string; body: string }) {
+  const theme = useAppTheme();
   return (
-    <View style={s.article}>
-      <Text style={s.articleNum}>Article {n}</Text>
-      <Text style={s.articleTitle}>{title}</Text>
-      <Text style={s.articleBody}>{body}</Text>
+    <View style={[s.article, { backgroundColor: theme.cardBg }]}>
+      <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>Article {n}</Text>
+      <Text style={[s.articleTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{title}</Text>
+      <Text style={[s.articleBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>{body}</Text>
     </View>
   );
 }
@@ -24,22 +26,24 @@ function Article({ n, title, body }: { n: string; title: string; body: string })
 export default function CGUScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const theme = useAppTheme();
 
   return (
-    <SafeAreaView style={s.root}>
-      <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{t('profile.terms')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.terms')}</Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={s.introCard}>
-          <Text style={s.introDate}>Dernière mise à jour : 1er mars 2026</Text>
-          <Text style={s.introText}>
+        <View style={[s.introCard, { backgroundColor: theme.heroBg }]}>
+          <Text style={[s.introDate, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>Dernière mise à jour : 1er mars 2026</Text>
+          <Text style={[s.introText, { color: theme.heroSub, fontFamily: FONTS.sans }]}>
             Les présentes Conditions Générales d'Utilisation régissent l'accès et l'utilisation de l'application Fixed (ci-après «la Plateforme»), éditée par Fixed SAS, société par actions simplifiée au capital de 10 000 €.
           </Text>
         </View>
@@ -95,7 +99,7 @@ export default function CGUScreen() {
         />
 
         <View style={s.footer}>
-          <Text style={s.footerText}>Fixed SAS · support@fixed.app</Text>
+          <Text style={[s.footerText, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>Fixed SAS · support@fixed.app</Text>
         </View>
 
       </ScrollView>
@@ -104,32 +108,32 @@ export default function CGUScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17 },
   scroll: { padding: 16, paddingBottom: 48, gap: 12 },
 
   introCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 18, padding: 18, gap: 8,
+    borderRadius: 18, padding: 18, gap: 8,
   },
-  introDate: { fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: '600' },
-  introText: { fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 20 },
+  introDate: { fontSize: 11 },
+  introText: { fontSize: 13, lineHeight: 20 },
 
   article: {
-    backgroundColor: '#FFF', borderRadius: 16, padding: 16, gap: 6,
+    borderRadius: 16, padding: 16, gap: 6,
   },
-  articleNum:   { fontSize: 10, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.5 },
-  articleTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
-  articleBody:  { fontSize: 13, color: '#555', lineHeight: 21 },
+  articleNum:   { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  articleTitle: { fontSize: 15 },
+  articleBody:  { fontSize: 13, lineHeight: 21 },
 
   footer: { alignItems: 'center', paddingTop: 8 },
-  footerText: { fontSize: 12, color: '#D1D5DB' },
+  footerText: { fontSize: 12 },
 });

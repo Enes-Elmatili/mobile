@@ -239,6 +239,29 @@ class ApiClient {
       }
     },
     refresh: () => this.post('/auth/refresh'),
+    assignRole: async (role: 'CLIENT' | 'PROVIDER') => {
+      const result = await this.post('/auth/assign-role', { role });
+      if (result.token) {
+        await tokenStorage.setToken(result.token);
+      }
+      return result;
+    },
+    apple: async (identityToken: string, fullName?: { givenName?: string; familyName?: string }, email?: string) => {
+      const result = await this.post('/auth/apple', { identityToken, fullName, email });
+      if (result.token) {
+        await tokenStorage.setToken(result.token);
+      }
+      return result;
+    },
+    google: async (accessToken: string) => {
+      const result = await this.post('/auth/google', { accessToken });
+      if (result.token) {
+        await tokenStorage.setToken(result.token);
+      }
+      return result;
+    },
+    changePassword: (currentPassword: string, newPassword: string) =>
+      this.post('/auth/change-password', { currentPassword, newPassword }),
   };
 
   // ==================== USER ====================
@@ -383,7 +406,9 @@ class ApiClient {
     inbox: (page = 1, limit = 20) => this.request(`/messages/inbox?page=${page}&limit=${limit}`),
     conversation: (userId: string, page = 1) => this.request(`/messages/conversation/${userId}?page=${page}&limit=50`),
     markAsRead: (id: string) => this.patch(`/messages/${id}/read`),
+    markAllRead: (recipientId: string) => this.post(`/messages/read-all/${recipientId}`),
     unreadCount: () => this.request('/messages/unread'),
+    contactInfo: (recipientId: string) => this.request(`/messages/contact/${recipientId}`),
   };
 
   // ==================== RATINGS ====================

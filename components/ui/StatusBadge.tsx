@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 type Status = 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT';
 
@@ -9,21 +10,27 @@ interface StatusBadgeProps {
 }
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: string }> = {
-  DONE: { label: 'Terminé', color: '#22C55E', icon: 'checkmark-circle' },
-  CANCELLED: { label: 'Annulé', color: '#EF4444', icon: 'close-circle' },
+  DONE: { label: 'Terminé', color: COLORS.green, icon: 'checkmark-circle' },
+  CANCELLED: { label: 'Annulé', color: COLORS.red, icon: 'close-circle' },
   ONGOING: { label: 'En cours', color: '#3B82F6', icon: 'time' },
-  PUBLISHED: { label: 'Publié', color: '#F59E0B', icon: 'eye' },
+  PUBLISHED: { label: 'Publié', color: COLORS.amber, icon: 'eye' },
   ACCEPTED: { label: 'Accepté', color: '#8B5CF6', icon: 'hand-left' },
   PENDING_PAYMENT: { label: 'Paiement', color: '#EC4899', icon: 'card' },
 };
 
 export default function StatusBadge({ status }: StatusBadgeProps) {
-  const config = STATUS_CONFIG[status] || { label: status, color: '#6B7280', icon: 'help-circle' };
+  const theme = useAppTheme();
+  const config = STATUS_CONFIG[status] || { label: status, color: theme.textMuted, icon: 'help-circle' };
+
+  // Use a subtle background tint with the status color for dark mode support
+  const bgColor = theme.isDark
+    ? `${config.color}22`  // ~13% opacity
+    : `${config.color}18`; // ~9% opacity
 
   return (
-    <View style={[styles.badge, { backgroundColor: config.color }]}>
-      <Ionicons name={config.icon as any} size={16} color="#fff" />
-      <Text style={styles.text}>{config.label}</Text>
+    <View style={[styles.badge, { backgroundColor: bgColor }]}>
+      <Ionicons name={config.icon as any} size={16} color={config.color} />
+      <Text style={[styles.text, { color: config.color, fontFamily: FONTS.sansMedium }]}>{config.label}</Text>
     </View>
   );
 }
@@ -38,9 +45,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   text: {
-    color: '#fff',
     fontSize: 12,
-    fontWeight: '700',
     marginLeft: 6,
     textTransform: 'uppercase',
   },

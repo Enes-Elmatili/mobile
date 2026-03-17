@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 const SHEET_HEIGHT      = 360;
 const COUNTDOWN_SECONDS = 25;
@@ -58,6 +59,7 @@ function getServiceIcon(service?: string): string {
 // ─── Composant principal ──────────────────────────────────────────────────────
 export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const translateY    = useRef(new Animated.Value(SHEET_HEIGHT + 60)).current;
   const backdropAnim  = useRef(new Animated.Value(0)).current;
   const progressAnim  = useRef(new Animated.Value(1)).current;
@@ -204,7 +206,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
   const icon         = getServiceIcon(request?.service);
   const isUrgent     = countdown <= 8;
-  const urgencyColor = isUrgent ? '#EF4444' : '#0A0A0A';
+  const urgencyColor = isUrgent ? COLORS.red : theme.text;
 
   const progressWidth = progressAnim.interpolate({
     inputRange:  [0, 1],
@@ -226,58 +228,58 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
       />
 
       {/* Sheet */}
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+      <Animated.View style={[styles.sheet, { backgroundColor: theme.cardBg, transform: [{ translateY }] }]}>
 
         {/* Barre countdown */}
-        <View style={styles.progressTrack}>
+        <View style={[styles.progressTrack, { backgroundColor: theme.borderLight }]}>
           <Animated.View style={[styles.progressFill, { width: progressWidth, backgroundColor: urgencyColor }]} />
         </View>
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.iconBadge}>
+          <View style={[styles.iconBadge, { backgroundColor: theme.surfaceAlt }]}>
             <Text style={styles.iconEmoji}>{icon}</Text>
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.overline}>{t('mission_sheet.new_mission')}</Text>
-            <Text style={styles.serviceTitle} numberOfLines={1}>
+            <Text style={[styles.overline, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.new_mission')}</Text>
+            <Text style={[styles.serviceTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
               {request?.service ?? t('common.service')}
             </Text>
           </View>
           <View style={[styles.countdownBubble, { borderColor: urgencyColor }]}>
-            <Text style={[styles.countdownNum, { color: urgencyColor }]}>{countdown}</Text>
-            <Text style={[styles.countdownSuffix, { color: urgencyColor }]}>s</Text>
+            <Text style={[styles.countdownNum, { color: urgencyColor, fontFamily: FONTS.bebas }]}>{countdown}</Text>
+            <Text style={[styles.countdownSuffix, { color: urgencyColor, fontFamily: FONTS.sansMedium }]}>s</Text>
           </View>
         </View>
 
         {/* Divider */}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
 
         {/* Détails mission */}
         <View style={styles.details}>
-          {request?.address    && <DetailRow emoji="📍" value={request.address} />}
-          {request?.distance   && <DetailRow emoji="🛣"  value={`${request.distance} ${t('mission_sheet.from_you')}`} />}
-          {request?.scheduledAt && <DetailRow emoji="🕐" value={request.scheduledAt} />}
-          {request?.clientName && <DetailRow emoji="👤" value={request.clientName} />}
+          {request?.address    && <DetailRow emoji="📍" value={request.address} textColor={theme.textSub} />}
+          {request?.distance   && <DetailRow emoji="🛣"  value={`${request.distance} ${t('mission_sheet.from_you')}`} textColor={theme.textSub} />}
+          {request?.scheduledAt && <DetailRow emoji="🕐" value={request.scheduledAt} textColor={theme.textSub} />}
+          {request?.clientName && <DetailRow emoji="👤" value={request.clientName} textColor={theme.textSub} />}
         </View>
 
         {/* Prix estimé */}
         {request?.estimatedPrice != null && (
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>{t('mission_sheet.estimated_earning')}</Text>
-            <Text style={styles.priceValue}>{request.estimatedPrice} €</Text>
+          <View style={[styles.priceRow, { borderTopColor: theme.borderLight }]}>
+            <Text style={[styles.priceLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.estimated_earning')}</Text>
+            <Text style={[styles.priceValue, { color: theme.text, fontFamily: FONTS.bebas }]}>{request.estimatedPrice} €</Text>
           </View>
         )}
 
         {/* Actions */}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} activeOpacity={0.7} accessibilityLabel={t('mission_sheet.decline')} accessibilityRole="button">
-            <Text style={styles.declineTxt}>{t('mission_sheet.decline')}</Text>
+          <TouchableOpacity style={[styles.declineBtn, { backgroundColor: theme.surfaceAlt }]} onPress={handleDecline} activeOpacity={0.7} accessibilityLabel={t('mission_sheet.decline')} accessibilityRole="button">
+            <Text style={[styles.declineTxt, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.decline')}</Text>
           </TouchableOpacity>
 
           <Animated.View style={[styles.acceptWrap, { transform: [{ scale: pulseAnim }] }]}>
-            <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} activeOpacity={0.85} accessibilityLabel={t('mission_sheet.accept')} accessibilityRole="button">
-              <Text style={styles.acceptTxt}>{t('mission_sheet.accept')}</Text>
+            <TouchableOpacity style={[styles.acceptBtn, { backgroundColor: theme.accent }]} onPress={handleAccept} activeOpacity={0.85} accessibilityLabel={t('mission_sheet.accept')} accessibilityRole="button">
+              <Text style={[styles.acceptTxt, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.accept')}</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -288,11 +290,11 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 }
 
 // ─── Detail Row helper ────────────────────────────────────────────────────────
-function DetailRow({ emoji, value }: { emoji: string; value: string }) {
+function DetailRow({ emoji, value, textColor }: { emoji: string; value: string; textColor: string }) {
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailEmoji}>{emoji}</Text>
-      <Text style={styles.detailValue} numberOfLines={1}>{value}</Text>
+      <Text style={[styles.detailValue, { color: textColor, fontFamily: FONTS.sans }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -309,7 +311,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   sheet: {
-    backgroundColor:      '#FFFFFF',
     borderTopLeftRadius:  26,
     borderTopRightRadius: 26,
     paddingBottom: Platform.OS === 'ios' ? 38 : 26,
@@ -326,7 +327,7 @@ const styles = StyleSheet.create({
   },
 
   // Progress bar
-  progressTrack: { height: 3, backgroundColor: '#EFEFEF' },
+  progressTrack: { height: 3 },
   progressFill:  { height: 3 },
 
   // Header
@@ -342,7 +343,6 @@ const styles = StyleSheet.create({
     width:           50,
     height:          50,
     borderRadius:    14,
-    backgroundColor: '#F5F5F5',
     alignItems:      'center',
     justifyContent:  'center',
   },
@@ -350,15 +350,11 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   overline: {
     fontSize:      10,
-    fontWeight:    '800',
-    color:         '#AAAAAA',
     letterSpacing: 1.4,
     marginBottom:  3,
   },
   serviceTitle: {
     fontSize:      21,
-    fontWeight:    '800',
-    color:         '#0A0A0A',
     letterSpacing: -0.4,
   },
 
@@ -375,12 +371,10 @@ const styles = StyleSheet.create({
   },
   countdownNum: {
     fontSize:   19,
-    fontWeight: '900',
     lineHeight: 23,
   },
   countdownSuffix: {
     fontSize:     10,
-    fontWeight:   '700',
     alignSelf:    'flex-end',
     marginBottom: 3,
   },
@@ -388,7 +382,6 @@ const styles = StyleSheet.create({
   // Divider
   divider: {
     height:           1,
-    backgroundColor:  '#F2F2F2',
     marginHorizontal: 22,
     marginBottom:     16,
   },
@@ -407,8 +400,6 @@ const styles = StyleSheet.create({
   detailEmoji: { fontSize: 14, width: 22, textAlign: 'center' },
   detailValue: {
     fontSize:   14,
-    color:      '#3A3A3A',
-    fontWeight: '500',
     flex: 1,
   },
 
@@ -420,14 +411,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 22,
     paddingVertical:  14,
     borderTopWidth:   1,
-    borderTopColor:   '#F2F2F2',
     marginBottom:     20,
   },
-  priceLabel: { fontSize: 14, color: '#999', fontWeight: '600' },
+  priceLabel: { fontSize: 14 },
   priceValue: {
     fontSize:      26,
-    color:         '#0A0A0A',
-    fontWeight:    '900',
     letterSpacing: -0.6,
   },
 
@@ -441,17 +429,15 @@ const styles = StyleSheet.create({
     width:           88,
     height:          56,
     borderRadius:    16,
-    backgroundColor: '#F2F2F2',
     alignItems:      'center',
     justifyContent:  'center',
   },
-  declineTxt: { fontSize: 15, fontWeight: '700', color: '#777' },
+  declineTxt: { fontSize: 15 },
   acceptWrap: { flex: 1 },
   acceptBtn: {
     flex:            1,
     height:          56,
     borderRadius:    16,
-    backgroundColor: '#0A0A0A',
     alignItems:      'center',
     justifyContent:  'center',
     ...Platform.select({
@@ -466,8 +452,6 @@ const styles = StyleSheet.create({
   },
   acceptTxt: {
     fontSize:      16,
-    fontWeight:    '800',
-    color:         '#FFF',
     letterSpacing: 0.3,
   },
 });

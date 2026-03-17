@@ -5,10 +5,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   Animated, Easing, Platform, Dimensions, StatusBar,
-  TextInput, KeyboardAvoidingView, Modal, Pressable, Linking,
-  useColorScheme,
+  TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -17,9 +16,29 @@ import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 const { width, height } = Dimensions.get('window');
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
+const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
+/** Avatar component — real photo or initials fallback */
+function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: string | null; size?: number; style?: any }) {
+  const theme = useAppTheme();
+  const r = size / 2;
+  const base = { width: size, height: size, borderRadius: r, overflow: 'hidden' as const };
+  if (url) {
+    const uri = url.startsWith('http') ? url : `${SERVER_BASE}${url}`;
+    return <Image source={{ uri }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
+  }
+  const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  return (
+    <View style={[base, { backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: theme.borderLight }, style]}>
+      <Text style={{ fontSize: size * 0.38, fontFamily: FONTS.sansMedium, color: theme.text }}>{initials}</Text>
+    </View>
+  );
+}
 
 // ─── Phase de la page ────────────────────────────────────────────────────────
 type Phase = 'SEARCHING' | 'TRACKING';
@@ -50,6 +69,7 @@ function showToast(message: string, type: ToastType = 'info') {
 }
 
 function ToastProvider() {
+  const theme = useAppTheme();
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const anim = useRef<Record<number, Animated.Value>>({});
 
@@ -75,12 +95,12 @@ function ToastProvider() {
     <View style={toast.stack} pointerEvents="none">
       {toasts.map(t => {
         const av = anim.current[t.id] || new Animated.Value(1);
-        const bg = t.type === 'success' ? '#059669' : t.type === 'error' ? '#1A1A1A' : '#1A1A1A';
+        const bg = t.type === 'success' ? '#059669' : theme.cardBg;
         const icon = t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '●';
         return (
           <Animated.View
             key={t.id}
-            style={[toast.pill, { backgroundColor: bg },
+            style={[toast.pill, { backgroundColor: bg, borderWidth: 1, borderColor: theme.borderLight },
               {
                 opacity: av,
                 transform: [{ translateY: av.interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }],
@@ -118,6 +138,7 @@ interface ConfirmModalProps {
 
 function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel }: ConfirmModalProps) {
   const { t } = useTranslation();
+  const th = useAppTheme();
   const resolvedConfirmLabel = confirmLabel || t('common.confirm');
   const resolvedCancelLabel = cancelLabel || t('common.cancel');
   const slideAnim = useRef(new Animated.Value(300)).current;
@@ -143,16 +164,16 @@ function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, dest
       <Pressable style={cm.overlay} onPress={onCancel}>
         <Animated.View style={{ opacity: fadeAnim, ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' }} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        <View style={cm.handle} />
-        <Text style={cm.title}>{title}</Text>
-        {message ? <Text style={cm.message}>{message}</Text> : null}
+      <Animated.View style={[cm.sheet, { backgroundColor: th.cardBg, transform: [{ translateY: slideAnim }] }]}>
+        <View style={[cm.handle, { backgroundColor: th.borderLight }]} />
+        <Text style={[cm.title, { color: th.text, fontFamily: FONTS.bebas }]}>{title}</Text>
+        {message ? <Text style={[cm.message, { color: th.textSub, fontFamily: FONTS.sans }]}>{message}</Text> : null}
         <View style={cm.actions}>
-          <TouchableOpacity style={cm.cancelBtn} onPress={onCancel} activeOpacity={0.75}>
-            <Text style={cm.cancelLabel}>{resolvedCancelLabel}</Text>
+          <TouchableOpacity style={[cm.cancelBtn, { borderColor: th.border }]} onPress={onCancel} activeOpacity={0.75}>
+            <Text style={[cm.cancelLabel, { color: th.textSub, fontFamily: FONTS.sansMedium }]}>{resolvedCancelLabel}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[cm.confirmBtn, destructive && cm.confirmBtnDestructive]} onPress={onConfirm} activeOpacity={0.75}>
-            <Text style={[cm.confirmLabel, destructive && cm.confirmLabelDestructive]}>{resolvedConfirmLabel}</Text>
+          <TouchableOpacity style={[cm.confirmBtn, { backgroundColor: th.accent }, destructive && { backgroundColor: COLORS.red }]} onPress={onConfirm} activeOpacity={0.75}>
+            <Text style={[cm.confirmLabel, { fontFamily: FONTS.sansMedium }]}>{resolvedConfirmLabel}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -164,21 +185,18 @@ const cm = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject },
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
     ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 24, shadowOffset: { width: 0, height: -4 } }, android: { elevation: 16 } }),
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20 },
-  title: { fontSize: 20, fontWeight: '800', color: '#1A1A1A', textAlign: 'center', letterSpacing: -0.4, marginBottom: 10 },
-  message: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 21, marginBottom: 28 },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  title: { fontSize: 24, textAlign: 'center', letterSpacing: 1, marginBottom: 10 },
+  message: { fontSize: 14, textAlign: 'center', lineHeight: 21, marginBottom: 28 },
   actions: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center' },
-  cancelLabel: { fontSize: 15, fontWeight: '700', color: '#888' },
-  confirmBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#1A1A1A', alignItems: 'center' },
-  confirmBtnDestructive: { backgroundColor: '#FF3B30' },
-  confirmLabel: { fontSize: 15, fontWeight: '700', color: '#FFF' },
-  confirmLabelDestructive: { color: '#FFF' },
+  cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, alignItems: 'center' },
+  cancelLabel: { fontSize: 15 },
+  confirmBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
+  confirmLabel: { fontSize: 15, color: '#FFF' },
 });
 
 
@@ -201,6 +219,22 @@ const fallbackETA = (oLat: number, oLng: number, dLat: number, dLng: number) => 
   const min = Math.ceil((calculateDistance(oLat, oLng, dLat, dLng) * 1.4 / 30) * 60);
   return min <= 1 ? '1 min' : `${min} min`;
 };
+
+// ─── Decode Google encoded polyline ──────────────────────────────────────────
+function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
+  const points: { latitude: number; longitude: number }[] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let shift = 0, result = 0, b: number;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+  }
+  return points;
+}
 
 // ─── Grayscale map style (light) ──────────────────────────────────────────────
 const MAP_STYLE_LIGHT = [
@@ -235,6 +269,7 @@ const WAVE_COUNT = 4;
 const WAVE_SIZE = width * 0.85;
 
 function RadarWaves() {
+  const theme = useAppTheme();
   const anims = useRef(
     Array.from({ length: WAVE_COUNT }, () => new Animated.Value(0))
   ).current;
@@ -258,7 +293,7 @@ function RadarWaves() {
       {anims.map((anim, i) => (
         <Animated.View
           key={i}
-          style={[rw.wave, {
+          style={[rw.wave, { borderColor: theme.textMuted },  {
             opacity:   anim.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 0.2, 0.07, 0] }),
             transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.05, 1] }) }],
           }]}
@@ -270,7 +305,7 @@ function RadarWaves() {
 
 const rw = StyleSheet.create({
   wrap: { position: 'absolute', width: WAVE_SIZE, height: WAVE_SIZE, alignItems: 'center', justifyContent: 'center' },
-  wave: { position: 'absolute', width: WAVE_SIZE, height: WAVE_SIZE, borderRadius: WAVE_SIZE / 2, borderWidth: 1.5, borderColor: '#1A1A1A' },
+  wave: { position: 'absolute', width: WAVE_SIZE, height: WAVE_SIZE, borderRadius: WAVE_SIZE / 2, borderWidth: 1.5 },
 });
 
 // ─── Ghost Markers (prestataires fantômes sur carte) ─────────────────────────
@@ -281,6 +316,7 @@ const GHOST_OFFSETS = [
 ];
 
 function GhostMarkers({ center }: { center: { latitude: number; longitude: number } }) {
+  const theme = useAppTheme();
   const anims = useRef(GHOST_OFFSETS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
@@ -306,11 +342,11 @@ function GhostMarkers({ center }: { center: { latitude: number; longitude: numbe
         };
         return (
           <Marker key={i} coordinate={coord} anchor={{ x: 0.5, y: 0.5 }}>
-            <Animated.View style={[gm.outer, {
+            <Animated.View style={[gm.outer, { backgroundColor: theme.accent }, {
               opacity: anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] }),
               transform: [{ scale: anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.05] }) }],
             }]}>
-              <Ionicons name="person" size={12} color="#FFF" />
+              <Ionicons name="person" size={12} color={theme.accentText} />
             </Animated.View>
           </Marker>
         );
@@ -322,7 +358,6 @@ function GhostMarkers({ center }: { center: { latitude: number; longitude: numbe
 const gm = StyleSheet.create({
   outer: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)',
   },
@@ -330,6 +365,7 @@ const gm = StyleSheet.create({
 
 // ─── Logo central pulsant ─────────────────────────────────────────────────────
 function CenterLogo() {
+  const theme = useAppTheme();
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(
@@ -341,8 +377,8 @@ function CenterLogo() {
   }, []);
 
   return (
-    <Animated.View style={[cl.outer, { transform: [{ scale: pulse }] }]}>
-      <Ionicons name="search" size={28} color="#FFF" />
+    <Animated.View style={[cl.outer, { backgroundColor: theme.accent }, { transform: [{ scale: pulse }] }]}>
+      <Ionicons name="search" size={28} color={theme.accentText as string} />
     </Animated.View>
   );
 }
@@ -350,7 +386,6 @@ function CenterLogo() {
 const cl = StyleSheet.create({
   outer: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } },
@@ -371,6 +406,7 @@ const getSteps = (t: any) => [
 
 function DynamicMessage({ elapsed }: { elapsed: number }) {
   const { t } = useTranslation();
+  const th = useAppTheme();
   const steps = getSteps(t);
   const current = [...steps].reverse().find(s => elapsed >= s.at) || steps[0];
   const opacity = useRef(new Animated.Value(1)).current;
@@ -388,16 +424,16 @@ function DynamicMessage({ elapsed }: { elapsed: number }) {
 
   return (
     <Animated.View style={[dm.wrap, { opacity }]}>
-      <Text style={dm.title}>{current.title}</Text>
-      <Text style={dm.sub}>{current.sub}</Text>
+      <Text style={[dm.title, { color: th.text }]}>{current.title}</Text>
+      <Text style={[dm.sub, { color: th.textSub }]}>{current.sub}</Text>
     </Animated.View>
   );
 }
 
 const dm = StyleSheet.create({
   wrap:  { alignItems: 'center', paddingHorizontal: 32 },
-  title: { fontSize: 22, fontWeight: '800', color: '#1A1A1A', textAlign: 'center', letterSpacing: -0.5, marginBottom: 7 },
-  sub:   { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 },
+  title: { fontSize: 22, textAlign: 'center', letterSpacing: 1, marginBottom: 7, fontFamily: FONTS.bebas },
+  sub:   { fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: FONTS.sans },
 });
 
 // ─── Countdown ────────────────────────────────────────────────────────────────
@@ -418,33 +454,30 @@ function useCountdown(expiresAt?: string) {
 // PROVIDER MARKER (TRACKING)
 // ═══════════════════════════════════════════════════════════════════════════════
 function ProviderMarker() {
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.18, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
+  const theme = useAppTheme();
   return (
-    <Animated.View style={[pm.outer, { transform: [{ scale: pulse }] }]}>
-      <Ionicons name="car" size={20} color="#FFF" />
-    </Animated.View>
+    <View style={pm.wrap}>
+      <View style={[pm.pin, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+        <Ionicons name="navigate" size={14} color={theme.text} />
+      </View>
+      <View style={[pm.stem, { backgroundColor: theme.cardBg }]} />
+    </View>
   );
 }
 
 const pm = StyleSheet.create({
-  outer: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#1A1A1A',
+  wrap: { alignItems: 'center' },
+  pin: {
+    width: 30, height: 30, borderRadius: 15,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: '#FFF',
+    borderWidth: 1.5,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 10 },
+      ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 4 },
     }),
+  },
+  stem: {
+    width: 2, height: 6, borderRadius: 1, marginTop: -1,
   },
 });
 
@@ -473,8 +506,8 @@ export default function MissionView() {
     );
   }
   const { t } = useTranslation();
-  const colorScheme = useColorScheme();
-  const mapStyle = colorScheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
+  const theme = useAppTheme();
+  const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
 
   // ─── Phase state ─────────────────────────────────────────────────────────
@@ -495,6 +528,7 @@ export default function MissionView() {
   const [request, setRequest] = useState<any>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [eta, setEta] = useState('');
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [message, setMessage] = useState('');
   // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
   const hasRealLocationRef = useRef(false);
@@ -529,6 +563,23 @@ export default function MissionView() {
     const iv = setInterval(() => setElapsed(p => p + 1), 1000);
     return () => clearInterval(iv);
   }, [phase]);
+
+  // ─── Drift carte (SEARCHING) — mouvement lent autour de la position client ─
+  useEffect(() => {
+    if (phase !== 'SEARCHING' || !mapRef.current) return;
+    const radius = 0.004;
+    let angle = 0;
+    const iv = setInterval(() => {
+      angle += 0.15;
+      mapRef.current?.animateToRegion({
+        latitude:  clientLocation.latitude  + Math.sin(angle) * radius,
+        longitude: clientLocation.longitude + Math.cos(angle) * radius,
+        latitudeDelta:  0.025,
+        longitudeDelta: 0.025,
+      }, 3000);
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [phase, clientLocation.latitude, clientLocation.longitude]);
 
   // ─── Fetch PIN (silencieux — le 404 NO_PIN est un état normal) ───────────
   const fetchPin = useCallback(async (requestId: string) => {
@@ -597,6 +648,9 @@ export default function MissionView() {
       const data = await res.json();
       if (data.status === 'OK' && data.routes?.length > 0) {
         setEta(data.routes[0].legs[0].duration.text);
+        // Decode route polyline
+        const encoded = data.routes[0].overview_polyline?.points;
+        if (encoded) setRouteCoords(decodePolyline(encoded));
       } else throw new Error(data.status);
     } catch {
       setEta(fallbackETA(oLat, oLng, dLat, dLng));
@@ -881,7 +935,7 @@ export default function MissionView() {
   // ═════════════════════════════════════════════════════════════════════════
   return (
     <View style={s.root}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
 
       {/* ── CARTE ── toujours présente en fond ── */}
       <MapView
@@ -899,9 +953,19 @@ export default function MissionView() {
         {/* Marker client — toujours */}
         <Marker coordinate={clientLocation} anchor={{ x: 0.5, y: 0.5 }}>
           <View style={s.clientMarker}>
-            <View style={s.clientMarkerInner} />
+            <View style={[s.clientMarkerInner, { backgroundColor: theme.accent, borderColor: theme.cardBg }]} />
           </View>
         </Marker>
+
+        {/* Itinéraire prestataire → client */}
+        {phase === 'TRACKING' && routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeColor={theme.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(26,26,26,0.4)'}
+            strokeWidth={3}
+            lineDashPattern={[0]}
+          />
+        )}
 
         {/* Marker prestataire — seulement en TRACKING */}
         {phase === 'TRACKING' && providerLocation && (
@@ -919,8 +983,8 @@ export default function MissionView() {
       {/* ── PHASE SEARCHING : blur + voile + radar ── */}
       {phase === 'SEARCHING' && (
         <>
-          <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFillObject} />
-          <View style={s.veil} />
+          <BlurView intensity={25} tint={theme.isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+          <View style={[s.veil, theme.isDark && { backgroundColor: 'rgba(0,0,0,0.55)' }]} />
 
           <SafeAreaView style={s.safe} pointerEvents="box-none">
             <Animated.View style={[s.searchingContent, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
@@ -937,54 +1001,67 @@ export default function MissionView() {
               <View style={{ flex: 1 }} />
 
               {/* Card mission */}
-              <Animated.View style={[s.searchingSheet, { transform: [{ translateY: searchingSheetY }] }]}>
-                <View style={s.sheetHandle} />
+              <Animated.View style={[s.searchingSheet, { backgroundColor: theme.isDark ? 'rgba(20,20,20,0.97)' : 'rgba(255,255,255,0.97)', transform: [{ translateY: searchingSheetY }] }]}>
+                <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
 
                 {/* Infos mission */}
                 <View style={s.missionRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.missionName} numberOfLines={1}>{serviceName || t('missions.mission')}</Text>
+                    <Text style={[s.missionName, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{serviceName || t('missions.mission')}</Text>
                     <View style={s.metaRow}>
                       {address ? (
                         <>
-                          <Ionicons name="location-outline" size={12} color="#ADADAD" />
-                          <Text style={s.metaText} numberOfLines={1}>{address.split(',')[0]}</Text>
+                          <Ionicons name="location-outline" size={12} color={theme.textMuted} />
+                          <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>{address.split(',')[0]}</Text>
                         </>
                       ) : null}
                     </View>
                     <View style={s.metaRow}>
-                      <Ionicons name="time-outline" size={12} color="#ADADAD" />
-                      <Text style={s.metaText}>{scheduledLabel || 'Dès maintenant'}</Text>
+                      <Ionicons name="time-outline" size={12} color={theme.textMuted} />
+                      <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{scheduledLabel || 'Dès maintenant'}</Text>
                     </View>
                   </View>
                   <View style={s.missionRight}>
-                    {price ? <Text style={s.missionPrice}>{price} €</Text> : null}
-                    <View style={[s.timerPill, isExpiring && s.timerPillUrgent]}>
-                      <Ionicons name="timer-outline" size={10} color={isExpiring ? '#FFF' : '#888'} />
-                      <Text style={[s.timerText, isExpiring && s.timerTextUrgent]}>{display}</Text>
+                    <View style={[s.timerPill, { backgroundColor: theme.surface }, isExpiring && { backgroundColor: theme.accent }]}>
+                      <Ionicons name="timer-outline" size={10} color={isExpiring ? theme.accentText : theme.textSub} />
+                      <Text style={[s.timerText, { color: theme.textSub, fontFamily: FONTS.monoMedium }, isExpiring && { color: theme.accentText }]}>{display}</Text>
                     </View>
                   </View>
                 </View>
 
-                {/* Bouton annuler */}
-                <TouchableOpacity
-                  style={[s.cancelSearchBtn, cancelling && s.cancelSearchBtnOff]}
-                  onPress={handleCancelSearching}
-                  disabled={cancelling}
-                  activeOpacity={0.75}
-                  accessibilityLabel={t('mission_view.cancel_search')}
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name="close-circle-outline"
-                    size={18}
-                    color={cancelling ? '#ADADAD' : '#FF3B30'}
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text style={[s.cancelSearchText, cancelling && s.cancelSearchTextOff]}>
-                    {cancelling ? t('mission_view.cancelling') : t('mission_view.cancel_search')}
-                  </Text>
-                </TouchableOpacity>
+                {/* Bouton annuler / contacter support */}
+                {status === 'ACCEPTED' || status === 'ONGOING' ? (
+                  <TouchableOpacity
+                    style={[s.cancelSearchBtn, { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
+                    onPress={() => Linking.openURL('mailto:support@fixed.app')}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.textSub as string} style={{ marginRight: 8 }} />
+                    <Text style={[s.cancelSearchText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
+                      {t('mission_view.contact_support')}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[s.cancelSearchBtn, { borderColor: COLORS.red, backgroundColor: theme.isDark ? 'rgba(239,68,68,0.1)' : 'rgba(255,59,48,0.05)' }, cancelling && { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}
+                    onPress={handleCancelSearching}
+                    disabled={cancelling}
+                    activeOpacity={0.75}
+                    accessibilityLabel={t('mission_view.cancel_search')}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons
+                      name="close-circle-outline"
+                      size={18}
+                      color={cancelling ? theme.textMuted : COLORS.red}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={[s.cancelSearchText, { color: COLORS.red, fontFamily: FONTS.sansMedium }, cancelling && { color: theme.textMuted }]}>
+                      {cancelling ? t('mission_view.cancelling') : t('mission_view.cancel_search')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </Animated.View>
             </Animated.View>
           </SafeAreaView>
@@ -996,125 +1073,124 @@ export default function MissionView() {
         <>
           {/* Bouton retour flottant */}
           <SafeAreaView style={s.floatingTopBar} pointerEvents="box-none">
-            <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
-              <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity, position: 'absolute', left: 0, bottom: -2 }]} onPress={() => router.back()} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
+              <Ionicons name="arrow-back" size={20} color={theme.text} />
             </TouchableOpacity>
 
             {/* Badge statut */}
-            <View style={[s.statusBadge, status === 'ONGOING' && s.statusBadgeOngoing]} accessibilityLabel={status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')} accessibilityRole="text">
-              <View style={[s.statusDot, status === 'ONGOING' && s.statusDotOngoing]} />
-              <Text style={[s.statusText, status === 'ONGOING' && s.statusTextOngoing]}>
+            <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, status === 'ONGOING' && { backgroundColor: theme.surface }]} accessibilityLabel={status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')} accessibilityRole="text">
+              <View style={[s.statusDot, { backgroundColor: theme.accent }]} />
+              <Text style={[s.statusText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                 {status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')}
               </Text>
             </View>
           </SafeAreaView>
 
+          {/* Bouton recentrer */}
+          <TouchableOpacity
+            style={[s.recenterBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
+            onPress={() => mapRef.current?.animateToRegion({ ...clientLocation, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 600)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="locate" size={18} color={theme.text} />
+          </TouchableOpacity>
+
           {/* Bottom sheet tracking */}
-          <Animated.View style={[s.trackingSheet, { transform: [{ translateY: trackingSheetY }] }]}>
-            <View style={s.sheetHandle} />
+          <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04, transform: [{ translateY: trackingSheetY }] }]}>
+            <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
 
             {/* ETA */}
             <View style={s.etaRow}>
               <View>
-                <Text style={s.etaLabel}>
+                <Text style={[s.etaLabel, { color: theme.textSub, fontFamily: FONTS.sans }]}>
                   {status === 'ONGOING' ? t('mission_view.on_site') : t('mission_view.estimated_arrival')}
                 </Text>
-                <Text style={s.etaTime}>
+                <Text style={[s.etaTime, { color: theme.text, fontFamily: FONTS.bebas }]}>
                   {status === 'ONGOING' ? t('mission_view.on_site') : (eta || t('mission_view.calculating'))}
                 </Text>
-              </View>
-              <View style={s.etaBadge}>
-                <Ionicons name="navigate" size={14} color="#1A1A1A" />
               </View>
             </View>
 
             {/* Divider */}
-            <View style={s.divider} />
+            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
             {/* Provider card */}
             {request?.provider && (
               <View style={s.providerRow}>
                 {/* Avatar */}
-                <View style={s.avatar}>
-                  <Ionicons name="person" size={26} color="#1A1A1A" />
-                </View>
+                <Avatar url={request.provider.avatarUrl} name={request.provider.name} size={46} style={{ marginRight: 12 }} />
 
                 {/* Infos */}
                 <View style={s.providerInfo}>
-                  <Text style={s.providerName}>{request.provider.name || t('mission_view.provider')}</Text>
+                  <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{request.provider.name || t('mission_view.provider')}</Text>
                   <View style={s.ratingRow}>
-                    <Ionicons name="star" size={12} color="#F59E0B" />
-                    <Text style={s.ratingText}>
+                    <Ionicons name="star" size={12} color={COLORS.amber} />
+                    <Text style={[s.ratingText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                       {request.provider.avgRating?.toFixed(1) || '5.0'}
                     </Text>
-                    <Text style={s.ratingMuted}>
+                    <Text style={[s.ratingMuted, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
                       · {request.provider.jobsCompleted || 0} missions
                     </Text>
                   </View>
-                  <Text style={s.serviceText} numberOfLines={1}>
-                    {request.serviceType || serviceName}
-                  </Text>
+                  {request.provider.vatNumber ? (
+                    <Text style={[s.serviceText, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
+                      TVA {request.provider.vatNumber}
+                    </Text>
+                  ) : null}
                 </View>
 
                 {/* Actions communication */}
                 <View style={s.comActions}>
                   {/* Appel */}
-                  <TouchableOpacity style={s.comBtn} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
-                    <Ionicons name="call" size={18} color="#FFF" />
+                  <TouchableOpacity style={[s.comBtn, { backgroundColor: theme.accent }]} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
+                    <Ionicons name="call" size={18} color={theme.accentText} />
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
             {/* Divider */}
-            <View style={s.divider} />
+            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
             {/* PIN vérifié — petit banner de confirmation */}
             {pinVerified && (
-              <View style={s.pinVerifiedBanner}>
-                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-                <Text style={s.pinVerifiedText}>Code PIN vérifié — mission en cours</Text>
+              <View style={[s.pinVerifiedBanner, { backgroundColor: theme.isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4', borderColor: theme.isDark ? 'rgba(34,197,94,0.2)' : '#BBF7D0' }]}>
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.green} />
+                <Text style={[s.pinVerifiedText, { color: theme.isDark ? COLORS.green : '#15803D', fontFamily: FONTS.sansMedium }]}>Code PIN vérifié — mission en cours</Text>
               </View>
             )}
 
-            {/* Champ message */}
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-              <View style={s.messageRow}>
-                <TextInput
-                  style={s.messageInput}
-                  placeholder={t('mission_view.send_message_placeholder')}
-                  placeholderTextColor="#B0B0B0"
-                  value={message}
-                  onChangeText={setMessage}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSendMessage}
-                  accessibilityLabel={t('mission_view.send_message_placeholder')}
-                />
-                <TouchableOpacity
-                  style={[s.sendBtn, !message.trim() && s.sendBtnOff]}
-                  onPress={handleSendMessage}
-                  activeOpacity={0.75}
-                  disabled={!message.trim()}
-                  accessibilityLabel={t('common.send')}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="arrow-up" size={18} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
+            {/* Bouton conversation */}
+            <TouchableOpacity
+              style={[s.messageBtn, { backgroundColor: theme.accent }]}
+              onPress={() => {
+                const recipientId = request?.provider?.userId || request?.provider?.id;
+                if (recipientId) {
+                  router.push({ pathname: '/messages/[userId]', params: { userId: recipientId, name: request?.provider?.name || '' } });
+                } else {
+                  showToast(t('mission_view.provider_not_found'), 'error');
+                }
+              }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+            >
+              <View style={s.btnIconWrap}><Ionicons name="chatbubble-outline" size={16} color={theme.accentText as string} /></View>
+              <Text style={[s.messageBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_view.message_provider')}</Text>
+            </TouchableOpacity>
 
-            {/* Annuler — seulement si ACCEPTED */}
-            {status === 'ACCEPTED' && (
-              <TouchableOpacity style={s.cancelTrackBtn} onPress={handleCancelTracking} activeOpacity={0.75} accessibilityLabel={t('mission_view.cancel_mission')} accessibilityRole="button">
-                <Text style={s.cancelTrackText}>{t('mission_view.cancel_mission')}</Text>
+            {/* Contacter le support — ACCEPTED ou ONGOING */}
+            {(status === 'ACCEPTED' || status === 'ONGOING') && (
+              <TouchableOpacity style={[s.cancelTrackBtn, { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]} onPress={() => Linking.openURL('mailto:support@fixed.app')} activeOpacity={0.75} accessibilityRole="button">
+                <View style={[s.btnIconWrap, { marginRight: 16 }]}><Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.textSub as string} /></View>
+                <Text style={[s.cancelTrackText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('mission_view.contact_support')}</Text>
               </TouchableOpacity>
             )}
 
             {/* Banner ONGOING */}
             {status === 'ONGOING' && (
-              <View style={s.ongoingBanner}>
-                <Ionicons name="checkmark-circle" size={16} color="#1A1A1A" />
-                <Text style={s.ongoingText}>{t('mission_view.provider_on_site')}</Text>
+              <View style={[s.ongoingBanner, { backgroundColor: theme.surface }]}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.text} />
+                <Text style={[s.ongoingText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('mission_view.provider_on_site')}</Text>
               </View>
             )}
           </Animated.View>
@@ -1125,8 +1201,8 @@ export default function MissionView() {
       <ConfirmModal
         visible={cancelSearchModal}
         title={`${t('mission_view.cancel_search')} ?`}
-        message="Votre demande sera annulée. Le remboursement sera traité sous 3–5 jours ouvrés."
-        confirmLabel={t('mission_view.cancel_search')}
+        message="Le remboursement sera traité sous 48h."
+        confirmLabel={t('common.cancel')}
         cancelLabel={t('common.continue')}
         destructive
         onConfirm={doConfirmCancelSearching}
@@ -1173,7 +1249,6 @@ const s = StyleSheet.create({
 
   searchingSheet: {
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.97)',
     borderRadius: 22,
     padding: 16,
     marginBottom: 10,
@@ -1185,113 +1260,108 @@ const s = StyleSheet.create({
 
   sheetHandle: {
     width: 32, height: 4, borderRadius: 2,
-    backgroundColor: '#E0E0E0',
     alignSelf: 'center',
     marginBottom: 12,
   },
 
   missionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  missionName: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 6 },
+  missionName: { fontSize: 14, marginBottom: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
-  metaText: { fontSize: 12, color: '#ADADAD', fontWeight: '500', flex: 1 },
+  metaText: { fontSize: 12, flex: 1 },
   missionRight: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
-  missionPrice: { fontSize: 22, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
+  missionPrice: { fontSize: 22, letterSpacing: -0.5 },
 
-  timerPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F2F2F2', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  timerPillUrgent: { backgroundColor: '#1A1A1A' },
-  timerText: { fontSize: 12, fontWeight: '800', color: '#555' },
-  timerTextUrgent: { color: '#FFF' },
+  timerPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  timerText: { fontSize: 12 },
 
   cancelSearchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     width: '100%', paddingVertical: 11, borderRadius: 12,
-    borderWidth: 1.5, borderColor: '#FF3B30',
-    backgroundColor: 'rgba(255,59,48,0.05)',
+    borderWidth: 1.5,
   },
-  cancelSearchBtnOff: { borderColor: '#E0E0E0', backgroundColor: 'rgba(0,0,0,0.02)' },
-  cancelSearchText: { fontSize: 15, fontWeight: '700', color: '#FF3B30', letterSpacing: -0.2 },
-  cancelSearchTextOff: { color: '#ADADAD' },
+  cancelSearchText: { fontSize: 15, letterSpacing: -0.2 },
 
   // ─── TRACKING ─────────────────────────────────────────────────────────────
   floatingTopBar: {
     position: 'absolute',
-    top: 0, left: 0, right: 0,
+    top: 0, left: 16, right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    justifyContent: 'center',
     paddingTop: Platform.OS === 'ios' ? 0 : 40,
     gap: 12,
     zIndex: 10,
   },
   backBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#FFF',
     alignItems: 'center', justifyContent: 'center',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 4 },
+    }),
+  },
+  recenterBtn: {
+    position: 'absolute', right: 28, bottom: 355,
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    zIndex: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 4 },
     }),
   },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: '#FFF',
     paddingHorizontal: 14, paddingVertical: 10,
     borderRadius: 22,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 4 },
     }),
   },
-  statusBadgeOngoing: { backgroundColor: '#F4F4F4' },
-  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1A1A1A' },
-  statusDotOngoing: { backgroundColor: '#1A1A1A' },
-  statusText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-  statusTextOngoing: { color: '#1A1A1A' },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusText: { fontSize: 13 },
 
   trackingSheet: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF',
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
+      ios: { shadowColor: '#000', shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
       android: { elevation: 8 },
     }),
   },
 
-  etaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  etaLabel: { fontSize: 12, color: '#888', fontWeight: '500', marginBottom: 2 },
-  etaTime: { fontSize: 28, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.8 },
+  etaRow: { alignItems: 'center', marginBottom: 12 },
+  etaLabel: { fontSize: 12, marginBottom: 2, textAlign: 'center' },
+  etaTime: { fontSize: 32, letterSpacing: 1, textAlign: 'center' },
   etaBadge: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F4F4F4',
     alignItems: 'center', justifyContent: 'center',
   },
 
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginBottom: 12 },
+  divider: { height: 1, marginBottom: 12 },
 
   providerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   avatar: {
     width: 46, height: 46, borderRadius: 23,
-    backgroundColor: '#F4F4F4',
     alignItems: 'center', justifyContent: 'center',
     marginRight: 12,
-    borderWidth: 1.5, borderColor: '#EBEBEB',
+    borderWidth: 1.5,
   },
   providerInfo: { flex: 1 },
-  providerName: { fontSize: 17, fontWeight: '800', color: '#1A1A1A', marginBottom: 3 },
+  providerName: { fontSize: 17, marginBottom: 3 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
-  ratingText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-  ratingMuted: { fontSize: 13, color: '#ADADAD' },
-  serviceText: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
+  ratingText: { fontSize: 13 },
+  ratingMuted: { fontSize: 13 },
+  serviceText: { fontSize: 12 },
 
   comActions: { flexDirection: 'row', gap: 10 },
   comBtn: {
     width: 46, height: 46, borderRadius: 23,
-    backgroundColor: '#1A1A1A',
     alignItems: 'center', justifyContent: 'center',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
@@ -1299,52 +1369,35 @@ const s = StyleSheet.create({
     }),
   },
 
-  messageRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 8, marginBottom: 10,
+  messageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, borderRadius: 12, marginBottom: 10,
   },
-  messageInput: {
-    flex: 1,
-    height: 42,
-    backgroundColor: '#F6F6F6',
-    borderRadius: 21,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: '#1A1A1A',
-    fontWeight: '500',
-    borderWidth: 1.5,
-    borderColor: '#EBEBEB',
-  },
-  sendBtn: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sendBtnOff: { backgroundColor: '#D0D0D0' },
+  messageBtnText: { fontSize: 14 },
+  btnIconWrap: { marginRight: 8 },
 
   cancelTrackBtn: {
-    paddingVertical: 11, borderRadius: 12,
-    borderWidth: 1.5, borderColor: '#FF3B30',
-    backgroundColor: 'rgba(255,59,48,0.05)',
-    alignItems: 'center', marginBottom: 0,
+    flexDirection: 'row', paddingVertical: 11, borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
   },
-  cancelTrackText: { fontSize: 15, fontWeight: '700', color: '#FF3B30' },
+  cancelTrackText: { fontSize: 13 },
 
   ongoingBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F4F4F4', borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 10,
   },
-  ongoingText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', flex: 1 },
+  ongoingText: { fontSize: 13, flex: 1 },
 
   // ─── PIN ────────────────────────────────────────────────────────────────
   pinVerifiedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F0FDF4', borderRadius: 10,
+    borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 8,
-    marginBottom: 10, borderWidth: 1, borderColor: '#BBF7D0',
+    marginBottom: 10, borderWidth: 1,
   },
-  pinVerifiedText: { fontSize: 13, fontWeight: '600', color: '#15803D', flex: 1 },
+  pinVerifiedText: { fontSize: 13, flex: 1 },
 
   // ─── Markers ──────────────────────────────────────────────────────────────
   clientMarker: {
@@ -1354,7 +1407,6 @@ const s = StyleSheet.create({
   },
   clientMarkerInner: {
     width: 10, height: 10, borderRadius: 5,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 2, borderColor: '#FFF',
+    borderWidth: 2,
   },
 });

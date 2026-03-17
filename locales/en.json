@@ -196,6 +196,8 @@
     "mission_ongoing": "Mission in progress",
     "provider_on_way": "Provider on the way",
     "cancelling": "Cancelling…",
+    "contact_support": "Contact support",
+    "message_provider": "Send a message",
     "provider_on_site": "The provider is on site",
     "provider": "Provider",
     "search_step1_title": "Analyzing your request",
@@ -214,7 +216,7 @@
   "stepper": {
     "step_of": "Step {{step}} of {{total}}",
     "step1_label": "Location",
-    "step1_sub": "Service address",
+    "step1_sub": "Your address",
     "step2_label": "Service",
     "step2_sub": "Type of service",
     "step3_label": "Schedule",
@@ -233,6 +235,8 @@
     "schedule": "Schedule",
     "choose_slot": "Choose a time slot",
     "provider_notified": "An available provider will be notified immediately",
+    "urgency_label": "Urgent service",
+    "urgency_desc": "Priority service",
     "choose_day": "Choose a day above",
     "morning": "Morning",
     "afternoon": "Afternoon",
@@ -323,7 +327,9 @@
     "urgent": "URGENT",
     "net_gross": "net · {{gross}}€ gross",
     "accept": "Accept",
-    "decline": "Skip"
+    "decline": "Skip",
+    "mission_ongoing": "Ongoing",
+    "mission_accepted": "Accepted"
   },
   "messages": {
     "title": "Messages",

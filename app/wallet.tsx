@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
 import { devError } from '@/lib/logger';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 // Le backend stocke les montants en centimes (entiers). On divise par 100 à l'affichage.
@@ -103,12 +103,12 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
         <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={[wm.sheet, { backgroundColor: theme.cardBg }]}>
           <View style={[wm.handle, { backgroundColor: theme.border }]} />
-          <Text style={[wm.title, { color: theme.textAlt }]}>Retirer des fonds</Text>
-          <Text style={[wm.subtitle, { color: theme.textMuted }]}>Solde disponible : {fmtEur(fromCents(balance))}</Text>
+          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Retirer des fonds</Text>
+          <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Solde disponible : {fmtEur(fromCents(balance))}</Text>
 
-          <Text style={[wm.label, { color: theme.textMuted }]}>Montant (€)</Text>
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Montant (€)</Text>
           <TextInput
-            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt }]}
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
             placeholder="Ex : 50,00"
             placeholderTextColor={theme.textMuted}
             value={amount}
@@ -117,9 +117,9 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
             returnKeyType="next"
           />
 
-          <Text style={[wm.label, { color: theme.textMuted }]}>IBAN (optionnel)</Text>
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>IBAN (optionnel)</Text>
           <TextInput
-            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt }]}
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.mono }]}
             placeholder="BE12 3456 7890 1234"
             placeholderTextColor={theme.textMuted}
             value={iban}
@@ -128,18 +128,18 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
             returnKeyType="next"
           />
 
-          <Text style={[wm.label, { color: theme.textMuted }]}>Note (optionnelle)</Text>
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Note (optionnelle)</Text>
           <TextInput
-            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt }]}
-            placeholder="Référence virement…"
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
+            placeholder="Référence virement..."
             placeholderTextColor={theme.textMuted}
             value={note}
             onChangeText={setNote}
             returnKeyType="done"
           />
 
-          <Text style={[wm.notice, { color: theme.textMuted }]}>
-            Les retraits sont traités sous 2–3 jours ouvrés. Un administrateur validera votre demande.
+          <Text style={[wm.notice, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+            Les retraits sont traités sous 2-3 jours ouvrés. Un administrateur validera votre demande.
           </Text>
 
           <TouchableOpacity
@@ -150,12 +150,12 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
           >
             {loading
               ? <ActivityIndicator color={theme.accentText} />
-              : <Text style={[wm.btnText, { color: theme.accentText }]}>Confirmer le retrait</Text>
+              : <Text style={[wm.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Confirmer le retrait</Text>
             }
           </TouchableOpacity>
 
           <TouchableOpacity style={wm.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={[wm.cancelText, { color: theme.textMuted }]}>Annuler</Text>
+            <Text style={[wm.cancelText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Annuler</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -171,9 +171,9 @@ const wm = StyleSheet.create({
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
   },
   handle:     { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  title:      { fontSize: 22, fontWeight: '800', marginBottom: 4 },
+  title:      { fontSize: 28, marginBottom: 4 },
   subtitle:   { fontSize: 14, marginBottom: 22 },
-  label:      { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 7 },
+  label:      { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 7 },
   input: {
     borderRadius: 14, height: 50, paddingHorizontal: 16,
     fontSize: 15, marginBottom: 14,
@@ -182,9 +182,9 @@ const wm = StyleSheet.create({
   notice:     { fontSize: 12, lineHeight: 18, marginBottom: 20, marginTop: 4 },
   btn:        { borderRadius: 16, height: 54, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   btnDisabled:{ opacity: 0.6 },
-  btnText:    { fontSize: 16, fontWeight: '700' },
+  btnText:    { fontSize: 16 },
   cancelBtn:  { alignItems: 'center', paddingVertical: 12 },
-  cancelText: { fontSize: 15, fontWeight: '600' },
+  cancelText: { fontSize: 15 },
 });
 
 // ─── Ligne de transaction ──────────────────────────────────────────────────────
@@ -196,30 +196,30 @@ function TxRow({ item }: { item: any }) {
   return (
     <View style={[tx.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
       {/* Icône */}
-      <View style={[tx.iconWrap, isCredit ? tx.iconCredit : { backgroundColor: theme.surface }]}>
+      <View style={[tx.iconWrap, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : '#ECFDF5' } : { backgroundColor: theme.surface }]}>
         <Ionicons
           name={isCredit ? 'arrow-down-outline' : 'arrow-up-outline'}
           size={17}
-          color={isCredit ? '#059669' : theme.textAlt}
+          color={isCredit ? COLORS.green : theme.textAlt}
         />
       </View>
 
       {/* Infos */}
       <View style={tx.info}>
-        <Text style={[tx.label, { color: theme.textAlt }]} numberOfLines={1}>{label}</Text>
-        <Text style={[tx.date, { color: theme.textMuted }]}>{fmtDate(item.createdAt)} · {fmtTime(item.createdAt)}</Text>
+        <Text style={[tx.label, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{label}</Text>
+        <Text style={[tx.date, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{fmtDate(item.createdAt)} · {fmtTime(item.createdAt)}</Text>
         {item.balanceAfter != null && (
-          <Text style={[tx.balance, { color: theme.textVeryMuted }]}>Solde après : {fmtEur(fromCents(item.balanceAfter))}</Text>
+          <Text style={[tx.balance, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>Solde après : {fmtEur(fromCents(item.balanceAfter))}</Text>
         )}
       </View>
 
       {/* Montant */}
       <View style={tx.amountWrap}>
-        <Text style={[tx.amount, isCredit ? tx.amountCredit : { color: theme.textAlt }]}>
-          {isCredit ? '+' : '−'}{fmtEur(fromCents(Math.abs(item.amount)))}
+        <Text style={[tx.amount, { fontFamily: FONTS.monoMedium }, isCredit ? { color: COLORS.green } : { color: theme.textAlt }]}>
+          {isCredit ? '+' : '-'}{fmtEur(fromCents(Math.abs(item.amount)))}
         </Text>
-        <View style={[tx.badge, isCredit ? tx.badgeCredit : { backgroundColor: theme.surface }]}>
-          <Text style={[tx.badgeText, isCredit ? tx.badgeTextCredit : { color: theme.textMuted }]}>
+        <View style={[tx.badge, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : '#ECFDF5' } : { backgroundColor: theme.surface }]}>
+          <Text style={[tx.badgeText, { fontFamily: FONTS.sansMedium }, isCredit ? { color: COLORS.green } : { color: theme.textMuted }]}>
             {isCredit ? 'Reçu' : 'Débité'}
           </Text>
         </View>
@@ -239,18 +239,14 @@ const tx = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  iconCredit: { backgroundColor: '#ECFDF5' },
   info:       { flex: 1 },
-  label:      { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  date:       { fontSize: 11, fontWeight: '500' },
-  balance:    { fontSize: 11, fontWeight: '500', marginTop: 2 },
+  label:      { fontSize: 14, marginBottom: 2 },
+  date:       { fontSize: 11 },
+  balance:    { fontSize: 11, marginTop: 2 },
   amountWrap: { alignItems: 'flex-end', gap: 5 },
-  amount:     { fontSize: 15, fontWeight: '800' },
-  amountCredit: { color: '#059669' },
+  amount:     { fontSize: 15 },
   badge:      { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeCredit: { backgroundColor: '#ECFDF5' },
-  badgeText:  { fontSize: 10, fontWeight: '700' },
-  badgeTextCredit: { color: '#059669' },
+  badgeText:  { fontSize: 10 },
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -290,7 +286,7 @@ export default function Wallet() {
     setShowWithdraw(false);
     Alert.alert(
       'Demande envoyée',
-      'Votre demande de retrait a bien été enregistrée. Elle sera traitée sous 2–3 jours ouvrés.',
+      'Votre demande de retrait a bien été enregistrée. Elle sera traitée sous 2-3 jours ouvrés.',
       [{ text: 'OK', onPress: load }]
     );
   };
@@ -312,26 +308,26 @@ export default function Wallet() {
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]}>Portefeuille</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Portefeuille</Text>
         <TouchableOpacity onPress={onRefresh} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="refresh-outline" size={20} color={theme.textAlt} />
         </TouchableOpacity>
       </View>
 
       {/* ── Solde héro ── */}
-      <View style={s.hero}>
-        <Text style={s.heroLabel}>Solde disponible</Text>
-        <Text style={s.heroAmount}>{fmtEur(fromCents(balance))}</Text>
+      <View style={[s.hero, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity }]}>
+        <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>Solde disponible</Text>
+        <Text style={[s.heroAmount, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{fmtEur(fromCents(balance))}</Text>
 
         {/* Bouton retrait — call to action principal */}
         <TouchableOpacity
-          style={[s.withdrawBtn, fromCents(balance) <= 0 && s.withdrawBtnDisabled]}
+          style={[s.withdrawBtn, { backgroundColor: theme.isDark ? theme.bg : '#FFF' }, fromCents(balance) <= 0 && s.withdrawBtnDisabled]}
           onPress={() => setShowWithdraw(true)}
           disabled={fromCents(balance) <= 0}
           activeOpacity={0.85}
         >
-          <Ionicons name="arrow-up-circle-outline" size={18} color="#1A1A1A" />
-          <Text style={s.withdrawBtnText}>Retirer les fonds</Text>
+          <Ionicons name="arrow-up-circle-outline" size={18} color={theme.textAlt} />
+          <Text style={[s.withdrawBtnText, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Retirer les fonds</Text>
         </TouchableOpacity>
       </View>
 
@@ -346,15 +342,15 @@ export default function Wallet() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
         }
         ListHeaderComponent={
-          <Text style={[s.listTitle, { color: theme.textMuted }]}>
+          <Text style={[s.listTitle, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
             Transactions {transactions.length > 0 ? `(${transactions.length})` : ''}
           </Text>
         }
         ListEmptyComponent={
           <View style={s.empty}>
             <Ionicons name="wallet-outline" size={52} color={theme.textDisabled} />
-            <Text style={[s.emptyTitle, { color: theme.textSub }]}>Aucune transaction</Text>
-            <Text style={[s.emptySubtitle, { color: theme.textMuted }]}>Vos gains apparaîtront ici une fois vos missions terminées.</Text>
+            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Aucune transaction</Text>
+            <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Vos gains apparaitront ici une fois vos missions terminées.</Text>
           </View>
         }
       />
@@ -381,36 +377,35 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 14,
   },
   backBtn:     { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
+  headerTitle: { fontSize: 17 },
 
   // Héro balance
   hero: {
-    backgroundColor: '#1A1A1A',
     marginHorizontal: 16, borderRadius: 24, paddingVertical: 28, paddingHorizontal: 24,
     marginBottom: 20, alignItems: 'center',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
+      ios: { shadowColor: '#000', shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
       android: { elevation: 10 },
     }),
   },
-  heroLabel:  { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5, marginBottom: 8 },
-  heroAmount: { fontSize: 48, fontWeight: '900', color: '#FFF', letterSpacing: -1.5, marginBottom: 22 },
+  heroLabel:  { fontSize: 13, letterSpacing: 0.5, marginBottom: 8 },
+  heroAmount: { fontSize: 52, letterSpacing: -1.5, marginBottom: 22 },
 
   // Bouton retrait
   withdrawBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#FFF', borderRadius: 14,
+    borderRadius: 14,
     paddingHorizontal: 22, paddingVertical: 13,
   },
   withdrawBtnDisabled: { opacity: 0.4 },
-  withdrawBtnText:     { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+  withdrawBtnText:     { fontSize: 15 },
 
   // Liste
   listContent: { paddingHorizontal: 16, paddingBottom: 40 },
-  listTitle:   { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 14 },
+  listTitle:   { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 14 },
 
   // Vide
   empty:         { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyTitle:    { fontSize: 17, fontWeight: '700' },
+  emptyTitle:    { fontSize: 17 },
   emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
 });

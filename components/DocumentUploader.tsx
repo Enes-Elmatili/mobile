@@ -27,6 +27,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,15 +61,6 @@ function statusLabel(status: DocStatus): string {
   }
 }
 
-function statusColor(status: DocStatus): { text: string; bg: string } {
-  switch (status) {
-    case 'APPROVED': return { text: '#1A1A1A', bg: '#EFEFEF' };
-    case 'REJECTED': return { text: '#888',    bg: '#F5F5F5' };
-    case 'PENDING':  return { text: '#555',    bg: '#F5F5F5' };
-    default:         return { text: '#888',    bg: '#F5F5F5' };
-  }
-}
-
 function acceptsText(mimeTypes?: string[]): string {
   if (!mimeTypes?.length) return 'Photo ou PDF';
   const hasPdf = mimeTypes.includes('application/pdf');
@@ -88,11 +80,21 @@ export default function DocumentUploader({
   categoryId,
   onUploaded,
 }: DocumentUploaderProps) {
+  const theme = useAppTheme();
   const cacheKey = `${CACHE_PREFIX}${docKey}`;
 
   const [uploading, setUploading]       = useState(false);
   const [localUri,  setLocalUri]        = useState<string | null>(null);
   const [uploaded,  setUploaded]        = useState<UploadedDoc | null>(null);
+
+  function statusColor(status: DocStatus): { text: string; bg: string } {
+    switch (status) {
+      case 'APPROVED': return { text: theme.text,      bg: theme.surface };
+      case 'REJECTED': return { text: theme.textMuted,  bg: theme.surface };
+      case 'PENDING':  return { text: theme.textSub,    bg: theme.surface };
+      default:         return { text: theme.textMuted,  bg: theme.surface };
+    }
+  }
 
   // Recharger le cache au montage
   useEffect(() => {
@@ -205,14 +207,14 @@ export default function DocumentUploader({
   const { text: stText, bg: stBg } = statusColor(uploaded?.status ?? null);
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
       {/* En-tête */}
       <View style={s.header}>
         <View style={s.labelRow}>
-          <Text style={s.label} numberOfLines={2}>{label}</Text>
-          {mandatory && <View style={s.mandatoryBadge}><Text style={s.mandatoryText}>Requis</Text></View>}
+          <Text style={[s.label, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={2}>{label}</Text>
+          {mandatory && <View style={[s.mandatoryBadge, { backgroundColor: theme.accent }]}><Text style={[s.mandatoryText, { color: theme.accentText }]}>Requis</Text></View>}
         </View>
-        <Text style={s.accepts}>{acceptsText(mimeTypes)}</Text>
+        <Text style={[s.accepts, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{acceptsText(mimeTypes)}</Text>
       </View>
 
       {/* Corps */}
@@ -221,7 +223,7 @@ export default function DocumentUploader({
         {localUri && (
           <Image
             source={{ uri: localUri }}
-            style={s.thumbnail}
+            style={[s.thumbnail, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             resizeMode="cover"
           />
         )}
@@ -230,8 +232,8 @@ export default function DocumentUploader({
         <View style={s.actionArea}>
           {uploading ? (
             <View style={s.uploadingRow}>
-              <ActivityIndicator size="small" color="#555" />
-              <Text style={s.uploadingText}>Envoi en cours…</Text>
+              <ActivityIndicator size="small" color={theme.textSub} />
+              <Text style={[s.uploadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>Envoi en cours…</Text>
             </View>
           ) : hasDoc ? (
             <View style={s.doneRow}>
@@ -241,19 +243,19 @@ export default function DocumentUploader({
                   size={13}
                   color={stText}
                 />
-                <Text style={[s.statusText, { color: stText }]}>
+                <Text style={[s.statusText, { color: stText, fontFamily: FONTS.sansMedium }]}>
                   {statusLabel(uploaded?.status ?? null)}
                 </Text>
               </View>
               <TouchableOpacity onPress={pickAndUpload} style={s.replaceBtn}>
-                <Ionicons name="refresh" size={13} color="#888" />
-                <Text style={s.replaceBtnText}>Remplacer</Text>
+                <Ionicons name="refresh" size={13} color={theme.textMuted} />
+                <Text style={[s.replaceBtnText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Remplacer</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity style={s.uploadBtn} onPress={pickAndUpload} activeOpacity={0.75}>
-              <Ionicons name="cloud-upload-outline" size={18} color="#1A1A1A" />
-              <Text style={s.uploadBtnText}>Ajouter le document</Text>
+            <TouchableOpacity style={[s.uploadBtn, { borderColor: theme.borderLight, backgroundColor: theme.surface }]} onPress={pickAndUpload} activeOpacity={0.75}>
+              <Ionicons name="cloud-upload-outline" size={18} color={theme.text} />
+              <Text style={[s.uploadBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Ajouter le document</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -266,11 +268,9 @@ export default function DocumentUploader({
 
 const s = StyleSheet.create({
   container: {
-    backgroundColor: '#FFF',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
     gap: 10,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
@@ -280,28 +280,27 @@ const s = StyleSheet.create({
 
   header: { gap: 3 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  label: { fontSize: 14, fontWeight: '600', color: '#1A1A1A', flex: 1 },
+  label: { fontSize: 14, fontWeight: '600', flex: 1 },
 
   mandatoryBadge: {
-    backgroundColor: '#1A1A1A', borderRadius: 6,
+    borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  mandatoryText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
+  mandatoryText: { fontSize: 10, fontWeight: '700' },
 
-  accepts: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
+  accepts: { fontSize: 12, fontWeight: '500' },
 
   body: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
   thumbnail: {
     width: 56, height: 56, borderRadius: 10,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1, borderColor: '#F0F0F0',
+    borderWidth: 1,
   },
 
   actionArea: { flex: 1 },
 
   uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  uploadingText: { fontSize: 13, color: '#555' },
+  uploadingText: { fontSize: 13 },
 
   doneRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
 
@@ -315,13 +314,12 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 5,
   },
-  replaceBtnText: { fontSize: 12, color: '#888', fontWeight: '500' },
+  replaceBtnText: { fontSize: 12, fontWeight: '500' },
 
   uploadBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: '#E8E8E8', borderStyle: 'dashed',
+    borderWidth: 1.5, borderStyle: 'dashed',
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: '#FAFAFA',
   },
-  uploadBtnText: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
+  uploadBtnText: { fontSize: 14, fontWeight: '600' },
 });

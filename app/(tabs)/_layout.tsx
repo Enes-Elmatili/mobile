@@ -8,43 +8,37 @@
 
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, StyleSheet, useColorScheme } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 const TAB_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
 const TAB_PB     = Platform.OS === 'ios' ? 20 : 8;
 
 // ─── Background BlurView — frosted glass natif ────────────────────────────────
 function TabBarBackground() {
-  const colorScheme = useColorScheme();
-  const isDark      = colorScheme === 'dark';
+  const theme = useAppTheme();
 
   return (
     <BlurView
       intensity={Platform.OS === 'ios' ? 55 : 40}
-      tint={isDark ? 'dark' : 'light'}
+      tint={theme.isDark ? 'dark' : 'light'}
       style={StyleSheet.absoluteFill}
     />
   );
 }
 
 export default function TabLayout() {
-  const { user }    = useAuth();
-  const colorScheme = useColorScheme();
-  const isDark      = colorScheme === 'dark';
+  const { user } = useAuth();
+  const theme    = useAppTheme();
 
   // ── Stable boolean — ne change que si les rôles changent réellement ───────
   // useMemo évite de recalculer isProvider sur chaque re-render provoqué par
   // un changement de référence de l'objet `user` (même données, nouvel objet).
   const rolesKey   = user?.roles?.join(',') ?? '';
   const isProvider = useMemo(() => rolesKey.includes('PROVIDER'), [rolesKey]);
-
-  // ── Palette adaptative ────────────────────────────────────────────────────
-  const activeColor   = isDark ? '#FFFFFF' : '#0A0A0A';
-  const inactiveColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-  const borderColor   = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
   // ── tabBarBackground stable — évite une nouvelle référence à chaque render ─
   // Sans useCallback, React Navigation détecte un changement d'options à chaque
@@ -54,13 +48,13 @@ export default function TabLayout() {
   // ── screenOptions stable ──────────────────────────────────────────────────
   const screenOptions = useMemo(() => ({
     headerShown: false,
-    contentStyle: { backgroundColor: isDark ? '#0A0A0A' : '#FFFFFF' },
-    tabBarActiveTintColor:   activeColor,
-    tabBarInactiveTintColor: inactiveColor,
+    contentStyle: { backgroundColor: theme.bg },
+    tabBarActiveTintColor:   theme.accent,
+    tabBarInactiveTintColor: theme.textMuted,
     tabBarShowLabel: true,
     tabBarLabelStyle: {
       fontSize:      10,
-      fontWeight:    '600' as const,
+      fontFamily:    FONTS.sansMedium,
       letterSpacing: 0.2,
       marginTop:     -2,
     },
@@ -68,7 +62,7 @@ export default function TabLayout() {
       position:        'absolute' as const,
       backgroundColor: 'transparent',
       borderTopWidth:  1,
-      borderTopColor:  borderColor,
+      borderTopColor:  theme.border,
       height:          TAB_HEIGHT,
       paddingTop:      10,
       paddingBottom:   TAB_PB,
@@ -76,7 +70,7 @@ export default function TabLayout() {
       shadowOpacity:   0,
     },
     tabBarBackground: renderTabBarBackground,
-  }), [activeColor, inactiveColor, borderColor, renderTabBarBackground]);
+  }), [theme.bg, theme.accent, theme.textMuted, theme.border, renderTabBarBackground]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect

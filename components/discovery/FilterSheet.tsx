@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { api } from '../../lib/api';
 import type { DiscoveryFilters } from '../../hooks/useProviderDiscovery';
 
@@ -28,6 +29,7 @@ const RATING_OPTIONS = [0, 3, 4, 4.5];
 
 export function FilterSheet({ filters, onUpdate, onClose }: Props) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loadingCats, setLoadingCats] = useState(true);
 
@@ -46,14 +48,14 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
   }, []);
 
   return (
-    <View style={styles.sheet}>
-      <View style={styles.handle} />
-      <Text style={styles.title}>{t('discovery.filters')}</Text>
+    <View style={[styles.sheet, { backgroundColor: theme.cardBg }]}>
+      <View style={[styles.handle, { backgroundColor: theme.textDisabled }]} />
+      <Text style={[styles.title, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('discovery.filters')}</Text>
 
       {/* Category */}
-      <Text style={styles.sectionLabel}>{t('discovery.filterService')}</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('discovery.filterService')}</Text>
       {loadingCats ? (
-        <ActivityIndicator size="small" color="#1A1A1A" />
+        <ActivityIndicator size="small" color={theme.accent} />
       ) : (
         <ScrollView
           horizontal
@@ -61,7 +63,7 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
           style={styles.optionsRow}
         >
           <TouchableOpacity
-            style={[styles.chip, filters.categoryId === null && styles.chipActive]}
+            style={[styles.chip, { borderColor: theme.borderLight }, filters.categoryId === null && { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => onUpdate({ categoryId: null })}
             accessibilityRole="button"
             accessibilityState={{ selected: filters.categoryId === null }}
@@ -70,7 +72,8 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
             <Text
               style={[
                 styles.chipText,
-                filters.categoryId === null && styles.chipTextActive,
+                { color: theme.text, fontFamily: FONTS.sansMedium },
+                filters.categoryId === null && { color: theme.accentText },
               ]}
             >
               {t('discovery.allServices')}
@@ -81,7 +84,8 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
               key={cat.id}
               style={[
                 styles.chip,
-                filters.categoryId === cat.id && styles.chipActive,
+                { borderColor: theme.borderLight },
+                filters.categoryId === cat.id && { backgroundColor: theme.accent, borderColor: theme.accent },
               ]}
               onPress={() => onUpdate({ categoryId: cat.id })}
               accessibilityRole="button"
@@ -91,7 +95,8 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
               <Text
                 style={[
                   styles.chipText,
-                  filters.categoryId === cat.id && styles.chipTextActive,
+                  { color: theme.text, fontFamily: FONTS.sansMedium },
+                  filters.categoryId === cat.id && { color: theme.accentText },
                 ]}
               >
                 {cat.name}
@@ -102,12 +107,12 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
       )}
 
       {/* Radius */}
-      <Text style={styles.sectionLabel}>{t('discovery.filterRadius')}</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('discovery.filterRadius')}</Text>
       <View style={styles.optionsGrid}>
         {RADIUS_OPTIONS.map((r) => (
           <TouchableOpacity
             key={r}
-            style={[styles.chip, filters.radiusKm === r && styles.chipActive]}
+            style={[styles.chip, { borderColor: theme.borderLight }, filters.radiusKm === r && { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => onUpdate({ radiusKm: r })}
             accessibilityRole="button"
             accessibilityState={{ selected: filters.radiusKm === r }}
@@ -116,7 +121,8 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
             <Text
               style={[
                 styles.chipText,
-                filters.radiusKm === r && styles.chipTextActive,
+                { color: theme.text, fontFamily: FONTS.sansMedium },
+                filters.radiusKm === r && { color: theme.accentText },
               ]}
             >
               {r} km
@@ -126,12 +132,12 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
       </View>
 
       {/* Min rating */}
-      <Text style={styles.sectionLabel}>{t('discovery.filterRating')}</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('discovery.filterRating')}</Text>
       <View style={styles.optionsGrid}>
         {RATING_OPTIONS.map((r) => (
           <TouchableOpacity
             key={r}
-            style={[styles.chip, filters.minRating === r && styles.chipActive]}
+            style={[styles.chip, { borderColor: theme.borderLight }, filters.minRating === r && { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => onUpdate({ minRating: r })}
             accessibilityRole="button"
             accessibilityState={{ selected: filters.minRating === r }}
@@ -142,7 +148,8 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
             <Text
               style={[
                 styles.chipText,
-                filters.minRating === r && styles.chipTextActive,
+                { color: theme.text, fontFamily: FONTS.sansMedium },
+                filters.minRating === r && { color: theme.accentText },
               ]}
             >
               {r === 0 ? t('discovery.allRatings') : `${r}+`}
@@ -152,11 +159,11 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
       </View>
 
       <TouchableOpacity
-        style={styles.closeButton}
+        style={[styles.closeButton, { backgroundColor: theme.accent }]}
         onPress={onClose}
         accessibilityRole="button"
       >
-        <Text style={styles.closeText}>{t('common.close')}</Text>
+        <Text style={[styles.closeText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.close')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -164,7 +171,6 @@ export function FilterSheet({ filters, onUpdate, onClose }: Props) {
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: '#fff',
     borderRadius: 24,
     padding: 20,
     gap: 12,
@@ -172,21 +178,16 @@ const styles = StyleSheet.create({
   handle: {
     width: 36,
     height: 4,
-    backgroundColor: 'rgba(0,0,0,0.15)',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 4,
   },
   title: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#1A1A1A',
     letterSpacing: -0.5,
   },
   sectionLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(0,0,0,0.4)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 8,
@@ -201,18 +202,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.1)',
     marginRight: 8,
   },
-  chipActive: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  chipText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
-  chipTextActive: { color: '#fff' },
+  chipText: { fontSize: 13 },
   closeButton: {
-    backgroundColor: '#1A1A1A',
     borderRadius: 14,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
   },
-  closeText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  closeText: { fontSize: 15 },
 });

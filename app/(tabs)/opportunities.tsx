@@ -1,5 +1,5 @@
-// app/(tabs)/opportunities.tsx — Opportunités planifiées (style Uber)
-// Les providers voient les demandes futures matchant leurs compétences
+// app/(tabs)/opportunities.tsx — Opportunites planifiees (style Uber)
+// Les providers voient les demandes futures matchant leurs competences
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
 import * as Haptics from 'expo-haptics';
 
@@ -69,8 +69,8 @@ function OpportunityCard({
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <View style={[st.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-        {/* Header: catégorie + date relative */}
+      <View style={[st.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
+        {/* Header: categorie + date relative */}
         <View style={st.cardHead}>
           <View style={[st.catBadge, { backgroundColor: theme.surface }]}>
             <Ionicons name="construct-outline" size={14} color={theme.text} />
@@ -95,7 +95,7 @@ function OpportunityCard({
         <View style={st.infoRow}>
           <View style={st.infoItem}>
             <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
-            <Text style={[st.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
+            <Text style={[st.infoText, { color: theme.textSub }]}>{day} a {time}</Text>
           </View>
           <View style={st.infoItem}>
             <Ionicons name="location-outline" size={14} color={theme.textMuted} />
@@ -109,24 +109,24 @@ function OpportunityCard({
         <View style={st.cardFoot}>
           {net ? (
             <View>
-              <Text style={[st.priceNet, { color: theme.text }]}>{net} €</Text>
-              <Text style={[st.priceLabel, { color: theme.textMuted }]}>net estimé</Text>
+              <Text style={[st.priceNet, { color: theme.text }]}>{net} &euro;</Text>
+              <Text style={[st.priceLabel, { color: theme.textMuted }]}>net estime</Text>
             </View>
           ) : (
             <View />
           )}
           <TouchableOpacity
-            style={st.acceptBtn}
+            style={[st.acceptBtn, { backgroundColor: theme.accent }]}
             onPress={handlePress}
             disabled={accepting !== null}
             activeOpacity={0.8}
           >
             {accepting === item.id ? (
-              <ActivityIndicator size="small" color="#FFF" />
+              <ActivityIndicator size="small" color={theme.accentText} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-                <Text style={st.acceptText}>Accepter</Text>
+                <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
+                <Text style={[st.acceptText, { color: theme.accentText }]}>Accepter</Text>
               </>
             )}
           </TouchableOpacity>
@@ -151,7 +151,7 @@ export default function OpportunitiesScreen() {
       const data = res?.data ?? res;
       setOpportunities(Array.isArray(data) ? data : data?.data ?? []);
     } catch (e) {
-      Alert.alert('Erreur', 'Impossible de charger les opportunités.');
+      Alert.alert('Erreur', 'Impossible de charger les opportunites.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -162,7 +162,7 @@ export default function OpportunitiesScreen() {
     fetchOpportunities();
   }, [fetchOpportunities]);
 
-  // Écouter les nouvelles opportunités en temps réel
+  // Ecouter les nouvelles opportunites en temps reel
   useEffect(() => {
     if (!socket) return;
     const handler = () => {
@@ -199,13 +199,13 @@ export default function OpportunitiesScreen() {
 
   return (
     <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
       <View style={st.header}>
-        <Text style={[st.headerTitle, { color: theme.text }]}>Opportunités</Text>
+        <Text style={[st.headerTitle, { color: theme.text }]}>Opportunites</Text>
         <Text style={[st.headerSub, { color: theme.textSub }]}>
-          Missions planifiées pour vous
+          Missions planifiees pour vous
         </Text>
       </View>
 
@@ -216,9 +216,9 @@ export default function OpportunitiesScreen() {
       ) : opportunities.length === 0 ? (
         <View style={st.center}>
           <Ionicons name="telescope-outline" size={48} color={theme.textMuted} />
-          <Text style={[st.emptyTitle, { color: theme.text }]}>Aucune opportunité</Text>
+          <Text style={[st.emptyTitle, { color: theme.text }]}>Aucune opportunite</Text>
           <Text style={[st.emptySub, { color: theme.textSub }]}>
-            Les missions planifiées correspondant à vos compétences apparaîtront ici.
+            Les missions planifiees correspondant a vos competences apparaitront ici.
           </Text>
         </View>
       ) : (
@@ -240,40 +240,40 @@ export default function OpportunitiesScreen() {
 const st = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  headerSub: { fontSize: 14, fontWeight: '500', marginTop: 2 },
+  headerTitle: { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerSub: { fontSize: 14, fontFamily: FONTS.sans, marginTop: 2 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', marginTop: 8 },
-  emptySub: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: 18, fontFamily: FONTS.sansMedium, marginTop: 8 },
+  emptySub: { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
 
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
 
   card: {
     borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8,
+    shadowColor: '#000', shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  catBadgeText: { fontSize: 12, fontWeight: '600' },
+  catBadgeText: { fontSize: 12, fontFamily: FONTS.sansMedium },
   relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  relText: { fontSize: 11, fontWeight: '600' },
+  relText: { fontSize: 11, fontFamily: FONTS.sansMedium },
 
-  serviceName: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
-  desc: { fontSize: 13, fontWeight: '500', lineHeight: 18, marginBottom: 10 },
+  serviceName: { fontSize: 17, fontFamily: FONTS.sansMedium, marginBottom: 4 },
+  desc: { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18, marginBottom: 10 },
 
   infoRow: { gap: 6, marginBottom: 14 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  infoText: { fontSize: 13, fontWeight: '500' },
+  infoText: { fontSize: 13, fontFamily: FONTS.sans },
 
   cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  priceNet: { fontSize: 20, fontWeight: '800' },
-  priceLabel: { fontSize: 11, fontWeight: '500' },
+  priceNet: { fontSize: 20, fontFamily: FONTS.bebas },
+  priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
   acceptBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#1A1A1A', borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 18, paddingVertical: 10,
   },
-  acceptText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  acceptText: { fontSize: 14, fontFamily: FONTS.sansMedium },
 });

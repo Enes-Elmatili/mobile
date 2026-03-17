@@ -6,7 +6,10 @@
     "orientation": "portrait",
     "icon": "./assets/app-icons-ios/app-icon-1024x1024.png",
     "userInterfaceStyle": "automatic",
-    "scheme": ["fixed", "exp+fixed-app"],
+    "scheme": [
+      "fixed",
+      "exp+fixed-app"
+    ],
     "updates": {
       "fallbackToCacheTimeout": 0
     },
@@ -25,7 +28,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Votre position permet de trouver les prestataires autour de vous et d'assurer un suivi précis de l'intervention.",
         "NSLocationAlwaysUsageDescription": "Le suivi en arrière-plan permet de vous alerter de l'arrivée de votre prestataire même si l'application est fermée.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Nous utilisons votre position pour garantir la sécurité et la précision du suivi de la mission du début à la fin."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Nous utilisons votre position pour garantir la sécurité et la précision du suivi de la mission du début à la fin.",
+        "NSMicrophoneUsageDescription": "FIXED utilise votre micro pour les appels vocaux avec votre prestataire ou client."
       }
     },
     "android": {
@@ -38,16 +42,28 @@
         {
           "action": "VIEW",
           "data": [
-            { "scheme": "fixed", "host": "*" }
+            {
+              "scheme": "fixed",
+              "host": "*"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
           "data": [
-            { "scheme": "exp+fixed-app", "host": "*" }
+            {
+              "scheme": "exp+fixed-app",
+              "host": "*"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -56,7 +72,9 @@
         "FOREGROUND_SERVICE",
         "ACCESS_BACKGROUND_LOCATION",
         "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -85,7 +103,9 @@
         }
       ],
       "expo-localization",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@config-plugins/react-native-webrtc",
+      "expo-font"
     ],
     "extra": {
       "eas": {

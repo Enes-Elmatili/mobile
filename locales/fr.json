@@ -196,6 +196,8 @@
     "mission_ongoing": "Mission en cours",
     "provider_on_way": "Prestataire en route",
     "cancelling": "Annulation…",
+    "contact_support": "Contacter le support",
+    "message_provider": "Envoyer un message",
     "provider_on_site": "Le prestataire est sur place",
     "provider": "Prestataire",
     "search_step1_title": "Analyse de votre demande",
@@ -214,7 +216,7 @@
   "stepper": {
     "step_of": "Étape {{step}} sur {{total}}",
     "step1_label": "Lieu",
-    "step1_sub": "Adresse d'intervention",
+    "step1_sub": "Votre adresse",
     "step2_label": "Service",
     "step2_sub": "Type d'intervention",
     "step3_label": "Planning",
@@ -233,6 +235,8 @@
     "schedule": "Planifier",
     "choose_slot": "Choisir un créneau",
     "provider_notified": "Un prestataire disponible sera notifié immédiatement",
+    "urgency_label": "Intervention urgente",
+    "urgency_desc": "Intervention prioritaire",
     "choose_day": "Choisissez un jour ci-dessus",
     "morning": "Matin",
     "afternoon": "Après-midi",
@@ -323,7 +327,9 @@
     "urgent": "URGENT",
     "net_gross": "net · {{gross}}€ brut",
     "accept": "Accepter",
-    "decline": "Passer"
+    "decline": "Passer",
+    "mission_ongoing": "En cours",
+    "mission_accepted": "Acceptée"
   },
   "messages": {
     "title": "Messages",

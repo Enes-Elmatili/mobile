@@ -15,8 +15,9 @@ import {
   Animated,
   Alert,
   Platform,
-  useColorScheme,
   StatusBar,
+  KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -28,6 +29,8 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { toIoniconName } from '../../lib/iconMapper';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { computePrice } from '@/lib/services/priceService';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const TOTAL_STEPS = 4;
@@ -95,56 +98,47 @@ function extractArrayPayload(response: any): any[] {
 }
 
 // ============================================================================
-// THEME HOOK
+// THEME BRIDGE — maps useAppTheme() tokens to local aliases for sub-components
 // ============================================================================
 
 function useTheme() {
-  const scheme = useColorScheme();
-  const isDark  = scheme === 'dark';
+  const t = useAppTheme();
   return {
-    isDark,
-    // Global
-    bg:             isDark ? '#0A0A0A' : '#FFFFFF',
-    surface:        isDark ? '#1A1A1A' : '#F5F5F5',
-    surfaceAlt:     isDark ? '#222222' : '#F8F8F8',
-    surfaceBorder:  isDark ? '#2C2C2C' : '#F2F2F2',
-    card:           isDark ? '#1C1C1C' : '#F7F7F7',
-    cardBorder:     isDark ? '#2A2A2A' : '#EBEBEB',
-    sep:            isDark ? '#222222' : '#F0F0F0',
-    // Text
-    text:           isDark ? '#F2F2F2' : '#1A1A1A',
-    textSub:        isDark ? '#888888' : '#888888',
-    textMuted:      isDark ? '#555555' : '#ADADAD',
-    textPlaceholder:isDark ? '#555555' : '#ADADAD',
-    // Header
-    iconBtnBg:      isDark ? '#1C1C1C' : '#F5F5F5',
-    // Progress bar
-    progressTrack:  isDark ? '#2A2A2A' : '#E8E8E8',
-    // Bottom CTA
-    ctaBg:          isDark ? '#111111' : '#FFFFFF',
-    ctaBorder:      isDark ? '#222222' : '#F0F0F0',
-    // Mode cards (step 3)
-    modeCardBg:     isDark ? '#1A1A1A' : '#F5F5F5',
-    // Now confirm box
-    nowConfirmBg:   isDark ? '#1A1A1A' : '#F5F5F5',
-    // Note input
-    noteInputBg:    isDark ? '#1A1A1A' : '#F7F7F7',
-    noteInputBorder:isDark ? '#2A2A2A' : '#EBEBEB',
-    // Search box sur carte
-    searchBoxBg:    isDark ? '#1A1A1A' : '#FFFFFF',
-    addrConfirmBg:  isDark ? '#1A1A1A' : '#FFFFFF',
-    addrClearBg:    isDark ? '#2A2A2A' : '#EBEBEB',
-    // Autocomplete dropdown
-    dropdownBg:     isDark ? '#1C1C1C' : '#FFFFFF',
-    dropdownRow:    isDark ? '#1C1C1C' : '#FFFFFF',
-    dropdownSep:    isDark ? '#2A2A2A' : '#F5F5F5',
-    // TimeSlot chip
-    chipBg:         isDark ? '#1A1A1A' : '#F5F5F5',
-    // Validation card
-    v4CardBg:       isDark ? '#1A1A1A' : '#F7F7F7',
-    v4Sep:          isDark ? '#2A2A2A' : '#EBEBEB',
-    // Floating gradient (step 3)
-    gradientBg:     isDark ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.9)',
+    isDark:          t.isDark,
+    bg:              t.bg,
+    surface:         t.surface,
+    surfaceAlt:      t.surfaceAlt,
+    surfaceBorder:   t.isDark ? '#2C2C2C' : '#F2F2F2',
+    card:            t.cardBg,
+    cardBorder:      t.border,
+    sep:             t.borderLight,
+    text:            t.text,
+    textSub:         t.textSub,
+    textMuted:       t.textMuted,
+    textPlaceholder: t.textMuted,
+    iconBtnBg:       t.surface,
+    progressTrack:   t.isDark ? '#2A2A2A' : '#E8E8E8',
+    ctaBg:           t.bg,
+    ctaBorder:       t.borderLight,
+    modeCardBg:      t.surface,
+    nowConfirmBg:    t.surface,
+    noteInputBg:     t.surface,
+    noteInputBorder: t.border,
+    searchBoxBg:     t.isDark ? 'rgba(20,20,20,0.75)' : 'rgba(255,255,255,0.75)',
+    addrConfirmBg:   t.cardBg,
+    addrClearBg:     t.isDark ? '#2A2A2A' : '#E9E7E1',
+    dropdownBg:      t.isDark ? 'rgba(20,20,20,0.55)' : 'rgba(255,255,255,0.55)',
+    dropdownRow:     t.isDark ? 'rgba(20,20,20,0.55)' : 'rgba(255,255,255,0.55)',
+    dropdownSep:     t.borderLight,
+    chipBg:          t.surface,
+    v4CardBg:        t.isDark ? '#1A1A1A' : '#FFFFFF',
+    v4Sep:           t.border,
+    gradientBg:      t.isDark ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.9)',
+    // Expose full theme for direct access
+    accent:          t.accent,
+    accentText:      t.accentText,
+    statusBar:       t.statusBar,
+    shadowOpacity:   t.shadowOpacity,
   };
 }
 
@@ -195,8 +189,8 @@ function StepIndicator({ step }: { step: number }) {
       {Array.from({ length: TOTAL_STEPS }, (_, i) => {
         const isActive    = i === step - 1;
         const isCompleted = i < step - 1;
-        const dotBg       = isActive ? '#1A1A1A' : isCompleted ? '#1A1A1A' : t.progressTrack;
-        const iconColor   = isActive || isCompleted ? '#FFF' : t.textMuted as string;
+        const dotBg       = isActive ? t.accent : isCompleted ? t.accent : t.progressTrack;
+        const iconColor   = isActive || isCompleted ? t.accentText as string : t.textMuted as string;
 
         return (
           <React.Fragment key={i}>
@@ -215,7 +209,7 @@ function StepIndicator({ step }: { step: number }) {
             {/* Segment line between dots */}
             {i < TOTAL_STEPS - 1 && (
               <View style={[si.segment, { backgroundColor: t.progressTrack }]}>
-                <Animated.View style={[si.segmentFill, {
+                <Animated.View style={[si.segmentFill, { backgroundColor: t.accent as string }, {
                   width: segmentAnims[i].interpolate({
                     inputRange: [0, 1],
                     outputRange: ['0%', '100%'],
@@ -235,7 +229,7 @@ const si = StyleSheet.create({
   dot:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   dotActive:   { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   segment:     { flex: 1, height: 2, borderRadius: 1, overflow: 'hidden', marginHorizontal: 4 },
-  segmentFill: { height: '100%', backgroundColor: '#1A1A1A', borderRadius: 1 },
+  segmentFill: { height: '100%', borderRadius: 1 },
 });
 
 // ─── Résumé contextuel ─────────────────────────────────────────────────────────
@@ -244,6 +238,7 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
   serviceName:    string | null;
   scheduledLabel: string | null;
 }) {
+  const t = useTheme();
   const parts: string[] = [];
   if (location)      parts.push(location.address.split(',')[0]);
   if (serviceName)   parts.push(serviceName);
@@ -255,8 +250,8 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
     <View style={ls.wrap}>
       {parts.map((p, i) => (
         <View key={i} style={ls.row}>
-          <Ionicons name="checkmark-circle" size={12} color="#aaa" />
-          <Text style={ls.text} numberOfLines={1}>{p}</Text>
+          <Ionicons name="checkmark-circle" size={12} color={t.textMuted as string} />
+          <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{p}</Text>
         </View>
       ))}
     </View>
@@ -266,7 +261,7 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
 const ls = StyleSheet.create({
   wrap: { marginHorizontal: 24, marginTop: 8, marginBottom: 2, gap: 3 },
   row:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  text: { fontSize: 11, fontWeight: '500', color: '#999', flex: 1 },
+  text: { fontSize: 11, flex: 1, fontFamily: FONTS.sans },
 });
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
@@ -296,11 +291,11 @@ function CategoryCard({ cat, selected, onPress }: { cat: any; selected: boolean;
         accessibilityLabel={cat.name}
         accessibilityRole="button"
       >
-        <View style={[cc.iconWrap, { backgroundColor: t.surface }, selected && cc.iconWrapSelected]}>
+        <View style={[cc.iconWrap, { backgroundColor: t.surface }, selected && [cc.iconWrapSelected, { backgroundColor: t.accent }]]}>
           <Ionicons
             name={toIoniconName(cat.icon, 'construct-outline') as any}
             size={18}
-            color={selected ? '#FFF' : t.textSub}
+            color={selected ? t.accentText as string : t.textSub as string}
           />
         </View>
         <Text style={[cc.name, { color: t.text }, selected && cc.nameSelected]} numberOfLines={1}>
@@ -320,9 +315,9 @@ const cc = StyleSheet.create({
   card:             { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 12, borderRadius: 14, backgroundColor: 'transparent', borderBottomWidth: 1 },
   cardSelected:     { borderRadius: 14 },
   iconWrap:         { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  iconWrapSelected: { backgroundColor: '#1A1A1A' },
-  name:             { flex: 1, fontSize: 15, fontWeight: '600' },
-  nameSelected:     { fontWeight: '700' },
+  iconWrapSelected: {},
+  name:             { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
+  nameSelected:     {},
   selectedDot:      { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
 });
 
@@ -371,9 +366,9 @@ function SubChip({ label, price, selected, onPress, icon }: {
 const sc = StyleSheet.create({
   row:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, gap: 12, borderBottomWidth: 1 },
   dot:   { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
-  text:  { flex: 1, fontSize: 15, fontWeight: '500' },
+  text:  { flex: 1, fontSize: 15, fontFamily: FONTS.sans },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  price: { fontSize: 14, fontWeight: '600' },
+  price: { fontSize: 14, fontFamily: FONTS.mono },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -396,26 +391,26 @@ function TimeSlot({ label, selected, onPress }: { label: string; selected: boole
         style={[
           tslot.chip,
           { backgroundColor: t.chipBg, borderColor: 'transparent' },
-          selected && tslot.chipSelected,
+          selected && [tslot.chipSelected, { backgroundColor: t.accent, borderColor: t.accent }],
         ]}
         onPress={handlePress}
         activeOpacity={1}
         accessibilityLabel={label}
         accessibilityRole="button"
       >
-        {selected && <View style={tslot.dot} />}
-        <Text style={[tslot.text, { color: t.textSub }, selected && tslot.textSelected]}>{label}</Text>
+        {selected && <View style={[tslot.dot, { backgroundColor: t.accentText }]} />}
+        <Text style={[tslot.text, { color: t.textSub }, selected && [tslot.textSelected, { color: t.accentText }]]}>{label}</Text>
       </TouchableOpacity>
     </Animated.View>
   );
 }
 
 const tslot = StyleSheet.create({
-  chip:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 14, borderWidth: 1.5, minWidth: 88 },
-  chipSelected: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  dot:          { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFF' },
-  text:         { fontSize: 15, fontWeight: '600' },
-  textSelected: { color: '#FFF' },
+  chip:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, minWidth: 70 },
+  chipSelected: {},
+  dot:          { width: 6, height: 6, borderRadius: 3 },
+  text:         { fontSize: 13, fontFamily: FONTS.sansMedium },
+  textSelected: {},
 });
 
 // ─── Day Chip ──────────────────────────────────────────────────────────────────
@@ -448,9 +443,9 @@ function DayChip({ day, date, month, selected, onPress }: {
 
 const dc = StyleSheet.create({
   wrap:      { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, minWidth: 52, gap: 2 },
-  day:       { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
-  date:      { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  month:     { fontSize: 10, fontWeight: '500' },
+  day:       { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, fontFamily: FONTS.sansMedium },
+  date:      { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.bebas },
+  month:     { fontSize: 10, fontFamily: FONTS.sans },
   underline: { height: 2.5, borderRadius: 2, marginTop: 4, alignSelf: 'center' },
 });
 
@@ -481,21 +476,21 @@ function BottomCTA({ label, onPress, disabled, loading, price }: {
           onPressOut={springOut}
           onPress={handlePress}
           disabled={disabled || loading}
-          style={[cta.btn, disabled && cta.btnDisabled]}
+          style={[cta.btn, { backgroundColor: t.accent }, disabled && [cta.btnDisabled, { opacity: 0.4 }]]}
           accessibilityLabel={label}
           accessibilityRole="button"
         >
           {loading ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={t.accentText as string} />
           ) : (
             <View style={cta.inner}>
-              <Text style={[cta.label, disabled && cta.labelDisabled]}>{label}</Text>
+              <Text style={[cta.label, { color: t.accentText }, disabled && [cta.labelDisabled, { color: t.textMuted }]]}>{label}</Text>
               {price !== undefined && price > 0 ? (
                 <View style={cta.priceBadge}>
-                  <Text style={cta.priceText}>{price} €</Text>
+                  <Text style={[cta.priceText, { color: t.accentText }]}>{price} €</Text>
                 </View>
               ) : (
-                <Ionicons name="arrow-forward" size={20} color={disabled ? '#AAA' : '#FFF'} />
+                <Ionicons name="arrow-forward" size={20} color={disabled ? t.textMuted as string : t.accentText as string} />
               )}
             </View>
           )}
@@ -507,13 +502,13 @@ function BottomCTA({ label, onPress, disabled, loading, price }: {
 
 const cta = StyleSheet.create({
   wrap:          { paddingHorizontal: 24, paddingBottom: Platform.OS === 'ios' ? 0 : 16, paddingTop: 12, borderTopWidth: 1 },
-  btn:           { backgroundColor: '#000', borderRadius: 16, height: 60, alignItems: 'center', justifyContent: 'center' },
-  btnDisabled:   { backgroundColor: '#D8D8D8' },
+  btn:           { borderRadius: 55, height: 55, alignItems: 'center', justifyContent: 'center' },
+  btnDisabled:   {},
   inner:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, width: '100%' },
-  label:         { fontSize: 17, fontWeight: '700', color: '#FFF', flex: 1, textAlign: 'center' },
-  labelDisabled: { color: '#AAA' },
+  label:         { fontSize: 17, flex: 1, textAlign: 'center', fontFamily: FONTS.sansMedium },
+  labelDisabled: {},
   priceBadge:    { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
-  priceText:     { color: '#FFF', fontWeight: '800', fontSize: 15 },
+  priceText:     { fontSize: 15, fontFamily: FONTS.mono },
 });
 
 // ─── Helpers date ──────────────────────────────────────────────────────────────
@@ -570,6 +565,7 @@ export default function NewRequestStepper() {
   const [scheduleMode,   setScheduleMode]   = useState<'now' | 'later' | null>(null);
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
   const [selectedTime,   setSelectedTime]   = useState<string | null>(null);
+  const [isUrgent,       setIsUrgent]       = useState(false);
 
   // Dérivés
   const selectedCategory    = useMemo(() => categories.find((c) => c.id === categoryId) || null, [categories, categoryId]);
@@ -577,7 +573,7 @@ export default function NewRequestStepper() {
     () => selectedCategory?.subcategories?.find((s: any) => s.id === subcategoryId) || null,
     [selectedCategory, subcategoryId]
   );
-  const estimatedPrice  = selectedSubcategory?.price || selectedCategory?.price || 0;
+  const basePrice       = selectedSubcategory?.basePrice || selectedSubcategory?.price || selectedCategory?.price || 0;
   const serviceName     = selectedSubcategory?.name  || selectedCategory?.name  || null;
   const scheduledLabel  = scheduleMode === 'now'
     ? t('stepper.now')
@@ -589,6 +585,24 @@ export default function NewRequestStepper() {
     : (selectedDayIso && selectedTime
       ? new Date(`${selectedDayIso}T${selectedTime}:00`).toISOString()
       : null);
+  // Pour "now", on fixe la date au moment du choix (pas à chaque render)
+  const requestDateIso  = useMemo(() => {
+    if (scheduleMode === 'now') return new Date().toISOString();
+    if (selectedDayIso && selectedTime) return new Date(`${selectedDayIso}T${selectedTime}:00`).toISOString();
+    return new Date().toISOString();
+  }, [scheduleMode, selectedDayIso, selectedTime]);
+  const priceDetails    = useMemo(() => computePrice({
+    baseRate:    basePrice,
+    hours:       1,
+    isUrgent,
+    distanceKm:  0,
+    useFlatTravel: true,
+    requestDate: new Date(requestDateIso),
+    isFlat:      true,
+    flatAmount:  basePrice,
+  }), [basePrice, isUrgent, requestDateIso]);
+  const estimatedPrice  = parseFloat(priceDetails.totalTVAC);
+  const urgencySurcharge = parseFloat(priceDetails.urgentFee);
   const step3Ready = scheduleMode === 'now' || (scheduleMode === 'later' && !!selectedDayIso && !!selectedTime);
 
   // Chargement catégories
@@ -634,6 +648,7 @@ export default function NewRequestStepper() {
   const [requestId,          setRequestId]         = useState<string | null>(null);
   const [paymentReady,       setPaymentReady]       = useState(false);
   const [paymentInitLoading, setPaymentInitLoading] = useState(false);
+  const [priceDetailOpen,    setPriceDetailOpen]    = useState(false);
 
   useEffect(() => {
     if (step !== 4 || !selectedCategory || !location || paymentReady) return;
@@ -651,7 +666,7 @@ export default function NewRequestStepper() {
           address:      location.address,
           lat:          location.lat,
           lng:          location.lng,
-          urgent:       false,
+          urgent:       isUrgent,
           scheduledFor: scheduledFor || new Date().toISOString(),
           status:       'PENDING_PAYMENT',
         };
@@ -765,23 +780,21 @@ export default function NewRequestStepper() {
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* ── Header ── */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goBack} style={[s.iconBtn, { backgroundColor: theme.iconBtnBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.back')} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={22} color={theme.text as string} />
-        </TouchableOpacity>
-
-        <View style={s.headerCenter}>
-          <Text style={[s.stepCount, { color: theme.textMuted }]}>{t('stepper.step_of', { step, total: TOTAL_STEPS })}</Text>
-          <Text style={[s.stepName, { color: theme.text }]}>{currentStep.label}</Text>
-          <Text style={[s.stepSublabel, { color: theme.textMuted }]}>{currentStep.sublabel}</Text>
+        <View style={s.headerSide}>
+          <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.back')} accessibilityRole="button">
+            <Ionicons name="arrow-back" size={22} color={theme.text as string} />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={() => router.back()} style={s.cancelBtn} accessibilityRole="button">
-          <Text style={[s.cancelText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
-        </TouchableOpacity>
+        <View style={s.headerCenter}>
+          <Text style={[s.stepName, { color: theme.text }]}>{currentStep.label}</Text>
+        </View>
+
+        <View style={s.headerSide} />
       </View>
 
       {/* ── Step Indicator ── */}
@@ -817,8 +830,8 @@ export default function NewRequestStepper() {
                 <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} anchor={{ x: 0.5, y: 0.5 }}>
                   <View style={s.markerWrap}>
                     <View style={s.markerHalo} />
-                    <View style={s.markerDot}>
-                      <Ionicons name="location" size={20} color="#FFF" />
+                    <View style={[s.markerDot, { backgroundColor: theme.accent, borderColor: theme.accentText }]}>
+                      <Ionicons name="location" size={20} color={theme.accentText as string} />
                     </View>
                   </View>
                 </Marker>
@@ -847,7 +860,7 @@ export default function NewRequestStepper() {
                     textInput: {
                       height:          36,
                       fontSize:        15,
-                      fontWeight:      '600',
+                      fontFamily:      FONTS.sansMedium,
                       color:           theme.text as string,
                       backgroundColor: 'transparent',
                       padding:         0,
@@ -869,7 +882,7 @@ export default function NewRequestStepper() {
                       maxHeight:     260,
                     },
                     row:         { backgroundColor: theme.dropdownRow as string, paddingVertical: 14, paddingHorizontal: 18 },
-                    description: { fontSize: 14, color: theme.text as string, fontWeight: '500' },
+                    description: { fontSize: 14, color: theme.text as string, fontFamily: FONTS.sans },
                     separator:   { backgroundColor: theme.dropdownSep as string, height: 1 },
                   }}
                   textInputProps={{ placeholderTextColor: theme.textPlaceholder as string }}
@@ -902,7 +915,7 @@ export default function NewRequestStepper() {
 
         {/* ══ ÉTAPE 2 — Service ══ */}
         {step === 2 && (
-          <View style={s.flex}>
+          <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
             <ScrollView style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={[s.step2Title, { color: theme.text }]}>{t('stepper.what_do_you_need')}</Text>
 
@@ -970,7 +983,7 @@ export default function NewRequestStepper() {
             </ScrollView>
 
             <BottomCTA label={t('stepper.continue')} onPress={goNext} disabled={!categoryId} price={estimatedPrice > 0 ? estimatedPrice : undefined} />
-          </View>
+          </KeyboardAvoidingView>
         )}
 
         {/* ══ ÉTAPE 3 — Planning ══ */}
@@ -978,56 +991,48 @@ export default function NewRequestStepper() {
           <View style={s.flex}>
             <ScrollView style={s.flex} contentContainerStyle={s.step3Pad} showsVerticalScrollIndicator={false}>
 
-              <View style={s.modeList}>
+              <View style={[s.urgencyRow, { opacity: isUrgent ? 1 : 0.4 }]}>
+                <Ionicons name="alert-circle-outline" size={14} color={COLORS.red} />
+                <Text style={[s.urgencyLabel, { color: isUrgent ? theme.text : theme.textSub, marginLeft: 6, flex: 1 }]}>{t('stepper.urgency_desc')}</Text>
+                <Switch
+                  value={isUrgent}
+                  onValueChange={(v) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsUrgent(v); }}
+                  trackColor={{ false: theme.border as string, true: COLORS.red }}
+                  thumbColor={isUrgent ? '#FFF' : theme.surface as string}
+                  style={{ transform: [{ scaleX: 0.55 }, { scaleY: 0.55 }], marginRight: -10 }}
+                />
+              </View>
+
+              <View style={s.modeGrid}>
                 {/* Maintenant */}
                 <TouchableOpacity
-                  style={[s.modeRow2, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'now' && s.modeRow2Selected]}
+                  style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'now' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setScheduleMode('now'); setSelectedDayIso(null); setSelectedTime(null); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
-                  <View style={[s.modeIconSmall, scheduleMode === 'now' && s.modeIconSmallSelected]}>
-                    <Ionicons name="flash-outline" size={18} color={scheduleMode === 'now' ? '#FFF' : theme.text as string} />
-                  </View>
-                  <View style={s.modeTextCol}>
-                    <Text style={[s.modeLabel2, { color: theme.text }, scheduleMode === 'now' && s.modeLabelSelected]}>{t('stepper.now')}</Text>
-                    <Text style={[s.modeSub2, { color: theme.textSub }, scheduleMode === 'now' && s.modeSubSelected]}>{t('stepper.quick_intervention')}</Text>
-                  </View>
-                  {scheduleMode === 'now' && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                  <Ionicons name="flash-outline" size={28} color={scheduleMode === 'now' ? theme.accentText as string : theme.text as string} />
+                  <Text style={[s.modeCardLabel, { color: theme.text }, scheduleMode === 'now' && { color: theme.accentText }]}>{t('stepper.now')}</Text>
+                  <Text style={[s.modeCardSub, { color: theme.textSub }, scheduleMode === 'now' && { color: `${theme.accentText}99` }]}>{t('stepper.quick_intervention')}</Text>
                 </TouchableOpacity>
 
                 {/* Planifier */}
                 <TouchableOpacity
-                  style={[s.modeRow2, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && s.modeRow2Selected]}
+                  style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setScheduleMode('later'); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
-                  <View style={[s.modeIconSmall, scheduleMode === 'later' && s.modeIconSmallSelected]}>
-                    <Ionicons name="calendar-outline" size={18} color={scheduleMode === 'later' ? '#FFF' : theme.text as string} />
-                  </View>
-                  <View style={s.modeTextCol}>
-                    <Text style={[s.modeLabel2, { color: theme.text }, scheduleMode === 'later' && s.modeLabelSelected]}>{t('stepper.schedule')}</Text>
-                    <Text style={[s.modeSub2, { color: theme.textSub }, scheduleMode === 'later' && s.modeSubSelected]}>{t('stepper.choose_slot')}</Text>
-                  </View>
-                  {scheduleMode === 'later' && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                  <Ionicons name="calendar-outline" size={28} color={scheduleMode === 'later' ? theme.accentText as string : theme.text as string} />
+                  <Text style={[s.modeCardLabel, { color: theme.text }, scheduleMode === 'later' && { color: theme.accentText }]}>{t('stepper.schedule')}</Text>
+                  <Text style={[s.modeCardSub, { color: theme.textSub }, scheduleMode === 'later' && { color: `${theme.accentText}99` }]}>{t('stepper.choose_slot')}</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Mode Maintenant */}
-              {scheduleMode === 'now' && (
-                <View style={[s.nowConfirm, { backgroundColor: theme.nowConfirmBg }]}>
-                  <Ionicons name="flash" size={22} color={theme.text as string} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.nowTitle, { color: theme.text }]}>{t('stepper.quick_intervention')}</Text>
-                    <Text style={[s.nowSub, { color: theme.textSub }]}>{t('stepper.provider_notified')}</Text>
-                  </View>
-                </View>
-              )}
 
               {/* Mode Plus tard */}
               {scheduleMode === 'later' && (
                 <>
+                  <View style={{ height: 28 }} />
                   <View style={[s.step3Sep, { backgroundColor: theme.sep }]} />
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dayScroll}>
                     {days.map((d) => (
@@ -1041,7 +1046,6 @@ export default function NewRequestStepper() {
                       />
                     ))}
                   </ScrollView>
-                  <View style={[s.step3Sep, { backgroundColor: theme.sep }]} />
 
                   {!selectedDayIso ? (
                     <Text style={[s.step3Hint, { color: theme.textMuted }]}>{t('stepper.choose_day')}</Text>
@@ -1059,6 +1063,7 @@ export default function NewRequestStepper() {
                   )}
                 </>
               )}
+
 
               <View style={{ height: 120 }} />
             </ScrollView>
@@ -1119,10 +1124,58 @@ export default function NewRequestStepper() {
 
               </View>
 
-              {/* Total */}
-              <View style={s.v4Total}>
-                <Text style={[s.v4TotalLabel, { color: theme.textSub }]}>{t('stepper.total_estimated')}</Text>
-                <Text style={[s.v4TotalValue, { color: theme.text }]}>{estimatedPrice} €</Text>
+              {/* Prix total + détail dropdown */}
+              <View style={s.v4PriceBreakdown}>
+                {priceDetailOpen && (
+                  <View style={{ marginBottom: 6, gap: 2 }}>
+                    <View style={s.v4PriceLine}>
+                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Base HTVA</Text>
+                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.baseHTVA} €</Text>
+                    </View>
+                    <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                    {priceDetails.multiplier > 1 && (
+                      <>
+                        <View style={s.v4PriceLine}>
+                          <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (×{priceDetails.multiplier.toFixed(1)})</Text>
+                          <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.adjustedBase} €</Text>
+                        </View>
+                        <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      </>
+                    )}
+                    {isUrgent && (
+                      <>
+                        <View style={s.v4PriceLine}>
+                          <Text style={[s.v4PriceLabel, { color: COLORS.red }]}>Urgence (+50%)</Text>
+                          <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{priceDetails.urgentFee} €</Text>
+                        </View>
+                        <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      </>
+                    )}
+                    <View style={s.v4PriceLine}>
+                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Déplacement</Text>
+                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.travelFee} €</Text>
+                    </View>
+                    <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                    <View style={s.v4PriceLine}>
+                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Frais plateforme</Text>
+                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.platformFee} €</Text>
+                    </View>
+                    <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                    <View style={s.v4PriceLine}>
+                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>TVA (21%)</Text>
+                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(priceDetails.totalTVAC) - parseFloat(priceDetails.totalHTVA)).toFixed(2)} €</Text>
+                    </View>
+                    <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 6 }]} />
+                  </View>
+                )}
+
+                <TouchableOpacity style={s.v4PriceLine} onPress={() => setPriceDetailOpen(p => !p)} activeOpacity={0.7}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={[s.v4TotalLabel, { color: theme.text }]}>TTC</Text>
+                    <Ionicons name={priceDetailOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
+                  </View>
+                  <Text style={[s.v4TotalValue, { color: theme.text }]}>{priceDetails.totalTVAC} €</Text>
+                </TouchableOpacity>
               </View>
 
             </View>
@@ -1155,117 +1208,124 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
 
   // Header
-  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
   iconBtn:      { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  headerSide:   { width: 60, justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
-  stepCount:    { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
-  stepName:     { fontSize: 15, fontWeight: '800', marginTop: 1 },
-  stepSublabel: { fontSize: 11, fontWeight: '500', marginTop: 1 },
+  stepCount:    { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: FONTS.mono },
+  stepName:     { fontSize: 15, marginTop: 1, fontFamily: FONTS.sansMedium },
+  stepSublabel: { fontSize: 11, marginTop: 1, fontFamily: FONTS.sans },
   cancelBtn:    { paddingHorizontal: 8, paddingVertical: 6 },
-  cancelText:   { fontSize: 14, fontWeight: '500' },
+  cancelText:   { fontSize: 14, fontFamily: FONTS.sans },
 
   scrollPad: { paddingHorizontal: 24, paddingTop: 28 },
 
-  title:    { fontSize: 30, fontWeight: '800', lineHeight: 38, marginBottom: 6, letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, fontWeight: '500', marginBottom: 28 },
+  title:    { fontSize: 30, lineHeight: 38, marginBottom: 6, letterSpacing: 1, fontFamily: FONTS.bebas },
+  subtitle: { fontSize: 15, marginBottom: 28, fontFamily: FONTS.sans },
 
   loadWrap: { paddingVertical: 60, alignItems: 'center', gap: 14 },
-  loadText: { fontSize: 14, fontWeight: '500' },
+  loadText: { fontSize: 14, fontFamily: FONTS.sans },
 
   // Step 2
   step2Pad:   { paddingHorizontal: 20, paddingTop: 24 },
-  step2Title: { fontSize: 22, fontWeight: '800', letterSpacing: -0.3, marginBottom: 22 },
+  step2Title: { fontSize: 22, letterSpacing: 1, marginBottom: 22, fontFamily: FONTS.bebas },
   catList:    { marginBottom: 4 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
   subSection: { marginTop: 20 },
   subHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  subTitle:   { fontSize: 14, fontWeight: '700' },
-  priceInline:{ fontSize: 13, fontWeight: '600' },
+  subTitle:   { fontSize: 14, fontFamily: FONTS.sansMedium },
+  priceInline:{ fontSize: 13, fontFamily: FONTS.mono },
   chips:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   subList:    { gap: 8 },
 
   priceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingHorizontal: 4 },
-  priceRowLabel:  { fontSize: 13, fontWeight: '600' },
+  priceRowLabel:  { fontSize: 13, fontFamily: FONTS.sansMedium },
   priceRowRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceRowValue:  { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  priceRowValue:  { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.mono },
   priceRowBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  priceRowSub:    { fontSize: 11, fontWeight: '500' },
+  priceRowSub:    { fontSize: 11, fontFamily: FONTS.sans },
 
   noteToggle:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, paddingVertical: 4 },
-  noteToggleText: { fontSize: 13, fontWeight: '500' },
-  noteInput:      { borderRadius: 16, padding: 16, fontSize: 15, minHeight: 90, borderWidth: 1.5, fontWeight: '500' },
+  noteToggleText: { fontSize: 13, fontFamily: FONTS.sans },
+  noteInput:      { borderRadius: 16, padding: 16, fontSize: 15, minHeight: 90, borderWidth: 1.5, fontFamily: FONTS.sans },
 
   // Step 3
   step3Pad:       { paddingHorizontal: 24, paddingTop: 28 },
-  step3Sep:       { height: 1, marginVertical: 20 },
-  step3Hint:      { fontSize: 14, fontWeight: '500', textAlign: 'center', paddingVertical: 12 },
-  modeList:       { gap: 8, marginBottom: 8 },
-  modeRow2:       { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 12, borderWidth: 1.5 },
-  modeRow2Selected: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  modeIconSmall:  { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center' },
-  modeIconSmallSelected: { backgroundColor: 'rgba(255,255,255,0.15)' },
-  modeTextCol:    { flex: 1 },
-  modeLabel2:     { fontSize: 15, fontWeight: '700' },
-  modeLabelSelected: { color: '#FFF' },
-  modeSub2:       { fontSize: 12, fontWeight: '500', marginTop: 1 },
-  modeSubSelected:{ color: 'rgba(255,255,255,0.6)' },
+  step3Sep:       { height: 1, marginVertical: 4 },
+  step3Hint:      { fontSize: 14, textAlign: 'center', paddingVertical: 12, fontFamily: FONTS.sans },
+  modeGrid:       { alignItems: 'center', gap: 20, marginTop: 90 },
+  modeCard:       { width: '55%', aspectRatio: 1.2, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  modeCardLabel:  { fontSize: 16, fontFamily: FONTS.sansMedium },
+  modeCardSub:    { fontSize: 11, fontFamily: FONTS.sans, textAlign: 'center', paddingHorizontal: 8 },
 
   nowConfirm: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 18, padding: 18, marginTop: 4 },
-  nowTitle:   { fontSize: 15, fontWeight: '700', marginBottom: 3 },
-  nowSub:     { fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  nowTitle:   { fontSize: 15, marginBottom: 3, fontFamily: FONTS.sansMedium },
+  nowSub:     { fontSize: 13, lineHeight: 18, fontFamily: FONTS.sans },
 
-  dayScroll:      { gap: 4, paddingBottom: 16, paddingHorizontal: 4 },
-  slotGroup:      { marginBottom: 20 },
-  slotGroupLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
+  dayScroll:      { gap: 4, paddingVertical: 2, paddingHorizontal: 4, alignItems: 'center' },
+  slotGroup:      { marginBottom: 12 },
+  slotGroupLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, fontFamily: FONTS.sansMedium },
   slotsRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+
+  urgencyRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -28 },
+  urgencyLeft:      { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  urgencyLabel:     { fontSize: 12, fontFamily: FONTS.sans },
+  urgencySub:       { fontSize: 12, marginTop: 1, fontFamily: FONTS.sans },
+  urgencyBadge:     { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 10 },
+  urgencyBadgeText: { fontSize: 13, fontFamily: FONTS.monoMedium },
 
   floatingCTA:      { position: 'absolute', bottom: 0, left: 0, right: 0 },
   floatingGradient: { height: 32 },
 
   slotsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
   planSummary:  { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 14 },
-  planSummaryText: { fontSize: 14, fontWeight: '500', flex: 1, lineHeight: 20 },
+  planSummaryText: { fontSize: 14, flex: 1, lineHeight: 20, fontFamily: FONTS.sans },
 
   // Step 1 — carte
   searchFloat: { position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10, gap: 8 },
-  searchBox:   { flexDirection: 'row', alignItems: 'center', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10, minHeight: 56, shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 10 },
+  searchBox:   { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 2, minHeight: 28, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   addrConfirm: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
   addrDot:     { width: 10, height: 10, borderRadius: 5 },
-  addrText:    { flex: 1, fontSize: 13, fontWeight: '600' },
+  addrText:    { flex: 1, fontSize: 13, fontFamily: FONTS.sansMedium },
   addrClear:   { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   ctaFloating: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5 },
 
   markerWrap: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
   markerHalo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.08)', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.06)' },
-  markerDot:  { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 3, borderColor: '#FFF', alignItems: 'center' as const, justifyContent: 'center' as const, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 6 } }) },
+  markerDot:  { width: 44, height: 44, borderRadius: 22, borderWidth: 3, alignItems: 'center' as const, justifyContent: 'center' as const, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 6 } }) },
 
-  pin:      { width: 22, height: 22, borderRadius: 11, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
-  pinInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
+  pin:      { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
   v4Body:       { flex: 1, paddingHorizontal: 20, paddingTop: 20, justifyContent: 'center' },
   v4Card:       { borderRadius: 20, overflow: 'hidden', marginBottom: 20 },
   v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
-  v4Val:        { flex: 1, fontSize: 15, fontWeight: '600' },
-  v4Sub:        { fontSize: 13, fontWeight: '400', maxWidth: 120 },
+  v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
+  v4Sub:        { fontSize: 13, maxWidth: 120, fontFamily: FONTS.sans },
   v4Sep:        { height: 1, marginHorizontal: 16 },
   v4Chevron:    { marginLeft: 'auto' as any },
+  v4PriceBreakdown: { marginTop: 10, paddingHorizontal: 4, gap: 0 },
+  v4PriceLine:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  v4PriceLabel: { fontSize: 10, fontFamily: FONTS.sans },
+  v4PriceVal:   { fontSize: 10, fontFamily: FONTS.mono },
+  v4PriceSep:   { height: StyleSheet.hairlineWidth, marginVertical: 1, opacity: 0.3 },
   v4Total:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
-  v4TotalLabel: { fontSize: 14, fontWeight: '600' },
-  v4TotalValue: { fontSize: 48, fontWeight: '900', letterSpacing: -2 },
+  v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
+  v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
   v4Footer:     { paddingHorizontal: 0, paddingBottom: 0 },
   v4SecureRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingBottom: 8 },
-  v4Secure:     { textAlign: 'center', fontSize: 12, fontWeight: '500' },
+  v4Secure:     { textAlign: 'center', fontSize: 12, fontFamily: FONTS.sans },
 
   // Legacy
   recapCard:  { borderRadius: 22, padding: 4, marginBottom: 24 },
   recapRow:   { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
   recapIcon:  { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   recapInfo:  { flex: 1 },
-  recapMeta:  { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
-  recapVal:   { fontSize: 15, fontWeight: '700' },
-  recapPrice: { fontSize: 24, fontWeight: '800' },
+  recapMeta:  { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, fontFamily: FONTS.mono },
+  recapVal:   { fontSize: 15, fontFamily: FONTS.sansMedium },
+  recapPrice: { fontSize: 24, fontFamily: FONTS.mono },
   recapSep:   { height: 1, marginHorizontal: 16 },
-  noteOpt:    { fontWeight: '400' },
+  noteOpt:    { fontFamily: FONTS.sans },
 });

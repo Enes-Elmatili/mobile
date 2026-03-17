@@ -6,6 +6,8 @@ import { SocketProvider } from '../lib/SocketContext';
 import { NetworkProvider } from '../lib/NetworkContext';
 import { OfflineQueueProvider } from '../lib/OfflineQueueContext';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { CallProvider } from '../lib/webrtc/CallContext';
+import IncomingCallOverlay from '../components/IncomingCallOverlay';
 import { usePushNotifications } from '../lib/usePushNotifications';
 import {
   ActivityIndicator,
@@ -15,10 +17,15 @@ import {
   StyleSheet,
   useColorScheme,
   StatusBar,
+  Appearance,
 } from 'react-native';
 import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
+import { useFonts } from 'expo-font';
+import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
+import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
+import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 if (!STRIPE_PUBLISHABLE_KEY) {
@@ -35,6 +42,7 @@ const MISSION_FLOW_ROUTES = [
   'NewRequestStepper',
   'missionview',
   'explore',
+  'onboarding',
   'subscription',
   'settings',
   'providers',
@@ -44,6 +52,7 @@ const MISSION_FLOW_ROUTES = [
   'messages',
   'notifications',
   'connect',
+  'call',
 ];
 
 function RootLayoutNav() {
@@ -86,6 +95,14 @@ function RootLayoutNav() {
     if (!userId && !inAuthGroup) {
       router.replace('/(auth)/welcome');
     } else if (userId && inAuthGroup) {
+      // Social sign-in users without role → stay in auth for role selection
+      if (!user?.roles || user.roles.length === 0) {
+        if (segmentKey !== '(auth)/role-select') {
+          router.replace('/(auth)/role-select');
+        }
+        return;
+      }
+
       // Routing basé sur le rôle et statut provider
       const isProvider = user?.roles?.includes('PROVIDER');
       if (isProvider) {
@@ -106,7 +123,7 @@ function RootLayoutNav() {
     return (
       <View style={[
         styles.loadingContainer,
-        { backgroundColor: isDark ? '#0A0A0A' : '#FFFFFF' },
+        { backgroundColor: isDark ? '#0A0A0A' : '#F2F0EB' },
       ]}>
         <StatusBar
           barStyle={isDark ? 'light-content' : 'dark-content'}
@@ -115,7 +132,7 @@ function RootLayoutNav() {
         />
         <ActivityIndicator
           size="large"
-          color={isDark ? '#F2F2F2' : '#172247'}
+          color={isDark ? '#F2F2F2' : '#1A1A18'}
         />
       </View>
     );
@@ -128,7 +145,7 @@ function RootLayoutNav() {
         backgroundColor="transparent"
         translucent
       />
-      <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }} />
     </>
   );
 }
@@ -145,17 +162,18 @@ class AppErrorBoundary extends React.Component<
   }
   render() {
     if (this.state.hasError) {
+      const dark = Appearance.getColorScheme() === 'dark';
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: '#fff' }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12 }}>Une erreur est survenue</Text>
-          <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 24 }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: dark ? '#080808' : '#F2F0EB' }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: dark ? '#F2F2F2' : '#1A1A18' }}>Une erreur est survenue</Text>
+          <Text style={{ fontSize: 14, color: dark ? '#999' : '#8A8880', textAlign: 'center', marginBottom: 24 }}>
             L'application a rencontré un problème inattendu.
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
-            style={{ backgroundColor: '#1A1A1A', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+            style={{ backgroundColor: dark ? '#F8F7F4' : '#1A1A18', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Réessayer</Text>
+            <Text style={{ color: dark ? '#080808' : '#F2F0EB', fontWeight: '600' }}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       );
@@ -165,6 +183,24 @@ class AppErrorBoundary extends React.Component<
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    BebasNeue_400Regular,
+    DMSans_300Light,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMMono_400Regular,
+    DMMono_500Medium,
+  });
+
+  if (!fontsLoaded) {
+    const dark = Appearance.getColorScheme() === 'dark';
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: dark ? '#0A0A0A' : '#F2F0EB' }]}>
+        <ActivityIndicator size="large" color={dark ? '#F2F2F2' : '#1A1A18'} />
+      </View>
+    );
+  }
+
   return (
     <AppErrorBoundary>
       <GestureHandlerRootView style={styles.container}>
@@ -177,8 +213,11 @@ export default function RootLayout() {
             <AuthProvider>
               <OfflineQueueProvider>
                 <SocketProvider>
-                  <OfflineBanner />
-                  <RootLayoutNav />
+                  <CallProvider>
+                    <OfflineBanner />
+                    <IncomingCallOverlay />
+                    <RootLayoutNav />
+                  </CallProvider>
                 </SocketProvider>
               </OfflineQueueProvider>
             </AuthProvider>

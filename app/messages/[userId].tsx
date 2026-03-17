@@ -8,8 +8,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
-import { onIncomingMessage } from '../../lib/SocketContext';
-import { useAppTheme } from '../../hooks/use-app-theme';
+import {
+  useSocket,
+  onIncomingMessage,
+  onUserTyping,
+  onUserStopTyping,
+  onMessageRead,
+  onMessageReadAll,
+} from '../../lib/SocketContext';
+import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -35,19 +42,34 @@ function displayLabel(userId: string): string {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function ConversationScreen() {
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const { userId, name, requestId } = useLocalSearchParams<{ userId: string; name?: string; requestId?: string }>();
   const { user } = useAuth();
   const router = useRouter();
   const theme = useAppTheme();
+  const { socket } = useSocket();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messageIdsRef = useRef(new Set<string>());
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const flatListRef = useRef<FlatList<Message>>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emitTypingRef = useRef(false);
 
-  const headerName = displayLabel(userId ?? '');
+  const [contactName, setContactName] = useState<string | null>(name || null);
+  const headerName = contactName || displayLabel(userId ?? '');
+
+  // ── Fetch contact name if not provided ─────────────────────────────────────
+
+  useEffect(() => {
+    if (contactName || !userId) return;
+    api.messages.contactInfo(userId).then((res: any) => {
+      const n = res?.data?.name;
+      if (n) setContactName(n);
+    }).catch(() => {});
+  }, [userId, contactName]);
 
   // ── Load conversation ─────────────────────────────────────────────────────
 
@@ -69,19 +91,93 @@ export default function ConversationScreen() {
     loadConversation();
   }, [loadConversation]);
 
-  // ── Real-time: append messages from this user only ────────────────────────
+  // ── Mark all messages as read when opening conversation ────────────────────
+
+  useEffect(() => {
+    if (!userId || loading) return;
+    api.messages.markAllRead(userId).catch(() => {});
+  }, [userId, loading]);
+
+  // ── Real-time: append incoming messages ────────────────────────────────────
 
   useEffect(() => {
     let mounted = true;
     const unsub = onIncomingMessage((msg) => {
-      if (msg.senderId !== userId) return;
+      // Only show messages relevant to this conversation
+      if (msg.senderId !== userId && msg.senderId !== user?.id) return;
       if (messageIdsRef.current.has(msg.id)) return;
       messageIdsRef.current.add(msg.id);
       setMessages(prev => [...prev, msg]);
       setTimeout(() => { if (mounted) flatListRef.current?.scrollToEnd({ animated: true }); }, 80);
+
+      // Auto-mark as read if it's from the other person
+      if (msg.senderId === userId) {
+        api.messages.markAllRead(userId).catch(() => {});
+      }
     });
     return () => { mounted = false; unsub(); };
+  }, [userId, user?.id]);
+
+  // ── Typing indicators ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const unsubTyping = onUserTyping((e) => {
+      if (e.userId === userId) setIsTyping(true);
+    });
+    const unsubStop = onUserStopTyping((e) => {
+      if (e.userId === userId) setIsTyping(false);
+    });
+    return () => { unsubTyping(); unsubStop(); };
   }, [userId]);
+
+  // Auto-clear typing after 4s (safety net)
+  useEffect(() => {
+    if (!isTyping) return;
+    const t = setTimeout(() => setIsTyping(false), 4000);
+    return () => clearTimeout(t);
+  }, [isTyping]);
+
+  // Emit typing events
+  const handleTextChange = (text: string) => {
+    setInputText(text);
+    if (!socket || !userId) return;
+
+    if (text.trim() && !emitTypingRef.current) {
+      emitTypingRef.current = true;
+      socket.emit('message:typing', { recipientId: userId });
+    }
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      emitTypingRef.current = false;
+      socket.emit('message:stop_typing', { recipientId: userId });
+    }, 2000);
+
+    if (!text.trim()) {
+      emitTypingRef.current = false;
+      socket.emit('message:stop_typing', { recipientId: userId });
+    }
+  };
+
+  // ── Read receipts ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const unsubRead = onMessageRead((e) => {
+      if (e.readBy === userId) {
+        setMessages(prev => prev.map(m =>
+          m.id === e.messageId ? { ...m, readAt: e.readAt } : m
+        ));
+      }
+    });
+    const unsubReadAll = onMessageReadAll((e) => {
+      if (e.readBy === userId) {
+        setMessages(prev => prev.map(m =>
+          m.senderId === user?.id && !m.readAt ? { ...m, readAt: e.readAt } : m
+        ));
+      }
+    });
+    return () => { unsubRead(); unsubReadAll(); };
+  }, [userId, user?.id]);
 
   // ── Send ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +186,11 @@ export default function ConversationScreen() {
     if (!content || sending || !userId) return;
     setSending(true);
     setInputText('');
+    // Stop typing indicator
+    if (emitTypingRef.current) {
+      emitTypingRef.current = false;
+      socket?.emit('message:stop_typing', { recipientId: userId });
+    }
     try {
       const res = await api.messages.send(userId, content);
       const msg: Message = res?.data ?? res;
@@ -103,6 +204,22 @@ export default function ConversationScreen() {
     } finally {
       setSending(false);
     }
+  };
+
+  // ── Status icon for own messages ───────────────────────────────────────────
+
+  const MessageStatus = ({ msg }: { msg: Message }) => {
+    if (msg.senderId !== user?.id) return null;
+    const color = msg.readAt ? COLORS.blue || '#3478F6' : (theme.textMuted as string);
+    return (
+      <View style={b.statusRow}>
+        <Ionicons
+          name={msg.readAt ? 'checkmark-done' : 'checkmark'}
+          size={14}
+          color={color}
+        />
+      </View>
+    );
   };
 
   // ── Render message bubble ─────────────────────────────────────────────────
@@ -124,10 +241,12 @@ export default function ConversationScreen() {
             b.bubble,
             isMine
               ? [b.bubbleMine, { backgroundColor: theme.accent }]
-              : [b.bubbleOther, { backgroundColor: theme.cardBg }],
+              : [b.bubbleOther, { backgroundColor: theme.surface },
+                 Platform.OS === 'ios' && { shadowColor: theme.text, shadowOpacity: theme.shadowOpacity * 0.7, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }],
           ]}>
             <Text style={[b.text, isMine ? { color: theme.accentText } : { color: theme.textAlt }]}>{item.text}</Text>
           </View>
+          {isMine && <MessageStatus msg={item} />}
         </View>
       </View>
     );
@@ -144,8 +263,19 @@ export default function ConversationScreen() {
         <TouchableOpacity onPress={() => router.back()} style={[s.backBtn, { backgroundColor: theme.surface }]}>
           <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]} numberOfLines={1}>{headerName}</Text>
-        <View style={{ width: 38 }} />
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={[s.headerTitle, { color: theme.textAlt }]} numberOfLines={1}>{headerName}</Text>
+          {isTyping && (
+            <Text style={[s.typingLabel, { color: theme.textMuted }]}>écrit…</Text>
+          )}
+        </View>
+        {requestId ? (
+          <View style={[s.headerBadge, { backgroundColor: theme.surfaceAlt }]}>
+            <Text style={[s.headerBadgeText, { color: theme.textMuted }]}>#{String(requestId).slice(-6).toUpperCase()}</Text>
+          </View>
+        ) : (
+          <View style={{ width: 38 }} />
+        )}
       </View>
 
       <KeyboardAvoidingView
@@ -172,6 +302,15 @@ export default function ConversationScreen() {
                 <Text style={[s.emptyText, { color: theme.textMuted }]}>Démarrez la conversation</Text>
               </View>
             }
+            ListFooterComponent={
+              isTyping ? (
+                <View style={[b.row, b.rowLeft]}>
+                  <View style={[b.bubble, b.bubbleOther, { backgroundColor: theme.surface }]}>
+                    <Text style={[b.typingDots, { color: theme.textMuted }]}>•••</Text>
+                  </View>
+                </View>
+              ) : null
+            }
           />
         )}
 
@@ -180,7 +319,7 @@ export default function ConversationScreen() {
           <TextInput
             style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={handleTextChange}
             placeholder="Votre message…"
             placeholderTextColor={theme.textMuted}
             multiline
@@ -217,15 +356,25 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: {
-    flex: 1, textAlign: 'center',
-    fontSize: 17, fontWeight: '700', marginHorizontal: 8,
+    textAlign: 'center',
+    fontSize: 17, fontFamily: FONTS.bebas, letterSpacing: 0.5,
+  },
+  typingLabel: {
+    fontSize: 11, fontFamily: FONTS.sans, marginTop: 1,
+  },
+  headerBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  headerBadgeText: {
+    fontSize: 10, fontFamily: FONTS.mono, letterSpacing: 0.5,
   },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: 12, paddingVertical: 16 },
 
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 8 },
-  emptyText: { fontSize: 14 },
+  emptyText: { fontSize: 14, fontFamily: FONTS.sans },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
@@ -235,7 +384,7 @@ const s = StyleSheet.create({
   input: {
     flex: 1, borderRadius: 22,
     paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    fontSize: 15, maxHeight: 120,
+    fontSize: 15, fontFamily: FONTS.sans, maxHeight: 120,
   },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,
@@ -247,8 +396,8 @@ const s = StyleSheet.create({
 
 const b = StyleSheet.create({
   timestamp: {
-    textAlign: 'center', fontSize: 11,
-    marginVertical: 8, fontWeight: '500',
+    textAlign: 'center', fontSize: 11, fontFamily: FONTS.mono,
+    marginVertical: 8,
   },
   row: { marginVertical: 2 },
   rowRight: { alignItems: 'flex-end' },
@@ -263,9 +412,15 @@ const b = StyleSheet.create({
   bubbleOther: {
     borderBottomLeftRadius: 4,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
       android: { elevation: 1 },
     }),
   },
-  text: { fontSize: 15, lineHeight: 21 },
+  text: { fontSize: 15, lineHeight: 21, fontFamily: FONTS.sans },
+  statusRow: {
+    flexDirection: 'row', justifyContent: 'flex-end',
+    marginTop: 1, marginRight: 4,
+  },
+  typingDots: {
+    fontSize: 18, fontWeight: '700', letterSpacing: 2,
+  },
 });

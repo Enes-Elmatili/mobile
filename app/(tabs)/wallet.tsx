@@ -1,5 +1,5 @@
 // app/(tabs)/wallet.tsx — Onglet Gains (Provider)
-// Solde · filtres · historique consolidé par mission
+// Solde · filtres · historique consolide par mission
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
@@ -11,19 +11,19 @@ import { useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devError } from '@/lib/logger';
 
-// ─── Formatage ────────────────────────────────────────────────────────────────
+// --- Formatage ---
 const fromCents = (n: number) => n / 100;
 const fmtEur = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtTime = (d: string) =>
   new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-// ─── Date relative pour les en-têtes ─────────────────────────────────────────
+// --- Date relative pour les en-tetes ---
 function dateGroup(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -36,9 +36,9 @@ function dateGroup(iso: string): string {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-// ─── Label lisible depuis la reference ───────────────────────────────────────
+// --- Label lisible depuis la reference ---
 function readableLabel(type: string, reference?: string | null): string {
-  if (!reference) return type === 'CREDIT' ? 'Crédit' : type === 'DEBIT' ? 'Débit' : type;
+  if (!reference) return type === 'CREDIT' ? 'Credit' : type === 'DEBIT' ? 'Debit' : type;
   const m = reference.match(/request[_-](\d+)/i);
   if (m) return `Mission #${m[1]}`;
   if (/withdraw|retrait/i.test(reference)) return 'Retrait bancaire';
@@ -46,7 +46,7 @@ function readableLabel(type: string, reference?: string | null): string {
   return reference.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).slice(0, 36);
 }
 
-// ─── Onglets de filtre ───────────────────────────────────────────────────────
+// --- Onglets de filtre ---
 type Filter = 'all' | 'gains' | 'pending' | 'withdrawals';
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Tout' },
@@ -55,15 +55,15 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'withdrawals', label: 'Retraits' },
 ];
 
-// ─── Statut des retraits ─────────────────────────────────────────────────────
+// --- Statut des retraits ---
 const WD_STATUS: Record<string, { label: string; color: string }> = {
-  PENDING:   { label: 'En attente', color: '#E8A838' },
-  APPROVED:  { label: 'Approuvé',   color: '#34C759' },
-  REJECTED:  { label: 'Refusé',     color: '#FF3B30' },
-  COMPLETED: { label: 'Effectué',   color: '#34C759' },
+  PENDING:   { label: 'En attente', color: COLORS.amber },
+  APPROVED:  { label: 'Approuve',   color: COLORS.green },
+  REJECTED:  { label: 'Refuse',     color: COLORS.red },
+  COMPLETED: { label: 'Effectue',   color: COLORS.green },
 };
 
-// ─── Consolidation : fusionne HOLD+RELEASE d'une même mission ────────────────
+// --- Consolidation : fusionne HOLD+RELEASE d'une meme mission ---
 interface ConsolidatedTx {
   id: string;
   missionId: string | null;
@@ -75,11 +75,9 @@ interface ConsolidatedTx {
 }
 
 function consolidateTxs(raw: any[]): ConsolidatedTx[] {
-  // Index des RELEASE par mission reference (escrow_ → release_)
   const releasedMissions = new Set<string>();
   for (const t of raw) {
     if (t.type === 'RELEASE' && t.reference) {
-      // release_request_29_provider_xxx → request_29
       const m = t.reference.match(/request[_-](\d+)/i);
       if (m) releasedMissions.add(m[1]);
     }
@@ -92,10 +90,8 @@ function consolidateTxs(raw: any[]): ConsolidatedTx[] {
     const missionMatch = t.reference?.match(/request[_-](\d+)/i);
     const missionId = missionMatch?.[1] ?? null;
 
-    // Skip HOLD if the same mission already has a RELEASE (show only RELEASE)
     if (t.type === 'HOLD' && missionId && releasedMissions.has(missionId)) continue;
 
-    // Skip duplicate mission entries (RELEASE already shown)
     if (missionId && (t.type === 'RELEASE' || t.type === 'HOLD')) {
       if (seenMissions.has(missionId)) continue;
       seenMissions.add(missionId);
@@ -120,19 +116,19 @@ function consolidateTxs(raw: any[]): ConsolidatedTx[] {
   return result;
 }
 
-// ─── Ligne transaction ───────────────────────────────────────────────────────
+// --- Ligne transaction ---
 function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
   const cfg = {
-    released: { icon: 'checkmark-circle-outline' as const, iconColor: '#34C759', badge: 'Libéré', badgeColor: '#34C759', sign: '+' },
-    credit:   { icon: 'arrow-down-outline' as const,       iconColor: '#34C759', badge: 'Reçu',   badgeColor: '#34C759', sign: '+' },
-    pending:  { icon: 'time-outline' as const,             iconColor: '#E8A838', badge: 'En validation', badgeColor: '#E8A838', sign: '' },
-    debit:    { icon: 'arrow-up-outline' as const,         iconColor: '#FF3B30', badge: 'Débité', badgeColor: '#FF3B30', sign: '−' },
+    released: { icon: 'checkmark-circle-outline' as const, iconColor: COLORS.green, badge: 'Libere', badgeColor: COLORS.green, sign: '+' },
+    credit:   { icon: 'arrow-down-outline' as const,       iconColor: COLORS.green, badge: 'Recu',   badgeColor: COLORS.green, sign: '+' },
+    pending:  { icon: 'time-outline' as const,             iconColor: COLORS.amber, badge: 'En validation', badgeColor: COLORS.amber, sign: '' },
+    debit:    { icon: 'arrow-up-outline' as const,         iconColor: COLORS.red, badge: 'Debite', badgeColor: COLORS.red, sign: '\u2212' },
   }[item.status];
 
   const isGain = item.status === 'released' || item.status === 'credit';
 
   return (
-    <View style={[styles.txCard, { backgroundColor: t.cardBg }]}>
+    <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
         <Ionicons name={cfg.icon} size={18} color={cfg.iconColor} />
       </View>
@@ -141,7 +137,7 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
         <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.date)} · {fmtTime(item.date)}</Text>
       </View>
       <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: isGain ? '#34C759' : item.status === 'pending' ? t.textMuted : '#FF3B30' }]}>
+        <Text style={[styles.txAmount, { color: isGain ? COLORS.green : item.status === 'pending' ? t.textMuted : COLORS.red }]}>
           {cfg.sign}{fmtEur(fromCents(item.amount))}
         </Text>
         <View style={[styles.txBadge, { backgroundColor: cfg.badgeColor + '18' }]}>
@@ -152,11 +148,11 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
   );
 }
 
-// ─── Ligne retrait ───────────────────────────────────────────────────────────
+// --- Ligne retrait ---
 function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
   const st = WD_STATUS[item.status] ?? WD_STATUS.PENDING;
   return (
-    <View style={[styles.txCard, { backgroundColor: t.cardBg }]}>
+    <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
         <Ionicons name="wallet-outline" size={18} color={st.color} />
       </View>
@@ -166,7 +162,7 @@ function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
         {item.destination ? <Text style={[styles.txDate, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
       </View>
       <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: '#FF3B30' }]}>−{fmtEur(fromCents(item.amount))}</Text>
+        <Text style={[styles.txAmount, { color: COLORS.red }]}>\u2212{fmtEur(fromCents(item.amount))}</Text>
         <View style={[styles.txBadge, { backgroundColor: st.color + '18' }]}>
           <Text style={[styles.txBadgeText, { color: st.color }]}>{st.label}</Text>
         </View>
@@ -175,9 +171,9 @@ function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
+// ====================================================================
 // MAIN SCREEN
-// ═════════════════════════════════════════════════════════════════════════════
+// ====================================================================
 export default function WalletTab() {
   const [loading, setLoading]           = useState(true);
   const [refreshing, setRefreshing]     = useState(false);
@@ -242,7 +238,7 @@ export default function WalletTab() {
     }
   }, []);
 
-  // ── Consolidation et filtrage ──────────────────────────────────────────────
+  // -- Consolidation et filtrage --
   const consolidated = useMemo(() => consolidateTxs(transactions), [transactions]);
 
   const pendingWithdrawTotal = useMemo(() =>
@@ -270,17 +266,14 @@ export default function WalletTab() {
       case 'withdrawals':
         wdList = withdrawals;
         break;
-      default: // all
+      default:
         txList = consolidated;
         wdList = withdrawals;
     }
 
     const items: ListItem[] = [];
-
-    // Group by date
     let lastGroup = '';
 
-    // Merge tx + withdrawals into a single sorted list
     const combined: { date: string; type: 'tx' | 'withdraw'; data: any }[] = [
       ...txList.map(tx => ({ date: tx.date, type: 'tx' as const, data: tx })),
       ...wdList.map(wd => ({ date: wd.createdAt, type: 'withdraw' as const, data: wd })),
@@ -306,7 +299,7 @@ export default function WalletTab() {
     return items;
   }, [consolidated, withdrawals, filter]);
 
-  // ── Rendu ──────────────────────────────────────────────────────────────────
+  // -- Rendu --
   const renderItem = useCallback(({ item }: { item: any }) => {
     if (item.type === 'date-header') {
       return <Text style={[styles.dateHeader, { color: t.textMuted }]}>{item.title}</Text>;
@@ -319,7 +312,7 @@ export default function WalletTab() {
           <Ionicons name="wallet-outline" size={48} color={t.textDisabled} />
           <Text style={[styles.emptyTitle, { color: t.textSub }]}>Aucune transaction</Text>
           <Text style={[styles.emptySubtitle, { color: t.textMuted }]}>
-            Vos gains apparaîtront ici après vos missions.
+            Vos gains apparaitront ici apres vos missions.
           </Text>
         </View>
       );
@@ -342,7 +335,7 @@ export default function WalletTab() {
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <StatusBar barStyle={t.statusBar} />
 
-      {/* ── Header ── */}
+      {/* -- Header -- */}
       <View style={[styles.header, { backgroundColor: t.bg }]}>
         <Text style={[styles.headerTitle, { color: t.text }]}>Gains</Text>
         <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -350,42 +343,42 @@ export default function WalletTab() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Hero solde ── */}
+      {/* -- Hero solde -- */}
       <View style={[styles.hero, { backgroundColor: t.heroBg }]}>
-        <Text style={styles.heroLabel}>Solde disponible</Text>
-        <Text style={styles.heroAmount}>{fmtEur(fromCents(balance))}</Text>
+        <Text style={[styles.heroLabel, { color: t.heroSub }]}>Solde disponible</Text>
+        <Text style={[styles.heroAmount, { color: t.heroText }]}>{fmtEur(fromCents(balance))}</Text>
 
         {/* Sous-stats inline */}
         <View style={styles.heroStats}>
           {escrowAmount > 0 && (
             <View style={styles.heroStatItem}>
-              <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.heroStatText}>{fmtEur(fromCents(escrowAmount))} en validation</Text>
+              <Ionicons name="time-outline" size={13} color={t.heroSub} />
+              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(escrowAmount))} en validation</Text>
             </View>
           )}
           {pendingWithdrawTotal > 0 && (
             <View style={styles.heroStatItem}>
-              <Ionicons name="arrow-up-outline" size={13} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.heroStatText}>{fmtEur(fromCents(pendingWithdrawTotal))} en retrait</Text>
+              <Ionicons name="arrow-up-outline" size={13} color={t.heroSub} />
+              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(pendingWithdrawTotal))} en retrait</Text>
             </View>
           )}
         </View>
 
-        {/* Total gagné */}
-        <View style={styles.heroTotalRow}>
-          <Text style={styles.heroTotalLabel}>Total gagné</Text>
-          <Text style={styles.heroTotalValue}>{fmtEur(fromCents(totalEarnings))}</Text>
+        {/* Total gagne */}
+        <View style={[styles.heroTotalRow, { borderTopColor: 'rgba(255,255,255,0.12)' }]}>
+          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>Total gagne</Text>
+          <Text style={[styles.heroTotalValue, { color: t.heroText }]}>{fmtEur(fromCents(totalEarnings))}</Text>
         </View>
 
         {!stripeReady && (
           <View style={styles.payoutNotice}>
-            <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.5)" />
-            <Text style={styles.payoutNoticeText}>Configurez Stripe pour recevoir vos virements.</Text>
+            <Ionicons name="information-circle-outline" size={14} color={t.heroSub} />
+            <Text style={[styles.payoutNoticeText, { color: t.heroSubFaint }]}>Configurez Stripe pour recevoir vos virements.</Text>
           </View>
         )}
       </View>
 
-      {/* ── Stripe link ── */}
+      {/* -- Stripe link -- */}
       {stripeReady && (
         <TouchableOpacity
           style={styles.stripeLink}
@@ -397,21 +390,21 @@ export default function WalletTab() {
             ? <ActivityIndicator size="small" color={t.accent} />
             : <>
                 <Ionicons name="card-outline" size={15} color={t.accent} />
-                <Text style={[styles.stripeLinkText, { color: t.text }]}>Gérer mes paiements</Text>
+                <Text style={[styles.stripeLinkText, { color: t.text }]}>Gerer mes paiements</Text>
                 <Ionicons name="chevron-forward" size={13} color={t.textVeryMuted} />
               </>
           }
         </TouchableOpacity>
       )}
 
-      {/* ── Filtres ── */}
+      {/* -- Filtres -- */}
       <View style={styles.filterRow}>
         {FILTERS.map(f => {
           const active = filter === f.key;
           return (
             <TouchableOpacity
               key={f.key}
-              style={[styles.filterChip, active && { backgroundColor: t.text }]}
+              style={[styles.filterChip, { borderColor: t.borderLight }, active && { backgroundColor: t.text, borderColor: t.text }]}
               onPress={() => setFilter(f.key)}
               activeOpacity={0.7}
             >
@@ -423,7 +416,7 @@ export default function WalletTab() {
         })}
       </View>
 
-      {/* ── Liste ── */}
+      {/* -- Liste -- */}
       <FlatList
         data={filteredItems}
         keyExtractor={item => item.key}
@@ -436,7 +429,7 @@ export default function WalletTab() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// --- Styles ---
 const styles = StyleSheet.create({
   root: { flex: 1 },
   loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -446,11 +439,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 6, paddingBottom: 12,
   },
-  headerTitle: { fontSize: 28, fontWeight: '800' },
+  headerTitle: { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
 
   // Hero
   hero: {
-    backgroundColor: '#1A1A1A',
     marginHorizontal: 16, borderRadius: 24,
     paddingVertical: 24, paddingHorizontal: 24, marginBottom: 12,
     alignItems: 'center',
@@ -459,30 +451,30 @@ const styles = StyleSheet.create({
       android: { elevation: 10 },
     }),
   },
-  heroLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5, marginBottom: 6 },
-  heroAmount: { fontSize: 44, fontWeight: '900', color: '#FFF', letterSpacing: -1.5, marginBottom: 8 },
+  heroLabel: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 0.5, marginBottom: 6 },
+  heroAmount: { fontSize: 44, fontFamily: FONTS.bebas, letterSpacing: -1.5, marginBottom: 8 },
 
   heroStats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
   heroStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  heroStatText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.45)' },
+  heroStatText: { fontSize: 12, fontFamily: FONTS.mono },
 
   heroTotalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    width: '100%', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.12)',
+    width: '100%', borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 12,
   },
-  heroTotalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
-  heroTotalValue: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  heroTotalLabel: { fontSize: 13, fontFamily: FONTS.sansMedium },
+  heroTotalValue: { fontSize: 16, fontFamily: FONTS.monoMedium },
 
   payoutNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
-  payoutNoticeText: { fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: '500' },
+  payoutNoticeText: { fontSize: 12, fontFamily: FONTS.sans },
 
   // Stripe link
   stripeLink: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     marginHorizontal: 16, marginBottom: 8, paddingVertical: 10,
   },
-  stripeLinkText: { fontSize: 13, fontWeight: '600' },
+  stripeLinkText: { fontSize: 13, fontFamily: FONTS.sansMedium },
 
   // Filters
   filterRow: {
@@ -492,13 +484,13 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 20, backgroundColor: 'transparent',
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+    borderWidth: 1,
   },
-  filterChipText: { fontSize: 13, fontWeight: '600' },
+  filterChipText: { fontSize: 13, fontFamily: FONTS.sansMedium },
 
   // Date headers
   dateHeader: {
-    fontSize: 13, fontWeight: '700', textTransform: 'uppercase',
+    fontSize: 13, fontFamily: FONTS.sansMedium, textTransform: 'uppercase',
     letterSpacing: 0.5, marginBottom: 10, marginTop: 8,
   },
 
@@ -508,7 +500,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
     marginBottom: 8,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+      ios: { shadowColor: '#000', shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
       android: { elevation: 1 },
     }),
   },
@@ -517,18 +509,18 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   txInfo: { flex: 1 },
-  txLabel: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  txDate: { fontSize: 11, fontWeight: '500' },
+  txLabel: { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 2 },
+  txDate: { fontSize: 11, fontFamily: FONTS.mono },
   txRight: { alignItems: 'flex-end', gap: 4 },
-  txAmount: { fontSize: 15, fontWeight: '800' },
+  txAmount: { fontSize: 15, fontFamily: FONTS.monoMedium },
   txBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  txBadgeText: { fontSize: 10, fontWeight: '700' },
+  txBadgeText: { fontSize: 10, fontFamily: FONTS.sansMedium },
 
   // List
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
 
   // Empty
   empty: { alignItems: 'center', paddingVertical: 50, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
+  emptyTitle: { fontSize: 17, fontFamily: FONTS.sansMedium },
+  emptySubtitle: { fontSize: 13, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
 });

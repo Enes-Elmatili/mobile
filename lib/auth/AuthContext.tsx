@@ -17,6 +17,9 @@ type UserData = {
   id: string;
   email: string;
   name?: string;
+  phone?: string;
+  city?: string;
+  authProvider?: string; // "email" | "apple" | "google"
   roles: Role[];
   providerStatus?: string; // PENDING | ACTIVE | REJECTED | SUSPENDED
 };

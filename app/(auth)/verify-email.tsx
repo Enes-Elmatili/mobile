@@ -1,209 +1,405 @@
-// app/(auth)/verify-email.tsx — FIXED Industrial Auth
-import React, { useState, useEffect } from 'react';
+// app/(auth)/verify-email.tsx — FIXED Premium Verify Email (dark design)
+import React, { useState, useEffect, useRef } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ActivityIndicator, Platform, StatusBar,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '@/lib/api';
-import { MONO, ACCENT } from '@/lib/components/FixedInput';
-import { CLIENT_FLOW, PROVIDER_FLOW } from '@/constants/onboardingFlows';
+  Platform, StatusBar, Animated, Easing, Dimensions,
+  ActivityIndicator,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Line } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
+import { api } from "@/lib/api";
+import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
+import { FONTS } from "@/hooks/use-app-theme";
 
-const ROLE_INTENT_KEY = '@fixed:signup:role';
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+const GRID_SIZE = 40;
+const ROLE_INTENT_KEY = "@fixed:signup:role";
+
+const C = {
+  bg: "#0A0A0A",
+  white: "#FAFAFA",
+  grey: "#888888",
+  border: "rgba(255,255,255,0.08)",
+  cardBg: "#141414",
+  inputBg: "#111111",
+  green: "#3D8B3D",
+  amber: "#F59E0B",
+  outlineText: "rgba(255,255,255,0.3)",
+};
+
+function GridLines() {
+  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
+  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
+  const stroke = "rgba(255,255,255,0.025)";
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
+        {Array.from({ length: cols }, (_, i) => (
+          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
+        ))}
+        {Array.from({ length: rows }, (_, i) => (
+          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
+        ))}
+      </Svg>
+      <LinearGradient
+        colors={["transparent", "transparent", C.bg]}
+        locations={[0, 0.35, 0.75]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+      />
+    </View>
+  );
+}
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const router = useRouter();
 
   const [resending, setResending] = useState(false);
-  const [resent,    setResent]    = useState(false);
+  const [resent, setResent] = useState(false);
+  const [verified, setVerified] = useState(false);
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(ROLE_INTENT_KEY).then(r => setRole(r));
   }, []);
 
+  // Poll /auth/me every 4s
+  useEffect(() => {
+    if (verified) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get("/auth/me");
+        if (res?.user?.emailVerified) {
+          setVerified(true);
+          clearInterval(interval);
+        }
+      } catch {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [verified]);
+
   const handleResend = async () => {
     setResending(true);
     try {
-      await api.post('/auth/resend-verification');
+      await api.post("/auth/resend-verification");
       setResent(true);
-    } catch {
-      // Ignore — l'utilisateur peut ne pas être authentifié si l'app a été rechargée
-    } finally {
-      setResending(false);
-    }
+    } catch {}
+    finally { setResending(false); }
   };
 
   const handleContinue = async () => {
-    const role = await AsyncStorage.getItem(ROLE_INTENT_KEY);
-    await AsyncStorage.removeItem(ROLE_INTENT_KEY);
-    if (role === 'PROVIDER') {
-      // Flow prestataire : documents KYC → quiz métier → Stripe Connect
-      router.replace('/onboarding/documents');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    let detectedRole = await AsyncStorage.getItem(ROLE_INTENT_KEY);
+    if (!detectedRole) {
+      try {
+        const res = await api.get("/auth/me");
+        if (res?.user?.roles?.includes("PROVIDER")) detectedRole = "PROVIDER";
+      } catch {}
+    }
+    await AsyncStorage.removeItem(ROLE_INTENT_KEY).catch(() => {});
+    if (detectedRole === "PROVIDER") {
+      router.replace("/onboarding/documents");
     } else {
-      router.replace('/(tabs)/dashboard');
+      await AsyncStorage.removeItem("onboarding_data").catch(() => {});
+      router.replace("/(tabs)/dashboard");
     }
   };
 
+  // Step indicator
+  const stepNum = role === "PROVIDER"
+    ? PROVIDER_FLOW.steps.VERIFY_EMAIL
+    : CLIENT_FLOW.steps.VERIFY_EMAIL;
+  const totalSteps = role === "PROVIDER" ? PROVIDER_FLOW.totalSteps : CLIENT_FLOW.totalSteps;
+
+  // Animations
+  const ease = Easing.bezier(0.16, 1, 0.3, 1);
+  const headerOp = useRef(new Animated.Value(0)).current;
+  const headerTy = useRef(new Animated.Value(-12)).current;
+  const bodyOp = useRef(new Animated.Value(0)).current;
+  const bodyTy = useRef(new Animated.Value(14)).current;
+  const actionsOp = useRef(new Animated.Value(0)).current;
+  const actionsTy = useRef(new Animated.Value(14)).current;
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowOpAnim = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.parallel([
+        Animated.timing(headerOp, { toValue: 1, duration: 500, easing: ease, useNativeDriver: true }),
+        Animated.timing(headerTy, { toValue: 0, duration: 500, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(bodyOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(bodyTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(actionsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
+        Animated.timing(actionsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(glowOpAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
+          Animated.timing(glowOpAnim, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
+        ]),
+      ])
+    ).start();
+  }, []);
+
+  // Pulsing dot for "checking" state
+  const pulseOp = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (verified) return;
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseOp, { toValue: 0.35, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseOp, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [verified]);
+
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      <SafeAreaView style={s.safe}>
+      <GridLines />
+      <Animated.View style={[s.glowWrap, { opacity: glowOpAnim, transform: [{ scale: glowScale }] }]}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0.025)", "transparent"]}
+          style={s.glowGradient}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </Animated.View>
 
-        {/* Barre supérieure */}
-        <View style={s.topBar}>
+      {/* Header */}
+      <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+        <View style={s.navRow}>
           <View style={{ width: 36 }} />
-          <Text style={s.logo}>FIXED</Text>
-          <View style={s.stepBadge}>
-            <Text style={s.stepText}>
-              {role === 'PROVIDER'
-                ? `${String(PROVIDER_FLOW.steps.VERIFY_EMAIL).padStart(2, '0')} / ${PROVIDER_FLOW.totalSteps}`
-                : `${String(CLIENT_FLOW.steps.VERIFY_EMAIL).padStart(2, '0')} / ${CLIENT_FLOW.totalSteps}`}
+          <View style={s.stepIndicator}>
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
+            ))}
+            <Text style={s.stepLabel}>
+              <Text style={s.stepLabelBold}>{String(stepNum).padStart(2, "0")}</Text>
+              {" / "}
+              {String(totalSteps).padStart(2, "0")}
             </Text>
           </View>
         </View>
 
-        {/* Contenu */}
-        <View style={s.content}>
-
-          {/* Icône */}
-          <View style={s.iconWrap}>
-            <Ionicons name="mail-outline" size={34} color="#FFF" />
-            {/* Indicateur orange */}
-            <View style={s.iconDot} />
-          </View>
-
-          <Text style={s.title}>{'Vérifiez\nvotre email.'}</Text>
-
-          <Text style={s.subtitle}>
-            {'Un lien a été envoyé à\n'}
-            <Text style={s.emailText}>{email || 'votre adresse email'}</Text>
-          </Text>
-
-          {/* Carte info */}
-          <View style={s.infoCard}>
+        {/* Icon */}
+        <View style={s.iconRow}>
+          <View style={[s.iconWrap, verified && s.iconWrapVerified]}>
             <Ionicons
-              name="information-circle-outline"
-              size={16}
-              color="rgba(255,255,255,0.3)"
-              style={{ marginTop: 1, flexShrink: 0 }}
+              name={verified ? "checkmark-circle" : "mail-outline"}
+              size={34}
+              color={verified ? C.green : C.white}
             />
-            <Text style={s.infoText}>
-              Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 24 heures.
-            </Text>
+            {!verified && (
+              <Animated.View style={[s.iconDot, { opacity: pulseOp }]} />
+            )}
           </View>
-
-          {/* Bouton renvoyer */}
-          <TouchableOpacity
-            style={[s.resendBtn, (resending || resent) && s.resendBtnDone]}
-            onPress={handleResend}
-            disabled={resending || resent}
-            activeOpacity={0.8}
-          >
-            {resending
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Text style={[s.resendText, resent && s.resendTextDone]}>
-                  {resent ? '✓  Email renvoyé' : 'Renvoyer le lien'}
-                </Text>
-            }
-          </TouchableOpacity>
-
         </View>
 
-        {/* Footer fixe */}
-        <View style={s.footer}>
-          <TouchableOpacity style={s.cta} onPress={handleContinue} activeOpacity={0.85}>
-            <Text style={s.ctaText}>CONTINUER</Text>
-            <Ionicons name="arrow-forward" size={17} color="#000" />
-          </TouchableOpacity>
-          <Text style={s.hint}>Vous pourrez vérifier votre email plus tard depuis votre profil.</Text>
-        </View>
+        <Text style={s.logoEyebrow}>
+          {verified ? "Confirmation" : "Verification"}
+        </Text>
+        <Text style={s.logoWordmark}>
+          {verified ? (
+            <>EMAIL{"\n"}<Text style={s.logoWordmarkOutline}>VERIFIE !</Text></>
+          ) : (
+            <>VERIFIEZ{"\n"}<Text style={s.logoWordmarkOutline}>VOTRE EMAIL.</Text></>
+          )}
+        </Text>
+      </Animated.View>
 
-      </SafeAreaView>
+      {/* Body */}
+      <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
+        <Text style={s.subtitle}>
+          {verified
+            ? "Votre adresse email a ete confirmee avec succes."
+            : <>
+                {"Un lien a ete envoye a\n"}
+                <Text style={s.emailText}>{email || "votre adresse email"}</Text>
+              </>
+          }
+        </Text>
+
+        {!verified && (
+          <>
+            {/* Info card */}
+            <View style={s.infoCard}>
+              <Ionicons name="information-circle-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
+              <Text style={s.infoText}>
+                Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 24 heures.
+              </Text>
+            </View>
+
+            {/* Resend button */}
+            <TouchableOpacity
+              style={[s.resendBtn, (resending || resent) && { borderColor: "rgba(255,255,255,0.04)" }]}
+              onPress={handleResend}
+              disabled={resending || resent}
+              activeOpacity={0.7}
+            >
+              {resending
+                ? <ActivityIndicator size="small" color={C.white} />
+                : <Text style={[s.resendText, resent && { color: C.grey }]}>
+                    {resent ? "\u2713  Email renvoye" : "Renvoyer le lien"}
+                  </Text>
+              }
+            </TouchableOpacity>
+          </>
+        )}
+      </Animated.View>
+
+      {/* Actions */}
+      <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+        <TouchableOpacity
+          style={s.btnPrimary}
+          onPress={handleContinue}
+          activeOpacity={0.9}
+        >
+          <Text style={s.btnPrimaryText}>CONTINUER</Text>
+          <View style={s.arrowPill}>
+            <Ionicons name="arrow-forward" size={14} color={C.white} />
+          </View>
+        </TouchableOpacity>
+
+        <Text style={s.hint}>
+          Vous pourrez verifier votre email plus tard depuis votre profil.
+        </Text>
+      </Animated.View>
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  safe: { flex: 1 },
+  root: { flex: 1, backgroundColor: C.bg },
 
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 22,
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 8,
+  glowWrap: {
+    position: "absolute", top: -80,
+    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
   },
-  logo: { fontSize: 17, fontWeight: '700', letterSpacing: 4, color: '#FFF' },
-  stepBadge: {
-    backgroundColor: '#111',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
-  },
-  stepText: { fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,0.45)', letterSpacing: 1 },
+  glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
 
-  content: {
-    flex: 1,
+  // Header
+  header: {
+    paddingTop: Platform.OS === "ios" ? 70 : 50,
     paddingHorizontal: 28,
-    justifyContent: 'center',
+    zIndex: 2,
   },
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginBottom: 28,
+  },
+  stepIndicator: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+  },
+  stepBar: { height: 2, borderRadius: 2 },
+  stepBarActive: { width: 36, backgroundColor: C.white },
+  stepBarInactive: { width: 20, backgroundColor: "rgba(255,255,255,0.12)" },
+  stepLabel: {
+    fontFamily: FONTS.sans, fontSize: 10, letterSpacing: 2,
+    color: "rgba(255,255,255,0.25)", marginLeft: 4,
+  },
+  stepLabelBold: { color: "rgba(255,255,255,0.5)" },
 
+  iconRow: { marginBottom: 20 },
   iconWrap: {
     width: 72, height: 72, borderRadius: 20,
-    backgroundColor: '#141414',
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 28, position: 'relative',
-    alignSelf: 'flex-start',
+    borderWidth: 1.5, borderColor: C.border,
+    backgroundColor: C.cardBg,
+    alignItems: "center", justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+  iconWrapVerified: {
+    backgroundColor: "rgba(61,139,61,0.1)",
+    borderColor: "rgba(61,139,61,0.3)",
   },
   iconDot: {
-    position: 'absolute', bottom: -5, right: -5,
+    position: "absolute", bottom: -5, right: -5,
     width: 16, height: 16, borderRadius: 8,
-    backgroundColor: ACCENT,
-    borderWidth: 2.5, borderColor: '#000',
+    backgroundColor: C.amber, borderWidth: 2.5, borderColor: C.bg,
   },
 
-  title: { fontSize: 32, fontWeight: '800', color: '#FFF', lineHeight: 38, marginBottom: 12 },
+  logoEyebrow: {
+    fontFamily: FONTS.sans, fontSize: 11, letterSpacing: 3,
+    color: C.grey, textTransform: "uppercase", marginBottom: 4,
+  },
+  logoWordmark: {
+    fontFamily: FONTS.bebas, fontSize: 42, color: C.white,
+    letterSpacing: 2, lineHeight: 46,
+  },
+  logoWordmarkOutline: { color: C.outlineText },
 
-  subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.45)', lineHeight: 22, marginBottom: 28 },
-  emailText: { color: '#FFF', fontFamily: MONO, fontSize: 14 },
-
+  // Body
+  body: {
+    flex: 1, paddingHorizontal: 28, paddingTop: 24,
+    gap: 20, zIndex: 2,
+  },
+  subtitle: {
+    fontFamily: FONTS.sansLight, fontSize: 15, lineHeight: 22,
+    color: C.grey,
+  },
+  emailText: {
+    fontFamily: FONTS.mono, fontSize: 14, color: C.white,
+  },
   infoCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#111',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14, padding: 14,
-    marginBottom: 24, width: '100%',
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
+    borderRadius: 16, padding: 16,
   },
-  infoText: { flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 20 },
-
+  infoText: {
+    flex: 1, fontFamily: FONTS.sansLight, fontSize: 13,
+    lineHeight: 20, color: "rgba(255,255,255,0.5)",
+  },
   resendBtn: {
-    height: 48, borderRadius: 12,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-    width: '100%',
+    height: 48, borderRadius: 14, borderWidth: 1, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
   },
-  resendBtnDone: { borderColor: 'rgba(255,255,255,0.08)' },
-  resendText:    { fontFamily: MONO, fontSize: 13, color: '#FFF', letterSpacing: 0.5 },
-  resendTextDone:{ color: 'rgba(255,255,255,0.35)' },
+  resendText: {
+    fontFamily: FONTS.sansMedium, fontSize: 13, letterSpacing: 0.5,
+    color: C.white,
+  },
 
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    paddingTop: 12, gap: 12,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+  // Actions
+  actions: {
+    paddingHorizontal: 28,
+    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    gap: 12, zIndex: 2,
   },
-  cta: {
-    height: 54, borderRadius: 14,
-    backgroundColor: '#FFF',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+  btnPrimary: {
+    width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
   },
-  ctaText: { fontFamily: MONO, fontSize: 13, fontWeight: '700', color: '#000', letterSpacing: 1.5 },
-
-  hint: { fontSize: 12, color: 'rgba(255,255,255,0.2)', textAlign: 'center' },
+  btnPrimaryText: {
+    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
+  },
+  arrowPill: {
+    width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
+    alignItems: "center", justifyContent: "center",
+  },
+  hint: {
+    fontFamily: FONTS.sansLight, fontSize: 12, color: "rgba(255,255,255,0.2)",
+    textAlign: "center",
+  },
 });

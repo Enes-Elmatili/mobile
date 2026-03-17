@@ -106,9 +106,7 @@ function SocketToastLayer() {
     <View style={ts.stack} pointerEvents="none">
       {toasts.map(t => {
         const av = anims.current[t.id] || new Animated.Value(1);
-        const bg =
-          t.type === 'success' ? '#1A1A1A' :
-          t.type === 'error'   ? '#1A1A1A' : '#1A1A1A';
+        const bg = '#1A1A1A'; // Always dark toast background
         const icon = t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '●';
         return (
           <Animated.View
@@ -237,6 +235,36 @@ const messageEmitter = { listeners: [] as ((msg: IncomingMessage) => void)[] };
 export function onIncomingMessage(handler: (msg: IncomingMessage) => void): () => void {
   messageEmitter.listeners.push(handler);
   return () => { messageEmitter.listeners = messageEmitter.listeners.filter(l => l !== handler); };
+}
+
+// ── Typing indicator emitter ──
+export type TypingEvent = { userId: string };
+const typingEmitter = { listeners: [] as ((e: TypingEvent) => void)[] };
+const stopTypingEmitter = { listeners: [] as ((e: TypingEvent) => void)[] };
+
+export function onUserTyping(handler: (e: TypingEvent) => void): () => void {
+  typingEmitter.listeners.push(handler);
+  return () => { typingEmitter.listeners = typingEmitter.listeners.filter(l => l !== handler); };
+}
+
+export function onUserStopTyping(handler: (e: TypingEvent) => void): () => void {
+  stopTypingEmitter.listeners.push(handler);
+  return () => { stopTypingEmitter.listeners = stopTypingEmitter.listeners.filter(l => l !== handler); };
+}
+
+// ── Read receipt emitter ──
+export type ReadEvent = { messageId?: string; readAt: string; readBy: string };
+const readEmitter = { listeners: [] as ((e: ReadEvent) => void)[] };
+const readAllEmitter = { listeners: [] as ((e: { readBy: string; readAt: string }) => void)[] };
+
+export function onMessageRead(handler: (e: ReadEvent) => void): () => void {
+  readEmitter.listeners.push(handler);
+  return () => { readEmitter.listeners = readEmitter.listeners.filter(l => l !== handler); };
+}
+
+export function onMessageReadAll(handler: (e: { readBy: string; readAt: string }) => void): () => void {
+  readAllEmitter.listeners.push(handler);
+  return () => { readAllEmitter.listeners = readAllEmitter.listeners.filter(l => l !== handler); };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -581,6 +609,28 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       devLog('💬 [MESSAGE] Incoming message from:', msg.senderId);
       setUnreadMessages(prev => prev + 1);
       messageEmitter.listeners.forEach(fn => fn(msg));
+    });
+
+    // Own sent message confirmed (for multi-device or immediate UI feedback)
+    newSocket.on('message:sent', (msg: IncomingMessage) => {
+      devLog('💬 [MESSAGE] Sent confirmed:', msg.id);
+      messageEmitter.listeners.forEach(fn => fn(msg));
+    });
+
+    // Typing indicators
+    newSocket.on('user:typing', (e: { userId: string }) => {
+      typingEmitter.listeners.forEach(fn => fn(e));
+    });
+    newSocket.on('user:stop_typing', (e: { userId: string }) => {
+      stopTypingEmitter.listeners.forEach(fn => fn(e));
+    });
+
+    // Read receipts
+    newSocket.on('message:read', (e: { messageId: string; readAt: string; readBy: string }) => {
+      readEmitter.listeners.forEach(fn => fn(e));
+    });
+    newSocket.on('message:read_all', (e: { readBy: string; readAt: string }) => {
+      readAllEmitter.listeners.forEach(fn => fn(e));
     });
 
     // ── NOTIFICATIONS IN-APP ──────────────────────────────────────────────────

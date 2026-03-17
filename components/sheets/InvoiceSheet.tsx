@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import type { Invoice, InvoiceItem } from '@/hooks/useInvoice';
 import { api } from '@/lib/api';
 import { tokenStorage } from '@/lib/storage';
@@ -109,12 +109,12 @@ function LineItem({
   return (
     <View style={li.row}>
       <View style={li.left}>
-        <Text style={[li.label, { color: textColor }]}>{item.label}</Text>
-        <Text style={[li.detail, { color: subColor }]}>
+        <Text style={[li.label, { color: textColor, fontFamily: FONTS.sansMedium }]}>{item.label}</Text>
+        <Text style={[li.detail, { color: subColor, fontFamily: FONTS.sans }]}>
           {item.quantity} × {formatEuros(item.unitPrice)}
         </Text>
       </View>
-      <Text style={[li.total, { color: textColor }]}>
+      <Text style={[li.total, { color: textColor, fontFamily: FONTS.monoMedium }]}>
         {formatEuros(item.total)}
       </Text>
     </View>
@@ -129,11 +129,10 @@ const li = StyleSheet.create({
     paddingVertical: 8,
   },
   left: { flex: 1, paddingRight: 12 },
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-  detail: { fontSize: 12, fontWeight: '500' },
+  label: { fontSize: 14, marginBottom: 2 },
+  detail: { fontSize: 12 },
   total: {
     fontSize: 14,
-    fontWeight: '700',
     fontVariant: ['tabular-nums'],
     textAlign: 'right',
   },
@@ -159,7 +158,7 @@ export default function InvoiceSheet({
   const dark = theme.isDark;
 
   // ── Colors — driven by system theme ──
-  const bg = theme.bg;
+  const bg = theme.cardBg;
   const textPrimary = theme.text;
   const textSecondary = theme.textSub;
   const textMuted = theme.textMuted;
@@ -304,9 +303,9 @@ export default function InvoiceSheet({
         <Ionicons
           name={isPaid ? 'checkmark-circle' : 'time-outline'}
           size={14}
-          color={isPaid ? '#22C55E' : '#F59E0B'}
+          color={isPaid ? COLORS.green : COLORS.amber}
         />
-        <Text style={[s.statusText, { color: isPaid ? '#22C55E' : '#F59E0B' }]}>
+        <Text style={[s.statusText, { color: isPaid ? COLORS.green : COLORS.amber, fontFamily: FONTS.sansMedium }]}>
           {isPaid ? 'Payé' : 'En attente'}
         </Text>
       </View>
@@ -316,7 +315,7 @@ export default function InvoiceSheet({
           size={12}
           color={textMuted}
         />
-        <Text style={[s.paymentMethodText, { color: textSecondary }]}>
+        <Text style={[s.paymentMethodText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
           {paymentMethod === 'card' ? 'Carte' : 'Espèces'}
         </Text>
       </View>
@@ -328,17 +327,17 @@ export default function InvoiceSheet({
     <>
       {/* Compact header: invoice number left, date right */}
       <View style={s.compactHeader}>
-        <Text style={[s.invoiceNumber, { color: textPrimary }]}>
+        <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas }]}>
           {invoiceNumber}
         </Text>
-        <Text style={[s.compactDate, { color: textMuted }]}>
+        <Text style={[s.compactDate, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
           {displayDateShort}
         </Text>
       </View>
 
       <View style={s.body}>
         {/* Service — simple inline text, no card */}
-        <Text style={[s.compactService, { color: textSecondary }]}>
+        <Text style={[s.compactService, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
           {displayServiceTitle} · {displayProviderName}
         </Text>
 
@@ -347,10 +346,10 @@ export default function InvoiceSheet({
         {/* Total facturé — hero */}
         <View style={s.totalsBlock}>
           <View style={s.totalLine}>
-            <Text style={[s.grandTotalLabel, { color: textPrimary }]}>
+            <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
               Total facturé
             </Text>
-            <Text style={[s.grandTotalValue, { color: textPrimary }]}>
+            <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
               {formatEuros(total)}
             </Text>
           </View>
@@ -360,16 +359,16 @@ export default function InvoiceSheet({
         <View style={[s.netBlock, { backgroundColor: surfaceBg }]}>
           <View style={s.netHeader}>
             <Ionicons name="wallet-outline" size={15} color={textMuted} />
-            <Text style={[s.netLabel, { color: textMuted }]}>
+            <Text style={[s.netLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
               MONTANT NET REÇU
             </Text>
           </View>
           <View style={s.netRow}>
             <View>
-              <Text style={[s.netValue, { color: textPrimary }]}>
+              <Text style={[s.netValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
                 {formatEuros(netEarnings)}
               </Text>
-              <Text style={[s.netSub, { color: textMuted }]}>
+              <Text style={[s.netSub, { color: textMuted, fontFamily: FONTS.sans }]}>
                 Après commission FIXED ({Math.round(PLATFORM_FEE_RATE * 100)}%)
               </Text>
             </View>
@@ -377,7 +376,7 @@ export default function InvoiceSheet({
           {payoutDate && (
             <View style={[s.payoutBadge, { backgroundColor: theme.surface }]}>
               <Ionicons name="time-outline" size={12} color={textMuted} />
-              <Text style={[s.payoutText, { color: textSecondary }]}>
+              <Text style={[s.payoutText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
                 Virement prévu le {payoutDate}
               </Text>
             </View>
@@ -402,7 +401,7 @@ export default function InvoiceSheet({
             ) : (
               <Ionicons name="download-outline" size={18} color={textSecondary} />
             )}
-            <Text style={[s.btnOutlineText, { color: textSecondary }]}>
+            <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
               {downloading ? 'Téléchargement...' : 'Télécharger PDF'}
             </Text>
           </TouchableOpacity>
@@ -412,7 +411,7 @@ export default function InvoiceSheet({
             onPress={onClose}
             activeOpacity={0.78}
           >
-            <Text style={[s.btnPrimaryText, { color: accentText }]}>
+            <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
               Fermer
             </Text>
           </TouchableOpacity>
@@ -434,8 +433,8 @@ export default function InvoiceSheet({
           />
         </View>
         <View style={s.headerRight}>
-          <Text style={[s.invoiceLabel, { color: textMuted }]}>FACTURE</Text>
-          <Text style={[s.invoiceNumber, { color: textPrimary }]}>
+          <Text style={[s.invoiceLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>FACTURE</Text>
+          <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas }]}>
             {invoiceNumber}
           </Text>
         </View>
@@ -448,22 +447,22 @@ export default function InvoiceSheet({
             <Ionicons name="construct-outline" size={20} color={textSecondary} />
           </View>
           <View style={s.serviceInfo}>
-            <Text style={[s.serviceTitle, { color: textPrimary }]}>
+            <Text style={[s.serviceTitle, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
               {displayServiceTitle}
             </Text>
-            <Text style={[s.serviceProvider, { color: textSecondary }]}>
+            <Text style={[s.serviceProvider, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
               {displayProviderName}
             </Text>
             <View style={s.serviceMeta}>
               {displayDate ? (
-                <Text style={[s.serviceMetaText, { color: textMuted }]}>
+                <Text style={[s.serviceMetaText, { color: textMuted, fontFamily: FONTS.sans }]}>
                   {displayDate}
                 </Text>
               ) : null}
               {duration ? (
                 <>
                   <Text style={[s.serviceMetaDot, { color: textMuted }]}>·</Text>
-                  <Text style={[s.serviceMetaText, { color: textMuted }]}>
+                  <Text style={[s.serviceMetaText, { color: textMuted, fontFamily: FONTS.sans }]}>
                     {duration}
                   </Text>
                 </>
@@ -477,7 +476,7 @@ export default function InvoiceSheet({
         {/* Line Items */}
         <View style={s.sectionHeader}>
           <Ionicons name="receipt-outline" size={13} color={textMuted} />
-          <Text style={[s.sectionLabel, { color: textMuted }]}>DÉTAIL</Text>
+          <Text style={[s.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>DÉTAIL</Text>
         </View>
 
         {items.map((item, i) => (
@@ -489,18 +488,18 @@ export default function InvoiceSheet({
         {/* Totals */}
         <View style={s.totalsBlock}>
           <View style={s.totalLine}>
-            <Text style={[s.totalLineLabel, { color: textSecondary }]}>
+            <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
               Sous-total
             </Text>
-            <Text style={[s.totalLineValue, { color: textSecondary }]}>
+            <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
               {formatEuros(subtotal)}
             </Text>
           </View>
           <View style={s.totalLine}>
-            <Text style={[s.totalLineLabel, { color: textSecondary }]}>
+            <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
               TVA ({Math.round(taxRate * 100)}%)
             </Text>
-            <Text style={[s.totalLineValue, { color: textSecondary }]}>
+            <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
               {formatEuros(taxAmount)}
             </Text>
           </View>
@@ -508,10 +507,10 @@ export default function InvoiceSheet({
           <View style={[s.totalDivider, { backgroundColor: borderColor }]} />
 
           <View style={s.totalLine}>
-            <Text style={[s.grandTotalLabel, { color: textPrimary }]}>
+            <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
               Total
             </Text>
-            <Text style={[s.grandTotalValue, { color: textPrimary }]}>
+            <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
               {formatEuros(total)}
             </Text>
           </View>
@@ -535,7 +534,7 @@ export default function InvoiceSheet({
             ) : (
               <Ionicons name="download-outline" size={18} color={accentText} />
             )}
-            <Text style={[s.btnPrimaryText, { color: accentText }]}>
+            <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
               {downloading ? 'Téléchargement...' : 'Télécharger PDF'}
             </Text>
           </TouchableOpacity>
@@ -545,7 +544,7 @@ export default function InvoiceSheet({
             onPress={onClose}
             activeOpacity={0.78}
           >
-            <Text style={[s.btnOutlineText, { color: textSecondary }]}>
+            <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
               Fermer
             </Text>
           </TouchableOpacity>
@@ -613,13 +612,11 @@ const s = StyleSheet.create({
   },
   invoiceLabel: {
     fontSize: 10,
-    fontWeight: '700',
     letterSpacing: 1.4,
     marginBottom: 3,
   },
   invoiceNumber: {
     fontSize: 18,
-    fontWeight: '900',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.3,
   },
@@ -635,11 +632,9 @@ const s = StyleSheet.create({
   },
   compactDate: {
     fontSize: 13,
-    fontWeight: '600',
   },
   compactService: {
     fontSize: 13,
-    fontWeight: '600',
     marginBottom: 2,
   },
 
@@ -664,12 +659,10 @@ const s = StyleSheet.create({
   serviceInfo: { flex: 1 },
   serviceTitle: {
     fontSize: 16,
-    fontWeight: '800',
     marginBottom: 2,
   },
   serviceProvider: {
     fontSize: 13,
-    fontWeight: '600',
     marginBottom: 4,
   },
   serviceMeta: {
@@ -679,11 +672,9 @@ const s = StyleSheet.create({
   },
   serviceMetaText: {
     fontSize: 12,
-    fontWeight: '500',
   },
   serviceMetaDot: {
     fontSize: 12,
-    fontWeight: '500',
   },
 
   // ── Sections ──
@@ -695,7 +686,6 @@ const s = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 10,
-    fontWeight: '700',
     letterSpacing: 0.8,
   },
 
@@ -710,11 +700,9 @@ const s = StyleSheet.create({
   },
   totalLineLabel: {
     fontSize: 14,
-    fontWeight: '500',
   },
   totalLineValue: {
     fontSize: 14,
-    fontWeight: '600',
     fontVariant: ['tabular-nums'],
     textAlign: 'right',
   },
@@ -724,11 +712,9 @@ const s = StyleSheet.create({
   },
   grandTotalLabel: {
     fontSize: 16,
-    fontWeight: '800',
   },
   grandTotalValue: {
     fontSize: 40,
-    fontWeight: '900',
     fontVariant: ['tabular-nums'],
     letterSpacing: -1,
     textAlign: 'right',
@@ -748,7 +734,6 @@ const s = StyleSheet.create({
   },
   netLabel: {
     fontSize: 10,
-    fontWeight: '700',
     letterSpacing: 0.8,
   },
   netRow: {
@@ -758,13 +743,11 @@ const s = StyleSheet.create({
   },
   netValue: {
     fontSize: 28,
-    fontWeight: '900',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.8,
   },
   netSub: {
     fontSize: 12,
-    fontWeight: '500',
     marginTop: 2,
   },
   payoutBadge: {
@@ -778,7 +761,6 @@ const s = StyleSheet.create({
   },
   payoutText: {
     fontSize: 12,
-    fontWeight: '600',
   },
 
   // ── Status ──
@@ -798,7 +780,6 @@ const s = StyleSheet.create({
   },
   statusText: {
     fontSize: 13,
-    fontWeight: '700',
   },
   paymentMethodPill: {
     flexDirection: 'row',
@@ -810,7 +791,6 @@ const s = StyleSheet.create({
   },
   paymentMethodText: {
     fontSize: 12,
-    fontWeight: '600',
   },
 
   // ── Buttons ──
@@ -828,7 +808,6 @@ const s = StyleSheet.create({
   },
   btnOutlineText: {
     fontSize: 15,
-    fontWeight: '700',
   },
   btnPrimary: {
     flexDirection: 'row',
@@ -848,6 +827,5 @@ const s = StyleSheet.create({
   },
   btnPrimaryText: {
     fontSize: 15,
-    fontWeight: '800',
   },
 });

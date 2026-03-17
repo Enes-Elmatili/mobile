@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 
@@ -55,13 +55,13 @@ function InvoiceCard({
         <View style={ic.content}>
           <Text style={[ic.label, { color: theme.textAlt }]} numberOfLines={1}>{service}</Text>
           <Text style={[ic.ref, { color: theme.textMuted }]}>{number} · {date}</Text>
-          <View style={[ic.statusBadge, { backgroundColor: theme.surface }]}>
+          <View style={[ic.statusBadge, { backgroundColor: isPaid ? theme.badgeDoneBg : theme.badgePendingBg }]}>
             <Ionicons
               name={isPaid ? 'checkmark-circle' : 'time-outline'}
               size={10}
-              color={isPaid ? '#22C55E' : '#F59E0B'}
+              color={isPaid ? theme.badgeDoneText : theme.badgePendingText}
             />
-            <Text style={[ic.statusText, { color: isPaid ? '#22C55E' : '#F59E0B' }]}>
+            <Text style={[ic.statusText, { color: isPaid ? theme.badgeDoneText : theme.badgePendingText }]}>
               {isPaid ? 'Payée' : 'En attente'}
             </Text>
           </View>
@@ -86,16 +86,16 @@ const ic = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
   },
   content: { flex: 1, gap: 3 },
-  label: { fontSize: 14, fontWeight: '700' },
-  ref: { fontSize: 12, fontWeight: '500' },
+  label: { fontSize: 14, fontFamily: FONTS.sansMedium },
+  ref: { fontSize: 12, fontFamily: FONTS.mono },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
     alignSelf: 'flex-start', marginTop: 2,
   },
-  statusText: { fontSize: 10, fontWeight: '700' },
+  statusText: { fontSize: 10, fontFamily: FONTS.sansMedium },
   right: { alignItems: 'flex-end', flexShrink: 0, gap: 2 },
-  price: { fontSize: 15, fontWeight: '800' },
+  price: { fontSize: 15, fontFamily: FONTS.monoMedium },
   divider: { height: 1, marginLeft: 68 },
 });
 
@@ -119,9 +119,9 @@ function SectionHeader({ icon, label, count, theme }: { icon: string; label: str
 
 const sh = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, paddingHorizontal: 2 },
-  label: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
+  label: { fontSize: 11, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.6 },
   badge: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
-  badgeText: { fontSize: 10, fontWeight: '700' },
+  badgeText: { fontSize: 10, fontFamily: FONTS.monoMedium },
 });
 
 function EmptyCard({ icon, text, sub, theme }: { icon: string; text: string; sub?: string; theme: ReturnType<typeof useAppTheme> }) {
@@ -139,19 +139,19 @@ function EmptyCard({ icon, text, sub, theme }: { icon: string; text: string; sub
 const ec = StyleSheet.create({
   wrap: { alignItems: 'center', paddingVertical: 28, gap: 8 },
   iconWrap: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  text: { fontSize: 14, fontWeight: '600' },
-  sub: { fontSize: 13, textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
+  text: { fontSize: 14, fontFamily: FONTS.sansMedium },
+  sub: { fontSize: 13, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
 });
 
 function Card({ children, theme }: { children: React.ReactNode; theme: ReturnType<typeof useAppTheme> }) {
-  return <View style={[cw.card, { backgroundColor: theme.cardBg }]}>{children}</View>;
+  return <View style={[cw.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>{children}</View>;
 }
 
 const cw = StyleSheet.create({
   card: {
     borderRadius: 18, overflow: 'hidden', marginBottom: 0,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
       android: { elevation: 2 },
     }),
   },
@@ -189,7 +189,7 @@ const pg = StyleSheet.create({
   },
   btn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { opacity: 0.4 },
-  text: { fontSize: 13, fontWeight: '600' },
+  text: { fontSize: 13, fontFamily: FONTS.sansMedium },
 });
 
 // ============================================================================
@@ -232,6 +232,7 @@ export default function Documents() {
   if (loading) {
     return (
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
         <ActivityIndicator size="large" color={theme.textAlt} />
       </SafeAreaView>
     );
@@ -344,8 +345,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800' },
-  headerSub: { fontSize: 13, fontWeight: '500', marginTop: 2 },
+  headerTitle: { fontSize: 26, fontFamily: FONTS.bebas },
+  headerSub: { fontSize: 13, fontFamily: FONTS.sans, marginTop: 2 },
   helpBtn: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
@@ -363,6 +364,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   supportContent: { flex: 1 },
-  supportLabel: { fontSize: 14, fontWeight: '600' },
-  supportSub: { fontSize: 12, marginTop: 1 },
+  supportLabel: { fontSize: 14, fontFamily: FONTS.sansMedium },
+  supportSub: { fontSize: 12, fontFamily: FONTS.sans, marginTop: 1 },
 });

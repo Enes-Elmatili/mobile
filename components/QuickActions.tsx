@@ -10,6 +10,7 @@ import { View, Text, Animated, Pressable, FlatList, StyleSheet } from 'react-nat
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 const QUICK_ACTIONS = [
   { icon: 'hammer-outline',   label: 'Bricol.',   category: 'bricolage'    },
@@ -23,6 +24,7 @@ const QUICK_ACTIONS = [
 // ── Item animé — effet squish individuel par icône ──
 function ActionItem({ item, isLast }: { item: typeof QUICK_ACTIONS[number]; isLast: boolean }) {
   const router = useRouter();
+  const theme = useAppTheme();
   const scale = useRef(new Animated.Value(1)).current;
 
   const springIn  = () => Animated.spring(scale, { toValue: 0.88, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
@@ -49,19 +51,21 @@ function ActionItem({ item, isLast }: { item: typeof QUICK_ACTIONS[number]; isLa
         onPress={handlePress}
         style={qa.item}
       >
-        <View style={[qa.circle, isLast && qa.circleLast]}>
-          <Ionicons name={item.icon as any} size={18} color={isLast ? '#FFF' : '#111'} />
+        <View style={[qa.circle, { backgroundColor: theme.surface, borderColor: theme.borderLight }, isLast && { backgroundColor: theme.accent, borderColor: theme.accent }]}>
+          <Ionicons name={item.icon as any} size={18} color={isLast ? theme.accentText : theme.text} />
         </View>
-        <Text style={qa.label} numberOfLines={1}>{item.label}</Text>
+        <Text style={[qa.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{item.label}</Text>
       </Pressable>
     </Animated.View>
   );
 }
 
 export function QuickActions() {
+  const theme = useAppTheme();
+
   return (
     <View style={qa.wrap}>
-      <Text style={qa.title}>Services</Text>
+      <Text style={[qa.title, { color: theme.text }]}>Services</Text>
       <FlatList
         data={QUICK_ACTIONS}
         keyExtractor={(_, i) => String(i)}
@@ -78,15 +82,13 @@ export function QuickActions() {
 
 const qa = StyleSheet.create({
   wrap:  { marginBottom: 18 },
-  title: { fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 10, paddingHorizontal: 2 },
+  title: { fontSize: 14, fontWeight: '800', marginBottom: 10, paddingHorizontal: 2 },
   list:  { gap: 6, paddingBottom: 2 },
   item:  { alignItems: 'center', gap: 6, width: 62 },
   circle: {
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#EFEFEF',
+    borderWidth: 1,
   },
-  circleLast: { backgroundColor: '#111', borderColor: '#111' },
-  label: { fontSize: 10, fontWeight: '600', color: '#888', textAlign: 'center', width: 62 },
+  label: { fontSize: 10, fontWeight: '600', textAlign: 'center', width: 62 },
 });

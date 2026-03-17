@@ -28,12 +28,13 @@ import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdro
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import type { AppTheme } from '@/hooks/use-app-theme';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ============================================================================
 // TYPES
@@ -62,16 +63,16 @@ interface DashboardData {
 
 const getStatusInfo = (status: string, t: (key: string) => string) => {
   const s = (status || 'PENDING').toUpperCase();
-  const map: Record<string, { label: string; color: string; bgColor: string; icon: string; dot: string }> = {
-    DONE:            { label: t('dashboard.status_done'),      color: '#111',    bgColor: '#F0F0F0', icon: 'checkmark-circle-outline', dot: '#111' },
-    CANCELLED:       { label: t('dashboard.status_cancelled'), color: '#888',    bgColor: '#F5F5F5', icon: 'close-circle-outline',     dot: '#888' },
-    ONGOING:         { label: t('dashboard.status_ongoing'),   color: '#111',    bgColor: '#EDEDED', icon: 'time-outline',             dot: '#111' },
-    PUBLISHED:       { label: t('dashboard.status_published'), color: '#555',    bgColor: '#F2F2F2', icon: 'radio-outline',            dot: '#555' },
-    ACCEPTED:        { label: t('dashboard.status_accepted'),  color: '#111',    bgColor: '#E8E8E8', icon: 'hand-left-outline',        dot: '#111' },
-    PENDING_PAYMENT: { label: t('dashboard.status_payment'),   color: '#111',    bgColor: '#EBEBEB', icon: 'card-outline',             dot: '#111' },
-    EXPIRED:         { label: t('dashboard.status_expired'),   color: '#ADADAD', bgColor: '#F7F7F7', icon: 'time-outline',             dot: '#CCC' },
+  const map: Record<string, { label: string; icon: string; ledColor: string }> = {
+    DONE:            { label: t('dashboard.status_done'),      icon: 'checkmark-circle-outline', ledColor: COLORS.green },
+    CANCELLED:       { label: t('dashboard.status_cancelled'), icon: 'close-circle-outline',     ledColor: COLORS.red },
+    ONGOING:         { label: t('dashboard.status_ongoing'),   icon: 'time-outline',             ledColor: COLORS.green },
+    PUBLISHED:       { label: t('dashboard.status_published'), icon: 'radio-outline',            ledColor: COLORS.amber },
+    ACCEPTED:        { label: t('dashboard.status_accepted'),  icon: 'hand-left-outline',        ledColor: COLORS.green },
+    PENDING_PAYMENT: { label: t('dashboard.status_payment'),   icon: 'card-outline',             ledColor: COLORS.amber },
+    EXPIRED:         { label: t('dashboard.status_expired'),   icon: 'time-outline',             ledColor: COLORS.red },
   };
-  return map[s] || { label: s, color: '#888', bgColor: '#F5F5F5', icon: 'help-circle-outline', dot: '#CCC' };
+  return map[s] || { label: s, icon: 'help-circle-outline', ledColor: COLORS.amber };
 };
 
 const getGreeting = (t: (key: string) => string) => {
@@ -81,51 +82,263 @@ const getGreeting = (t: (key: string) => string) => {
   return t('dashboard.greeting_evening');
 };
 
+const getServiceIcon = (label?: string): string => {
+  if (!label) return 'construct-outline';
+  const t = label.toLowerCase();
+  if (t.includes('bricol'))                             return 'hammer-outline';
+  if (t.includes('jardin') || t.includes('pelouse'))    return 'leaf-outline';
+  if (t.includes('ménage') || t.includes('nettoyage'))  return 'sparkles-outline';
+  if (t.includes('démén') || t.includes('demen'))       return 'cube-outline';
+  if (t.includes('peint'))                              return 'color-palette-outline';
+  if (t.includes('plomb'))                              return 'water-outline';
+  if (t.includes('électr') || t.includes('electr'))     return 'flash-outline';
+  if (t.includes('chauff'))                             return 'flame-outline';
+  if (t.includes('serrur'))                             return 'key-outline';
+  if (t.includes('urgence'))                            return 'build-outline';
+  if (t.includes('rénov') || t.includes('renov'))       return 'construct-outline';
+  return 'construct-outline';
+};
+
 // ============================================================================
-// STATUS HERO CARD
-// Remplace les banners "en-tête" par un seul bloc opaque contextuel
+// STATUS LED — blinking dot
 // ============================================================================
 
-function StatusHeroCard({
+function StatusLed({ color, blink }: { color: string; blink?: boolean }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!blink) return;
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.3, duration: 1250, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 1250, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [blink]);
+
+  return (
+    <Animated.View
+      style={[
+        { width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity },
+        blink && color === COLORS.green && Platform.select({
+          ios: { shadowColor: COLORS.green, shadowOpacity: 0.6, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
+          android: {},
+        }),
+      ]}
+    />
+  );
+}
+
+// ============================================================================
+// RUNWAY CAROUSEL — service category cards
+// ============================================================================
+
+const CARD_WIDTH = 110;
+const CARD_HEIGHT = 118;
+const CARD_GAP = 8;
+
+const SERVICE_CARDS = [
+  { key: 'plomberie',   label: 'Plomberie',   icon: 'water-outline',          theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
+  { key: 'electricite', label: 'Électricité',  icon: 'flash-outline',          theme: 'light' as const, led: COLORS.green,  category: 'electricite', providers: 5  },
+  { key: 'serrurerie',  label: 'Serrurerie',   icon: 'key-outline',            theme: 'light' as const, led: COLORS.amber,  category: 'serrurerie',  providers: 2  },
+  { key: 'chauffage',   label: 'Chauffage',    icon: 'flame-outline',          theme: 'light' as const, led: COLORS.green,  category: 'chauffage',   providers: 6  },
+  { key: 'bricolage',   label: 'Bricolage',    icon: 'hammer-outline',         theme: 'light' as const, led: COLORS.amber,  category: 'bricolage',   providers: 3  },
+  { key: 'peinture',    label: 'Peinture',     icon: 'color-palette-outline',  theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
+];
+
+function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => void; theme: AppTheme }) {
+  const { t } = useTranslation();
+  const scrollRef = useRef<ScrollView>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleScroll = (e: any) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + CARD_GAP));
+    setActiveIndex(Math.min(idx, SERVICE_CARDS.length - 1));
+  };
+
+  return (
+    <>
+      {/* Section header */}
+      <View style={runway.header}>
+        <Text style={[runway.headerTitle, { color: theme.textMuted }]}>SERVICES DISPONIBLES</Text>
+        <View style={runway.headerHint}>
+          <Ionicons name="chevron-forward" size={9} color={theme.textMuted} />
+          <Text style={[runway.headerHintText, { color: theme.textMuted }]}>glisser</Text>
+        </View>
+      </View>
+
+      {/* Cards */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={CARD_WIDTH + CARD_GAP}
+        decelerationRate="fast"
+        contentContainerStyle={runway.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        {SERVICE_CARDS.map((card, index) => {
+          const isBlack = card.theme === 'black';
+          const cardBg = isBlack
+            ? theme.accent
+            : theme.cardBg;
+          const cardBorder = isBlack
+            ? theme.accent
+            : theme.borderLight;
+          const textColor = isBlack ? theme.accentText : theme.text;
+          const iconBg = isBlack
+            ? 'rgba(255,255,255,0.1)'
+            : theme.surface;
+          const arrowBg = isBlack
+            ? 'rgba(255,255,255,0.12)'
+            : theme.surface;
+
+          return (
+            <TouchableOpacity
+              key={card.key}
+              style={[runway.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
+              onPress={() => onPress(card.category)}
+              activeOpacity={0.85}
+            >
+              {/* Ghost number */}
+              <Text style={[runway.ghostNum, {
+                color: isBlack ? 'rgba(255,255,255,0.04)' : (theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.045)'),
+              }]}>
+                {index + 1}
+              </Text>
+
+              <View style={runway.cardInner}>
+                {/* Top row: icon + LED + count */}
+                <View style={runway.cardTop}>
+                  <View style={[runway.iconBox, { backgroundColor: iconBg }]}>
+                    <Ionicons name={card.icon as any} size={14} color={textColor} />
+                  </View>
+                  <View style={runway.ledRow}>
+                    <StatusLed color={card.led} blink={card.led === COLORS.green} />
+                    <Text style={[runway.providerCount, { color: isBlack ? 'rgba(255,255,255,0.5)' : theme.textMuted }]}>
+                      {card.providers}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Service name */}
+                <Text style={[runway.serviceName, { color: textColor }]}>{card.label}</Text>
+
+                {/* Bottom arrow */}
+                <View style={runway.cardBottom}>
+                  <View style={{ flex: 1 }} />
+                  <View style={[runway.cardArrow, { backgroundColor: arrowBg }]}>
+                    <Ionicons name="arrow-forward" size={8} color={textColor} />
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Dots */}
+      <View style={runway.dots}>
+        {SERVICE_CARDS.map((_, i) => (
+          <View key={i} style={[
+            runway.dot,
+            { backgroundColor: theme.borderLight },
+            i === activeIndex && { width: 18, borderRadius: 3, backgroundColor: theme.accent },
+          ]} />
+        ))}
+      </View>
+    </>
+  );
+}
+
+const runway = StyleSheet.create({
+  header: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8,
+  },
+  headerTitle: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 2.4 },
+  headerHint: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  headerHintText: { fontFamily: FONTS.mono, fontSize: 10 },
+
+  scrollContent: { paddingHorizontal: 24, gap: CARD_GAP, paddingBottom: 4 },
+
+  card: {
+    width: CARD_WIDTH, height: CARD_HEIGHT,
+    borderRadius: 20, overflow: 'hidden',
+    position: 'relative', borderWidth: 1.5,
+  },
+
+  ghostNum: {
+    position: 'absolute', bottom: -14, right: -4,
+    fontFamily: FONTS.bebas, fontSize: 70, lineHeight: 70,
+  },
+
+  cardInner: {
+    position: 'relative', zIndex: 2,
+    padding: 10, flex: 1,
+    justifyContent: 'space-between',
+  },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+
+  iconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+
+  ledRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  providerCount: { fontFamily: FONTS.mono, fontSize: 9 },
+
+  serviceName: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 0.6, lineHeight: 17 },
+
+  cardBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  cardArrow: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+
+  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 8 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+});
+
+// ============================================================================
+// MISSION ISLAND — active request or empty state
+// ============================================================================
+
+function MissionIsland({
   activeMission,
   searchingMission,
   latestRequest,
-  name,
   onActiveMissionPress,
   onSearchingPress,
-  onNewRequest,
   onLatestPress,
+  theme,
 }: {
   activeMission: DashboardData['requests'][0] | null;
   searchingMission: DashboardData['requests'][0] | null;
   latestRequest: DashboardData['requests'][0] | null;
-  name: string;
   onActiveMissionPress: () => void;
   onSearchingPress: () => void;
-  onNewRequest: () => void;
   onLatestPress: () => void;
+  theme: AppTheme;
 }) {
   const { t } = useTranslation();
-  const theme = useAppTheme();
-  const dotOpacity = useRef(new Animated.Value(1)).current;
+  const pulseScale = useRef(new Animated.Value(0)).current;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [etaLabel, setEtaLabel] = useState<string>(t('dashboard.loading_eta'));
   const SEARCH_TIMEOUT = 15 * 60;
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-  // Pulsing dot for active states
+  // Pulse animation
   useEffect(() => {
-    if (!searchingMission && !activeMission) return;
-    Animated.loop(
+    if (!activeMission && !searchingMission) return;
+    const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(dotOpacity, { toValue: 0.2, duration: 700, useNativeDriver: true }),
-        Animated.timing(dotOpacity, { toValue: 1,   duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseScale, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseScale, { toValue: 0, duration: 900, useNativeDriver: true }),
       ])
-    ).start();
-    return () => dotOpacity.stopAnimation();
-  }, [searchingMission?.id, activeMission?.id]);
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [activeMission?.id, searchingMission?.id]);
 
-  // Countdown recherche
+  // Countdown for search
   useEffect(() => {
     if (!searchingMission) { setSecondsLeft(null); return; }
     const compute = () => searchingMission.expiresAt
@@ -136,7 +349,7 @@ function StatusHeroCard({
     return () => clearInterval(iv);
   }, [searchingMission?.id]);
 
-  // ETA réel depuis l'API request + Google Directions
+  // ETA from API
   useEffect(() => {
     if (!activeMission) return;
     const st = activeMission.status.toUpperCase();
@@ -183,342 +396,201 @@ function StatusHeroCard({
   }, [activeMission?.id, activeMission?.status]);
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const isExpiring = secondsLeft !== null && secondsLeft < 120;
 
-  // ── ACCEPTED — prestataire en route, affiche ETA ──
-  if (activeMission && activeMission.status.toUpperCase() === 'ACCEPTED') {
+  const pulseOpacity = pulseScale.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.45, 0],
+  });
+
+  // ── ACCEPTED / ONGOING — active mission island
+  if (activeMission) {
+    const isOngoing = activeMission.status.toUpperCase() === 'ONGOING';
     return (
-      <TouchableOpacity style={[hero.strip, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onActiveMissionPress} activeOpacity={0.85} accessibilityRole="button">
-        <Animated.View style={[hero.dot, hero.dotActive, { opacity: dotOpacity }]} />
-        <View style={hero.stripContent}>
-          <Text style={[hero.stripTitle, { color: theme.textAlt }]} numberOfLines={1}>{etaLabel}</Text>
-          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>{activeMission.serviceType || activeMission.title}</Text>
-        </View>
-        <View style={[hero.stripAction, { backgroundColor: theme.accent }]}>
-          <Ionicons name="navigate-outline" size={13} color={theme.accentText} />
-        </View>
-      </TouchableOpacity>
+      <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
+        <TouchableOpacity
+          style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
+          onPress={onActiveMissionPress}
+          activeOpacity={0.85}
+        >
+          <View style={islandStyles.pulseWrap}>
+            <Animated.View style={[islandStyles.pulseRing, {
+              backgroundColor: COLORS.green,
+              transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
+              opacity: pulseOpacity,
+            }]} />
+            <View style={[islandStyles.pulseDot, { backgroundColor: COLORS.green }]} />
+          </View>
+          <View style={islandStyles.textWrap}>
+            <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
+              {isOngoing ? 'EN COURS' : `EN ROUTE · ${etaLabel}`}
+            </Text>
+            <Text style={[islandStyles.mission, { color: theme.heroText }]}>{activeMission.serviceType || activeMission.title}</Text>
+            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>{isOngoing ? t('dashboard.mission_ongoing') : t('dashboard.provider_on_way')}</Text>
+          </View>
+          <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
+            <Ionicons name="arrow-forward" size={12} color={theme.heroSub} />
+          </View>
+        </TouchableOpacity>
+      </View>
     );
   }
 
-  // ── ONGOING — mission en cours ──
-  if (activeMission && activeMission.status.toUpperCase() === 'ONGOING') {
-    return (
-      <TouchableOpacity style={[hero.strip, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onActiveMissionPress} activeOpacity={0.85} accessibilityRole="button">
-        <Animated.View style={[hero.dot, hero.dotActive, { opacity: dotOpacity }]} />
-        <View style={hero.stripContent}>
-          <Text style={[hero.stripTitle, { color: theme.textAlt }]} numberOfLines={1}>{t('dashboard.mission_ongoing')}</Text>
-          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>{activeMission.serviceType || activeMission.title}</Text>
-        </View>
-        <View style={[hero.stripAction, { backgroundColor: theme.accent }]}>
-          <Ionicons name="eye-outline" size={13} color={theme.accentText} />
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  // ── PUBLISHED — recherche en cours ──
+  // ── PUBLISHED — searching
   if (searchingMission) {
     return (
-      <TouchableOpacity style={[hero.strip, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onSearchingPress} activeOpacity={0.85} accessibilityRole="button">
-        <Animated.View style={[hero.dot, hero.dotSearching, { opacity: dotOpacity }]} />
-        <View style={hero.stripContent}>
-          <Text style={[hero.stripTitle, { color: theme.textAlt }]} numberOfLines={1}>{t('dashboard.search_in_progress')}</Text>
-          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>{searchingMission.serviceType || searchingMission.title}</Text>
-        </View>
-        {secondsLeft !== null && (
-          <View style={[hero.timerPill, isExpiring && hero.timerPillUrgent]}>
-            <Text style={[hero.timerText, isExpiring && hero.timerTextUrgent]}>{fmt(secondsLeft)}</Text>
+      <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
+        <TouchableOpacity
+          style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
+          onPress={onSearchingPress}
+          activeOpacity={0.85}
+        >
+          <View style={islandStyles.pulseWrap}>
+            <Animated.View style={[islandStyles.pulseRing, {
+              backgroundColor: COLORS.amber,
+              transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
+              opacity: pulseOpacity,
+            }]} />
+            <View style={[islandStyles.pulseDot, { backgroundColor: COLORS.amber }]} />
           </View>
-        )}
-      </TouchableOpacity>
+          <View style={islandStyles.textWrap}>
+            <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>{t('dashboard.search_in_progress').toUpperCase()}</Text>
+            <Text style={[islandStyles.mission, { color: theme.heroText }]}>{searchingMission.serviceType || searchingMission.title}</Text>
+            {secondsLeft !== null && (
+              <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>{fmt(secondsLeft)}</Text>
+            )}
+          </View>
+          <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
+            <Ionicons name="arrow-forward" size={12} color={theme.heroSub} />
+          </View>
+        </TouchableOpacity>
+      </View>
     );
   }
 
-  // ── Idle — dernière request ou aucune ──
-  if (latestRequest) {
-    const latestStatus = getStatusInfo(latestRequest.status, t);
-    return (
-      <TouchableOpacity style={[hero.strip, hero.stripIdle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onLatestPress} activeOpacity={0.85} accessibilityRole="button">
-        <View style={[hero.dot, { backgroundColor: latestStatus.dot }]} />
-        <View style={hero.stripContent}>
-          <Text style={[hero.stripTitle, { color: theme.textSub }]} numberOfLines={1}>{latestStatus.label} — {latestRequest.serviceType || latestRequest.title}</Text>
-          <Text style={[hero.stripSub, { color: theme.textMuted }]} numberOfLines={1}>
-            {new Date(latestRequest.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-            {latestRequest.price ? ` · ${latestRequest.price} €` : ''}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
-      </TouchableOpacity>
-    );
-  }
-
-  // ── Aucune demande ──
+  // ── Empty state
   return (
-    <View style={[hero.strip, hero.stripEmpty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <Ionicons name="remove-circle-outline" size={16} color={theme.textMuted} />
-      <Text style={[hero.emptyText, { color: theme.textMuted }]}>{t('dashboard.no_active_request')}</Text>
+    <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
+      <View style={[islandStyles.empty, { borderColor: theme.borderLight }]}>
+        <View style={[islandStyles.emptyIconBox, { borderColor: theme.borderLight }]}>
+          <Ionicons name="time-outline" size={13} color={theme.textMuted} />
+        </View>
+        <Text style={[islandStyles.emptyText, { color: theme.textMuted }]}>
+          Les statuts de vos services s'afficheront ici.
+        </Text>
+      </View>
     </View>
   );
 }
 
-const hero = StyleSheet.create({
-  strip: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+const islandStyles = StyleSheet.create({
+  active: {
+    borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: 14, borderWidth: 1, borderColor: '#F0F0F0',
-    backgroundColor: '#FFF', width: '100%', marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
   },
-  stripIdle: { opacity: 0.8 },
-  stripEmpty: { justifyContent: 'center', opacity: 0.6 },
-  stripContent: { flex: 1, minWidth: 0, gap: 2 },
-  stripTitle: { fontSize: 13, fontWeight: '700', color: '#111' },
-  stripSub: { fontSize: 11, fontWeight: '500', color: '#ADADAD' },
-  stripAction: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#111', alignItems: 'center', justifyContent: 'center',
+  pulseWrap: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  pulseRing: { position: 'absolute', width: 10, height: 10, borderRadius: 5 },
+  pulseDot: { width: 10, height: 10, borderRadius: 5 },
+  textWrap: { flex: 1 },
+  label: {
+    fontFamily: FONTS.mono, fontSize: 11,
+    letterSpacing: 0.6, textTransform: 'uppercase',
   },
-
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#CCC', flexShrink: 0 },
-  dotActive: { backgroundColor: '#111' },
-  dotSearching: { backgroundColor: '#888' },
-
-  timerPill: {
-    backgroundColor: '#F0F0F0', paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 10,
+  mission: {
+    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 0.7,
+    marginTop: 1, lineHeight: 20,
   },
-  timerPillUrgent: { backgroundColor: '#111' },
-  timerText: { fontSize: 11, fontWeight: '800', color: '#555' },
-  timerTextUrgent: { color: '#FFF' },
-
-  emptyText: { fontSize: 12, fontWeight: '600', color: '#ADADAD' },
-});
-
-// ============================================================================
-// QUICK ACTIONS ROW
-// ============================================================================
-
-const getQuickActions = (t: (key: string) => string) => [
-  { icon: 'hammer-outline',   label: t('dashboard.cat_bricolage'),    category: 'bricolage'    },
-  { icon: 'leaf-outline',     label: t('dashboard.cat_jardinage'),    category: 'jardinage'    },
-  { icon: 'sparkles-outline', label: t('dashboard.cat_menage'),       category: 'menage'       },
-  { icon: 'car-outline',      label: t('dashboard.cat_demenagement'), category: 'demenagement' },
-  { icon: 'brush-outline',    label: t('dashboard.cat_peinture'),     category: 'peinture'     },
-  { icon: 'grid-outline',     label: t('dashboard.cat_all'),          category: ''             },
-];
-
-function QuickActions({ onPress }: { onPress: (category: string) => void }) {
-  const { t } = useTranslation();
-  const theme = useAppTheme();
-  const actions = getQuickActions(t);
-  return (
-    <View style={qa.wrap}>
-      <Text style={[qa.title, { color: theme.textAlt }]}>{t('dashboard.services')}</Text>
-      <FlatList
-        data={actions}
-        keyExtractor={(_, i) => String(i)}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={qa.list}
-        renderItem={({ item, index }) => {
-          const isLast = index === actions.length - 1;
-          return (
-            <TouchableOpacity
-              style={qa.item}
-              onPress={() => onPress(item.category)}
-              activeOpacity={0.72}
-              accessibilityLabel={item.label}
-              accessibilityRole="button"
-            >
-              <View style={[qa.circle, !isLast && { backgroundColor: theme.surface, borderColor: theme.borderLight }, isLast && qa.circleLast]}>
-                <Ionicons name={item.icon as any} size={18} color={isLast ? '#FFF' : theme.textAlt} />
-              </View>
-              <Text style={[qa.label, { color: theme.textSub }]} numberOfLines={1}>{item.label}</Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    </View>
-  );
-}
-
-const qa = StyleSheet.create({
-  wrap:  { marginBottom: 32, width: '100%' },
-  title: { fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 10, paddingHorizontal: 2 },
-  list:  { gap: 6, paddingBottom: 2 },
-  item:  { alignItems: 'center', gap: 6, width: 62 },
-  circle: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#F5F5F5',
+  sub: { fontFamily: FONTS.sans, fontSize: 11, marginTop: 2 },
+  arrow: {
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#EFEFEF',
   },
-  circleLast: { backgroundColor: '#111', borderColor: '#111' },
-  label: { fontSize: 10, fontWeight: '600', color: '#888', textAlign: 'center', width: 62 },
+
+  empty: {
+    borderWidth: 1.5, borderStyle: 'dashed',
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+  },
+  emptyIconBox: {
+    width: 28, height: 28, borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyText: { fontFamily: FONTS.sans, fontSize: 11, lineHeight: 16, flex: 1 },
 });
 
 // ============================================================================
-// AVAILABILITY BAR — "Est-ce le bon moment pour commander ?"
-// Remplace les stats de dépenses par des infos de disponibilité en temps réel
+// ACTIVITY ITEM — recent request row
 // ============================================================================
 
-// Static placeholder — to be replaced with a real /availability endpoint
-function useAvailability() {
-  return { providers: 12, avgMinutes: 25, demand: 'standard' as 'standard' | 'high' };
-}
-
-function AvailabilityBar() {
-  const { t } = useTranslation();
-  const theme = useAppTheme();
-  const { providers, avgMinutes, demand } = useAvailability();
-  const isHigh = demand === 'high';
-
-  const items = [
-    {
-      icon: 'people-outline' as const,
-      value: `${providers}`,
-      label: t('dashboard.available'),
-      sub: t('dashboard.nearby'),
-    },
-    {
-      icon: 'timer-outline' as const,
-      value: `~${avgMinutes} min`,
-      label: t('dashboard.fixed_in'),
-      sub: t('dashboard.avg_time'),
-    },
-    {
-      icon: isHigh ? 'trending-up-outline' as const : 'checkmark-circle-outline' as const,
-      value: isHigh ? t('dashboard.high_demand') : t('dashboard.standard'),
-      label: t('dashboard.price'),
-      sub: isHigh ? t('dashboard.surge_pricing') : t('dashboard.normal_pricing'),
-      accent: isHigh,
-    },
-  ];
-
-  return (
-    <View style={[sb.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-      {items.map((it, i) => (
-        <React.Fragment key={i}>
-          <View style={sb.item}>
-            <View style={[sb.iconWrap, { backgroundColor: theme.surface }, it.accent && sb.iconWrapAccent]}>
-              <Ionicons name={it.icon} size={14} color={it.accent ? '#111' : '#888'} />
-            </View>
-            <Text style={[sb.value, { color: theme.textAlt }, it.accent && sb.valueAccent]}>{it.value}</Text>
-            <Text style={[sb.label, { color: theme.textMuted }]}>{it.sub}</Text>
-          </View>
-          {i < items.length - 1 && <View style={[sb.sep, { backgroundColor: theme.border }]} />}
-        </React.Fragment>
-      ))}
-    </View>
-  );
-}
-
-const sb = StyleSheet.create({
-  card: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', borderRadius: 18, padding: 16,
-    marginBottom: 28, width: '100%',
-    borderWidth: 1, borderColor: '#F0F0F0',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10 },
-      android: { elevation: 1 },
-    }),
-  },
-  item:      { flex: 1, alignItems: 'center', gap: 4 },
-  sep:       { width: 1, height: 36, backgroundColor: '#F0F0F0' },
-  iconWrap:  { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  iconWrapAccent: { backgroundColor: '#EBEBEB' },
-  value:     { fontSize: 14, fontWeight: '900', color: '#111', letterSpacing: -0.3 },
-  valueAccent: { color: '#111' },
-  label:     { fontSize: 10, fontWeight: '500', color: '#ADADAD', letterSpacing: 0.1 },
-});
-
-// ============================================================================
-// SERVICE ROW — monochrome, hiérarchie claire
-// ============================================================================
-
-// Guess service icon from serviceType / category name
-const getServiceIcon = (label?: string): string => {
-  if (!label) return 'construct-outline';
-  const t = label.toLowerCase();
-  if (t.includes('bricol'))                             return 'hammer-outline';
-  if (t.includes('jardin') || t.includes('pelouse'))    return 'leaf-outline';
-  if (t.includes('ménage') || t.includes('nettoyage'))  return 'sparkles-outline';
-  if (t.includes('démén') || t.includes('demen'))       return 'cube-outline';
-  if (t.includes('peint'))                              return 'color-palette-outline';
-  if (t.includes('plomb'))                              return 'water-outline';
-  if (t.includes('électr') || t.includes('electr'))     return 'flash-outline';
-  if (t.includes('urgence'))                            return 'build-outline';
-  if (t.includes('rénov') || t.includes('renov'))       return 'construct-outline';
-  return 'construct-outline';
-};
-
-function ServiceRow({
+function ActivityItem({
   request,
   onPress,
   isLast,
+  theme,
 }: {
   request: DashboardData['requests'][0];
   onPress: () => void;
   isLast: boolean;
+  theme: AppTheme;
 }) {
   const { t } = useTranslation();
-  const theme = useAppTheme();
-  const status   = getStatusInfo(request.status, t);
-  const isActive = ['ACCEPTED', 'ONGOING'].includes(request.status?.toUpperCase());
+  const status = getStatusInfo(request.status, t);
   const serviceName = request.serviceType || request.category?.name || request.title;
-  const icon     = getServiceIcon(serviceName);
-  const date     = new Date(request.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const icon = getServiceIcon(serviceName);
+  const date = new Date(request.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+  const statusKey = request.status?.toUpperCase();
+  let badgeBg = theme.badgeDoneBg;
+  let badgeTextColor = theme.badgeDoneText;
+  if (statusKey === 'CANCELLED' || statusKey === 'EXPIRED') {
+    badgeBg = theme.badgeCancelledBg;
+    badgeTextColor = theme.badgeCancelledText;
+  } else if (['PUBLISHED', 'PENDING', 'PENDING_PAYMENT', 'ACCEPTED', 'ONGOING'].includes(statusKey || '')) {
+    badgeBg = theme.badgePendingBg;
+    badgeTextColor = theme.badgePendingText;
+  }
 
   return (
-    <>
-      <TouchableOpacity style={sr.row} onPress={onPress} activeOpacity={0.65} accessibilityLabel={serviceName || t('common.service')} accessibilityRole="button">
-
-        {/* Icône service */}
-        <View style={[sr.iconBox, !isActive && { backgroundColor: theme.surface }, isActive && sr.iconBoxActive]}>
-          <Ionicons name={icon as any} size={16} color={isActive ? '#FFF' : '#555'} />
+    <TouchableOpacity
+      style={[actStyles.row, !isLast && { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
+      onPress={onPress}
+      activeOpacity={0.65}
+    >
+      <View style={[actStyles.iconBox, { backgroundColor: theme.surface }]}>
+        <Ionicons name={icon as any} size={16} color={theme.text} />
+      </View>
+      <View style={actStyles.center}>
+        <Text style={[actStyles.name, { color: theme.text }]} numberOfLines={1}>
+          {serviceName || t('common.service')}
+        </Text>
+        <Text style={[actStyles.meta, { color: theme.textMuted }]}>
+          {date}{request.price ? ` · ${request.price} €` : ''}
+        </Text>
+      </View>
+      <View style={actStyles.right}>
+        <View style={[actStyles.badge, { backgroundColor: badgeBg }]}>
+          <Text style={[actStyles.badgeText, { color: badgeTextColor }]}>{status.label}</Text>
         </View>
-
-        {/* Centre : titre + date */}
-        <View style={sr.mid}>
-          <Text style={[sr.title, { color: theme.textAlt }]} numberOfLines={1}>{serviceName || t('common.service')}</Text>
-          <Text style={[sr.meta, { color: theme.textMuted }]}>{date}{request.price ? ` · ${request.price} €` : ''}</Text>
-        </View>
-
-        {/* Droite : statut pill + chevron */}
-        <View style={sr.right}>
-          {isActive
-            ? <View style={sr.activeBadge}><Text style={sr.activeBadgeText}>{status.label}</Text></View>
-            : <Text style={[sr.statusText, { color: theme.textMuted }]}>{status.label}</Text>
-          }
-          <Ionicons name="chevron-forward" size={13} color="#D8D8D8" />
-        </View>
-
-      </TouchableOpacity>
-      {!isLast && <View style={[sr.sep, { backgroundColor: theme.border }]} />}
-    </>
+        <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+      </View>
+    </TouchableOpacity>
   );
 }
 
-const sr = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
+const actStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   iconBox: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#F5F5F5',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  iconBoxActive: { backgroundColor: '#111' },
-  mid:   { flex: 1, minWidth: 0, gap: 3 },
-  title: { fontSize: 13, fontWeight: '700', color: '#111', flexShrink: 1 },
-  meta:  { fontSize: 11, color: '#C0C0C0', fontWeight: '500' },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
-  activeBadge: {
-    backgroundColor: '#111', borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  activeBadgeText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
-  statusText: { fontSize: 11, fontWeight: '600', color: '#C0C0C0' },
-  sep: { height: 1, backgroundColor: '#F7F7F7', marginLeft: 66 },
+  center: { flex: 1, minWidth: 0 },
+  name: { fontFamily: FONTS.sansMedium, fontSize: 12, lineHeight: 14 },
+  meta: { fontFamily: FONTS.mono, fontSize: 10, marginTop: 2 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  badge: { width: 76, paddingVertical: 3, borderRadius: 20, alignItems: 'center' as const },
+  badgeText: { fontFamily: FONTS.mono, fontSize: 11, textAlign: 'center' as const },
 });
 
 // ============================================================================
@@ -532,6 +604,7 @@ export default function Dashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const { socket, unreadCount, joinRoom, leaveRoom } = useSocket();
+  const theme = useAppTheme();
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -540,14 +613,11 @@ export default function Dashboard() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showAllRequests, setShowAllRequests] = useState(false);
   const [invoiceVisible, setInvoiceVisible] = useState(false);
-  const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
 
   const bottomSheetRef = useRef<BottomSheet>(null);
-  // Dynamic sizing — sheet wraps its content instead of forcing fixed snap points
 
-  // Invoice hook — fetches invoice for selected DONE request
   const invoiceRequestId = selectedRequest?.status?.toUpperCase() === 'DONE' ? selectedRequest?.id : null;
   const { invoice, loading: invoiceLoading } = useInvoice(invoiceRequestId ? Number(invoiceRequestId) : null);
 
@@ -567,7 +637,7 @@ export default function Dashboard() {
   useFocusEffect(useCallback(() => { loadDashboard(); }, [loadDashboard]));
   const onRefresh = () => { setRefreshing(true); loadDashboard(); };
 
-  // ── Navigation vers MissionView — centralisée, déclarée avant le socket ──
+  // ── Navigation ──
   const navigateToMissionView = useCallback((request: any) => {
     const r = request;
     const scheduledFor = r.scheduledFor || r.preferredTimeStart;
@@ -588,7 +658,6 @@ export default function Dashboard() {
     });
   }, [router]);
 
-  // ── Navigation vers MissionView en phase SEARCHING (PUBLISHED) ──
   const navigateToSearching = useCallback((request: any) => {
     navigateToMissionView(request);
   }, [navigateToMissionView]);
@@ -610,19 +679,13 @@ export default function Dashboard() {
       });
     };
 
-    // Deduplicate: prevent double-fire if both request:accepted and provider:accepted arrive
     const acceptedIds = new Set<string>();
-    const handleAccepted  = (d: any) => {
+    const handleAccepted = (d: any) => {
       const reqId = String(d.id || d.requestId);
-      if (acceptedIds.has(reqId)) return; // already handled
-
-      // Ignore events for requests that don't belong to this user
+      if (acceptedIds.has(reqId)) return;
       if (d.clientId && d.clientId !== user?.id) return;
-
       acceptedIds.add(reqId);
-
       updateRequestStatus(reqId, 'ACCEPTED');
-      // Navigate to missionview — no need to refetch dashboard, optimistic update is enough
       if (reqId) {
         api.get(`/requests/${reqId}`)
           .then(res => {
@@ -662,24 +725,20 @@ export default function Dashboard() {
 
   // ── Actions ──
   const handleRequestPress = async (requestId: string) => {
-    // Si la request locale est déjà PUBLISHED, on va directement sur MissionView
     const localReq = data?.requests?.find(r => String(r.id) === String(requestId));
     if (localReq?.status?.toUpperCase() === 'PUBLISHED') {
       navigateToSearching(localReq);
       return;
     }
-    // Si ACCEPTED ou ONGOING en local, navigation directe sans bottom sheet
     if (localReq && ['ACCEPTED', 'ONGOING'].includes(localReq.status?.toUpperCase())) {
       navigateToMissionView(localReq);
       return;
     }
-
     setLoadingDetails(true);
     bottomSheetRef.current?.expand();
     try {
       const details = await api.get(`/requests/${requestId}`);
       const req = details.request || details.data || details;
-      // Double-check après fetch — au cas où le statut aurait changé
       if (req?.status?.toUpperCase() === 'PUBLISHED') {
         bottomSheetRef.current?.close();
         navigateToSearching(req);
@@ -719,13 +778,11 @@ export default function Dashboard() {
     [data, activeMission]
   );
 
-  // Dernière request non-terminale (hors active/searching) pour l'état idle du hero card
-  // Les statuts terminaux (DONE, CANCELLED, EXPIRED) ne comptent pas comme "en cours"
-  const TERMINAL_STATUSES = ['DONE', 'CANCELLED', 'EXPIRED'];
+  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING'];
   const latestRequest = useMemo(
     () => (activeMission || searchingMission)
       ? null
-      : (data?.requests?.find(r => !TERMINAL_STATUSES.includes(r.status?.toUpperCase())) || null),
+      : (data?.requests?.find(r => ACTIVE_STATUSES.includes(r.status?.toUpperCase())) || null),
     [data, activeMission, searchingMission]
   );
 
@@ -749,7 +806,6 @@ export default function Dashboard() {
   }
 
   const name = data?.me?.name || user?.email?.split('@')[0] || '';
-  const city = data?.me?.city || 'Bruxelles';
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -760,87 +816,86 @@ export default function Dashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header compact — une seule ligne ── */}
-        <View style={s.header}>
-          <View style={s.headerNameRow}>
-            <Text style={[s.greeting, { color: theme.textMuted }]}>{getGreeting(t)}, </Text>
-            <Text style={[s.name, { color: theme.textAlt }]}>{name}</Text>
+        {/* ── TOP BAR ── */}
+        <View style={s.topbar}>
+          <View>
+            <Text style={[s.greeting, { color: theme.textMuted }]}>
+              {getGreeting(t)}, <Text style={[s.name, { color: theme.text }]}>{name}</Text>
+            </Text>
           </View>
-          <View style={s.headerRight}>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => router.push('/notifications')} accessibilityLabel={t('common.notifications')} accessibilityRole="button">
-              <Ionicons name="notifications-outline" size={18} color={theme.textAlt} />
+          <View style={s.topbarActions}>
+            <TouchableOpacity style={[s.iconBtn, { borderColor: theme.border }]} onPress={() => router.push('/notifications')}>
+              <Ionicons name="notifications-outline" size={14} color={theme.text} />
               {unreadCount > 0 && (
-                <View style={[s.notifBadge, { backgroundColor: theme.accent, borderColor: theme.bg }]}>
-                  <Text style={[s.notifBadgeText, { color: theme.accentText }]}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
+                <View style={[s.notifBadge, { borderColor: theme.bg }]}>
+                  <Text style={s.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/profile')} accessibilityLabel={t('profile.title')} accessibilityRole="button">
-              <Ionicons name="person-outline" size={18} color={theme.textAlt} />
+            <TouchableOpacity style={[s.iconBtn, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="person-outline" size={14} color={theme.text} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── CTA principale — toujours visible, star de l'écran vide ── */}
-        {!activeMission && !searchingMission && (
-          <TouchableOpacity
-            style={[s.mainCTA, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
-            onPress={() => router.push('/request/NewRequestStepper')}
-            activeOpacity={0.85}
-            accessibilityLabel={t('dashboard.order_service')}
-            accessibilityRole="button"
-          >
-            <View style={[s.mainCTASearchIcon, { backgroundColor: theme.surface }]}>
-              <Ionicons name="add" size={16} color={theme.textAlt} />
-            </View>
-            <Text style={[s.mainCTATitle, { color: theme.textAlt }]}>{t('dashboard.order_service')}</Text>
-            <View style={[s.mainCTABtn, { backgroundColor: theme.surface }]}>
-              <Ionicons name="arrow-forward" size={14} color={theme.textSub} />
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* ── Quick Actions — scroll horizontal, catégorie pré-remplie ── */}
-        <QuickActions onPress={(category) =>
-          router.push(category
-            ? `/request/NewRequestStepper?category=${category}`
-            : '/request/NewRequestStepper'
-          )
-        } />
-
-        {/* ── Status Hero Card — sous le carrousel de services ── */}
-        <StatusHeroCard
-          activeMission={activeMission}
-          searchingMission={searchingMission}
-          latestRequest={latestRequest}
-          name={name}
-          onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
-          onSearchingPress={() => {
-            if (!searchingMission) return;
-            navigateToSearching(searchingMission);
-          }}
-          onNewRequest={() => router.push('/request/NewRequestStepper')}
-          onLatestPress={() => latestRequest && handleRequestPress(latestRequest.id)}
+        {/* ── RUNWAY CAROUSEL ── */}
+        <RunwayCarousel
+          theme={theme}
+          onPress={(category) =>
+            router.push(category
+              ? `/request/NewRequestStepper?category=${category}`
+              : '/request/NewRequestStepper'
+            )
+          }
         />
 
-        {/* ── Mes missions ── */}
-        <View style={s.sectionRow}>
-          <Text style={[s.sectionTitle, { color: theme.textAlt }]}>
-            {t('dashboard.recent_activity')}
-            {totalCount > 0 && <Text style={[s.sectionCount, { color: theme.textMuted }]}> · {totalCount}</Text>}
-          </Text>
-          <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={t('common.refresh')} accessibilityRole="button">
-            <Ionicons name="refresh-outline" size={16} color={theme.textMuted} />
+        {/* ── CTA BUTTON — accessible au pouce ── */}
+        <View style={s.ctaWrap}>
+          <TouchableOpacity
+            style={[s.ctaBtn, { backgroundColor: theme.accent }]}
+            onPress={() => router.push('/request/NewRequestStepper')}
+            activeOpacity={0.85}
+          >
+            <Text style={[s.ctaText, { color: theme.accentText }]}>{t('dashboard.order_service').toUpperCase()}</Text>
+            <View style={[s.ctaCircle, { borderColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)' }]}>
+              <Ionicons name="arrow-forward" size={11} color={theme.accentText} />
+            </View>
           </TouchableOpacity>
         </View>
 
-        <View style={[s.listCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+        {/* ── MISSION ISLAND ── */}
+        <View style={[s.sectionHead, { paddingTop: 22 }]}>
+          <Text style={[s.sectionTitle, { color: theme.textMuted }]}>DEMANDE EN COURS</Text>
+        </View>
+
+        <MissionIsland
+          activeMission={activeMission}
+          searchingMission={searchingMission}
+          latestRequest={latestRequest}
+          onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
+          onSearchingPress={() => searchingMission && navigateToSearching(searchingMission)}
+          onLatestPress={() => latestRequest && handleRequestPress(latestRequest.id)}
+          theme={theme}
+        />
+
+        {/* ── ACTIVITÉ RÉCENTE ── */}
+        <View style={[s.sectionHead, { paddingTop: 22 }]}>
+          <Text style={[s.sectionTitle, { color: theme.textMuted }]}>{t('dashboard.recent_activity').toUpperCase()}</Text>
+          <TouchableOpacity
+            style={s.sectionAction}
+            onPress={onRefresh}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={13} color={theme.textMuted} />
+            <Text style={[s.sectionActionText, { color: theme.textMuted }]}>{totalCount || ''}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.activityList}>
           {!data?.requests?.length ? (
-            <View style={s.empty}>
-              <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-                <Text style={s.emptyX}>✕</Text>
+            <View style={s.emptyActivity}>
+              <View style={[s.emptyActivityIcon, { backgroundColor: theme.surface }]}>
+                <Text style={[s.emptyX, { color: theme.textDisabled }]}>✕</Text>
               </View>
               <Text style={[s.emptyTitle, { color: theme.text }]}>{t('dashboard.no_missions')}</Text>
               <Text style={[s.emptySub, { color: theme.textMuted }]}>{t('dashboard.missions_appear_here')}</Text>
@@ -848,33 +903,31 @@ export default function Dashboard() {
           ) : (
             <>
               {displayedRequests.map((req, i) => (
-                <ServiceRow
+                <ActivityItem
                   key={req.id}
                   request={req}
                   onPress={() => handleRequestPress(req.id)}
                   isLast={i === displayedRequests.length - 1 && (!hasMore || showAllRequests)}
+                  theme={theme}
                 />
               ))}
-              {hasMore && (
-                <TouchableOpacity
-                  style={[s.seeMoreBtn, { borderTopColor: theme.border }]}
-                  onPress={() => setShowAllRequests(v => !v)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                >
-                  <Text style={[s.seeMoreText, { color: theme.textMuted }]}>
-                    {showAllRequests ? t('dashboard.collapse') : t('dashboard.see_all_more', { count: totalCount - PREVIEW_COUNT })}
-                  </Text>
-                  <Ionicons name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={14} color="#ADADAD" />
-                </TouchableOpacity>
-              )}
             </>
           )}
         </View>
 
+        {/* See all button */}
+        {hasMore && (
+          <TouchableOpacity style={s.seeAllBtn} onPress={() => setShowAllRequests(v => !v)} activeOpacity={0.7}>
+            <Text style={[s.seeAllText, { color: theme.textMuted }]}>
+              {showAllRequests ? t('dashboard.collapse') : 'Voir tout'}
+            </Text>
+            <Ionicons name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={11} color={theme.textMuted} />
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
 
-      {/* ── Bottom Sheet détail ── */}
+      {/* ── Bottom Sheet detail ── */}
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
@@ -882,7 +935,7 @@ export default function Dashboard() {
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
-        handleIndicatorStyle={s.sheetIndicator}
+        handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}
         maxDynamicContentSize={Dimensions.get('window').height * 0.85}
       >
         <BottomSheetScrollView contentContainerStyle={[s.sheet, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
@@ -890,15 +943,13 @@ export default function Dashboard() {
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 50 }} />
           ) : selectedRequest ? (
             <>
-              <Text style={[s.sheetTitle, { color: theme.textAlt }]}>{selectedRequest.title || selectedRequest.serviceType}</Text>
+              <Text style={[s.sheetTitle, { color: theme.text }]}>{selectedRequest.title || selectedRequest.serviceType}</Text>
 
-              {/* Status badge */}
-              <View style={[s.statusBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <View style={[s.statusDot, { backgroundColor: getStatusInfo(selectedRequest.status, t).dot }]} />
+              <View style={[s.statusBadge, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+                <View style={[s.statusDot, { backgroundColor: getStatusInfo(selectedRequest.status, t).ledColor }]} />
                 <Text style={[s.statusBadgeText, { color: theme.textSub }]}>{getStatusInfo(selectedRequest.status, t).label}</Text>
               </View>
 
-              {/* Infos */}
               {[
                 { icon: 'document-text-outline', val: selectedRequest.description || t('dashboard.no_description') },
                 selectedRequest.address && { icon: 'location-outline', val: selectedRequest.address },
@@ -906,46 +957,37 @@ export default function Dashboard() {
               ].filter(Boolean).map((row: any, i) => (
                 <View key={i} style={s.sheetRow}>
                   <View style={[s.sheetRowIcon, { backgroundColor: theme.surface }]}>
-                    <Ionicons name={row.icon} size={14} color="#888" />
+                    <Ionicons name={row.icon} size={14} color={theme.textSub} />
                   </View>
                   <Text style={[s.sheetVal, { color: theme.textSub }]}>{row.val}</Text>
                 </View>
               ))}
 
-              {/* CTA contextuelle — ACCEPTED / ONGOING */}
               {['ACCEPTED', 'ONGOING'].includes(selectedRequest.status?.toUpperCase()) && (
-                <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => handleNavigateToMission(selectedRequest)} accessibilityRole="button">
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => handleNavigateToMission(selectedRequest)}>
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>
                     {selectedRequest.status === 'ACCEPTED' ? t('dashboard.track_provider') : t('dashboard.track_mission')}
                   </Text>
-                  <Ionicons name="navigate" size={17} color="#FFF" />
+                  <Ionicons name="navigate" size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}
 
-              {/* CTA contextuelle — PUBLISHED (recherche en cours) */}
               {selectedRequest.status?.toUpperCase() === 'PUBLISHED' && (
                 <>
-                  {/* Rejoindre l'écran de recherche */}
                   <TouchableOpacity
                     style={[s.actionBtn, { backgroundColor: theme.accent }]}
                     onPress={() => {
                       bottomSheetRef.current?.close();
                       navigateToSearching(selectedRequest);
                     }}
-                    accessibilityRole="button"
                   >
                     <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.track_search')}</Text>
-                    <Ionicons name="radio-outline" size={17} color="#FFF" />
+                    <Ionicons name="radio-outline" size={17} color={theme.accentText} />
                   </TouchableOpacity>
-
-                  {/* Relancer manuellement les providers */}
                   <TouchableOpacity
-                    style={[s.resendBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                    accessibilityRole="button"
+                    style={[s.resendBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
                     onPress={async () => {
-                      try {
-                        await api.post(`/requests/${selectedRequest.id}/notify`);
-                      } catch {}
+                      try { await api.post(`/requests/${selectedRequest.id}/notify`); } catch {}
                     }}
                   >
                     <Ionicons name="refresh-outline" size={15} color={theme.textSub} />
@@ -956,9 +998,9 @@ export default function Dashboard() {
 
               {selectedRequest.status?.toUpperCase() === 'DONE' && (
                 <>
-                  <View style={[s.doneCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <Ionicons name="checkmark-circle" size={20} color={theme.accent} />
-                    <Text style={[s.doneText, { color: theme.textAlt }]}>{t('dashboard.mission_success')}</Text>
+                  <View style={[s.doneCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+                    <Ionicons name="checkmark-circle" size={20} color={COLORS.green} />
+                    <Text style={[s.doneText, { color: theme.text }]}>{t('dashboard.mission_success')}</Text>
                   </View>
                   {invoice && (
                     <TouchableOpacity
@@ -968,7 +1010,6 @@ export default function Dashboard() {
                         setTimeout(() => setInvoiceVisible(true), 300);
                       }}
                       activeOpacity={0.78}
-                      accessibilityRole="button"
                     >
                       <Ionicons name="receipt-outline" size={17} color={theme.accentText} />
                       <Text style={[s.actionBtnText, { color: theme.accentText }]}>Voir la facture</Text>
@@ -979,16 +1020,16 @@ export default function Dashboard() {
 
               {selectedRequest.status?.toUpperCase() === 'EXPIRED' && (
                 <>
-                  <View style={[s.expiredCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
-                    <Ionicons name="time-outline" size={20} color="#888" />
+                  <View style={[s.expiredCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
+                    <Ionicons name="time-outline" size={20} color={theme.textSub} />
                     <View style={{ flex: 1 }}>
                       <Text style={[s.expiredTitle, { color: theme.text }]}>{t('dashboard.no_provider_found')}</Text>
                       <Text style={[s.expiredSub, { color: theme.textMuted }]}>{t('dashboard.restart_search_sub')}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }} accessibilityRole="button">
+                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }}>
                     <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.restart_search')}</Text>
-                    <Ionicons name="refresh" size={17} color="#FFF" />
+                    <Ionicons name="refresh" size={17} color={theme.accentText} />
                   </TouchableOpacity>
                 </>
               )}
@@ -997,7 +1038,6 @@ export default function Dashboard() {
         </BottomSheetScrollView>
       </BottomSheet>
 
-      {/* ── Invoice Sheet ── */}
       <InvoiceSheet
         invoice={invoice}
         isVisible={invoiceVisible}
@@ -1015,162 +1055,125 @@ export default function Dashboard() {
 // STYLES
 // ============================================================================
 
-// ── Explore CTA styles ────────────────────────────────────────────────────────
-
-const cta = StyleSheet.create({
-  card: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#FFF', borderRadius: 18, padding: 14, marginBottom: 18,
-    borderWidth: 1, borderColor: '#F0F0F0',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 1 },
-    }),
-  },
-  iconWrap: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-  },
-  title: { fontSize: 14, fontWeight: '700', color: '#111' },
-  sub:   { fontSize: 12, color: '#ADADAD', marginTop: 2, fontWeight: '500' },
-  arrow: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-  },
-});
-
-// ── Main styles ───────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#FFFFFF' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  scroll: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32, alignItems: 'center' },
+  root: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scroll: { paddingBottom: 32 },
 
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 16, width: '100%',
+  // ── Top bar ──
+  topbar: {
+    paddingTop: 8, paddingHorizontal: 24,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  headerNameRow: { flexDirection: 'row', alignItems: 'baseline' },
-  greeting: { fontSize: 14, fontWeight: '400', color: '#ADADAD' },
-  name:     { fontSize: 14, fontWeight: '800', color: '#111' },
-  headerRight: { flexDirection: 'row', gap: 6 },
+  greeting: { fontFamily: FONTS.sansLight, fontSize: 13 },
+  name: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.9 },
+  topbarActions: { flexDirection: 'row', gap: 6 },
   iconBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#F0F0F0',
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
   notifBadge: {
-    position: 'absolute', top: -3, right: -3,
-    minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1.5, borderColor: '#F5F5F5',
+    position: 'absolute', top: -4, right: -4,
+    minWidth: 14, height: 14, borderRadius: 7,
+    backgroundColor: COLORS.red, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 2, borderWidth: 1.5,
   },
-  notifBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFF' },
+  notifBadgeText: { fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', color: '#FFF' },
 
-  mainCTA: {
-    backgroundColor: '#FFF',
-    borderRadius: 18, height: 64, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginBottom: 20, alignSelf: 'stretch',
-    borderWidth: 1, borderColor: '#F0F0F0',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 1 },
-    }),
+  // ── CTA ──
+  ctaWrap: { paddingHorizontal: 24, paddingTop: 16 },
+  ctaBtn: {
+    borderRadius: 12,
+    paddingVertical: 10, paddingLeft: 14, paddingRight: 14,
+    flexDirection: 'row', alignItems: 'center',
   },
-  mainCTASearchIcon: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#F5F5F5',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  mainCTATitle: { flex: 1, fontSize: 15, fontWeight: '700', color: '#111' },
-  mainCTABtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#F5F5F5',
+  ctaText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 1.3, flex: 1, textAlign: 'center' },
+  ctaCircle: {
+    width: 26, height: 26, borderRadius: 13,
+    borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  sectionRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 8, paddingHorizontal: 2, width: '100%',
+  // ── Section headers ──
+  sectionHead: {
+    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 0,
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
-  sectionCount: { fontSize: 14, fontWeight: '600', color: '#ADADAD' },
+  sectionTitle: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 2.4 },
+  sectionAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sectionActionText: { fontFamily: FONTS.mono, fontSize: 11 },
 
-  listCard: {
-    backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#EFEFEF', width: '100%',
+  // ── Activity list ──
+  activityList: { paddingHorizontal: 24 },
 
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10 },
-      android: { elevation: 1 },
-    }),
+  emptyActivity: { padding: 44, alignItems: 'center', gap: 10 },
+  emptyActivityIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center',
   },
+  emptyX: { fontSize: 22, fontWeight: '900' },
+  emptyTitle: { fontFamily: FONTS.sansMedium, fontSize: 15 },
+  emptySub: { fontFamily: FONTS.sans, fontSize: 13, textAlign: 'center' },
 
-  seeMoreBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 14,
-    borderTopWidth: 1, borderTopColor: '#F5F5F5',
+  // ── See all button ──
+  seeAllBtn: {
+    marginHorizontal: 24, marginTop: 4,
+    paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  seeMoreText: { fontSize: 13, fontWeight: '700', color: '#ADADAD' },
+  seeAllText: { fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.2 },
 
-  empty:      { padding: 44, alignItems: 'center', gap: 10 },
-  emptyIcon:  { width: 56, height: 56, borderRadius: 28, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  emptyX:     { fontSize: 22, fontWeight: '900', color: '#D0D0D0' },
-  emptyTitle: { fontSize: 15, fontWeight: '800', color: '#374151' },
-  emptySub:   { fontSize: 13, color: '#ADADAD', textAlign: 'center' },
-
-  // Bottom sheet
-  sheetBg:        { backgroundColor: '#FFF', borderRadius: 28 },
-  sheetIndicator: { backgroundColor: '#E8E8E8', width: 36 },
+  // ── Bottom sheet ──
+  sheetBg: { borderRadius: 28 },
+  sheetIndicator: { width: 36 },
   sheet: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
 
-  sheetTitle: { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 10, letterSpacing: -0.5 },
+  sheetTitle: { fontFamily: FONTS.bebas, fontSize: 24, marginBottom: 10, letterSpacing: 0.5 },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     alignSelf: 'flex-start',
-    backgroundColor: '#F5F5F5', paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 10, marginBottom: 20,
-    borderWidth: 1, borderColor: '#EBEBEB',
+    borderWidth: 1,
   },
-  statusDot:       { width: 6, height: 6, borderRadius: 3 },
-  statusBadgeText: { fontSize: 12, fontWeight: '700', color: '#555' },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusBadgeText: { fontFamily: FONTS.mono, fontSize: 12 },
 
-  sheetRow:     { flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'flex-start' },
-  sheetRowIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  sheetVal:     { flex: 1, fontSize: 14, color: '#555', lineHeight: 21, paddingTop: 5 },
+  sheetRow: { flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'flex-start' },
+  sheetRowIcon: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sheetVal: { fontFamily: FONTS.sans, flex: 1, fontSize: 14, lineHeight: 21, paddingTop: 5 },
 
   actionBtn: {
-    backgroundColor: '#111', flexDirection: 'row', height: 54,
+    flexDirection: 'row', height: 54,
     borderRadius: 16, alignItems: 'center', justifyContent: 'center',
     gap: 10, marginTop: 18,
   },
-  actionBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  actionBtnText: { fontFamily: FONTS.bebas, fontSize: 17, letterSpacing: 0.8 },
 
-  // Bouton secondaire "Relancer les prestataires"
   resendBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 7, marginTop: 12, paddingVertical: 12,
-    borderRadius: 14, backgroundColor: '#F5F5F5',
-    borderWidth: 1, borderColor: '#EBEBEB',
+    borderRadius: 14, borderWidth: 1,
   },
-  resendText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  resendText: { fontFamily: FONTS.mono, fontSize: 13 },
 
   doneCard: {
-    backgroundColor: '#F5F5F5', borderRadius: 14, padding: 16,
+    borderRadius: 14, padding: 16,
     flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18,
-    borderWidth: 1, borderColor: '#EBEBEB',
+    borderWidth: 1,
   },
-  doneText: { color: '#111', fontWeight: '700', fontSize: 14 },
+  doneText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
 
   expiredCard: {
-    backgroundColor: '#F7F7F7', borderRadius: 14, padding: 16,
+    borderRadius: 14, padding: 16,
     flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 18,
-    borderWidth: 1, borderColor: '#EBEBEB',
+    borderWidth: 1,
   },
-  expiredTitle: { fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 4 },
-  expiredSub:   { fontSize: 13, color: '#9CA3AF', lineHeight: 19 },
+  expiredTitle: { fontFamily: FONTS.sansMedium, fontSize: 14, marginBottom: 4 },
+  expiredSub: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19 },
 });

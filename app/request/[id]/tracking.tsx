@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devLog, devWarn, devError } from '@/lib/logger';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -314,7 +314,7 @@ export default function RequestTracking() {
   const s = useMemo(() => ({
     container:       { flex: 1, backgroundColor: t.bg } as const,
     loadingContainer:{ flex: 1, justifyContent: 'center' as const, alignItems: 'center' as const, backgroundColor: t.bg, gap: 12 },
-    loadingText:     { fontSize: 16, color: t.textSub, fontWeight: '500' as const },
+    loadingText:     { fontSize: 16, color: t.textSub, fontFamily: FONTS.sans },
     map:             { flex: 1 },
 
     backButton: {
@@ -345,9 +345,9 @@ export default function RequestTracking() {
 
     // ETA
     etaContainer:  { alignItems: 'center' as const, marginBottom: 24 },
-    etaLabel:      { fontSize: 14, color: t.textSub, marginBottom: 4 },
-    etaTime:       { fontSize: 32, fontWeight: '900' as const, color: t.text },
-    etaSubLabel:   { fontSize: 12, color: t.textMuted, marginTop: 4, fontStyle: 'italic' as const },
+    etaLabel:      { fontSize: 14, color: t.textSub, marginBottom: 4, fontFamily: FONTS.sans },
+    etaTime:       { fontSize: 32, fontWeight: '900' as const, color: t.text, fontFamily: FONTS.bebas, letterSpacing: 1 },
+    etaSubLabel:   { fontSize: 12, color: t.textMuted, marginTop: 4, fontStyle: 'italic' as const, fontFamily: FONTS.sans },
 
     // Provider
     providerDetails: {
@@ -361,8 +361,8 @@ export default function RequestTracking() {
       justifyContent: 'center' as const, alignItems: 'center' as const, marginRight: 16,
     },
     providerInfo:   { flex: 1 },
-    providerName:   { fontSize: 18, fontWeight: '700' as const, color: t.text, marginBottom: 4 },
-    providerRating: { fontSize: 14, color: t.textSub },
+    providerName:   { fontSize: 18, fontWeight: '700' as const, color: t.text, marginBottom: 4, fontFamily: FONTS.sansMedium },
+    providerRating: { fontSize: 14, color: t.textSub, fontFamily: FONTS.sans },
     callButton: {
       width: 48, height: 48, borderRadius: 24,
       backgroundColor: t.accent,
@@ -371,16 +371,16 @@ export default function RequestTracking() {
 
     // Mission
     missionDetails: { marginBottom: 20 },
-    missionTitle:   { fontSize: 16, fontWeight: '700' as const, color: t.text, marginBottom: 8 },
-    missionAddress: { fontSize: 14, color: t.textSub, marginBottom: 8 },
-    missionPrice:   { fontSize: 20, fontWeight: '900' as const, color: t.text },
+    missionTitle:   { fontSize: 16, fontWeight: '700' as const, color: t.text, marginBottom: 8, fontFamily: FONTS.sansMedium },
+    missionAddress: { fontSize: 14, color: t.textSub, marginBottom: 8, fontFamily: FONTS.sans },
+    missionPrice:   { fontSize: 20, fontWeight: '900' as const, color: t.text, fontFamily: FONTS.mono },
 
     // Cancel
     cancelButton: {
       backgroundColor: t.isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2',
       paddingVertical: 16, borderRadius: 16, alignItems: 'center' as const,
     },
-    cancelButtonText: { fontSize: 16, fontWeight: '700' as const, color: t.danger },
+    cancelButtonText: { fontSize: 16, fontWeight: '700' as const, color: t.danger, fontFamily: FONTS.sansMedium },
 
     // Ongoing
     ongoingBanner: {
@@ -388,7 +388,7 @@ export default function RequestTracking() {
       backgroundColor: t.surface, borderRadius: 14,
       paddingHorizontal: 16, paddingVertical: 12,
     },
-    ongoingBannerText: { fontSize: 13, fontWeight: '600' as const, color: t.text, flex: 1 },
+    ongoingBannerText: { fontSize: 13, fontWeight: '600' as const, color: t.text, flex: 1, fontFamily: FONTS.sansMedium },
 
     // PIN card (provider arrived)
     pinCard: {
@@ -396,15 +396,15 @@ export default function RequestTracking() {
       marginBottom: 16, borderWidth: 1, borderColor: t.border,
     },
     pinCardHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 4 },
-    pinCardTitle:  { fontSize: 16, fontWeight: '700' as const, color: t.text },
-    pinCardSubtitle: { fontSize: 13, color: t.textSub, marginBottom: 16 },
+    pinCardTitle:  { fontSize: 16, fontWeight: '700' as const, color: t.text, fontFamily: FONTS.sansMedium },
+    pinCardSubtitle: { fontSize: 13, color: t.textSub, marginBottom: 16, fontFamily: FONTS.sans },
     pinDigitsRow:  { flexDirection: 'row' as const, justifyContent: 'center' as const, gap: 12 },
     pinDigitBox: {
       width: 56, height: 64, borderRadius: 14,
       backgroundColor: t.cardBg, borderWidth: 2, borderColor: t.accent,
       justifyContent: 'center' as const, alignItems: 'center' as const,
     },
-    pinDigitText: { fontSize: 28, fontWeight: '900' as const, color: t.text },
+    pinDigitText: { fontSize: 28, fontWeight: '900' as const, color: t.text, fontFamily: FONTS.monoMedium },
 
     // Verified banner
     verifiedBanner: {
@@ -412,7 +412,7 @@ export default function RequestTracking() {
       backgroundColor: t.isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4',
       borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
     },
-    verifiedBannerText: { fontSize: 13, fontWeight: '600' as const, color: '#22C55E', flex: 1 },
+    verifiedBannerText: { fontSize: 13, fontWeight: '600' as const, color: COLORS.green, flex: 1, fontFamily: FONTS.sansMedium },
 
     // PIN pending (provider en route)
     pinCardPending: {
@@ -420,7 +420,7 @@ export default function RequestTracking() {
       backgroundColor: t.surface, borderRadius: 14,
       paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
     },
-    pinCardPendingText: { fontSize: 13, color: t.textSub, flex: 1 },
+    pinCardPendingText: { fontSize: 13, color: t.textSub, flex: 1, fontFamily: FONTS.sans },
   }), [t]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -532,7 +532,7 @@ export default function RequestTracking() {
         {/* PIN verified */}
         {(status === 'ACCEPTED' || status === 'ONGOING') && pinVerified && (
           <View style={s.verifiedBanner}>
-            <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+            <Ionicons name="checkmark-circle" size={18} color={COLORS.green} />
             <Text style={s.verifiedBannerText}>Code PIN vérifié — la mission va démarrer</Text>
           </View>
         )}

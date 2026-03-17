@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { onIncomingMessage, useSocket } from '../../lib/SocketContext';
-import { useAppTheme } from '../../hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -50,6 +50,7 @@ function displayLabel(userId: string): string {
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
 function Avatar({ name, size = 46 }: { name: string; size?: number }) {
+  const theme = useAppTheme();
   const initials = name
     .split(/[\s#]/)
     .filter(Boolean)
@@ -57,18 +58,16 @@ function Avatar({ name, size = 46 }: { name: string; size?: number }) {
     .slice(0, 2)
     .join('')
     .toUpperCase() || '?';
-  const palette = ['#1A1A1A', '#2D2D2D', '#404040', '#555', '#333', '#666'];
-  const bg = palette[name.charCodeAt(0) % palette.length];
   return (
-    <View style={[av.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
-      <Text style={[av.text, { fontSize: size * 0.34 }]}>{initials}</Text>
+    <View style={[av.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.surfaceAlt }]}>
+      <Text style={[av.text, { fontSize: size * 0.34, color: theme.text }]}>{initials}</Text>
     </View>
   );
 }
 
 const av = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center' },
-  text: { color: '#FFF', fontWeight: '800' },
+  text: { fontFamily: FONTS.sansMedium, fontWeight: '800' },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -111,6 +110,25 @@ export default function MessagesInbox() {
       }));
 
       setConversations(convos);
+
+      // Fetch real names in parallel
+      const namePromises = convos.map(async (c) => {
+        try {
+          const res = await api.messages.contactInfo(c.userId);
+          const n = res?.data?.name;
+          if (n) return { userId: c.userId, name: n };
+        } catch {}
+        return null;
+      });
+      const names = await Promise.all(namePromises);
+      const nameMap = new Map<string, string>();
+      names.forEach(n => { if (n) nameMap.set(n.userId, n.name); });
+      if (nameMap.size > 0) {
+        setConversations(prev => prev.map(c => ({
+          ...c,
+          displayName: nameMap.get(c.userId) || c.displayName,
+        })));
+      }
     } catch {
       // keep empty state
     } finally {
@@ -141,7 +159,7 @@ export default function MessagesInbox() {
       style={[s.row, { backgroundColor: theme.cardBg }]}
       activeOpacity={0.7}
       onPress={() =>
-        router.push({ pathname: '/messages/[userId]', params: { userId: item.userId } })
+        router.push({ pathname: '/messages/[userId]', params: { userId: item.userId, name: item.displayName } })
       }
     >
       <Avatar name={item.displayName} />
@@ -220,16 +238,16 @@ const s = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800' },
+  headerTitle: { fontSize: 20, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyTitle: { fontSize: 22, fontWeight: '800', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontFamily: FONTS.bebas, marginBottom: 20 },
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderRadius: 14,
     paddingHorizontal: 22, paddingVertical: 14,
   },
-  emptyBtnText: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  emptyBtnText: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 1 },
 
   list: { paddingVertical: 8 },
 
@@ -241,10 +259,10 @@ const s = StyleSheet.create({
   rowTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  rowName: { fontSize: 15, fontWeight: '600' },
-  rowNameBold: { fontWeight: '800' },
-  rowTime: { fontSize: 12 },
-  rowPreview: { fontSize: 13 },
+  rowName: { fontSize: 15, fontFamily: FONTS.sansMedium },
+  rowNameBold: { fontFamily: FONTS.sansMedium, fontWeight: '800' },
+  rowTime: { fontSize: 12, fontFamily: FONTS.mono },
+  rowPreview: { fontSize: 13, fontFamily: FONTS.sans },
   unreadDot: {
     width: 10, height: 10, borderRadius: 5,
     flexShrink: 0,

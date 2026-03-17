@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // app/(tabs)/missions.tsx — Provider Mission Hub
-// ─── Design FIXED : Palette Noir/Blanc/Gris, DayPicker horizontal, Zéro Alert ─
+// --- Design FIXED : Dark mode support, FONTS/COLORS from design system ---
 
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
@@ -17,15 +17,16 @@ import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
+import { useCall } from '@/lib/webrtc/CallContext';
 import * as Haptics from 'expo-haptics';
 
 
 const { width } = Dimensions.get('window');
 const NET_RATE = 0.85;
 
-// ─── Grayscale map style ──────────────────────────────────────────────────────
+// --- Grayscale map style ---
 const LIGHT_MAP_STYLE = [
   { elementType: 'geometry',           stylers: [{ color: '#F0F0F0' }] },
   { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
@@ -87,7 +88,7 @@ type Mission = {
   status: MissionStatus;
   location?: { address?: string; lat?: number; lng?: number };
   address?: string;
-  client?: { name: string; phone?: string };
+  client?: { id?: string; name: string; phone?: string };
   createdAt?: string;
   scheduledAt?: string;
   lat?: number;
@@ -96,7 +97,7 @@ type Mission = {
 
 type Tab = 'opportunities' | 'upcoming' | 'history';
 
-// ─── Opportunity types ───────────────────────────────────────────────────────
+// --- Opportunity types ---
 interface Opportunity {
   id: number;
   serviceType: string;
@@ -134,7 +135,7 @@ function formatScheduledDate(iso: string): { day: string; time: string; relative
 // ============================================================================
 
 const formatEuros = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
 
 const formatShortDate = (d?: string) => {
   if (!d) return null;
@@ -156,21 +157,27 @@ const isSameDay = (a: Date, b: Date) =>
   a.getMonth()    === b.getMonth() &&
   a.getDate()     === b.getDate();
 
-// Monochrome statuts — seul le vert #059669 est autorisé pour les gains
 const STATUS_CFG: Record<MissionStatus, { label: string; icon: string; active?: boolean; done?: boolean }> = {
-  PUBLISHED:       { label: 'Publié',    icon: 'radio-outline',            active: true },
-  ACCEPTED:        { label: 'Confirmé',  icon: 'checkmark-circle-outline', active: true },
+  PUBLISHED:       { label: 'Publie',    icon: 'radio-outline',            active: true },
+  ACCEPTED:        { label: 'Confirme',  icon: 'checkmark-circle-outline', active: true },
   ONGOING:         { label: 'En cours',  icon: 'flash-outline',            active: true },
-  DONE:            { label: 'Terminé',   icon: 'checkmark-done-outline',   done: true },
-  CANCELLED:       { label: 'Annulé',    icon: 'close-circle-outline' },
+  DONE:            { label: 'Termine',   icon: 'checkmark-done-outline',   done: true },
+  CANCELLED:       { label: 'Annule',    icon: 'close-circle-outline' },
   PENDING_PAYMENT: { label: 'Paiement',  icon: 'card-outline' },
-  EXPIRED:         { label: 'Expiré',    icon: 'time-outline' },
+  EXPIRED:         { label: 'Expire',    icon: 'time-outline' },
 };
 
 const SERVICE_ICONS: Record<string, string> = {
-  plomberie: 'water-outline', electricite: 'flash-outline',
-  bricolage: 'hammer-outline', menage: 'sparkles-outline',
-  jardinage: 'leaf-outline', demenagement: 'cube-outline', peinture: 'color-palette-outline',
+  serrurerie: 'lock-closed-outline',
+  plomberie: 'water-outline',
+  'entretien chaudiere': 'flame-outline',
+  electricite: 'flash-outline',
+  bricolage: 'hammer-outline',
+  peinture: 'brush-outline',
+  menage: 'home-outline',
+  'depannage informatique': 'laptop-outline',
+  vitrier: 'grid-outline',
+  'pet sitting': 'paw-outline',
 };
 
 const getServiceIcon = (type?: string): string => {
@@ -184,7 +191,7 @@ const UPCOMING_STATUSES: MissionStatus[] = ['PUBLISHED', 'ACCEPTED', 'ONGOING', 
 const HISTORY_STATUSES:  MissionStatus[] = ['DONE', 'CANCELLED', 'EXPIRED'];
 
 // ============================================================================
-// CONFIRM MODAL — remplace Alert.alert
+// CONFIRM MODAL
 // ============================================================================
 
 interface ConfirmModalProps {
@@ -225,7 +232,7 @@ function ConfirmModal({
       <Pressable style={cm.overlay} onPress={onCancel}>
         <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: fadeAnim }]} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { backgroundColor: t.cardBg }, { transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[cm.sheet, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity > 0.1 ? t.shadowOpacity : 0.14 }, { transform: [{ translateY: slideAnim }] }]}>
         <View style={[cm.handle, { backgroundColor: t.border }]} />
         <Text style={[cm.title, { color: t.text }]}>{title}</Text>
         {message ? <Text style={[cm.message, { color: t.textSub }]}>{message}</Text> : null}
@@ -246,26 +253,25 @@ const cm = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject },
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 24, shadowOffset: { width: 0, height: -4 } },
+      ios: { shadowColor: '#000', shadowRadius: 24, shadowOffset: { width: 0, height: -4 } },
       android: { elevation: 16 },
     }),
   },
-  handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20 },
-  title:        { fontSize: 20, fontWeight: '800', color: '#1A1A1A', textAlign: 'center', letterSpacing: -0.3, marginBottom: 10 },
-  message:      { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 21, marginBottom: 28 },
+  handle:       { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  title:        { fontSize: 20, fontFamily: FONTS.sansMedium, textAlign: 'center', letterSpacing: -0.3, marginBottom: 10 },
+  message:      { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 21, marginBottom: 28 },
   actions:      { flexDirection: 'row', gap: 10 },
-  cancelBtn:    { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center' },
-  cancelLabel:  { fontSize: 15, fontWeight: '700', color: '#888' },
-  confirmBtn:   { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#1A1A1A', alignItems: 'center' },
-  confirmLabel: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  cancelBtn:    { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, alignItems: 'center' },
+  cancelLabel:  { fontSize: 15, fontFamily: FONTS.sansMedium },
+  confirmBtn:   { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
+  confirmLabel: { fontSize: 15, fontFamily: FONTS.sansMedium },
 });
 
 // ============================================================================
-// DAY PICKER — barre horizontale 7 jours glissants
+// DAY PICKER
 // ============================================================================
 
 function buildDays(count = 10) {
@@ -313,8 +319,8 @@ function DayPicker({ selected, onSelect }: { selected: string | null; onSelect: 
             onPress={() => onSelect(active ? null : day.iso)}
             activeOpacity={0.75}
           >
-            <Text style={[dp.dayName, { color: t.textMuted }, active && dp.dayNameSelected]}>{day.dayName}</Text>
-            <Text style={[dp.dayNum, { color: t.text }, active && dp.dayNumSelected]}>{day.dayNum}</Text>
+            <Text style={[dp.dayName, { color: t.textMuted }, active && { color: t.isDark ? 'rgba(8,8,8,0.65)' : 'rgba(255,255,255,0.65)' }]}>{day.dayName}</Text>
+            <Text style={[dp.dayNum, { color: t.text }, active && { color: t.accentText }]}>{day.dayNum}</Text>
           </TouchableOpacity>
         );
       })}
@@ -323,29 +329,27 @@ function DayPicker({ selected, onSelect }: { selected: string | null; onSelect: 
 }
 
 const dp = StyleSheet.create({
-  scroll:    { flexGrow: 0, backgroundColor: '#FFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' },
+  scroll:    { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth },
   container: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, alignItems: 'center' },
   chip: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#F5F5F5', borderWidth: 1.5, borderColor: 'transparent',
-  },
-  chipSelected:      { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  chipLabel:         { fontSize: 13, fontWeight: '600', color: '#888' },
-  chipLabelSelected: { color: '#FFF', fontWeight: '700' },
-  day: {
-    alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 14, backgroundColor: '#F5F5F5', minWidth: 52,
     borderWidth: 1.5, borderColor: 'transparent',
   },
-  daySelected:     { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
-  dayName:         { fontSize: 10, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 },
-  dayNameSelected: { color: 'rgba(255,255,255,0.65)' },
-  dayNum:          { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
-  dayNumSelected:  { color: '#FFF' },
+  chipSelected:      { borderColor: 'transparent' },
+  chipLabel:         { fontSize: 13, fontFamily: FONTS.sansMedium },
+  chipLabelSelected: { },
+  day: {
+    alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 14, minWidth: 52,
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  daySelected:     { borderColor: 'transparent' },
+  dayName:         { fontSize: 10, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 },
+  dayNum:          { fontSize: 18, fontFamily: FONTS.bebas },
 });
 
 // ============================================================================
-// EARNINGS BANNER — bandeau CA journalier
+// EARNINGS BANNER
 // ============================================================================
 
 function EarningsBanner({ missions }: { missions: Mission[] }) {
@@ -371,7 +375,7 @@ function EarningsBanner({ missions }: { missions: Mission[] }) {
         <Text style={[eb.text, { color: t.textSub }]}>
           {todayMs.length > 0
             ? `${todayMs.length} mission${todayMs.length > 1 ? 's' : ''} aujourd'hui`
-            : 'Journée complétée'}
+            : 'Journee completee'}
         </Text>
       </View>
       {doneTodayEarnings > 0 && (
@@ -385,16 +389,16 @@ const eb = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginHorizontal: 16, marginTop: 4, marginBottom: 2,
-    backgroundColor: '#F5F5F5', borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 10,
   },
   left:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  text:     { fontSize: 13, fontWeight: '600', color: '#555' },
-  earnings: { fontSize: 14, fontWeight: '800', color: '#1A1A1A' },
+  text:     { fontSize: 13, fontFamily: FONTS.sansMedium },
+  earnings: { fontSize: 14, fontFamily: FONTS.monoMedium },
 });
 
 // ============================================================================
-// MISSION CARD — style "Lame" Uber-like
+// MISSION CARD
 // ============================================================================
 
 function MissionCard({
@@ -415,22 +419,21 @@ function MissionCard({
   const canComplete = mission.status === 'ONGOING';
   const canNavigate = isActive && !!(mission.lat || mission.location?.lat);
 
-  // Badge monochrome
   const badgeBg    = cfg.done ? t.surface : isActive ? t.accent : t.surface;
   const badgeColor = cfg.done ? t.textSub : isActive ? t.accentText : t.textMuted;
 
   return (
-    <TouchableOpacity style={[mc.card, { backgroundColor: t.cardBg }, isActive && [mc.cardActive, { borderColor: t.accent }]]} onPress={onPress} activeOpacity={0.78}>
+    <TouchableOpacity style={[mc.card, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }, isActive && [mc.cardActive, { borderColor: t.accent }]]} onPress={onPress} activeOpacity={0.78}>
 
-      {/* Barre temporelle à gauche */}
+      {/* Barre temporelle a gauche */}
       <View style={mc.timeCol}>
         {time ? (
           <>
-            <Text style={[mc.timeText, { color: t.textMuted }, isActive && [mc.timeTextActive, { color: t.text }]]}>{time}</Text>
-            <View style={[mc.timeLine, { backgroundColor: t.border }, isActive && [mc.timeLineActive, { backgroundColor: t.accent }]]} />
+            <Text style={[mc.timeText, { color: t.textMuted }, isActive && { color: t.text }]}>{time}</Text>
+            <View style={[mc.timeLine, { backgroundColor: t.border }, isActive && { backgroundColor: t.accent }]} />
           </>
         ) : (
-          <View style={[mc.timeDot, { backgroundColor: t.border }, isActive && [mc.timeDotActive, { backgroundColor: t.accent }]]} />
+          <View style={[mc.timeDot, { backgroundColor: t.border }, isActive && { backgroundColor: t.accent }]} />
         )}
       </View>
 
@@ -448,7 +451,7 @@ function MissionCard({
             </View>
           </View>
 
-          {/* Gains à droite — vert uniquement */}
+          {/* Gains a droite */}
           <View style={mc.earningsCol}>
             <Text style={[mc.earningsNet, { color: t.text }]}>+{formatEuros(net)}</Text>
             <Text style={[mc.earningsLabel, { color: t.textMuted }]}>net</Text>
@@ -469,7 +472,7 @@ function MissionCard({
               </TouchableOpacity>
             )}
             {canComplete && (
-              <TouchableOpacity style={[mc.quickBtn, mc.quickBtnComplete, { backgroundColor: t.surface }]} onPress={onComplete} activeOpacity={0.8}>
+              <TouchableOpacity style={[mc.quickBtn, { backgroundColor: t.surface }]} onPress={onComplete} activeOpacity={0.8}>
                 <Ionicons name="checkmark" size={15} color={t.text} />
               </TouchableOpacity>
             )}
@@ -483,46 +486,37 @@ function MissionCard({
 const mc = StyleSheet.create({
   card: {
     flexDirection: 'row',
-    backgroundColor: '#FFF',
     borderRadius: 18, marginBottom: 8,
     overflow: 'hidden',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
       android: { elevation: 2 },
     }),
   },
-  cardActive: { borderWidth: 1.5, borderColor: '#1A1A1A' },
+  cardActive: { borderWidth: 1.5 },
 
-  // Colonne temporelle gauche
   timeCol:       { width: 56, alignItems: 'center', paddingTop: 16, paddingBottom: 12, gap: 4 },
-  timeText:      { fontSize: 12, fontWeight: '700', color: '#ADADAD' },
-  timeTextActive:{ color: '#1A1A1A' },
-  timeLine:      { flex: 1, width: 2, backgroundColor: '#F0F0F0', borderRadius: 1 },
-  timeLineActive:{ backgroundColor: '#1A1A1A' },
-  timeDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0E0E0', marginTop: 4 },
-  timeDotActive: { backgroundColor: '#1A1A1A' },
+  timeText:      { fontSize: 12, fontFamily: FONTS.mono },
+  timeLine:      { flex: 1, width: 2, borderRadius: 1 },
+  timeDot:       { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
 
-  // Corps
   body:   { flex: 1, paddingRight: 14, paddingTop: 14, paddingBottom: 12 },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   info:   { flex: 1, gap: 3 },
-  title:  { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
-  client: { fontSize: 12, color: '#888', fontWeight: '500' },
+  title:  { fontSize: 15, fontFamily: FONTS.sansMedium },
+  client: { fontSize: 12, fontFamily: FONTS.sans },
   addrRow:{ flexDirection: 'row', alignItems: 'center', gap: 3 },
-  addr:   { fontSize: 11, color: '#ADADAD', flex: 1 },
+  addr:   { fontSize: 11, fontFamily: FONTS.sans, flex: 1 },
 
-  // Gains
   earningsCol:   { alignItems: 'flex-end', paddingLeft: 10 },
-  earningsNet:   { fontSize: 18, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.4 },
-  earningsLabel: { fontSize: 10, color: '#ADADAD', fontWeight: '600' },
+  earningsNet:   { fontSize: 18, fontFamily: FONTS.bebas, letterSpacing: -0.4 },
+  earningsLabel: { fontSize: 10, fontFamily: FONTS.mono },
 
-  // Footer
   footer:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   badge:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  badgeText:   { fontSize: 11, fontWeight: '700' },
+  badgeText:   { fontSize: 11, fontFamily: FONTS.sansMedium },
   quickActions:{ flexDirection: 'row', gap: 6 },
-  quickBtn:    { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  quickBtnComplete: { backgroundColor: '#F5F5F5' },
+  quickBtn:    { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });
 
 // ============================================================================
@@ -547,11 +541,11 @@ function FilterBar({ options, selected, onSelect }: {
         const active = item.key === selected;
         return (
           <TouchableOpacity
-            style={[fb.chip, { backgroundColor: t.surface }, active && [fb.chipActive, { backgroundColor: t.accent }]]}
+            style={[fb.chip, { backgroundColor: t.surface }, active && { backgroundColor: t.accent }]}
             onPress={() => onSelect(item.key)}
             activeOpacity={0.8}
           >
-            <Text numberOfLines={1} style={[fb.chipText, { color: t.textSub }, active && [fb.chipTextActive, { color: t.accentText }]]}>
+            <Text numberOfLines={1} style={[fb.chipText, { color: t.textSub }, active && { color: t.accentText }]}>
               {item.label}
             </Text>
           </TouchableOpacity>
@@ -564,11 +558,9 @@ function FilterBar({ options, selected, onSelect }: {
 const fb = StyleSheet.create({
   chip: {
     paddingHorizontal: 16, height: 32, borderRadius: 20,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  chipActive:    { backgroundColor: '#1A1A1A' },
-  chipText:      { fontSize: 13, fontWeight: '600', color: '#888' },
-  chipTextActive:{ color: '#FFF', fontWeight: '700' },
+  chipText:      { fontSize: 13, fontFamily: FONTS.sansMedium },
 });
 
 // ============================================================================
@@ -582,12 +574,11 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
       <View style={es.wrap}>
         <Ionicons name="time-outline" size={40} color={t.textMuted} />
         <Text style={[es.title, { color: t.text }]}>Aucun historique</Text>
-        <Text style={[es.sub, { color: t.textMuted }]}>Vos missions terminées apparaîtront ici.</Text>
+        <Text style={[es.sub, { color: t.textMuted }]}>Vos missions terminees apparaitront ici.</Text>
       </View>
     );
   }
 
-  // Journée complétée — célébration au lieu d'un empty state générique
   if (dayEarnings && dayEarnings > 0) {
     return (
       <View style={es.wrap}>
@@ -595,7 +586,7 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
           <Ionicons name="checkmark" size={32} color={t.accentText} />
         </View>
         <Text style={[es.heroAmount, { color: t.text }]}>+{formatEuros(dayEarnings)}</Text>
-        <Text style={[es.title, { color: t.text }]}>Journée complétée</Text>
+        <Text style={[es.title, { color: t.text }]}>Journee completee</Text>
         <Text style={[es.sub, { color: t.textMuted }]}>Excellent travail. Vos gains sont en cours de traitement.</Text>
       </View>
     );
@@ -606,8 +597,8 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
       <View style={[es.iconWrap, { backgroundColor: t.surface }]}>
         <Ionicons name="navigate-circle-outline" size={44} color={t.textMuted} />
       </View>
-      <Text style={[es.title, { color: t.text }]}>Aucune mission à venir</Text>
-      <Text style={[es.sub, { color: t.textMuted }]}>Passez en ligne pour commencer à recevoir des missions.</Text>
+      <Text style={[es.title, { color: t.text }]}>Aucune mission a venir</Text>
+      <Text style={[es.sub, { color: t.textMuted }]}>Passez en ligne pour commencer a recevoir des missions.</Text>
       <TouchableOpacity style={[es.cta, { backgroundColor: t.accent }]} onPress={onGoOnline} activeOpacity={0.85}>
         <View style={[es.ctaDot, { backgroundColor: t.accentText }]} />
         <Text style={[es.ctaText, { color: t.accentText }]}>Passer en ligne</Text>
@@ -619,17 +610,17 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
 
 const es = StyleSheet.create({
   wrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 80, gap: 12 },
-  iconWrap:{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  iconWrap:{ width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   checkCircle: {
-    width: 64, height: 64, borderRadius: 32, backgroundColor: '#1A1A1A',
+    width: 64, height: 64, borderRadius: 32,
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  heroAmount: { fontSize: 36, fontWeight: '900', color: '#1A1A1A', letterSpacing: -1.5 },
-  title:   { fontSize: 17, fontWeight: '800', color: '#1A1A1A', textAlign: 'center' },
-  sub:     { fontSize: 14, color: '#ADADAD', textAlign: 'center', lineHeight: 20 },
-  cta:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#1A1A1A', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20, marginTop: 8 },
-  ctaDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
-  ctaText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+  heroAmount: { fontSize: 36, fontFamily: FONTS.bebas, letterSpacing: -1.5 },
+  title:   { fontSize: 17, fontFamily: FONTS.sansMedium, textAlign: 'center' },
+  sub:     { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
+  cta:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20, marginTop: 8 },
+  ctaDot:  { width: 8, height: 8, borderRadius: 4 },
+  ctaText: { fontSize: 15, fontFamily: FONTS.sansMedium },
 });
 
 // ============================================================================
@@ -657,10 +648,10 @@ function OpportunityCard({
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
+      <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
         <View style={opp.cardHead}>
           <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
-            <Ionicons name="construct-outline" size={14} color={theme.text} />
+            <Ionicons name={(item.category.icon || getServiceIcon(item.category.name)) as any} size={14} color={theme.text} />
             <Text style={[opp.catBadgeText, { color: theme.text }]}>{item.category.name}</Text>
           </View>
           <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
@@ -680,7 +671,7 @@ function OpportunityCard({
         <View style={opp.infoRow}>
           <View style={opp.infoItem}>
             <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
-            <Text style={[opp.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
+            <Text style={[opp.infoText, { color: theme.textSub }]}>{day} a {time}</Text>
           </View>
           <View style={opp.infoItem}>
             <Ionicons name="location-outline" size={14} color={theme.textMuted} />
@@ -694,23 +685,23 @@ function OpportunityCard({
           {net ? (
             <View>
               <Text style={[opp.priceNet, { color: theme.text }]}>{net} €</Text>
-              <Text style={[opp.priceLabel, { color: theme.textMuted }]}>net estimé</Text>
+              <Text style={[opp.priceLabel, { color: theme.textMuted }]}>net estime</Text>
             </View>
           ) : (
             <View />
           )}
           <TouchableOpacity
-            style={opp.acceptBtn}
+            style={[opp.acceptBtn, { backgroundColor: theme.accent }]}
             onPress={handlePress}
             disabled={accepting !== null}
             activeOpacity={0.8}
           >
             {accepting === item.id ? (
-              <ActivityIndicator size="small" color="#FFF" />
+              <ActivityIndicator size="small" color={theme.accentText} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-                <Text style={opp.acceptText}>Accepter</Text>
+                <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
+                <Text style={[opp.acceptText, { color: theme.accentText }]}>Accepter</Text>
               </>
             )}
           </TouchableOpacity>
@@ -723,31 +714,31 @@ function OpportunityCard({
 const opp = StyleSheet.create({
   card: {
     borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8,
+    shadowColor: '#000', shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  catBadgeText: { fontSize: 12, fontWeight: '600' },
+  catBadgeText: { fontSize: 12, fontFamily: FONTS.sansMedium },
   relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  relText: { fontSize: 11, fontWeight: '600' },
-  serviceName: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
-  desc: { fontSize: 13, fontWeight: '500', lineHeight: 18, marginBottom: 10 },
+  relText: { fontSize: 11, fontFamily: FONTS.sansMedium },
+  serviceName: { fontSize: 17, fontFamily: FONTS.sansMedium, marginBottom: 4 },
+  desc: { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18, marginBottom: 10 },
   infoRow: { gap: 6, marginBottom: 14 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  infoText: { fontSize: 13, fontWeight: '500' },
+  infoText: { fontSize: 13, fontFamily: FONTS.sans },
   cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  priceNet: { fontSize: 20, fontWeight: '800' },
-  priceLabel: { fontSize: 11, fontWeight: '500' },
+  priceNet: { fontSize: 20, fontFamily: FONTS.bebas },
+  priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
   acceptBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#1A1A1A', borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 18, paddingVertical: 10,
   },
-  acceptText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  acceptText: { fontSize: 14, fontFamily: FONTS.sansMedium },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', marginTop: 8, textAlign: 'center' },
-  emptySub: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: 18, fontFamily: FONTS.sansMedium, marginTop: 8, textAlign: 'center' },
+  emptySub: { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
 });
 
 // ============================================================================
@@ -765,7 +756,7 @@ function ClientAvatar({ name, size = 40 }: { name: string; size?: number }) {
 }
 const cav = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center' },
-  text:   { fontWeight: '800', letterSpacing: 0.5 },
+  text:   { fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
 });
 
 // ============================================================================
@@ -779,7 +770,7 @@ function TabBar({ tab, onChange, upcomingCount, opportunityCount }: {
   const indicatorX = useRef(new Animated.Value(0)).current;
 
   const TAB_INDEX: Record<Tab, number> = { opportunities: 0, upcoming: 1, history: 2 };
-  const TAB_LABELS: Record<Tab, string> = { opportunities: 'Opportunités', upcoming: 'À venir', history: 'Historique' };
+  const TAB_LABELS: Record<Tab, string> = { opportunities: 'Opportunites', upcoming: 'A venir', history: 'Historique' };
 
   useEffect(() => {
     Animated.spring(indicatorX, { toValue: TAB_INDEX[tab], tension: 220, friction: 22, useNativeDriver: false }).start();
@@ -789,10 +780,10 @@ function TabBar({ tab, onChange, upcomingCount, opportunityCount }: {
 
   return (
     <View style={[tb.wrap, { backgroundColor: t.surface }]}>
-      <Animated.View style={[tb.indicator, tb.indicator3, { backgroundColor: t.cardBg }, { left: indicatorLeft }]} />
+      <Animated.View style={[tb.indicator, tb.indicator3, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }, { left: indicatorLeft }]} />
       {(['opportunities', 'upcoming', 'history'] as Tab[]).map(tb2 => (
         <TouchableOpacity key={tb2} style={tb.tab} onPress={() => onChange(tb2)} activeOpacity={0.75}>
-          <Text style={[tb.label, { color: t.textMuted }, tab === tb2 && [tb.labelActive, { color: t.text }]]}>
+          <Text style={[tb.label, { color: t.textMuted }, tab === tb2 && { color: t.text, fontFamily: FONTS.sansMedium }]}>
             {TAB_LABELS[tb2]}
           </Text>
           {tb2 === 'upcoming' && upcomingCount > 0 && (
@@ -812,19 +803,18 @@ function TabBar({ tab, onChange, upcomingCount, opportunityCount }: {
 }
 
 const tb = StyleSheet.create({
-  wrap:      { flexDirection: 'row', backgroundColor: '#F5F5F5', marginHorizontal: 16, marginTop: 10, marginBottom: 4, borderRadius: 14, padding: 4, position: 'relative' },
-  indicator: { position: 'absolute', top: 4, bottom: 4, width: '50%', backgroundColor: '#FFF', borderRadius: 11,
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6 }, android: { elevation: 2 } }) },
+  wrap:      { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, marginBottom: 4, borderRadius: 14, padding: 4, position: 'relative' },
+  indicator: { position: 'absolute', top: 4, bottom: 4, width: '50%', borderRadius: 11,
+    ...Platform.select({ ios: { shadowColor: '#000', shadowRadius: 6 }, android: { elevation: 2 } }) },
   indicator3: { width: '33.33%' },
   tab:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 4 },
-  label:     { fontSize: 13, fontWeight: '600', color: '#ADADAD' },
-  labelActive:{ color: '#1A1A1A', fontWeight: '700' },
-  badge:     { backgroundColor: '#1A1A1A', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, minWidth: 18, alignItems: 'center' },
-  badgeText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
+  label:     { fontSize: 13, fontFamily: FONTS.sans },
+  badge:     { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, minWidth: 18, alignItems: 'center' },
+  badgeText: { fontSize: 10, fontFamily: FONTS.monoMedium },
 });
 
 // ============================================================================
-// MISSION DETAIL — Bottom Sheet
+// MISSION DETAIL -- Bottom Sheet
 // ============================================================================
 
 function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
@@ -832,6 +822,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
 }) {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { initiateCall } = useCall();
   const TAB_BAR_H = Platform.OS === 'ios' ? 70 : 54;
   const cfg         = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const net         = mission.price * NET_RATE;
@@ -845,15 +836,15 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const createdAt   = mission.createdAt  ? new Date(mission.createdAt)  : null;
   const scheduledAt = mission.scheduledAt ? new Date(mission.scheduledAt) : null;
 
-  const fmtT = (d: Date | null) => d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
-  const fmtD = (d: Date | null) => d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '—';
+  const fmtT = (d: Date | null) => d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '\u2014';
+  const fmtD = (d: Date | null) => d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '\u2014';
 
   const badgeBg    = cfg.done ? t.surface : cfg.active ? t.accent : t.surface;
   const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
 
   return (
     <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: TAB_BAR_H + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
-      {/* ── Mini-carte Silver ── */}
+      {/* -- Mini-carte -- */}
       {hasCoords ? (
         <View style={sd.mapContainer}>
           <MapView
@@ -874,7 +865,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <Text style={[sd.mapAddrText, { color: t.text }]} numberOfLines={1}>{address}</Text>
             </View>
           </View>
-          {/* Badge statut flottant — monochrome */}
+          {/* Badge statut flottant */}
           <View style={[sd.mapStatusPill, { backgroundColor: badgeBg }]}>
             <Ionicons name={cfg.icon as any} size={10} color={badgeColor} />
             <Text style={[sd.mapStatusText, { color: badgeColor }]}>{cfg.label}</Text>
@@ -906,7 +897,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             {mission.price > 0 ? (
               <Text style={[sd.earningsNet, { color: t.text }]}>{formatEuros(net)}</Text>
             ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>Prix à confirmer</Text>
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>Prix a confirmer</Text>
             )}
           </View>
           <View style={[sd.earningsDivider, { backgroundColor: t.border }]} />
@@ -915,7 +906,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             {mission.price > 0 ? (
               <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(mission.price)}</Text>
             ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>—</Text>
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>\u2014</Text>
             )}
           </View>
         </View>
@@ -931,7 +922,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Commande passée · {fmtD(createdAt)} · {fmtT(createdAt)}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Commande passee · {fmtD(createdAt)} · {fmtT(createdAt)}</Text>
                 </View>
               </View>
             )}
@@ -939,7 +930,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Confirmée</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Confirmee</Text>
                 </View>
               </View>
             )}
@@ -947,14 +938,14 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Départ prévu · {fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Depart prevu · {fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
                 </View>
               </View>
             )}
             <View style={sd.infoRow}>
               <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
               <View style={sd.infoContent}>
-                <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminée</Text>
+                <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminee</Text>
               </View>
             </View>
             <View style={[sd.sep, { backgroundColor: t.border }]} />
@@ -964,7 +955,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {/* Adresse + description */}
         {(address || mission.description) && (
           <>
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Détails mission</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Details mission</Text>
             {address ? (
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="location-outline" size={12} color={t.textMuted} /></View>
@@ -994,10 +985,38 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={{ flex: 1 }}>
                 <Text style={[sd.clientCardName, { color: t.text }]}>{mission.client.name}</Text>
               </View>
-              {mission.client.phone && (
+              {mission.client.id && (
+                <TouchableOpacity
+                  style={[sd.callBtn, { backgroundColor: t.surfaceAlt || t.surface }]}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/messages/[userId]',
+                      params: {
+                        userId: mission.client!.id!,
+                        name: mission.client!.name,
+                        requestId: String(mission.id),
+                      },
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble" size={16} color={t.text} />
+                </TouchableOpacity>
+              )}
+              {(mission.client.id || mission.client.phone) && (
                 <TouchableOpacity
                   style={[sd.callBtn, { backgroundColor: t.accent }]}
-                  onPress={() => Linking.openURL(`tel:${mission.client!.phone}`)}
+                  onPress={() => {
+                    if (mission.client?.id) {
+                      initiateCall({
+                        targetUserId: mission.client.id,
+                        targetName: mission.client.name,
+                        requestId: String(mission.id),
+                      });
+                    } else if (mission.client?.phone) {
+                      Linking.openURL(`tel:${mission.client.phone}`);
+                    }
+                  }}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="call" size={16} color={t.accentText} />
@@ -1009,7 +1028,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         )}
 
       </View>
-        {/* ── CTA ── */}
+        {/* -- CTA -- */}
         {(canNavigate || canComplete) && (
           <View style={sd.actionsBlock}>
             {canNavigate && (
@@ -1033,58 +1052,52 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
 
 const sd = StyleSheet.create({
   scroll: { paddingBottom: 80 },
-  // Map
   mapContainer: { height: 150, marginTop: 8, overflow: 'hidden', position: 'relative' },
   map:          { ...StyleSheet.absoluteFillObject },
-  markerOuter:  { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(26,26,26,0.12)', alignItems: 'center', justifyContent: 'center' },
-  markerInner:  { width: 12, height: 12, borderRadius: 6, backgroundColor: '#1A1A1A', borderWidth: 2.5, borderColor: '#FFF' },
+  markerOuter:  { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  markerInner:  { width: 12, height: 12, borderRadius: 6, borderWidth: 2.5 },
   mapOverlay:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 12, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0.15)' },
-  mapAddrBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
-  mapAddrText:  { fontSize: 12, color: '#1A1A1A', fontWeight: '600', maxWidth: 260 },
+  mapAddrBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
+  mapAddrText:  { fontSize: 12, fontFamily: FONTS.sansMedium, maxWidth: 260 },
   mapStatusPill:{ position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9 },
-  mapStatusText:{ fontSize: 11, fontWeight: '800' },
-  mapFallback:  { height: 80, backgroundColor: '#F5F5F5', marginHorizontal: 20, marginTop: 8, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 5 },
-  mapFallbackText: { fontSize: 12, color: '#ADADAD', fontWeight: '500' },
+  mapStatusText:{ fontSize: 11, fontFamily: FONTS.sansMedium },
+  mapFallback:  { height: 80, marginHorizontal: 20, marginTop: 8, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  mapFallbackText: { fontSize: 12, fontFamily: FONTS.sans },
 
-  // Body
   body: { paddingHorizontal: 20, paddingTop: 14 },
   titleRow: { marginBottom: 12, gap: 6 },
-  title:    { fontSize: 22, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.4 },
+  title:    { fontSize: 22, fontFamily: FONTS.bebas, letterSpacing: -0.4 },
   clientRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
-  clientName:{ fontSize: 13, color: '#888', fontWeight: '600' },
+  clientName:{ fontSize: 13, fontFamily: FONTS.sansMedium },
 
-  // Gains
-  earningsBlock:  { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F8F8', borderRadius: 16, padding: 14, marginBottom: 12 },
-  earningsLabel:  { fontSize: 11, color: '#ADADAD', fontWeight: '600', marginBottom: 3 },
-  earningsNet:    { fontSize: 28, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.8 },
-  earningsZero:   { fontSize: 16, fontWeight: '600', color: '#888888', fontStyle: 'italic' },
-  earningsDivider:{ width: StyleSheet.hairlineWidth, height: 44, backgroundColor: '#E0E0E0', marginHorizontal: 20 },
-  earningsGross:  { fontSize: 16, fontWeight: '600', color: '#ADADAD' },
+  earningsBlock:  { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 12 },
+  earningsLabel:  { fontSize: 11, fontFamily: FONTS.mono, marginBottom: 3 },
+  earningsNet:    { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: -0.8 },
+  earningsZero:   { fontSize: 16, fontFamily: FONTS.sans, fontStyle: 'italic' },
+  earningsDivider:{ width: StyleSheet.hairlineWidth, height: 44, marginHorizontal: 20 },
+  earningsGross:  { fontSize: 16, fontFamily: FONTS.mono },
 
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: '#F0F0F0', marginVertical: 10 },
+  sep: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
 
-  // Info rows
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 },
+  sectionLabel: { fontSize: 11, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 },
   infoRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
-  infoIcon:     { width: 28, height: 28, borderRadius: 8, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  infoIcon:     { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   infoContent:  { flex: 1 },
-  infoLabel:    { fontSize: 10, fontWeight: '700', color: '#ADADAD', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  infoValue:    { fontSize: 14, fontWeight: '600', color: '#1A1A1A', lineHeight: 20 },
+  infoLabel:    { fontSize: 10, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  infoValue:    { fontSize: 14, fontFamily: FONTS.sans, lineHeight: 20 },
 
-  // Client card
   clientCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  clientCardName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
-  clientCardPhone:{ fontSize: 13, color: '#ADADAD', marginTop: 2 },
-  callBtn:        { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' },
+  clientCardName: { fontSize: 15, fontFamily: FONTS.sansMedium },
+  clientCardPhone:{ fontSize: 13, fontFamily: FONTS.sans, marginTop: 2 },
+  callBtn:        { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 
-  // Actions
   actionsBlock: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, gap: 10,
   },
-  navBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1A1A1A', borderRadius: 16, paddingVertical: 15 },
-  navBtnText:     { fontSize: 15, fontWeight: '700', color: '#FFF' },
-  completeBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1A1A1A', borderRadius: 16, paddingVertical: 15 },
-  completeBtnText:{ fontSize: 15, fontWeight: '700', color: '#FFF' },
+  navBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, paddingVertical: 15 },
+  navBtnText:     { fontSize: 15, fontFamily: FONTS.sansMedium },
+  completeBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, paddingVertical: 15 },
+  completeBtnText:{ fontSize: 15, fontFamily: FONTS.sansMedium },
 });
 
 // ============================================================================
@@ -1117,9 +1130,8 @@ export default function Missions() {
   const [completeModal, setCompleteModal] = useState<Mission | null>(null);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
-  // Dynamic sizing — sheet wraps its content
 
-  // ── Data ──────────────────────────────────────────────────────────────────
+  // -- Data --
   const loadMissions = useCallback(async () => {
     try {
       setError(null);
@@ -1137,7 +1149,7 @@ export default function Missions() {
         location:    r.address ? { address: r.address, lat: r.lat, lng: r.lng } : undefined,
         lat:         r.lat,
         lng:         r.lng,
-        client:      r.client ? { name: r.client.name || '', phone: r.client.phone } : undefined,
+        client:      r.client ? { id: r.client.id, name: r.client.name || '', phone: r.client.phone } : undefined,
         createdAt:   r.createdAt,
         scheduledAt: r.preferredTimeStart || r.scheduledAt,
       }));
@@ -1152,7 +1164,7 @@ export default function Missions() {
     }
   }, []);
 
-  // ── Opportunities ───────────────────────────────────────────────────────
+  // -- Opportunities --
   const fetchOpportunities = useCallback(async () => {
     try {
       const res = await api.get('/requests/opportunities');
@@ -1191,7 +1203,7 @@ export default function Missions() {
   useEffect(() => { loadMissions(); fetchOpportunities(); }, [loadMissions, fetchOpportunities]);
   const onRefresh = () => { setRefreshing(true); loadMissions(); fetchOpportunities(); };
 
-  // ── Auto-redirect quand l'heure planifiée d'une mission ACCEPTED arrive ──
+  // -- Auto-redirect quand l'heure planifiee d'une mission ACCEPTED arrive --
   const redirectedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const accepted = missions.filter(m => m.status === 'ACCEPTED' && m.scheduledAt);
@@ -1206,21 +1218,20 @@ export default function Missions() {
           redirectedRef.current.add(m.id);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           router.push({ pathname: '/request/[id]/ongoing', params: { id: m.id } });
-          return; // une seule redirection à la fois
+          return;
         }
       }
     };
 
     check();
-    const interval = setInterval(check, 30_000); // vérifier toutes les 30s
+    const interval = setInterval(check, 30_000);
     return () => clearInterval(interval);
   }, [missions, router]);
 
-  // ── Filtered lists ────────────────────────────────────────────────────────
+  // -- Filtered lists --
   const upcomingMissions = useMemo(() => missions.filter(m => UPCOMING_STATUSES.includes(m.status)), [missions]);
   const historyMissions  = useMemo(() => missions.filter(m => HISTORY_STATUSES.includes(m.status)),  [missions]);
 
-  // Gains du jour (missions DONE aujourd'hui) — pour le empty state célébration
   const todayDoneEarnings = useMemo(() => {
     const today = new Date();
     return missions
@@ -1244,7 +1255,6 @@ export default function Missions() {
   const displayedList = useMemo(() => {
     let base = tab === 'upcoming' ? upcomingMissions : filteredHistory;
 
-    // Filtre par jour sélectionné
     if (selectedDay && tab === 'upcoming') {
       base = base.filter(m => {
         const d = m.scheduledAt || m.createdAt;
@@ -1252,7 +1262,6 @@ export default function Missions() {
       });
     }
 
-    // Recherche texte
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       base = base.filter(m =>
@@ -1265,7 +1274,7 @@ export default function Missions() {
     return base;
   }, [tab, upcomingMissions, filteredHistory, selectedDay, searchQuery]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  // -- Actions --
   const handleMissionPress = async (missionId: string) => {
     setLoadingDetails(true);
     bottomSheetRef.current?.expand();
@@ -1283,7 +1292,7 @@ export default function Missions() {
         location:    r.address ? { address: r.address, lat: r.lat, lng: r.lng } : undefined,
         lat:         r.lat,
         lng:         r.lng,
-        client:      r.client ? { name: r.client.name || '', phone: r.client.phone } : undefined,
+        client:      r.client ? { id: r.client.id, name: r.client.name || '', phone: r.client.phone } : undefined,
         createdAt:   r.createdAt,
         scheduledAt: r.preferredTimeStart || r.scheduledAt,
       });
@@ -1294,7 +1303,7 @@ export default function Missions() {
   const handleNavigate = (mission: Mission) => {
     const lat = mission.lat || mission.location?.lat;
     const lng = mission.lng || mission.location?.lng;
-    if (!lat || !lng) return; // Coordonnées absentes — silencieux
+    if (!lat || !lng) return;
     const url = Platform.select({
       ios:     `maps://app?daddr=${lat},${lng}`,
       android: `google.navigation:q=${lat},${lng}`,
@@ -1302,7 +1311,6 @@ export default function Missions() {
     if (url) Linking.openURL(url);
   };
 
-  // handleComplete — plus d'Alert, on ouvre le ConfirmModal
   const handleComplete = useCallback((mission: Mission) => {
     setCompleteModal(mission);
   }, []);
@@ -1317,13 +1325,13 @@ export default function Missions() {
     try {
       const response = await api.post(`/requests/${mission.id}/complete`);
       const earnings = response.earnings ?? (mission.price * NET_RATE);
-      devLog(`[Missions] Mission ${mission.id} terminée. Gains: ${formatEuros(earnings)}`);
+      devLog(`[Missions] Mission ${mission.id} terminee. Gains: ${formatEuros(earnings)}`);
       await loadMissions();
       router.push({ pathname: '/request/[id]/earnings', params: { id: mission.id } });
     } catch (error: any) {
       if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
         await loadMissions();
-        devWarn('[Missions] Statut mission déjà changé — rechargement');
+        devWarn('[Missions] Statut mission deja change -- rechargement');
       } else {
         devError('[Missions] Impossible de terminer:', error?.message);
       }
@@ -1358,14 +1366,14 @@ export default function Missions() {
   return (
     <SafeAreaView style={[s.root, { backgroundColor: t.bg }]}>
 
-      {/* ── Header ── */}
+      {/* -- Header -- */}
       <View style={[s.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
         <View style={s.headerRow}>
           <View>
             <Text style={[s.headerTitle, { color: t.text }]}>Missions</Text>
             {upcomingMissions.length > 0 && (
               <Text style={[s.headerSub, { color: t.textMuted }]}>
-                {upcomingMissions.length} mission{upcomingMissions.length > 1 ? 's' : ''} à venir
+                {upcomingMissions.length} mission{upcomingMissions.length > 1 ? 's' : ''} a venir
               </Text>
             )}
           </View>
@@ -1401,10 +1409,10 @@ export default function Missions() {
         )}
       </View>
 
-      {/* ── Tabs ── */}
+      {/* -- Tabs -- */}
       <TabBar tab={tab} onChange={setTab} upcomingCount={upcomingMissions.length} opportunityCount={opportunities.length} />
 
-      {/* ── Opportunités tab ── */}
+      {/* -- Opportunites tab -- */}
       {tab === 'opportunities' && (
         loadingOpps ? (
           <View style={s.center}>
@@ -1413,9 +1421,9 @@ export default function Missions() {
         ) : opportunities.length === 0 ? (
           <View style={opp.emptyWrap}>
             <Ionicons name="telescope-outline" size={48} color={t.textMuted} />
-            <Text style={[opp.emptyTitle, { color: t.text }]}>Aucune opportunité</Text>
+            <Text style={[opp.emptyTitle, { color: t.text }]}>Aucune opportunite</Text>
             <Text style={[opp.emptySub, { color: t.textSub }]}>
-              Les missions planifiées correspondant à vos compétences apparaîtront ici.
+              Les missions planifiees correspondant a vos competences apparaitront ici.
             </Text>
           </View>
         ) : (
@@ -1434,33 +1442,33 @@ export default function Missions() {
         )
       )}
 
-      {/* ── DayPicker (uniquement À venir) ── */}
+      {/* -- DayPicker (uniquement A venir) -- */}
       {tab === 'upcoming' && (
         <DayPicker selected={selectedDay} onSelect={setSelectedDay} />
       )}
 
-      {/* ── Bandeau CA journalier ── */}
+      {/* -- Bandeau CA journalier -- */}
       {tab === 'upcoming' && (
         <EarningsBanner missions={missions} />
       )}
 
-      {/* ── Filtres Historique ── */}
+      {/* -- Filtres Historique -- */}
       {tab === 'history' && historyFilterOptions.length > 1 && (
         <FilterBar options={historyFilterOptions} selected={historyFilter} onSelect={setHistoryFilter} />
       )}
 
-      {/* ── Erreur ── */}
+      {/* -- Erreur -- */}
       {error && tab !== 'opportunities' && (
         <View style={[s.errorBanner, { backgroundColor: t.surface }]}>
           <Ionicons name="alert-circle-outline" size={15} color={t.text} />
           <Text style={[s.errorText, { color: t.text }]}>{error}</Text>
           <TouchableOpacity onPress={loadMissions}>
-            <Text style={[s.retryText, { color: t.text }]}>Réessayer</Text>
+            <Text style={[s.retryText, { color: t.text }]}>Reessayer</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* ── Liste missions (À venir / Historique) ── */}
+      {/* -- Liste missions (A venir / Historique) -- */}
       {tab !== 'opportunities' && (
         <FlatList
           data={displayedList}
@@ -1475,7 +1483,7 @@ export default function Missions() {
         />
       )}
 
-      {/* ── Bottom Sheet Detail ── */}
+      {/* -- Bottom Sheet Detail -- */}
       <BottomSheet ref={bottomSheetRef} index={-1} enableDynamicSizing enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={Dimensions.get('window').height * 0.85}>
         {loadingDetails ? (
           <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
@@ -1495,7 +1503,7 @@ export default function Missions() {
         ) : null}
       </BottomSheet>
 
-      {/* ── Modal confirmation "Terminer" ── */}
+      {/* -- Modal confirmation "Terminer" -- */}
       <ConfirmModal
         visible={!!completeModal}
         title="Terminer la mission ?"
@@ -1515,21 +1523,21 @@ export default function Missions() {
 // ============================================================================
 
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#FFFFFF' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  root:   { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: '#FFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 26, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
-  headerSub:   { fontSize: 13, color: '#ADADAD', fontWeight: '500', marginTop: 2 },
-  searchIconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
-  searchBar:   { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 14, height: 44, marginTop: 12 },
-  searchInput: { flex: 1, fontSize: 14, color: '#1A1A1A', paddingHorizontal: 10, height: 44 },
+  headerTitle: { fontSize: 26, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerSub:   { fontSize: 13, fontFamily: FONTS.sans, marginTop: 2 },
+  searchIconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  searchBar:   { flexDirection: 'row', alignItems: 'center', borderRadius: 14, height: 44, marginTop: 12 },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: FONTS.sans, paddingHorizontal: 10, height: 44 },
 
   list:      { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32 },
   listEmpty: { flex: 1 },
 
-  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F5F5F5', marginHorizontal: 16, marginBottom: 4, borderRadius: 12, padding: 12 },
-  errorText:   { flex: 1, fontSize: 13, color: '#1A1A1A', fontWeight: '500' },
-  retryText:   { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 4, borderRadius: 12, padding: 12 },
+  errorText:   { flex: 1, fontSize: 13, fontFamily: FONTS.sans },
+  retryText:   { fontSize: 13, fontFamily: FONTS.sansMedium },
 });
