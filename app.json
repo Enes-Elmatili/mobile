@@ -23,7 +23,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.fixed.app",
+      "bundleIdentifier": "app.thefixed.client",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Votre position permet de trouver les prestataires autour de vous et d'assurer un suivi précis de l'intervention.",
@@ -37,7 +37,7 @@
         "foregroundImage": "./assets/app-icons-android/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/app-icons-android/adaptive-icon-background.png"
       },
-      "package": "com.fixed.app",
+      "package": "app.thefixed.client",
       "intentFilters": [
         {
           "action": "VIEW",
