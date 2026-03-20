@@ -8,7 +8,7 @@ interface AppConfig {
 
 // ✅ Type-safe configuration
 const config: AppConfig = {
-  apiUrl: Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3000/api',
+  apiUrl: Constants.expoConfig?.extra?.apiUrl || 'https://api.thefixed.app/api',
   environment: Constants.expoConfig?.extra?.environment || 'development',
   enableLogs: Constants.expoConfig?.extra?.enableLogs ?? true,
 };
