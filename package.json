@@ -10,6 +10,13 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": ["react-native-webrtc"]
+      }
+    }
+  },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^13.0.0",
     "@expo-google-fonts/bebas-neue": "^0.4.1",
