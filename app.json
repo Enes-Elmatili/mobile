@@ -104,10 +104,10 @@
       ],
       "expo-localization",
       "expo-web-browser",
-      "@config-plugins/react-native-webrtc",
       "expo-font"
     ],
     "extra": {
+      "apiUrl": "https://api.thefixed.app/api",
       "eas": {
         "projectId": "d6938f3f-e8b0-4b3f-9ddd-d781ef02754a"
       }
