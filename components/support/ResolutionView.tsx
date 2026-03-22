@@ -31,7 +31,7 @@ function buildWhatsAppMessage(mission: Mission | null, problem: ProblemOption, u
     return [
       'Bonjour FIXED Support,',
       `Mission #${mission.id} — ${mission.serviceType}`,
-      `Probleme : ${problem.label}`,
+      `Problème : ${problem.label}`,
       `Client : ${userName}`,
       `Adresse : ${mission.address}`,
       `Date : ${date}`,
@@ -39,7 +39,7 @@ function buildWhatsAppMessage(mission: Mission | null, problem: ProblemOption, u
   }
   return [
     'Bonjour FIXED Support,',
-    `Probleme : ${problem.label}`,
+    `Problème : ${problem.label}`,
     `Client : ${userName}`,
   ].join('\n');
 }
@@ -51,7 +51,7 @@ function openWhatsApp(message: string) {
 }
 
 const SEVERITY_CONFIG: Record<Severity, { icon: string; btnLabel: string; btnIcon: string }> = {
-  low: { icon: 'checkmark-circle-outline', btnLabel: "C'est resolu", btnIcon: 'checkmark' },
+  low: { icon: 'checkmark-circle-outline', btnLabel: "C'est résolu", btnIcon: 'checkmark' },
   medium: { icon: 'chatbubble-outline', btnLabel: 'Contacter le support', btnIcon: 'logo-whatsapp' },
   high: { icon: 'alert-circle-outline', btnLabel: 'Escalade urgente', btnIcon: 'alert-circle' },
 };

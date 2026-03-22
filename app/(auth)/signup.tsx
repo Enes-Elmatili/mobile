@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, KeyboardAvoidingView, Platform,
+  Animated, Dimensions, Platform,
   Easing, StatusBar, ScrollView, ActivityIndicator, Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -190,8 +190,8 @@ const RADIUS_OPTIONS = [
   { value: 10, label: "10 km", hint: "Ville" },
   { value: 20, label: "20 km", hint: "Agglo." },
   { value: 30, label: "30 km", hint: "Grand bassin" },
-  { value: 50, label: "50 km", hint: "Region" },
-  { value: 100, label: "100 km", hint: "Elargie" },
+  { value: 50, label: "50 km", hint: "Région" },
+  { value: 100, label: "100 km", hint: "Élargie" },
 ];
 
 interface Category { id: number; name: string; icon?: string }
@@ -247,7 +247,7 @@ export default function Signup() {
       }
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
-      else showToast("Connexion impossible, reessaie");
+      else showToast("Connexion impossible, réessaie");
     } finally {
       setSocialLoading(null);
     }
@@ -279,7 +279,7 @@ export default function Signup() {
     } catch (e: any) {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") { /* silent */ }
       else if (e?.status === 409) showToast(e.data?.error || e.message);
-      else showToast("Connexion impossible, reessaie");
+      else showToast("Connexion impossible, réessaie");
     } finally {
       setSocialLoading(null);
     }
@@ -368,7 +368,7 @@ export default function Signup() {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000));
     Promise.race([api.taxonomies.list(), timeout])
       .then((res: any) => setCategories(res?.data ?? res ?? []))
-      .catch(() => { setCatsError(true); showToast("Erreur de chargement des categories"); })
+      .catch(() => { setCatsError(true); showToast("Erreur de chargement des catégories"); })
       .finally(() => setCatsLoading(false));
   }, []);
 
@@ -387,7 +387,7 @@ export default function Signup() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (!name.trim()) showToast("Entrez votre nom");
       else if (!isEmailValid) showToast("Adresse mail invalide");
-      else showToast("Mot de passe trop court — 8 caracteres min.");
+      else showToast("Mot de passe trop court — 8 caractères min.");
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -411,7 +411,7 @@ export default function Signup() {
     if (isProvider && !canZone) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (city.trim().length < 2) showToast("Entrez votre ville de base");
-      else showToast("Selectionnez au moins un domaine");
+      else showToast("Sélectionnez au moins un domaine");
       return;
     }
     if (!isProvider && !canIdentity) return;
@@ -443,7 +443,7 @@ export default function Signup() {
       router.replace({ pathname: "/(auth)/verify-email", params: { email: email.trim().toLowerCase() } });
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showToast(err.message || "Echec de l'inscription");
+      showToast(err.message || "Échec de l'inscription");
       setPhase(isProvider ? "zone" : "identity");
     }
   };
@@ -465,7 +465,7 @@ export default function Signup() {
         <GridLines />
         <View style={s.creatingWrap}>
           <Spinner color={C.white} />
-          <Text style={s.creatingText}>Creation de votre compte...</Text>
+          <Text style={s.creatingText}>Création de votre compte...</Text>
           {isProvider && <Text style={s.creatingSubtext}>Configuration du profil prestataire</Text>}
         </View>
       </View>
@@ -494,7 +494,7 @@ export default function Signup() {
         ))}
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
 
         {/* Header */}
         <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
@@ -520,10 +520,10 @@ export default function Signup() {
             {phase === "identity" ? (
               <>
                 <Text style={s.logoWordmark}>
-                  CREEZ VOTRE{"\n"}
+                  CRÉEZ VOTRE{"\n"}
                   <Text style={s.logoWordmarkOutline}>COMPTE.</Text>
                 </Text>
-                <Text style={s.titleSub}>Operationnel en moins d'une minute.</Text>
+                <Text style={s.titleSub}>Opérationnel en moins d'une minute.</Text>
               </>
             ) : (
               <>
@@ -543,6 +543,7 @@ export default function Signup() {
             contentContainerStyle={s.bodyScroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            automaticallyAdjustKeyboardInsets
           >
             {/* === IDENTITY PHASE === */}
             {phase === "identity" && (
@@ -576,7 +577,7 @@ export default function Signup() {
                       <TextInput
                         ref={nameRef}
                         style={s.input}
-                        placeholder="Prenom et nom"
+                        placeholder="Prénom et nom"
                         placeholderTextColor="rgba(255,255,255,0.2)"
                         autoCapitalize="words"
                         maxLength={60}
@@ -624,7 +625,7 @@ export default function Signup() {
                       <TextInput
                         ref={pwdRef}
                         style={s.input}
-                        placeholder="Minimum 6 caracteres"
+                        placeholder="Minimum 6 caractères"
                         placeholderTextColor="rgba(255,255,255,0.2)"
                         secureTextEntry={!showPwd}
                         returnKeyType="done"
@@ -649,7 +650,7 @@ export default function Signup() {
                   <Text style={s.cguText}>
                     En continuant, vous acceptez nos{" "}
                     <Text style={s.cguLink}>CGU</Text> et notre{" "}
-                    <Text style={s.cguLink}>Politique de confidentialite</Text>.
+                    <Text style={s.cguLink}>Politique de confidentialité</Text>.
                   </Text>
                 </View>
               </>
@@ -700,13 +701,13 @@ export default function Signup() {
                 </View>
 
                 {/* Categories */}
-                <Text style={[s.sectionLabel, { marginTop: 24 }]}>Vos metiers</Text>
+                <Text style={[s.sectionLabel, { marginTop: 24 }]}>Vos métiers</Text>
                 {catsLoading ? (
                   <View style={s.centered}><ActivityIndicator size="large" color={C.grey} /></View>
                 ) : catsError && categories.length === 0 ? (
                   <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
                     <Ionicons name="refresh-outline" size={24} color={C.grey} />
-                    <Text style={s.retryText}>Reessayer</Text>
+                    <Text style={s.retryText}>Réessayer</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={s.catGrid}>
@@ -728,7 +729,7 @@ export default function Signup() {
                 )}
                 {selectedCats.length > 0 && (
                   <Text style={s.catCount}>
-                    {selectedCats.length} service{selectedCats.length > 1 ? "s" : ""} selectionne{selectedCats.length > 1 ? "s" : ""}
+                    {selectedCats.length} service{selectedCats.length > 1 ? "s" : ""} sélectionné{selectedCats.length > 1 ? "s" : ""}
                   </Text>
                 )}
               </>
@@ -757,7 +758,7 @@ export default function Signup() {
 
           {phase === "identity" && (
             <View style={s.loginRow}>
-              <Text style={s.loginLabel}>Deja un compte ?</Text>
+              <Text style={s.loginLabel}>Déjà un compte ?</Text>
               <TouchableOpacity
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -770,7 +771,7 @@ export default function Signup() {
             </View>
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }

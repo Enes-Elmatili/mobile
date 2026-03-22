@@ -124,11 +124,11 @@ function useTheme() {
     nowConfirmBg:    t.surface,
     noteInputBg:     t.surface,
     noteInputBorder: t.border,
-    searchBoxBg:     t.isDark ? 'rgba(20,20,20,0.75)' : 'rgba(255,255,255,0.75)',
+    searchBoxBg:     t.isDark ? 'rgba(20,20,20,0.92)' : 'rgba(255,255,255,0.92)',
     addrConfirmBg:   t.cardBg,
     addrClearBg:     t.isDark ? '#2A2A2A' : '#E9E7E1',
-    dropdownBg:      t.isDark ? 'rgba(20,20,20,0.55)' : 'rgba(255,255,255,0.55)',
-    dropdownRow:     t.isDark ? 'rgba(20,20,20,0.55)' : 'rgba(255,255,255,0.55)',
+    dropdownBg:      t.isDark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.95)',
+    dropdownRow:     t.isDark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.95)',
     dropdownSep:     t.borderLight,
     chipBg:          t.surface,
     v4CardBg:        t.isDark ? '#1A1A1A' : '#FFFFFF',
@@ -574,6 +574,9 @@ export default function NewRequestStepper() {
     [selectedCategory, subcategoryId]
   );
   const basePrice       = selectedSubcategory?.basePrice || selectedSubcategory?.price || selectedCategory?.price || 0;
+  const pricingMode     = selectedSubcategory?.pricingMode || 'fixed_forfait';
+  const calloutFee      = selectedSubcategory?.calloutFee || 0; // EUR
+  const isQuoteFlow     = pricingMode === 'estimate' || pricingMode === 'diagnostic';
   const serviceName     = selectedSubcategory?.name  || selectedCategory?.name  || null;
   const scheduledLabel  = scheduleMode === 'now'
     ? t('stepper.now')
@@ -656,35 +659,49 @@ export default function NewRequestStepper() {
       setPaymentInitLoading(true);
       try {
         const serviceType = selectedSubcategory?.name || selectedCategory.name;
-        const payload = {
+        const payload: any = {
           title:        serviceType,
           description:  description || `Service de ${serviceType}`,
           serviceType,
           categoryId:   selectedCategory.id,
           ...(subcategoryId && { subcategoryId }),
-          price:        estimatedPrice,
+          price:        isQuoteFlow ? 0 : estimatedPrice,
           address:      location.address,
           lat:          location.lat,
           lng:          location.lng,
           urgent:       isUrgent,
           scheduledFor: scheduledFor || new Date().toISOString(),
-          status:       'PENDING_PAYMENT',
+          status:       isQuoteFlow ? 'QUOTE_PENDING' : 'PENDING_PAYMENT',
+          pricingMode,
         };
         const reqRes = await api.post('/requests', payload);
         const rId    = reqRes.id || reqRes.data?.id;
         if (!rId) throw new Error('Request ID manquant');
         setRequestId(rId);
 
-        const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(rId);
-        const { error } = await initPaymentSheet({
-          merchantDisplayName:      'Fixed',
-          paymentIntentClientSecret: paymentIntent,
-          customerEphemeralKeySecret: ephemeralKey,
-          customerId:                customer,
-          applePay:  { merchantCountryCode: 'BE' },
-          googlePay: { merchantCountryCode: 'BE', testEnv: true },
-        });
-        if (!error) setPaymentReady(true);
+        if (isQuoteFlow) {
+          // Quote flow → payer le callout fee via /quotes/callout-payment
+          const calloutRes = await api.post('/quotes/callout-payment', { requestId: rId });
+          const { error } = await initPaymentSheet({
+            merchantDisplayName:      'Fixed',
+            paymentIntentClientSecret: calloutRes.clientSecret,
+            applePay:  { merchantCountryCode: 'BE' },
+            googlePay: { merchantCountryCode: 'BE', testEnv: true },
+          });
+          if (!error) setPaymentReady(true);
+        } else {
+          // Forfait flow → payer le total via /payments/intent
+          const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(rId);
+          const { error } = await initPaymentSheet({
+            merchantDisplayName:      'Fixed',
+            paymentIntentClientSecret: paymentIntent,
+            customerEphemeralKeySecret: ephemeralKey,
+            customerId:                customer,
+            applePay:  { merchantCountryCode: 'BE' },
+            googlePay: { merchantCountryCode: 'BE', testEnv: true },
+          });
+          if (!error) setPaymentReady(true);
+        }
       } catch (e: any) {
         devError('Payment init error:', e);
       } finally {
@@ -759,8 +776,24 @@ export default function NewRequestStepper() {
         if (presentError.code !== 'Canceled') devError('Payment sheet error:', presentError.message);
         return;
       }
-      await confirmPaymentSuccess(requestId);
-      goToMissionView();
+
+      if (isQuoteFlow) {
+        // Quote flow → callout payé, redirect vers écran "en attente de devis"
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.replace({
+          pathname: '/request/[id]/quote-pending',
+          params: {
+            id:          String(requestId),
+            serviceName: serviceName || '',
+            address:     location?.address || '',
+            calloutFee:  String(calloutFee),
+            pricingMode,
+          },
+        });
+      } else {
+        await confirmPaymentSuccess(requestId);
+        goToMissionView();
+      }
     } catch (error: any) {
       devError('handlePay error:', error);
     } finally {
@@ -926,36 +959,40 @@ export default function NewRequestStepper() {
                 </View>
               ) : (
                 <View style={s.catList}>
-                  {categories.map((cat) => (
-                    <CategoryCard
-                      key={cat.id}
-                      cat={cat}
-                      selected={categoryId === cat.id}
-                      onPress={() => { setCategoryId(cat.id); setSubcategoryId(null); }}
-                    />
-                  ))}
-                </View>
-              )}
-
-              {selectedCategory?.subcategories?.length > 0 && (
-                <View style={s.subSection}>
-                  <View style={s.subHeader}>
-                    <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
-                    {estimatedPrice > 0 && !subcategoryId && (
-                      <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
-                    )}
-                  </View>
-                  <View style={s.subList}>
-                    {selectedCategory.subcategories.map((sub: any) => (
-                      <SubChip
-                        key={sub.id}
-                        label={sub.name}
-                        price={sub.price}
-                        selected={subcategoryId === sub.id}
-                        onPress={() => setSubcategoryId(sub.id)}
-                      />
-                    ))}
-                  </View>
+                  {categories.map((cat) => {
+                    const isSelected = categoryId === cat.id;
+                    const subs = isSelected && cat.subcategories?.length > 0 ? cat.subcategories : [];
+                    return (
+                      <View key={cat.id}>
+                        <CategoryCard
+                          cat={cat}
+                          selected={isSelected}
+                          onPress={() => { setCategoryId(cat.id); setSubcategoryId(null); }}
+                        />
+                        {subs.length > 0 && (
+                          <View style={s.inlineSubs}>
+                            <View style={s.subHeader}>
+                              <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
+                              {estimatedPrice > 0 && !subcategoryId && (
+                                <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
+                              )}
+                            </View>
+                            <View style={s.subList}>
+                              {subs.map((sub: any) => (
+                                <SubChip
+                                  key={sub.id}
+                                  label={sub.name}
+                                  price={sub.price}
+                                  selected={subcategoryId === sub.id}
+                                  onPress={() => setSubcategoryId(sub.id)}
+                                />
+                              ))}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
@@ -1124,59 +1161,94 @@ export default function NewRequestStepper() {
 
               </View>
 
-              {/* Prix total + détail dropdown */}
-              <View style={s.v4PriceBreakdown}>
-                {priceDetailOpen && (
-                  <View style={{ marginBottom: 6, gap: 2 }}>
-                    <View style={s.v4PriceLine}>
-                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Base HTVA</Text>
-                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.baseHTVA} €</Text>
+              {/* Prix / Callout fee section */}
+              {isQuoteFlow ? (
+                <View style={s.v4PriceBreakdown}>
+                  <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+                    <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={18} color={theme.text as string} />
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>
+                        {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
+                      </Text>
+                      <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>
+                        Le prestataire se déplace pour évaluer et vous envoie un devis détaillé. Vous décidez ensuite d'accepter ou non.
+                      </Text>
                     </View>
-                    <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
-                    {priceDetails.multiplier > 1 && (
-                      <>
-                        <View style={s.v4PriceLine}>
-                          <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (×{priceDetails.multiplier.toFixed(1)})</Text>
-                          <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.adjustedBase} €</Text>
-                        </View>
-                        <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
-                      </>
-                    )}
-                    {isUrgent && (
-                      <>
-                        <View style={s.v4PriceLine}>
-                          <Text style={[s.v4PriceLabel, { color: COLORS.red }]}>Urgence (+50%)</Text>
-                          <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{priceDetails.urgentFee} €</Text>
-                        </View>
-                        <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
-                      </>
-                    )}
-                    <View style={s.v4PriceLine}>
-                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Déplacement</Text>
-                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.travelFee} €</Text>
-                    </View>
-                    <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
-                    <View style={s.v4PriceLine}>
-                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Frais plateforme</Text>
-                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.platformFee} €</Text>
-                    </View>
-                    <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
-                    <View style={s.v4PriceLine}>
-                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>TVA (21%)</Text>
-                      <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(priceDetails.totalTVAC) - parseFloat(priceDetails.totalHTVA)).toFixed(2)} €</Text>
-                    </View>
-                    <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 6 }]} />
                   </View>
-                )}
 
-                <TouchableOpacity style={s.v4PriceLine} onPress={() => setPriceDetailOpen(p => !p)} activeOpacity={0.7}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={[s.v4TotalLabel, { color: theme.text }]}>TTC</Text>
-                    <Ionicons name={priceDetailOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
+                  {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
+                    <View style={s.v4PriceLine}>
+                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Estimation</Text>
+                      <Text style={[s.v4PriceVal, { color: theme.textSub }]}>{selectedSubcategory.priceMin}€ — {selectedSubcategory.priceMax}€</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 4 }]} />
+
+                  <View style={s.v4PriceLine}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[s.v4TotalLabel, { color: theme.text }]}>
+                        {pricingMode === 'diagnostic' ? 'Frais de diagnostic' : 'Frais de visite'}
+                      </Text>
+                      <Text style={[s.v4PriceLabel, { color: theme.textMuted }]}>Déduit du devis si accepté</Text>
+                    </View>
+                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{calloutFee.toFixed(2)} €</Text>
                   </View>
-                  <Text style={[s.v4TotalValue, { color: theme.text }]}>{priceDetails.totalTVAC} €</Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+              ) : (
+                <View style={s.v4PriceBreakdown}>
+                  {priceDetailOpen && (
+                    <View style={{ marginBottom: 6, gap: 2 }}>
+                      <View style={s.v4PriceLine}>
+                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Base HTVA</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.baseHTVA} €</Text>
+                      </View>
+                      <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      {priceDetails.multiplier > 1 && (
+                        <>
+                          <View style={s.v4PriceLine}>
+                            <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (x{priceDetails.multiplier.toFixed(1)})</Text>
+                            <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.adjustedBase} €</Text>
+                          </View>
+                          <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                        </>
+                      )}
+                      {isUrgent && (
+                        <>
+                          <View style={s.v4PriceLine}>
+                            <Text style={[s.v4PriceLabel, { color: COLORS.red }]}>Urgence (+50%)</Text>
+                            <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{priceDetails.urgentFee} €</Text>
+                          </View>
+                          <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                        </>
+                      )}
+                      <View style={s.v4PriceLine}>
+                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Déplacement</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.travelFee} €</Text>
+                      </View>
+                      <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      <View style={s.v4PriceLine}>
+                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Frais plateforme</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.platformFee} €</Text>
+                      </View>
+                      <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      <View style={s.v4PriceLine}>
+                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>TVA (21%)</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(priceDetails.totalTVAC) - parseFloat(priceDetails.totalHTVA)).toFixed(2)} €</Text>
+                      </View>
+                      <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 6 }]} />
+                    </View>
+                  )}
+
+                  <TouchableOpacity style={s.v4PriceLine} onPress={() => setPriceDetailOpen(p => !p)} activeOpacity={0.7}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={[s.v4TotalLabel, { color: theme.text }]}>TTC</Text>
+                      <Ionicons name={priceDetailOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
+                    </View>
+                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{priceDetails.totalTVAC} €</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
             </View>
 
@@ -1184,14 +1256,20 @@ export default function NewRequestStepper() {
             <View style={s.v4Footer}>
               <View style={s.v4SecureRow}>
                 <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
-                <Text style={[s.v4Secure, { color: theme.textMuted }]}>{t('stepper.charge_after_validation')}</Text>
+                <Text style={[s.v4Secure, { color: theme.textMuted }]}>
+                  {isQuoteFlow
+                    ? 'Vous ne serez facturé que si vous acceptez le devis'
+                    : t('stepper.charge_after_validation')}
+                </Text>
               </View>
               <BottomCTA
-                label={t('stepper.confirm_mission')}
+                label={isQuoteFlow
+                  ? `Réserver · ${calloutFee.toFixed(2)} €`
+                  : t('stepper.confirm_mission')}
                 onPress={handlePay}
                 disabled={loading || !paymentReady}
                 loading={loading}
-                price={estimatedPrice}
+                price={isQuoteFlow ? undefined : estimatedPrice}
               />
             </View>
           </View>
@@ -1232,6 +1310,7 @@ const s = StyleSheet.create({
   catList:    { marginBottom: 4 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
+  inlineSubs: { paddingLeft: 48, paddingRight: 4, paddingBottom: 8 },
   subSection: { marginTop: 20 },
   subHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   subTitle:   { fontSize: 14, fontFamily: FONTS.sansMedium },
@@ -1314,6 +1393,9 @@ const s = StyleSheet.create({
   v4Total:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
   v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
   v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
+  v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
+  v4QuoteInfoTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
+  v4QuoteInfoDesc:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
   v4Footer:     { paddingHorizontal: 0, paddingBottom: 0 },
   v4SecureRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingBottom: 8 },
   v4Secure:     { textAlign: 'center', fontSize: 12, fontFamily: FONTS.sans },

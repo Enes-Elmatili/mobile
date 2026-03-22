@@ -164,18 +164,19 @@ function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
 }
 
 const ms = StyleSheet.create({
-  wrap: { marginBottom: 8 },
+  wrap: { marginBottom: 16 },
   title: {
-    fontSize: 11, fontFamily: FONTS.sansMedium,
-    textTransform: 'uppercase', letterSpacing: 0.6,
-    marginBottom: 8, paddingHorizontal: 4,
+    fontSize: 10, fontFamily: FONTS.sansMedium, fontWeight: '600',
+    textTransform: 'uppercase', letterSpacing: 1.5,
+    marginBottom: 10, paddingHorizontal: 2,
   },
   card: {
     borderRadius: 18, overflow: 'hidden',
+    borderWidth: 1.5, borderColor: '#E4E4E2',
   },
   row: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 13, gap: 12,
+    paddingHorizontal: 16, paddingVertical: 15, gap: 14,
   },
   iconBox: {
     width: 36, height: 36, borderRadius: 10,
@@ -217,6 +218,7 @@ export default function Profile() {
   const [stripeReady, setStripeReady]  = useState(false);
   const [isVerified,  setIsVerified]  = useState(false);
   const [profileStats, setProfileStats] = useState({ rating: '—', missions: '—', earnings: '—', acceptance: '—' });
+  const [tickets, setTickets] = useState<any[]>([]);
 
   const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
   const email = user?.email || '';
@@ -284,6 +286,17 @@ export default function Profile() {
       })
       .catch(() => setStripeReady(false));
   }, [user?.id, user?.roles?.join(',')]);
+
+  // ── Tickets ──
+  useEffect(() => {
+    if (!user?.id) return;
+    api.tickets.list()
+      .then((res: any) => {
+        const data = res?.data || res?.tickets || res;
+        if (Array.isArray(data)) setTickets(data.slice(0, 3));
+      })
+      .catch(() => {});
+  }, [user?.id]);
 
   // ── Photo upload ──────────────────────────────────────────────────────────
   const handlePickPhoto = useCallback(async () => {
@@ -503,69 +516,133 @@ export default function Profile() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       {/* Header */}
-      <View style={[s.header, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]}>Profil</Text>
+      <View style={[s.header, { backgroundColor: theme.bg }]}>
+        <Text style={[s.headerTitle, { color: theme.text }]}>PROFIL</Text>
         <TouchableOpacity
-          style={[s.settingsBtn, { backgroundColor: theme.surface }]}
+          style={[s.settingsBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => bottomSheetRef.current?.expand()}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={20} color={theme.textAlt} />
+          <Ionicons name="settings-outline" size={16} color={theme.text} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Identity Card */}
-        <View style={[s.identityCard, { backgroundColor: theme.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } }, android: { elevation: 3 } }) }]}>
-          <ProviderAvatar name={displayName} size={82} avatarUri={avatarUri} onPickPhoto={handlePickPhoto} />
-          <View style={s.identityInfo}>
-            <View style={s.nameRow}>
-              <Text style={[s.identityName, { color: theme.textAlt }]}>{displayName}</Text>
-              {isVerified && (
-                <View style={s.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={18} color={COLORS.verified} />
+        {/* Hero Card — dark premium */}
+        <View style={s.heroCard}>
+          <View style={s.heroTop}>
+            <ProviderAvatar name={displayName} size={60} avatarUri={avatarUri} onPickPhoto={handlePickPhoto} />
+            <View style={s.heroIdentity}>
+              <Text style={s.heroName}>{displayName.toUpperCase()}</Text>
+              <Text style={s.heroEmail}>{email}</Text>
+              <View style={s.heroBadges}>
+                <View style={s.roleBadge}>
+                  <Ionicons name="briefcase-outline" size={9} color="rgba(255,255,255,0.4)" />
+                  <Text style={s.roleBadgeText}>{roles}</Text>
                 </View>
-              )}
-            </View>
-            <Text style={[s.identityEmail, { color: theme.textMuted }]}>{email}</Text>
-            <View style={s.pillsRow}>
-              <View style={[s.rolesPill, { backgroundColor: theme.surface }]}>
-                <Ionicons name="briefcase-outline" size={11} color={theme.textSub} />
-                <Text style={[s.rolesText, { color: theme.textSub }]}>{roles}</Text>
+                {isVerified && (
+                  <View style={s.verifiedBadge}>
+                    <Ionicons name="checkmark" size={9} color="#5DC45D" />
+                    <Text style={s.verifiedBadgeText}>Vérifié</Text>
+                  </View>
+                )}
               </View>
-              {stripeReady && user?.roles?.includes('PROVIDER') && (
-                <View style={[s.stripeBadge, { backgroundColor: theme.stripeBadgeBg }]}>
-                  <Ionicons name="lock-closed" size={9} color={COLORS.stripe} />
-                  <Text style={s.stripeBadgeText}>Stripe</Text>
-                </View>
-              )}
+            </View>
+          </View>
+
+          {/* Stats strip */}
+          <View style={s.heroStrip}>
+            <View style={s.stripItem}>
+              <View style={s.stripIcon}><Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.4)" /></View>
+              <Text style={s.stripValue}>{new Date((user as any)?.createdAt || Date.now()).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}</Text>
+              <Text style={s.stripLabel}>Membre</Text>
+            </View>
+            <View style={s.stripItem}>
+              <View style={s.stripIcon}><Ionicons name="card-outline" size={13} color="rgba(255,255,255,0.4)" /></View>
+              <Text style={s.stripValue}>•••• 4242</Text>
+              <Text style={s.stripLabel}>Paiement</Text>
+            </View>
+            <View style={s.stripItem}>
+              <View style={s.stripIcon}><Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.4)" /></View>
+              <Text style={s.stripValue}>{(user as any)?.city || 'Bruxelles'}</Text>
+              <Text style={s.stripLabel}>Adresse</Text>
+            </View>
+            <View style={s.stripItem}>
+              <View style={[s.stripIcon, s.stripIconGreen]}><Ionicons name="shield-outline" size={13} color="#5DC45D" /></View>
+              <Text style={[s.stripValue, { color: '#5DC45D' }]}>Actif</Text>
+              <Text style={s.stripLabel}>Statut</Text>
             </View>
           </View>
         </View>
-
-        {/* Stats Row — visible uniquement pour les prestataires */}
-        {!isClientOnly && (
-          <View style={[s.statsCard, { backgroundColor: theme.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } }, android: { elevation: 3 } }) }]}>
-            <StatBadge icon="star" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.rating} label="Note" />
-            <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
-            <StatBadge icon="checkmark-circle-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.missions} label="Missions" />
-            <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
-            <StatBadge icon="cash-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.earnings} label="Wallet" />
-            <View style={[s.statsDivider, { backgroundColor: theme.border }]} />
-            <StatBadge icon="trending-up-outline" iconColor={theme.textSub} iconBg={theme.surface} value={profileStats.acceptance} label="Taux accept." />
-          </View>
-        )}
 
         {/* Menus */}
         <View style={s.sections}>
           <MenuSection title="Mon compte" items={accountItems} />
           <MenuSection title="Préférences" items={prefItems} />
-          <MenuSection title="Support" items={supportItems} />
+
+          {/* Support tickets */}
+          <View style={tk.wrap}>
+            <View style={tk.header}>
+              <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>Support</Text>
+              <TouchableOpacity onPress={() => router.push('/settings/support')} activeOpacity={0.6}>
+                <Text style={tk.newTicket}>Nouveau ticket</Text>
+              </TouchableOpacity>
+            </View>
+
+            {tickets.length > 0 ? (
+              <View style={[tk.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+                {tickets.map((ticket, i) => {
+                  const isOpen = ticket.status === 'OPEN' || ticket.status === 'IN_PROGRESS';
+                  const statusLabel = ticket.status === 'OPEN' ? 'Ouvert' : ticket.status === 'IN_PROGRESS' ? 'En cours' : 'Clôturé';
+                  const pillStyle = ticket.status === 'CLOSED' ? tk.pillGray : tk.pillOrange;
+                  const date = new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                  return (
+                    <TouchableOpacity
+                      key={ticket.id}
+                      style={[tk.row, i < tickets.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
+                      onPress={() => router.push({ pathname: '/settings/support', params: { ticketId: ticket.id } })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[tk.dot, { backgroundColor: isOpen ? '#E8783A' : '#D0D0CE' }]} />
+                      <View style={tk.info}>
+                        <Text style={[tk.title, { color: theme.text }]} numberOfLines={1}>{ticket.title}</Text>
+                        <Text style={[tk.meta, { color: theme.textMuted }]}>
+                          {ticket.requestId ? `Mission #${ticket.requestId} · ` : ''}{date}
+                        </Text>
+                      </View>
+                      <View style={pillStyle}>
+                        <Text style={[tk.pillText, ticket.status === 'CLOSED' ? { color: '#9A9A9A' } : { color: '#E8783A' }]}>{statusLabel}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={12} color={theme.textDisabled} />
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/settings/support')} activeOpacity={0.6}>
+                  <Text style={tk.viewAllText}>Voir tous les tickets</Text>
+                  <Ionicons name="chevron-forward" size={11} color="#999" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[tk.empty, { borderColor: theme.borderLight }]}
+                onPress={() => router.push('/settings/support')}
+                activeOpacity={0.7}
+              >
+                <View style={[tk.emptyIcon, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="add" size={16} color={theme.textSub} />
+                </View>
+                <Text style={[tk.emptyText, { color: theme.textSub }]}>Créer un ticket</Text>
+                <Ionicons name="chevron-forward" size={14} color={theme.textDisabled} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <MenuSection items={supportItems} />
           <MenuSection items={dangerItems} />
         </View>
 
-        <Text style={[s.version, { color: theme.textMuted }]}>Version 1.0.0</Text>
+        <Text style={[s.version, { color: theme.textDisabled }]}>FIXED v1.0.0 · Brussels</Text>
       </ScrollView>
 
       {/* Modal — Édition informations personnelles */}
@@ -848,54 +925,90 @@ const s = StyleSheet.create({
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12,
   },
-  headerTitle: { fontSize: 26, fontFamily: FONTS.bebas },
+  headerTitle: { fontSize: 30, fontFamily: FONTS.bebas, letterSpacing: 1 },
   settingsBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5,
   },
 
-  scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 48 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 48 },
 
-  identityCard: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 20,
-    padding: 20, gap: 16, marginBottom: 12,
+  // Hero card — dark premium
+  heroCard: {
+    backgroundColor: '#0A0A0A',
+    borderRadius: 24,
+    paddingHorizontal: 20, paddingTop: 22,
+    marginBottom: 28,
+    overflow: 'hidden',
   },
-  identityInfo: { flex: 1, gap: 3 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  identityName: { fontSize: 20, fontFamily: FONTS.bebas },
-  verifiedBadge: { marginTop: 1 },
-  identityEmail: { fontSize: 13, fontFamily: FONTS.sans },
-  pillsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  rolesPill: {
+  heroTop: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    gap: 16, paddingBottom: 20,
+  },
+  heroIdentity: { flex: 1, paddingTop: 2 },
+  heroName: {
+    fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.8,
+    color: '#FFFFFF', lineHeight: 22, marginBottom: 5,
+  },
+  heroEmail: {
+    fontFamily: FONTS.sans, fontSize: 11,
+    color: 'rgba(255,255,255,0.3)', marginBottom: 10,
+  },
+  heroBadges: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 6, paddingHorizontal: 9, paddingVertical: 4,
   },
-  rolesText: { fontSize: 11, fontFamily: FONTS.sansMedium },
-  stripeBadge: {
+  roleBadgeText: {
+    fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 1,
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)',
+  },
+  verifiedBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: 'rgba(61,139,61,0.12)',
+    borderWidth: 1, borderColor: 'rgba(61,139,61,0.22)',
+    borderRadius: 6, paddingHorizontal: 9, paddingVertical: 4,
   },
-  stripeBadgeText: { fontSize: 11, fontFamily: FONTS.sansMedium, color: COLORS.stripe },
-
-  statsCard: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 20,
-    paddingVertical: 16, paddingHorizontal: 12,
-    marginBottom: 20,
+  verifiedBadgeText: {
+    fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 1,
+    textTransform: 'uppercase', color: '#5DC45D',
   },
-  statsDivider: { width: 1, height: 40 },
 
-  sections: { gap: 16 },
+  // Strip stats
+  heroStrip: {
+    flexDirection: 'row',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)',
+    marginHorizontal: -20,
+  },
+  stripItem: {
+    flex: 1, alignItems: 'center', gap: 5,
+    paddingVertical: 14,
+  },
+  stripIcon: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+  },
+  stripIconGreen: { backgroundColor: 'rgba(61,139,61,0.1)' },
+  stripValue: {
+    fontFamily: FONTS.sansMedium, fontSize: 11,
+    color: 'rgba(255,255,255,0.75)', textAlign: 'center',
+  },
+  stripLabel: {
+    fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 0.5,
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', textAlign: 'center',
+  },
+
+  sections: { gap: 8 },
 
   version: {
-    textAlign: 'center', fontSize: 12,
-    marginTop: 24, fontFamily: FONTS.mono,
+    textAlign: 'center', fontSize: 10, letterSpacing: 1,
+    marginTop: 16, marginBottom: 8, fontFamily: FONTS.mono,
   },
 
   sheetContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 40 },
@@ -914,6 +1027,62 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   sheetLabel: { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
+});
+
+// ── Ticket section styles ──
+const tk = StyleSheet.create({
+  wrap: { marginBottom: 16 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 10, paddingHorizontal: 2,
+  },
+  sectionLabel: {
+    fontSize: 10, fontFamily: FONTS.sansMedium, fontWeight: '600',
+    textTransform: 'uppercase', letterSpacing: 1.5,
+  },
+  newTicket: {
+    fontSize: 10, fontFamily: FONTS.sansMedium,
+    letterSpacing: 0.4, color: '#BBBBBB',
+  },
+  card: {
+    borderRadius: 18, overflow: 'hidden', borderWidth: 1.5,
+  },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  dot: { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
+  info: { flex: 1 },
+  title: { fontSize: 13, fontFamily: FONTS.sansMedium, marginBottom: 2 },
+  meta: { fontSize: 11, fontFamily: FONTS.sans },
+  pillOrange: {
+    backgroundColor: 'rgba(232,120,58,0.1)',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  pillGray: {
+    backgroundColor: '#E4E4E2',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  pillText: {
+    fontSize: 9, fontFamily: FONTS.sansMedium, fontWeight: '700',
+    letterSpacing: 0.5, textTransform: 'uppercase',
+  },
+  viewAll: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: 12, borderTopWidth: 1,
+  },
+  viewAllText: {
+    fontSize: 11, fontFamily: FONTS.sansMedium, color: '#999', letterSpacing: 0.4,
+  },
+  empty: {
+    borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 16,
+    padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14,
+  },
+  emptyIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  emptyText: { fontSize: 12, fontFamily: FONTS.sans, lineHeight: 18, flex: 1 },
 });
 
 const em = StyleSheet.create({

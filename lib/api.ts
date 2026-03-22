@@ -262,6 +262,12 @@ class ApiClient {
     },
     changePassword: (currentPassword: string, newPassword: string) =>
       this.post('/auth/change-password', { currentPassword, newPassword }),
+    forgotPassword: (email: string) =>
+      this.post('/auth/forgot-password', { email }),
+    resetPassword: (token: string, password: string) =>
+      this.post(`/auth/reset-password/${token}`, { password }),
+    validateResetToken: (token: string) =>
+      this.request(`/auth/reset-password/${token}/validate`),
   };
 
   // ==================== USER ====================
@@ -486,6 +492,28 @@ class ApiClient {
   };
 
   // ==================== STRIPE CONNECT ====================
+  // ==================== TICKETS / SUPPORT ====================
+  tickets = {
+    list: () => this.request('/tickets'),
+    get: (id: string) => this.request(`/tickets/${id}`),
+    create: (data: { title: string; description: string; priority?: string; requestId?: number }) =>
+      this.post('/tickets', data),
+  };
+
+  // ==================== QUOTES / DEVIS ====================
+  quotes = {
+    forRequest: (requestId: string | number) =>
+      this.request(`/quotes/request/${requestId}`),
+    send: (requestId: string | number, data: { laborAmount: number; partsAmount?: number; partsDetail?: string; notes?: string; photos?: string[] }) =>
+      this.post(`/quotes/${requestId}`, data),
+    accept: (quoteId: number) =>
+      this.post(`/quotes/${quoteId}/accept`),
+    refuse: (quoteId: number, reason?: string) =>
+      this.post(`/quotes/${quoteId}/refuse`, { reason }),
+    calloutPayment: (requestId: string | number) =>
+      this.post('/quotes/callout-payment', { requestId }),
+  };
+
   connect = {
     status: () => this.request('/connect/status'),
     onboarding: (returnUrl?: string, refreshUrl?: string) => this.post('/connect/onboarding', { returnUrl, refreshUrl }),

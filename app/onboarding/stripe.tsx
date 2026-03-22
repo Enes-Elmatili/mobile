@@ -20,10 +20,10 @@ const C = {
 };
 
 const BENEFITS = [
-  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvres sur votre compte bancaire." },
-  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions securisees, conformite PCI DSS et protection contre la fraude." },
-  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord dedie pour gerer virements, factures et historique." },
-  { icon: "globe-outline" as const, title: "Paiements partout", desc: "Carte bancaire, Apple Pay, Google Pay — tous les modes acceptes." },
+  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés sur votre compte bancaire." },
+  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions sécurisées, conformité PCI DSS et protection contre la fraude." },
+  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord dédié pour gérer virements, factures et historique." },
+  { icon: "globe-outline" as const, title: "Paiements partout", desc: "Carte bancaire, Apple Pay, Google Pay — tous les modes acceptés." },
 ];
 
 export default function OnboardingStripe() {
@@ -36,25 +36,19 @@ export default function OnboardingStripe() {
       const redirectUrl = Linking.createURL("onboarding/provider/stripe-return");
       const res: any = await api.connect.onboarding(redirectUrl);
       const url: string = res?.url;
-      if (!url) throw new Error("URL Stripe introuvable. Reessayez.");
+      if (!url) throw new Error("URL Stripe introuvable. Réessayez.");
       await WebBrowser.openBrowserAsync(url, { dismissButtonStyle: "done" });
       const status: any = await api.connect.status();
       if (status?.isStripeReady) {
         AsyncStorage.removeItem("onboarding_data").catch(() => {});
-        router.replace("/(tabs)/dashboard");
+        router.replace("/onboarding/provider/pending");
         return;
       }
     } catch (e: any) {
-      Alert.alert("Erreur Stripe", e?.message || "Reessayez dans quelques instants.", [
-        { text: "Reessayer", onPress: handleConfigure },
-        { text: "Plus tard" },
+      Alert.alert("Erreur Stripe", e?.message || "Réessayez dans quelques instants.", [
+        { text: "Réessayer", onPress: handleConfigure },
       ]);
     } finally { setLoading(false); }
-  };
-
-  const goToDashboard = () => {
-    AsyncStorage.removeItem("onboarding_data").catch(() => {});
-    router.replace("/(tabs)/dashboard");
   };
 
   return (
@@ -63,9 +57,8 @@ export default function OnboardingStripe() {
       totalSteps={PROVIDER_FLOW.totalSteps}
       showBack={false}
       title={"Compte de\npaiement."}
-      subtitle="FIXED utilise Stripe pour virer vos gains directement sur votre compte bancaire, de facon securisee et transparente."
+      subtitle="FIXED utilise Stripe pour virer vos gains directement sur votre compte bancaire, de façon sécurisée et transparente."
       cta={{ label: loading ? "Chargement..." : "Configurer mon compte Stripe", onPress: handleConfigure, disabled: loading, loading }}
-      secondaryCta={{ label: "Passer pour l'instant", onPress: goToDashboard }}
     >
       {/* Hero icon */}
       <View style={s.heroWrap}>
@@ -96,7 +89,7 @@ export default function OnboardingStripe() {
       {/* Trust note */}
       <View style={s.trustNote}>
         <Ionicons name="shield-checkmark-outline" size={14} color={C.grey} />
-        <Text style={s.trustText}>Vos donnees bancaires sont gerees directement par Stripe et ne transitent jamais par FIXED.</Text>
+        <Text style={s.trustText}>Vos données bancaires sont gérées directement par Stripe et ne transitent jamais par FIXED.</Text>
       </View>
     </OnboardingLayout>
   );

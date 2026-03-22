@@ -33,15 +33,15 @@ export function useAppTheme() {
     fonts: FONTS,
     colors: COLORS,
     // ── Backgrounds ──
-    bg:           isDark ? '#080808' : '#F2F0EB',
+    bg:           isDark ? '#080808' : '#F4F4F2',
     cardBg:       isDark ? '#141414' : '#FFFFFF',
-    headerBg:     isDark ? '#080808' : '#F2F0EB',
+    headerBg:     isDark ? '#080808' : '#F4F4F2',
     // ── Surfaces (chips, icon bg, inputs) ──
-    surface:      isDark ? '#1A1A1A' : '#E9E7E1',
-    surfaceAlt:   isDark ? '#222222' : '#E9E7E1',
+    surface:      isDark ? '#1A1A1A' : '#E8E8E8',
+    surfaceAlt:   isDark ? '#222222' : '#E8E8E8',
     // ── Borders / separators ──
-    border:       isDark ? '#2A2A2A' : '#DEDAD4',
-    borderLight:  isDark ? '#222222' : '#DEDAD4',
+    border:       isDark ? '#2A2A2A' : '#D8D8D8',
+    borderLight:  isDark ? '#222222' : '#D8D8D8',
     // ── Text ──
     text:         isDark ? '#FFFFFF' : '#1A1A18',
     textAlt:      isDark ? '#FFFFFF' : '#1A1A18',
@@ -51,7 +51,7 @@ export function useAppTheme() {
     textDisabled: isDark ? '#444444' : '#DEDAD4',
     // ── Accent / interactive ──
     accent:       isDark ? '#F8F7F4' : '#1A1A18',
-    accentText:   isDark ? '#080808' : '#F2F0EB',
+    accentText:   isDark ? '#080808' : '#F4F4F2',
     // ── Hero cards (wallet balance, dashboard CTA, mission island) ──
     heroBg:       isDark ? '#1A1A1A' : '#1A1A18',
     heroText:     '#F2F0EB',

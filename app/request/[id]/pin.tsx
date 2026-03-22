@@ -204,7 +204,7 @@ export default function PinPage() {
   // ═════════════════════════════════════════════════════════════════════════
   const gradColors = theme.isDark
     ? ['#050508', '#0D0D12', '#14141B'] as const
-    : ['#F2F0EB', '#EBE9E3', '#E4E2DC'] as const;
+    : ['#F2F2F2', '#EBEBEB', '#E4E4E4'] as const;
 
   const ring1Spin = ring1Rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const ring2Spin = ring2Rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
@@ -257,11 +257,11 @@ export default function PinPage() {
               />
             </Animated.View>
             <Text style={[s.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
-              {pinVerified ? 'Code verifie !' : 'Code de verification'}
+              {pinVerified ? 'Code vérifié !' : 'Code de vérification'}
             </Text>
             {pinVerified && (
               <Text style={[s.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                Le prestataire a confirme sa presence.{'\n'}La mission va demarrer.
+                Le prestataire a confirmé sa présence.{'\n'}La mission va démarrer.
               </Text>
             )}
           </View>
@@ -329,7 +329,7 @@ export default function PinPage() {
               }],
             }]}>
               <Ionicons name="checkmark-circle" size={56} color={COLORS.green} />
-              <Text style={[s.verifiedText, { color: theme.isDark ? COLORS.green : '#15803D', fontFamily: FONTS.sansMedium }]}>Identite confirmee</Text>
+              <Text style={[s.verifiedText, { color: theme.isDark ? COLORS.green : '#15803D', fontFamily: FONTS.sansMedium }]}>Identité confirmée</Text>
               <Text style={[s.verifiedSub, { color: COLORS.green, fontFamily: FONTS.sans }]}>Retour au suivi en cours...</Text>
             </Animated.View>
           )}
@@ -338,7 +338,7 @@ export default function PinPage() {
           {!pinCode && !pinVerified && (
             <View style={s.loadingZone}>
               <Animated.View style={[s.loadingDot, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
-                <Text style={[s.loadingText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Generation du code en cours...</Text>
+                <Text style={[s.loadingText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Génération du code en cours...</Text>
               </Animated.View>
             </View>
           )}

@@ -45,10 +45,10 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
   return (
     <View style={s.root}>
       <Text style={[s.title, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-        Quelle mission concerne votre probleme ?
+        Quelle mission concerne votre problème ?
       </Text>
       <Text style={[s.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-        Selectionnez la mission concernee
+        Sélectionnez la mission concernée
       </Text>
 
       <View style={s.list}>
@@ -104,7 +104,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
           <Ionicons name="help-circle-outline" size={20} color={theme.textSub} />
         </View>
         <Text style={[s.otherText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-          Autre probleme
+          Autre problème
         </Text>
         <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
       </TouchableOpacity>

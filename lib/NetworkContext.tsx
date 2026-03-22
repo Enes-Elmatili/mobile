@@ -1,14 +1,17 @@
 // lib/NetworkContext.tsx
-// Détecte l'état réseau en temps réel via @react-native-community/netinfo
+// Détecte l'état réseau avec debounce 15s — ne signale offline
+// que si la connexion est réellement perdue depuis 15 secondes.
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
+
+const OFFLINE_DELAY_MS = 15_000; // 15 secondes avant de signaler offline
 
 interface NetworkContextType {
   isOnline: boolean;
   isConnected: boolean | null;
   connectionType: string | null;
-  wasOffline: boolean; // true si on vient de se reconnecter
+  wasOffline: boolean;
 }
 
 const NetworkContext = createContext<NetworkContextType>({
@@ -27,36 +30,52 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   });
 
   const prevOnlineRef = useRef(true);
+  const offlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Lire l'état initial
-    NetInfo.fetch().then((state) => {
-      const online = !!(state.isConnected && state.isInternetReachable);
-      prevOnlineRef.current = online;
-      setNetworkState({
-        isOnline: online,
-        isConnected: state.isConnected,
-        connectionType: state.type,
-        wasOffline: false,
-      });
-    });
+    const handleState = (state: NetInfoState) => {
+      const connected = state.isConnected !== false;
 
-    // Écouter les changements
-    const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
-      const online = !!(state.isConnected && state.isInternetReachable);
-      const wasOffline = !prevOnlineRef.current && online;
+      if (connected) {
+        // Connexion rétablie — annuler le timer offline s'il existe
+        if (offlineTimerRef.current) {
+          clearTimeout(offlineTimerRef.current);
+          offlineTimerRef.current = null;
+        }
 
-      prevOnlineRef.current = online;
+        const wasOffline = !prevOnlineRef.current;
+        prevOnlineRef.current = true;
 
-      setNetworkState({
-        isOnline: online,
-        isConnected: state.isConnected,
-        connectionType: state.type,
-        wasOffline,
-      });
-    });
+        setNetworkState({
+          isOnline: true,
+          isConnected: state.isConnected,
+          connectionType: state.type,
+          wasOffline,
+        });
+      } else {
+        // Connexion perdue — attendre 15s avant de signaler offline
+        if (!offlineTimerRef.current) {
+          offlineTimerRef.current = setTimeout(() => {
+            offlineTimerRef.current = null;
+            prevOnlineRef.current = false;
+            setNetworkState({
+              isOnline: false,
+              isConnected: false,
+              connectionType: state.type,
+              wasOffline: false,
+            });
+          }, OFFLINE_DELAY_MS);
+        }
+      }
+    };
 
-    return () => unsubscribe();
+    NetInfo.fetch().then(handleState);
+    const unsubscribe = NetInfo.addEventListener(handleState);
+
+    return () => {
+      unsubscribe();
+      if (offlineTimerRef.current) clearTimeout(offlineTimerRef.current);
+    };
   }, []);
 
   return (

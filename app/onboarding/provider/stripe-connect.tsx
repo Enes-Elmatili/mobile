@@ -21,9 +21,9 @@ const C = {
 };
 
 const BENEFITS = [
-  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvres." },
-  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions securisees et conformite PCI DSS." },
-  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord pour gerer virements et factures." },
+  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés." },
+  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions sécurisées et conformité PCI DSS." },
+  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord pour gérer virements et factures." },
 ];
 
 export default function ProviderStripeConnect() {
@@ -42,25 +42,19 @@ export default function ProviderStripeConnect() {
       const result = await WebBrowser.openAuthSessionAsync(url, returnUrl);
       if (__DEV__) console.log("AUTH SESSION RESULT:", JSON.stringify(result));
 
-      if (result.type === "success") {
-        const status: any = await api.connect.status();
-        if (__DEV__) console.log("STRIPE STATUS AFTER RETURN:", JSON.stringify(status));
-        if (status?.isStripeReady) {
-          router.replace("/onboarding/provider/pending");
-          return;
-        }
+      // Vérifier si Stripe est configuré après retour du browser
+      const status: any = await api.connect.status();
+      if (__DEV__) console.log("STRIPE STATUS AFTER RETURN:", JSON.stringify(status));
+      if (status?.isStripeReady) {
+        router.replace("/onboarding/provider/pending");
+        return;
       }
-      router.replace("/onboarding/provider/pending");
+      // Stripe pas configuré (annulé ou incomplet) → rester sur cet écran
     } catch (err: any) {
-      Alert.alert("Erreur Stripe", "Impossible d'ouvrir la configuration. Verifiez votre connexion.", [
-        { text: "Reessayer", onPress: handleConfigure },
-        { text: "Plus tard", onPress: handleSkip },
+      Alert.alert("Erreur Stripe", "Impossible d'ouvrir la configuration. Vérifiez votre connexion.", [
+        { text: "Réessayer", onPress: handleConfigure },
       ]);
     } finally { setLoading(false); }
-  }
-
-  function handleSkip() {
-    router.replace("/onboarding/provider/pending");
   }
 
   return (
@@ -71,7 +65,6 @@ export default function ProviderStripeConnect() {
       title="Compte de paiement."
       subtitle="FIXED utilise Stripe pour virer vos gains directement sur votre compte bancaire."
       cta={{ label: loading ? "Chargement..." : "Configurer mon compte Stripe", onPress: handleConfigure, disabled: loading, loading }}
-      secondaryCta={{ label: "Passer pour l'instant", onPress: handleSkip }}
     >
       <View style={s.heroWrap}>
         <View style={s.heroCircle}>

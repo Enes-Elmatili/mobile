@@ -127,11 +127,11 @@ export default function RequestTracking() {
       if (!TRACKABLE_STATUSES.includes(status)) {
         devWarn(`[TRACKING] Mission ${id} "${status}" — non trackable`);
         const messages: Record<string, { title: string; body: string }> = {
-          DONE:            { title: 'Mission terminee',        body: 'Cette mission a ete completee avec succes.' },
-          PENDING_PAYMENT: { title: 'Mission terminee',        body: 'Cette mission a ete completee avec succes.' },
-          CANCELLED:       { title: 'Mission annulee',         body: 'Cette mission a ete annulee ou a expire.' },
-          EXPIRED:         { title: 'Mission annulee',         body: 'Cette mission a ete annulee ou a expire.' },
-          PUBLISHED:       { title: 'Recherche en cours',      body: "Aucun prestataire n'a encore accepte cette mission." },
+          DONE:            { title: 'Mission terminée',        body: 'Cette mission a été complétée avec succès.' },
+          PENDING_PAYMENT: { title: 'Mission terminée',        body: 'Cette mission a été complétée avec succès.' },
+          CANCELLED:       { title: 'Mission annulée',         body: 'Cette mission a été annulée ou a expiré.' },
+          EXPIRED:         { title: 'Mission annulée',         body: 'Cette mission a été annulée ou a expiré.' },
+          PUBLISHED:       { title: 'Recherche en cours',      body: "Aucun prestataire n'a encore accepté cette mission." },
         };
         const msg = messages[status] || { title: 'Mission non disponible', body: `Statut: ${status}` };
         Alert.alert(msg.title, msg.body, [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
@@ -162,7 +162,7 @@ export default function RequestTracking() {
       }
     } catch (error) {
       devError('[TRACKING] Error loading request:', error);
-      Alert.alert('Erreur', 'Impossible de charger les details de la mission', [
+      Alert.alert('Erreur', 'Impossible de charger les détails de la mission', [
         { text: 'Retour', onPress: () => router.back() },
       ]);
     } finally {
@@ -205,13 +205,13 @@ export default function RequestTracking() {
     const handleStarted = (data: any) => {
       if (String(data.id || data.requestId) === String(id)) {
         setRequest((prev: any) => prev ? { ...prev, status: 'ONGOING' } : prev);
-        Alert.alert('Mission demarree', 'Le prestataire est arrive et a demarre la mission !');
+        Alert.alert('Mission démarrée', 'Le prestataire est arrivé et a démarré la mission !');
       }
     };
 
     const handleCompleted = (data: any) => {
       if (String(data.requestId) === String(id)) {
-        Alert.alert('Mission terminee', 'La mission a ete completee avec succes.', [
+        Alert.alert('Mission terminée', 'La mission a été complétée avec succès.', [
           { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
         ]);
       }
@@ -219,7 +219,7 @@ export default function RequestTracking() {
 
     const handleCancelled = (data: any) => {
       if (String(data.requestId || data.id) === String(id)) {
-        Alert.alert('Mission annulee', 'Cette mission a ete annulee.', [
+        Alert.alert('Mission annulée', 'Cette mission a été annulée.', [
           { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
         ]);
       }
@@ -284,17 +284,17 @@ export default function RequestTracking() {
   const handleCancelRequest = () => {
     const st = (request?.status || '').toUpperCase();
     if (st === 'ONGOING') {
-      Alert.alert('Annulation impossible', 'La mission est deja en cours. Contactez le prestataire directement.');
+      Alert.alert('Annulation impossible', 'La mission est déjà en cours. Contactez le prestataire directement.');
       return;
     }
-    Alert.alert('Annuler la mission', 'Etes-vous sur de vouloir annuler cette mission ?', [
+    Alert.alert('Annuler la mission', 'Êtes-vous sûr de vouloir annuler cette mission ?', [
       { text: 'Non', style: 'cancel' },
       {
         text: 'Oui, annuler', style: 'destructive',
         onPress: async () => {
           try {
             await api.post(`/requests/${id}/cancel`);
-            Alert.alert('Annule', 'La mission a ete annulee', [
+            Alert.alert('Annulé', 'La mission a été annulée', [
               { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
             ]);
           } catch (error: any) {
@@ -478,11 +478,11 @@ export default function RequestTracking() {
         {/* ETA */}
         <View style={s.etaContainer}>
           <Text style={s.etaLabel}>
-            {status === 'ONGOING' ? 'Mission en cours' : 'Arrivee estimee'}
+            {status === 'ONGOING' ? 'Mission en cours' : 'Arrivée estimée'}
           </Text>
           <Text style={s.etaTime}>{eta}</Text>
           {!providerLocation && (
-            <Text style={s.etaSubLabel}>Temps estime : {'< 30 min'}</Text>
+            <Text style={s.etaSubLabel}>Temps estimé : {'< 30 min'}</Text>
           )}
         </View>
 

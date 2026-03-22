@@ -52,7 +52,7 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
           )}
           {isUploaded && (
             <View style={styles.doneBadge}>
-              <Text style={styles.doneBadgeText}>Televerse</Text>
+              <Text style={styles.doneBadgeText}>Téléversé</Text>
             </View>
           )}
         </View>

@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth/AuthContext";
 import { FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -60,6 +61,7 @@ interface DocStatus {
 }
 
 export default function PendingValidation() {
+  const { signOut } = useAuth();
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "suspended">("pending");
   const [stripeConnected, setStripeConnected] = useState(false);
   const [documents, setDocuments] = useState<DocStatus[]>([]);
@@ -76,7 +78,7 @@ export default function PendingValidation() {
       if (docsRes?.documents) setDocuments(docsRes.documents);
 
       if (stripeRes) {
-        const connected = !!(stripeRes.isConnected || stripeRes.isStripeReady);
+        const connected = !!stripeRes.isStripeReady;
         stripeConnectedRef.current = connected;
         setStripeConnected(connected);
       }
@@ -162,19 +164,19 @@ export default function PendingValidation() {
           <>
             <Text style={s.title}>
               DOSSIER EN{"\n"}
-              <Text style={s.titleOutline}>VERIFICATION.</Text>
+              <Text style={s.titleOutline}>VÉRIFICATION.</Text>
             </Text>
             <Text style={s.subtitle}>
-              Notre equipe verifie vos documents et qualifications.{"\n"}
-              Vous recevrez un email des que votre compte sera active.
+              Notre équipe vérifie vos documents et qualifications.{"\n"}
+              Vous recevrez un email dès que votre compte sera activé.
             </Text>
 
             {/* Steps card */}
             <View style={s.stepsCard}>
               {[
-                { label: "Dossier recu", done: true },
-                { label: "Stripe configure", done: stripeConnected },
-                { label: "Verification en cours", done: false },
+                { label: "Dossier reçu", done: true },
+                { label: "Stripe configuré", done: stripeConnected },
+                { label: "Vérification en cours", done: false },
               ].map((step, i) => (
                 <View key={i} style={s.stepRow}>
                   <View style={[s.stepDot, step.done && s.stepDotDone]}>
@@ -203,28 +205,11 @@ export default function PendingValidation() {
                       )}
                     </View>
                     <Text style={[s.docStatus, doc.status === "APPROVED" && { color: C.green }, doc.status === "REJECTED" && { color: C.red }]}>
-                      {doc.status === "APPROVED" ? "Valide" : doc.status === "REJECTED" ? "Refuse" : "En attente"}
+                      {doc.status === "APPROVED" ? "Validé" : doc.status === "REJECTED" ? "Refusé" : "En attente"}
                     </Text>
                   </View>
                 ))}
               </View>
-            )}
-
-            {/* Stripe CTA */}
-            {!stripeConnected && (
-              <TouchableOpacity
-                style={s.stripeCta}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push("/onboarding/provider/stripe-connect");
-                }}
-                activeOpacity={0.9}
-              >
-                <Text style={s.stripeCtaText}>CONFIGURER STRIPE</Text>
-                <View style={s.arrowPill}>
-                  <Ionicons name="arrow-forward" size={14} color={C.white} />
-                </View>
-              </TouchableOpacity>
             )}
 
             <Animated.View style={{ opacity: pulseOp, alignItems: "center", marginTop: 12 }}>
@@ -240,7 +225,7 @@ export default function PendingValidation() {
           <>
             <Text style={s.title}>
               COMPTE{"\n"}
-              <Text style={s.titleOutline}>ACTIVE !</Text>
+              <Text style={s.titleOutline}>ACTIVÉ !</Text>
             </Text>
             <Text style={s.subtitle}>
               Bienvenue sur FIXED. Vous pouvez maintenant recevoir des missions.
@@ -252,10 +237,10 @@ export default function PendingValidation() {
           <>
             <Text style={s.title}>
               DOSSIER NON{"\n"}
-              <Text style={s.titleOutline}>VALIDE.</Text>
+              <Text style={s.titleOutline}>VALIDÉ.</Text>
             </Text>
             <Text style={s.subtitle}>
-              Votre dossier n'a pas pu etre valide. Verifiez vos documents et reessayez.
+              Votre dossier n'a pas pu être validé. Vérifiez vos documents et réessayez.
             </Text>
             <TouchableOpacity
               style={s.stripeCta}
@@ -280,7 +265,7 @@ export default function PendingValidation() {
               <Text style={s.titleOutline}>SUSPENDU.</Text>
             </Text>
             <Text style={s.subtitle}>
-              Votre compte prestataire a ete temporairement suspendu.{"\n"}
+              Votre compte prestataire a été temporairement suspendu.{"\n"}
               Contactez le support pour plus d'informations.
             </Text>
             <TouchableOpacity
@@ -298,6 +283,37 @@ export default function PendingValidation() {
             </TouchableOpacity>
           </>
         )}
+      </View>
+
+      {/* Footer */}
+      <View style={s.footer}>
+        {status === "pending" && !stripeConnected && (
+          <TouchableOpacity
+            style={s.stripeCta}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/onboarding/provider/stripe-connect");
+            }}
+            activeOpacity={0.9}
+          >
+            <Text style={s.stripeCtaText}>CONFIGURER STRIPE</Text>
+            <View style={s.arrowPill}>
+              <Ionicons name="arrow-forward" size={14} color={C.white} />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={s.logoutBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            signOut();
+          }}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="log-out-outline" size={16} color={C.grey} />
+          <Text style={s.logoutText}>Se déconnecter</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -397,5 +413,16 @@ const s = StyleSheet.create({
   eta: {
     fontFamily: FONTS.sansLight, fontSize: 12, color: "rgba(255,255,255,0.25)",
     letterSpacing: 1,
+  },
+  footer: {
+    paddingHorizontal: 28, gap: 12, zIndex: 2,
+  },
+  logoutBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingBottom: Platform.OS === "ios" ? 48 : 32, paddingTop: 16,
+  },
+  logoutText: {
+    fontFamily: FONTS.sans, fontSize: 14, color: C.grey,
+    textDecorationLine: "underline", textDecorationColor: "rgba(255,255,255,0.12)",
   },
 });

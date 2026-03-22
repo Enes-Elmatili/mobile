@@ -94,7 +94,16 @@ function RootLayoutNav() {
 
     if (!userId && !inAuthGroup) {
       router.replace('/(auth)/welcome');
-    } else if (userId && inAuthGroup) {
+    } else if (userId) {
+      // Email non vérifié → forcer la vérification
+      if (user?.emailVerified === false) {
+        const onVerify = segments.some(s => s === 'verify-email');
+        if (!onVerify) {
+          router.replace({ pathname: '/(auth)/verify-email', params: { email: user.email } });
+        }
+        return;
+      }
+
       // Social sign-in users without role → stay in auth for role selection
       if (!user?.roles || user.roles.length === 0) {
         if (segmentKey !== '(auth)/role-select') {
@@ -103,18 +112,19 @@ function RootLayoutNav() {
         return;
       }
 
-      // Routing basé sur le rôle et statut provider
-      const isProvider = user?.roles?.includes('PROVIDER');
-      if (isProvider) {
-        const ps = user?.providerStatus;
-        if (ps === 'ACTIVE') {
-          router.replace('/(tabs)/provider-dashboard');
+      // Si on est dans le groupe auth mais connecté+vérifié → rediriger
+      if (inAuthGroup) {
+        const isProvider = user?.roles?.includes('PROVIDER');
+        if (isProvider) {
+          const ps = user?.providerStatus;
+          if (ps === 'ACTIVE') {
+            router.replace('/(tabs)/provider-dashboard');
+          } else {
+            router.replace('/onboarding/provider/pending');
+          }
         } else {
-          // PENDING, REJECTED, etc. → écran d'attente
-          router.replace('/onboarding/provider/pending');
+          router.replace('/(tabs)/dashboard');
         }
-      } else {
-        router.replace('/(tabs)/dashboard');
       }
     }
   }, [userId, isBooting, segmentKey, hasToken]);
@@ -123,7 +133,7 @@ function RootLayoutNav() {
     return (
       <View style={[
         styles.loadingContainer,
-        { backgroundColor: isDark ? '#0A0A0A' : '#F2F0EB' },
+        { backgroundColor: isDark ? '#0A0A0A' : '#F4F4F2' },
       ]}>
         <StatusBar
           barStyle={isDark ? 'light-content' : 'dark-content'}
@@ -132,7 +142,7 @@ function RootLayoutNav() {
         />
         <ActivityIndicator
           size="large"
-          color={isDark ? '#F2F2F2' : '#1A1A18'}
+          color={isDark ? '#F4F4F2' : '#1A1A18'}
         />
       </View>
     );
@@ -164,8 +174,8 @@ class AppErrorBoundary extends React.Component<
     if (this.state.hasError) {
       const dark = Appearance.getColorScheme() === 'dark';
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: dark ? '#080808' : '#F2F0EB' }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: dark ? '#F2F2F2' : '#1A1A18' }}>Une erreur est survenue</Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: dark ? '#080808' : '#F4F4F2' }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: dark ? '#F4F4F2' : '#1A1A18' }}>Une erreur est survenue</Text>
           <Text style={{ fontSize: 14, color: dark ? '#999' : '#8A8880', textAlign: 'center', marginBottom: 24 }}>
             L'application a rencontré un problème inattendu.
           </Text>
@@ -173,7 +183,7 @@ class AppErrorBoundary extends React.Component<
             onPress={() => this.setState({ hasError: false })}
             style={{ backgroundColor: dark ? '#F8F7F4' : '#1A1A18', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
-            <Text style={{ color: dark ? '#080808' : '#F2F0EB', fontWeight: '600' }}>Réessayer</Text>
+            <Text style={{ color: dark ? '#080808' : '#F4F4F2', fontWeight: '600' }}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       );
@@ -195,8 +205,8 @@ export default function RootLayout() {
   if (!fontsLoaded) {
     const dark = Appearance.getColorScheme() === 'dark';
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: dark ? '#0A0A0A' : '#F2F0EB' }]}>
-        <ActivityIndicator size="large" color={dark ? '#F2F2F2' : '#1A1A18'} />
+      <View style={[styles.loadingContainer, { backgroundColor: dark ? '#0A0A0A' : '#F4F4F2' }]}>
+        <ActivityIndicator size="large" color={dark ? '#F4F4F2' : '#1A1A18'} />
       </View>
     );
   }

@@ -161,10 +161,10 @@ const STATUS_CFG: Record<MissionStatus, { label: string; icon: string; active?: 
   PUBLISHED:       { label: 'Publie',    icon: 'radio-outline',            active: true },
   ACCEPTED:        { label: 'Confirme',  icon: 'checkmark-circle-outline', active: true },
   ONGOING:         { label: 'En cours',  icon: 'flash-outline',            active: true },
-  DONE:            { label: 'Termine',   icon: 'checkmark-done-outline',   done: true },
-  CANCELLED:       { label: 'Annule',    icon: 'close-circle-outline' },
+  DONE:            { label: 'Terminé',   icon: 'checkmark-done-outline',   done: true },
+  CANCELLED:       { label: 'Annulé',    icon: 'close-circle-outline' },
   PENDING_PAYMENT: { label: 'Paiement',  icon: 'card-outline' },
-  EXPIRED:         { label: 'Expire',    icon: 'time-outline' },
+  EXPIRED:         { label: 'Expiré',    icon: 'time-outline' },
 };
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -930,7 +930,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Confirmee</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>Confirmée</Text>
                 </View>
               </View>
             )}
@@ -945,7 +945,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             <View style={sd.infoRow}>
               <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
               <View style={sd.infoContent}>
-                <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminee</Text>
+                <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminée</Text>
               </View>
             </View>
             <View style={[sd.sep, { backgroundColor: t.border }]} />
@@ -1463,7 +1463,7 @@ export default function Missions() {
           <Ionicons name="alert-circle-outline" size={15} color={t.text} />
           <Text style={[s.errorText, { color: t.text }]}>{error}</Text>
           <TouchableOpacity onPress={loadMissions}>
-            <Text style={[s.retryText, { color: t.text }]}>Reessayer</Text>
+            <Text style={[s.retryText, { color: t.text }]}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       )}

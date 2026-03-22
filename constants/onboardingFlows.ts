@@ -9,13 +9,12 @@ export const CLIENT_FLOW = {
 } as const;
 
 export const PROVIDER_FLOW = {
-  totalSteps: 6,
+  totalSteps: 5,
   steps: {
     SIGNUP_ID:    1,
     ZONE:         2,
     VERIFY_EMAIL: 3,
     DOCUMENTS:    4,
-    QUIZ:         5,
-    STRIPE:       6,
+    STRIPE:       5,
   },
 } as const;

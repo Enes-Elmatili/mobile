@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, KeyboardAvoidingView, Platform,
+  Animated, Dimensions, KeyboardAvoidingView, ScrollView, Platform,
   Easing, StatusBar,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -219,7 +219,7 @@ export default function Login() {
       if (e?.status === 409) {
         showToast(e.data?.error || e.message);
       } else {
-        showToast("Connexion impossible, reessaie");
+        showToast("Connexion impossible, réessaie");
       }
     } finally {
       setSocialLoading(null);
@@ -257,7 +257,7 @@ export default function Login() {
       } else if (e?.status === 409) {
         showToast(e.data?.error || e.message);
       } else {
-        showToast("Connexion impossible, reessaie");
+        showToast("Connexion impossible, réessaie");
       }
     } finally {
       setSocialLoading(null);
@@ -361,6 +361,12 @@ export default function Login() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         {/* Header */}
         <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
           <TouchableOpacity
@@ -375,7 +381,6 @@ export default function Login() {
             <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
           </TouchableOpacity>
 
-          <Text style={s.logoEyebrow}>Bon retour</Text>
           <Text style={s.logoWordmark}>CONNEXION</Text>
         </Animated.View>
 
@@ -474,8 +479,8 @@ export default function Login() {
 
             {/* Forgot password */}
             <View style={s.forgotRow}>
-              <TouchableOpacity activeOpacity={0.6}>
-                <Text style={s.forgotLink}>Mot de passe oublie ?</Text>
+              <TouchableOpacity activeOpacity={0.6} onPress={() => router.push("/(auth)/forgot-password")}>
+                <Text style={s.forgotLink}>Mot de passe oublié ?</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -485,6 +490,7 @@ export default function Login() {
         <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
           <TouchableOpacity
             style={[s.btnPrimary, isBusy && { opacity: 0.55 }]}
+
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               onSubmit();
@@ -512,10 +518,11 @@ export default function Login() {
               }}
               activeOpacity={0.7}
             >
-              <Text style={s.registerLink}>Creer un compte</Text>
+              <Text style={s.registerLink}>Créer un compte</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -577,7 +584,7 @@ const s = StyleSheet.create({
 
   // Body
   body: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 28,
     paddingTop: 32,
     gap: 20,

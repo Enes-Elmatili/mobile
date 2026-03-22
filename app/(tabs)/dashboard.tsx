@@ -70,6 +70,11 @@ const getStatusInfo = (status: string, t: (key: string) => string) => {
     PUBLISHED:       { label: t('dashboard.status_published'), icon: 'radio-outline',            ledColor: COLORS.amber },
     ACCEPTED:        { label: t('dashboard.status_accepted'),  icon: 'hand-left-outline',        ledColor: COLORS.green },
     PENDING_PAYMENT: { label: t('dashboard.status_payment'),   icon: 'card-outline',             ledColor: COLORS.amber },
+    QUOTE_PENDING:   { label: 'En attente de devis',          icon: 'time-outline',             ledColor: COLORS.amber },
+    QUOTE_SENT:      { label: 'Devis reçu',                   icon: 'document-text-outline',    ledColor: COLORS.green },
+    QUOTE_ACCEPTED:  { label: 'Devis accepté',                icon: 'checkmark-circle-outline', ledColor: COLORS.green },
+    QUOTE_REFUSED:   { label: 'Devis refusé',                 icon: 'close-circle-outline',     ledColor: COLORS.red },
+    QUOTE_EXPIRED:   { label: 'Devis expiré',                 icon: 'time-outline',             ledColor: COLORS.red },
     EXPIRED:         { label: t('dashboard.status_expired'),   icon: 'time-outline',             ledColor: COLORS.red },
   };
   return map[s] || { label: s, icon: 'help-circle-outline', ledColor: COLORS.amber };
@@ -135,9 +140,9 @@ function StatusLed({ color, blink }: { color: string; blink?: boolean }) {
 // RUNWAY CAROUSEL — service category cards
 // ============================================================================
 
-const CARD_WIDTH = 110;
-const CARD_HEIGHT = 118;
-const CARD_GAP = 8;
+const CARD_WIDTH = 128;
+const CARD_HEIGHT = 138;
+const CARD_GAP = 10;
 
 const SERVICE_CARDS = [
   { key: 'plomberie',   label: 'Plomberie',   icon: 'water-outline',          theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
@@ -246,7 +251,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
           <View key={i} style={[
             runway.dot,
             { backgroundColor: theme.borderLight },
-            i === activeIndex && { width: 18, borderRadius: 3, backgroundColor: theme.accent },
+            i === activeIndex && { width: 20, borderRadius: 2, backgroundColor: theme.accent },
           ]} />
         ))}
       </View>
@@ -272,29 +277,29 @@ const runway = StyleSheet.create({
   },
 
   ghostNum: {
-    position: 'absolute', bottom: -14, right: -4,
-    fontFamily: FONTS.bebas, fontSize: 70, lineHeight: 70,
+    position: 'absolute', bottom: -8, right: 4,
+    fontFamily: FONTS.bebas, fontSize: 54, lineHeight: 54,
   },
 
   cardInner: {
     position: 'relative', zIndex: 2,
-    padding: 10, flex: 1,
+    padding: 14, flex: 1,
     justifyContent: 'space-between',
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
 
-  iconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  iconBox: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
 
-  ledRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  providerCount: { fontFamily: FONTS.mono, fontSize: 9 },
+  ledRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  providerCount: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: '600' },
 
-  serviceName: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 0.6, lineHeight: 17 },
+  serviceName: { fontFamily: FONTS.bebas, fontSize: 19, letterSpacing: 0.6, lineHeight: 20 },
 
   cardBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  cardArrow: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  cardArrow: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
 
-  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 8 },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingTop: 10, paddingBottom: 4 },
+  dot: { width: 4, height: 3, borderRadius: 2 },
 });
 
 // ============================================================================
@@ -547,7 +552,7 @@ function ActivityItem({
   if (statusKey === 'CANCELLED' || statusKey === 'EXPIRED') {
     badgeBg = theme.badgeCancelledBg;
     badgeTextColor = theme.badgeCancelledText;
-  } else if (['PUBLISHED', 'PENDING', 'PENDING_PAYMENT', 'ACCEPTED', 'ONGOING'].includes(statusKey || '')) {
+  } else if (['PUBLISHED', 'PENDING', 'PENDING_PAYMENT', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(statusKey || '')) {
     badgeBg = theme.badgePendingBg;
     badgeTextColor = theme.badgePendingText;
   }
@@ -778,7 +783,7 @@ export default function Dashboard() {
     [data, activeMission]
   );
 
-  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING'];
+  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
   const latestRequest = useMemo(
     () => (activeMission || searchingMission)
       ? null
@@ -819,21 +824,18 @@ export default function Dashboard() {
         {/* ── TOP BAR ── */}
         <View style={s.topbar}>
           <View>
-            <Text style={[s.greeting, { color: theme.textMuted }]}>
-              {getGreeting(t)}, <Text style={[s.name, { color: theme.text }]}>{name}</Text>
-            </Text>
+            <Text style={[s.greeting, { color: theme.textMuted }]}>{getGreeting(t)}</Text>
+            <Text style={[s.name, { color: theme.text }]}>{name.toUpperCase()}</Text>
           </View>
           <View style={s.topbarActions}>
-            <TouchableOpacity style={[s.iconBtn, { borderColor: theme.border }]} onPress={() => router.push('/notifications')}>
-              <Ionicons name="notifications-outline" size={14} color={theme.text} />
+            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={() => router.push('/notifications')}>
+              <Ionicons name="notifications-outline" size={18} color={theme.text} />
               {unreadCount > 0 && (
-                <View style={[s.notifBadge, { borderColor: theme.bg }]}>
-                  <Text style={s.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                </View>
+                <View style={[s.notifDot, { borderColor: theme.bg }]} />
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={[s.iconBtn, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-outline" size={14} color={theme.text} />
+            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="person-outline" size={18} color={theme.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1018,6 +1020,53 @@ export default function Dashboard() {
                 </>
               )}
 
+              {selectedRequest.status?.toUpperCase() === 'PENDING_PAYMENT' && (
+                <TouchableOpacity
+                  style={[s.actionBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => {
+                    bottomSheetRef.current?.close();
+                    router.push({
+                      pathname: '/request/NewRequestStepper',
+                      params: { selectedCategory: selectedRequest.category?.name || selectedRequest.serviceType },
+                    });
+                  }}
+                >
+                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>Reprendre le paiement</Text>
+                  <Ionicons name="card-outline" size={17} color={theme.accentText} />
+                </TouchableOpacity>
+              )}
+
+              {['QUOTE_PENDING', 'QUOTE_SENT'].includes(selectedRequest.status?.toUpperCase()) && (
+                <TouchableOpacity
+                  style={[s.actionBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => {
+                    bottomSheetRef.current?.close();
+                    const path = selectedRequest.status?.toUpperCase() === 'QUOTE_SENT'
+                      ? '/request/[id]/quote-review'
+                      : '/request/[id]/quote-pending';
+                    router.push({
+                      pathname: path,
+                      params: { id: String(selectedRequest.id) },
+                    });
+                  }}
+                >
+                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>
+                    {selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'Voir le devis' : 'Suivre la demande'}
+                  </Text>
+                  <Ionicons name={selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'document-text-outline' : 'time-outline'} size={17} color={theme.accentText} />
+                </TouchableOpacity>
+              )}
+
+              {selectedRequest.status?.toUpperCase() === 'QUOTE_ACCEPTED' && (
+                <TouchableOpacity
+                  style={[s.actionBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => handleNavigateToMission(selectedRequest)}
+                >
+                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>Suivre l'intervention</Text>
+                  <Ionicons name="navigate" size={17} color={theme.accentText} />
+                </TouchableOpacity>
+              )}
+
               {selectedRequest.status?.toUpperCase() === 'EXPIRED' && (
                 <>
                   <View style={[s.expiredCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
@@ -1062,36 +1111,37 @@ const s = StyleSheet.create({
 
   // ── Top bar ──
   topbar: {
-    paddingTop: 8, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 14, paddingHorizontal: 24, paddingBottom: 6,
+    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
   },
-  greeting: { fontFamily: FONTS.sansLight, fontSize: 13 },
-  name: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.9 },
-  topbarActions: { flexDirection: 'row', gap: 6 },
+  greeting: {
+    fontFamily: FONTS.sansMedium, fontSize: 11, letterSpacing: 1,
+    textTransform: 'uppercase', marginBottom: 3,
+  },
+  name: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.8, lineHeight: 30 },
+  topbarActions: { flexDirection: 'row', gap: 8 },
   iconBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 40, height: 40, borderRadius: 20,
     borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
-  notifBadge: {
-    position: 'absolute', top: -4, right: -4,
-    minWidth: 14, height: 14, borderRadius: 7,
-    backgroundColor: COLORS.red, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 2, borderWidth: 1.5,
+  notifDot: {
+    position: 'absolute', top: 8, right: 8,
+    width: 7, height: 7, borderRadius: 3.5,
+    backgroundColor: COLORS.green, borderWidth: 1.5,
   },
-  notifBadgeText: { fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', color: '#FFF' },
 
   // ── CTA ──
   ctaWrap: { paddingHorizontal: 24, paddingTop: 16 },
   ctaBtn: {
-    borderRadius: 12,
-    paddingVertical: 10, paddingLeft: 14, paddingRight: 14,
+    height: 58, borderRadius: 18,
+    paddingLeft: 26, paddingRight: 18,
     flexDirection: 'row', alignItems: 'center',
   },
-  ctaText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 1.3, flex: 1, textAlign: 'center' },
+  ctaText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1.8, flex: 1 },
   ctaCircle: {
-    width: 26, height: 26, borderRadius: 13,
+    width: 36, height: 36, borderRadius: 18,
     borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
   },

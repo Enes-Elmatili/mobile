@@ -24,6 +24,9 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.thefixed.client",
+      "config": {
+        "googleMapsApiKey": "AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Votre position permet de trouver les prestataires autour de vous et d'assurer un suivi précis de l'intervention.",
@@ -100,6 +103,13 @@
           "color": "#000000",
           "sounds": [],
           "iosDisplayInForeground": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FIXED utilise votre galerie pour ajouter des photos à vos missions et documents.",
+          "cameraPermission": "FIXED utilise votre caméra pour prendre des photos lors de vos missions."
         }
       ],
       "expo-localization",

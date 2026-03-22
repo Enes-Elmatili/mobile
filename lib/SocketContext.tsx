@@ -155,8 +155,9 @@ const ts = StyleSheet.create({
 // ─── Barre discrète animée en haut de l'app lors d'une perte de connexion ─────
 // ═══════════════════════════════════════════════════════════════════════════════
 function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
-  const anim    = useRef(new Animated.Value(0)).current;
-  const prevRef = useRef<ConnectionStatus>('connected');
+  const anim             = useRef(new Animated.Value(0)).current;
+  const prevRef          = useRef<ConnectionStatus>('connected');
+  const disconnectAtRef  = useRef<number | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -165,6 +166,7 @@ function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
 
     if (showing) {
       setVisible(true); // mount before animating in
+      if (disconnectAtRef.current === null) disconnectAtRef.current = Date.now();
     }
 
     Animated.timing(anim, {
@@ -178,10 +180,15 @@ function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
       }
     });
 
-    // Toast discret quand la connexion revient
+    // Toast discret uniquement si déconnexion > 3s (évite le spam sur micro-coupures)
     if (prevRef.current === 'reconnecting' && status === 'connected') {
-      showSocketToast('Connexion rétablie.', 'success');
+      const duration = disconnectAtRef.current ? Date.now() - disconnectAtRef.current : 0;
+      if (duration >= 3000) {
+        showSocketToast('Connexion rétablie.', 'success');
+      }
+      disconnectAtRef.current = null;
     }
+    if (!showing) disconnectAtRef.current = null;
     prevRef.current = status;
   }, [status]);
 

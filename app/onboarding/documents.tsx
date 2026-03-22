@@ -67,7 +67,7 @@ export default function OnboardingDocuments() {
   const handleUpload = async (docType: DocumentType | string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Acces refuse", "Autorisez l'acces a la galerie pour televerser vos documents.");
+      Alert.alert("Accès refusé", "Autorisez l'accès à la galerie pour téléverser vos documents.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
@@ -83,7 +83,7 @@ export default function OnboardingDocuments() {
       setUploads(prev => ({ ...prev, [docType]: { uri: asset.uri, uploading: false } }));
     } catch (e: any) {
       setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: false } }));
-      Alert.alert("Echec du televersement", e?.message || "Reessayez.");
+      Alert.alert("Échec du téléversement", e?.message || "Réessayez.");
     }
   };
 
@@ -105,10 +105,10 @@ export default function OnboardingDocuments() {
       currentStep={PROVIDER_FLOW.steps.DOCUMENTS}
       totalSteps={PROVIDER_FLOW.totalSteps}
       title={"Vos\ndocuments."}
-      subtitle="Televersez vos justificatifs pour activer votre profil. Les documents requis sont marques en orange."
-      cta={{ label: allMandatoryUploaded ? "Continuer" : "Passer cette etape", onPress: () => router.push("/onboarding/quiz"), disabled: false }}
+      subtitle="Téléversez vos justificatifs pour activer votre profil. Les documents requis sont marqués en orange."
+      cta={{ label: "Continuer", onPress: () => router.push("/onboarding/stripe"), disabled: !allMandatoryUploaded }}
     >
-      <Text style={s.docProgress}>{uploadedCount} / {totalDocs} envoye{uploadedCount > 1 ? "s" : ""}</Text>
+      <Text style={s.docProgress}>{uploadedCount} / {totalDocs} envoyé{uploadedCount > 1 ? "s" : ""}</Text>
 
       {requirements.map(req => (
         <DocumentUploadCard key={req.type} requirement={req} uploadedUri={uploads[req.type]?.uri ?? null} uploading={uploads[req.type]?.uploading} onUpload={() => handleUpload(req.type)} />
@@ -116,7 +116,7 @@ export default function OnboardingDocuments() {
 
       <View style={s.securityNote}>
         <Ionicons name="lock-closed-outline" size={12} color="rgba(255,255,255,0.2)" />
-        <Text style={s.securityText}>Documents chiffres et stockes de facon securisee. Jamais partages avec les clients.</Text>
+        <Text style={s.securityText}>Documents chiffrés et stockés de façon sécurisée. Jamais partagés avec les clients.</Text>
       </View>
     </OnboardingLayout>
   );

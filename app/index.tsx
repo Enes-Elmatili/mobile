@@ -15,8 +15,22 @@ export default function Index() {
     );
   }
 
-  // Redirect to the correct group directly — avoids a cross-navigator
-  // replace in _layout.tsx that triggers "GO_BACK not handled" errors.
-  if (user?.id) return <Redirect href="/(tabs)/dashboard" />;
-  return <Redirect href="/(auth)/welcome" />;
+  // No user → welcome
+  if (!user?.id) return <Redirect href="/(auth)/welcome" />;
+
+  // Email not verified → verification screen
+  if (user.emailVerified === false) {
+    return <Redirect href={{ pathname: "/(auth)/verify-email", params: { email: user.email } }} />;
+  }
+
+  // Provider not yet active → pending screen
+  const isProvider = user.roles?.includes('PROVIDER');
+  if (isProvider) {
+    if (user.providerStatus === 'ACTIVE') {
+      return <Redirect href="/(tabs)/provider-dashboard" />;
+    }
+    return <Redirect href="/onboarding/provider/pending" />;
+  }
+
+  return <Redirect href="/(tabs)/dashboard" />;
 }

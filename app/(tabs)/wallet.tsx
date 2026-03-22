@@ -212,7 +212,7 @@ export default function WalletTab() {
       }
       if (connectData.status === 'fulfilled') {
         const c = connectData.value as any;
-        setStripeReady(c?.isStripeReady || c?.isConnected || false);
+        setStripeReady(!!c?.isStripeReady);
       }
     } catch (e) {
       devError('[WalletTab] load error:', e);
@@ -379,23 +379,23 @@ export default function WalletTab() {
       </View>
 
       {/* -- Stripe link -- */}
-      {stripeReady && (
-        <TouchableOpacity
-          style={styles.stripeLink}
-          onPress={handleOpenStripeDashboard}
-          disabled={stripeLoading}
-          activeOpacity={0.7}
-        >
-          {stripeLoading
-            ? <ActivityIndicator size="small" color={t.accent} />
-            : <>
-                <Ionicons name="card-outline" size={15} color={t.accent} />
-                <Text style={[styles.stripeLinkText, { color: t.text }]}>Gerer mes paiements</Text>
-                <Ionicons name="chevron-forward" size={13} color={t.textVeryMuted} />
-              </>
-          }
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={styles.stripeLink}
+        onPress={handleOpenStripeDashboard}
+        disabled={stripeLoading}
+        activeOpacity={0.7}
+      >
+        {stripeLoading
+          ? <ActivityIndicator size="small" color={t.accent} />
+          : <>
+              <Ionicons name="card-outline" size={15} color={t.accent} />
+              <Text style={[styles.stripeLinkText, { color: t.text }]}>
+                {stripeReady ? 'Gerer mes paiements' : 'Configurer Stripe'}
+              </Text>
+              <Ionicons name="chevron-forward" size={13} color={t.textVeryMuted} />
+            </>
+        }
+      </TouchableOpacity>
 
       {/* -- Filtres -- */}
       <View style={styles.filterRow}>

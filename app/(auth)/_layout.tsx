@@ -10,6 +10,8 @@ export default function AuthLayout() {
       <Stack.Screen name="signup" options={{ gestureEnabled: true }} />
       <Stack.Screen name="role-select" options={{ gestureEnabled: true }} />
       <Stack.Screen name="verify-email" options={{ gestureEnabled: true }} />
+      <Stack.Screen name="forgot-password" options={{ gestureEnabled: true }} />
+      <Stack.Screen name="reset-password" options={{ gestureEnabled: true }} />
     </Stack>
   );
 }

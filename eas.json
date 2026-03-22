@@ -22,7 +22,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.thefixed.app/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://api.thefixed.app",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SAAD8Ai87X1MWTO3ycR3JGdCaSJnpQnnEtrjgpohyfRBQPnYwrLppZc3sjQocisETjUO8uGxlnjCMeq2LKZUeNE004sObC5iL",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51SAAD8Ai87X1MWTOWL8eIMIlyNZgsgD0TfVHLGsA1T9vCUH75hg8Fd2g0R0kIHyBIk9qrhC0l4QtWxaBqUKOBHJF00dVrmb9Xz",
         "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "710118047947-u75j0v3q7bolq0jucn486c4hjct68nj4.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "710118047947-u75j0v3q7bolq0jucn486c4hjct68nj4.apps.googleusercontent.com"

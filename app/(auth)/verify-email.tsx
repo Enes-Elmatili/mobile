@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import { FONTS } from "@/hooks/use-app-theme";
 
@@ -60,11 +61,13 @@ function GridLines() {
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const router = useRouter();
+  const { refreshMe, signOut } = useAuth();
 
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [verified, setVerified] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(ROLE_INTENT_KEY).then(r => setRole(r));
@@ -73,16 +76,17 @@ export default function VerifyEmail() {
   // Poll /auth/me every 4s
   useEffect(() => {
     if (verified) return;
-    const interval = setInterval(async () => {
+    pollRef.current = setInterval(async () => {
       try {
         const res = await api.get("/auth/me");
         if (res?.user?.emailVerified) {
           setVerified(true);
-          clearInterval(interval);
+          if (pollRef.current) clearInterval(pollRef.current);
+          await refreshMe();
         }
       } catch {}
     }, 4000);
-    return () => clearInterval(interval);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [verified]);
 
   const handleResend = async () => {
@@ -218,13 +222,13 @@ export default function VerifyEmail() {
         </View>
 
         <Text style={s.logoEyebrow}>
-          {verified ? "Confirmation" : "Verification"}
+          {verified ? "Confirmation" : "Vérification"}
         </Text>
         <Text style={s.logoWordmark}>
           {verified ? (
-            <>EMAIL{"\n"}<Text style={s.logoWordmarkOutline}>VERIFIE !</Text></>
+            <>EMAIL{"\n"}<Text style={s.logoWordmarkOutline}>VÉRIFIÉ !</Text></>
           ) : (
-            <>VERIFIEZ{"\n"}<Text style={s.logoWordmarkOutline}>VOTRE EMAIL.</Text></>
+            <>VÉRIFIEZ{"\n"}<Text style={s.logoWordmarkOutline}>VOTRE EMAIL.</Text></>
           )}
         </Text>
       </Animated.View>
@@ -233,9 +237,9 @@ export default function VerifyEmail() {
       <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
         <Text style={s.subtitle}>
           {verified
-            ? "Votre adresse email a ete confirmee avec succes."
+            ? "Votre adresse email a été confirmée avec succès."
             : <>
-                {"Un lien a ete envoye a\n"}
+                {"Un lien a été envoyé à\n"}
                 <Text style={s.emailText}>{email || "votre adresse email"}</Text>
               </>
           }
@@ -261,7 +265,7 @@ export default function VerifyEmail() {
               {resending
                 ? <ActivityIndicator size="small" color={C.white} />
                 : <Text style={[s.resendText, resent && { color: C.grey }]}>
-                    {resent ? "\u2713  Email renvoye" : "Renvoyer le lien"}
+                    {resent ? "\u2713  Email renvoyé" : "Renvoyer le lien"}
                   </Text>
               }
             </TouchableOpacity>
@@ -272,8 +276,9 @@ export default function VerifyEmail() {
       {/* Actions */}
       <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
         <TouchableOpacity
-          style={s.btnPrimary}
+          style={[s.btnPrimary, !verified && { opacity: 0.35 }]}
           onPress={handleContinue}
+          disabled={!verified}
           activeOpacity={0.9}
         >
           <Text style={s.btnPrimaryText}>CONTINUER</Text>
@@ -282,9 +287,18 @@ export default function VerifyEmail() {
           </View>
         </TouchableOpacity>
 
-        <Text style={s.hint}>
-          Vous pourrez verifier votre email plus tard depuis votre profil.
-        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            if (pollRef.current) clearInterval(pollRef.current);
+            signOut();
+            router.replace("/(auth)/welcome");
+          }}
+          activeOpacity={0.6}
+          style={s.logoutLink}
+        >
+          <Ionicons name="log-out-outline" size={14} color={C.grey} />
+          <Text style={s.logoutText}>Se déconnecter</Text>
+        </TouchableOpacity>
       </Animated.View>
     </View>
   );
@@ -401,5 +415,13 @@ const s = StyleSheet.create({
   hint: {
     fontFamily: FONTS.sansLight, fontSize: 12, color: "rgba(255,255,255,0.2)",
     textAlign: "center",
+  },
+  logoutLink: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 8, marginTop: 4,
+  },
+  logoutText: {
+    fontFamily: FONTS.sans, fontSize: 14, color: C.grey,
+    textDecorationLine: "underline", textDecorationColor: "rgba(255,255,255,0.12)",
   },
 });

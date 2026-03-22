@@ -85,7 +85,7 @@ export default function ProvidersListScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="people-outline" size={64} color={theme.textDisabled} />
-            <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucun provider disponible</Text>
+            <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucun prestataire disponible</Text>
           </View>
         }
       />
