@@ -140,7 +140,7 @@ async function uploadMissionPhoto(
   });
   const text = await response.text();
   let data: any;
-  try { data = JSON.parse(text); } catch { throw new Error('Reponse invalide du serveur'); }
+  try { data = JSON.parse(text); } catch { throw new Error('Réponse invalide du serveur'); }
   if (!response.ok) throw Object.assign(new Error(data?.message || `HTTP ${response.status}`), { status: response.status, data });
   return data.photoUrl;
 }

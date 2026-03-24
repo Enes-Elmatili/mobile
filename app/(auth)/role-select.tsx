@@ -200,7 +200,7 @@ export default function RoleSelect() {
           return;
         }
       } catch (e: any) {
-        Alert.alert('Erreur', e?.message || "Impossible d'attribuer le role");
+        Alert.alert('Erreur', e?.message || "Impossible d'attribuer le rôle");
         setSubmitting(false);
       }
     } else {
@@ -245,12 +245,12 @@ export default function RoleSelect() {
 
       {/* Hero */}
       <Animated.View style={[s.hero, { opacity: heroOp, transform: [{ translateY: heroTy }] }]}>
-        <Text style={s.heroKicker}>Etape 1 sur 3</Text>
+        <Text style={s.heroKicker}>Étape 1 sur 3</Text>
         <View>
           <Text style={s.heroTitle}>JE SUIS</Text>
           <Text style={[s.heroTitle, s.heroTitleOutline]}>QUI ?</Text>
         </View>
-        <Text style={s.heroSub}>Choisissez votre profil pour personnaliser l'experience.</Text>
+        <Text style={s.heroSub}>Choisissez votre profil pour personnaliser l'expérience.</Text>
       </Animated.View>
 
       {/* Cards — flex spacer pushes actions to bottom */}
@@ -266,7 +266,7 @@ export default function RoleSelect() {
           <RoleCard
             icon="construct-outline"
             title="PRESTATAIRE"
-            subtitle={'Je propose mes services\net gere mes missions'}
+            subtitle={'Je propose mes services\net gère mes missions'}
             isSelected={selected === 'PROVIDER'}
             onPress={() => select('PROVIDER')}
           />
@@ -295,7 +295,7 @@ export default function RoleSelect() {
             activeOpacity={0.7}
             onPress={() => { Haptics.selectionAsync(); router.push('/(auth)/login'); }}
           >
-            <Text style={s.loginLabel}>Deja un compte ?</Text>
+            <Text style={s.loginLabel}>Déjà un compte ?</Text>
             <Text style={s.loginLink}>Se connecter</Text>
           </TouchableOpacity>
         )}

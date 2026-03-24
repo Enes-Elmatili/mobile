@@ -129,7 +129,7 @@ export default function SupportScreen() {
 
   // ─── Level labels for progress ───────────────────────────────────────────────
 
-  const levelLabels = ['Mission', 'Probleme', 'Resolution'];
+  const levelLabels = ['Mission', 'Problème', 'Résolution'];
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 

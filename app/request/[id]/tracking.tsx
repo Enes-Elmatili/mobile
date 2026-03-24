@@ -277,7 +277,7 @@ export default function RequestTracking() {
     if (request?.provider?.phone) {
       Linking.openURL(`tel:${request.provider.phone}`);
     } else {
-      Alert.alert('Numero indisponible', "Le numero du prestataire n'est pas disponible.");
+      Alert.alert('Numéro indisponible', "Le numéro du prestataire n'est pas disponible.");
     }
   };
 

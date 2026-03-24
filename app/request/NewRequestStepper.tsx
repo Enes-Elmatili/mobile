@@ -576,6 +576,7 @@ export default function NewRequestStepper() {
   const basePrice       = selectedSubcategory?.basePrice || selectedSubcategory?.price || selectedCategory?.price || 0;
   const pricingMode     = selectedSubcategory?.pricingMode || 'fixed_forfait';
   const calloutFee      = selectedSubcategory?.calloutFee || 0; // EUR
+  const isFreeService   = pricingMode === 'free' || (basePrice === 0 && !['estimate', 'diagnostic'].includes(pricingMode));
   const isQuoteFlow     = pricingMode === 'estimate' || pricingMode === 'diagnostic';
   const serviceName     = selectedSubcategory?.name  || selectedCategory?.name  || null;
   const scheduledLabel  = scheduleMode === 'now'
@@ -652,20 +653,67 @@ export default function NewRequestStepper() {
   const [paymentReady,       setPaymentReady]       = useState(false);
   const [paymentInitLoading, setPaymentInitLoading] = useState(false);
   const [priceDetailOpen,    setPriceDetailOpen]    = useState(false);
+  const [pricingToken,       setPricingToken]       = useState<string | null>(null);
+  const [serverPrice,        setServerPrice]        = useState<ReturnType<typeof computePrice> | null>(null);
+  const [pricingError,       setPricingError]       = useState<string | null>(null);
+
+  // Prix affiché = prix serveur (si disponible) ou estimation client
+  const displayPrice = serverPrice || priceDetails;
+  const displayTotal = parseFloat(displayPrice.totalTVAC);
 
   useEffect(() => {
     if (step !== 4 || !selectedCategory || !location || paymentReady) return;
+    let cancelled = false;
     (async () => {
       setPaymentInitLoading(true);
+      setPricingError(null);
       try {
         const serviceType = selectedSubcategory?.name || selectedCategory.name;
-        const payload: any = {
+
+        // ── Service gratuit → skip pricing lock + skip payment ──
+        if (isFreeService) {
+          const payload: Record<string, unknown> = {
+            title:        serviceType,
+            description:  description || `Service de ${serviceType}`,
+            serviceType,
+            categoryId:   selectedCategory.id,
+            ...(subcategoryId && { subcategoryId }),
+            price:        0,
+            address:      location.address,
+            lat:          location.lat,
+            lng:          location.lng,
+            urgent:       false,
+            scheduledFor: scheduledFor || new Date().toISOString(),
+            pricingMode:  'free',
+          };
+          const reqRes = await api.post('/requests', payload);
+          const rId = reqRes.id || reqRes.data?.id;
+          if (!rId) throw new Error('Request ID manquant');
+          if (cancelled) return;
+          setRequestId(rId);
+          setPaymentReady(true);
+          return;
+        }
+
+        // ── Flow payant : verrouiller le prix côté serveur ──
+        const lockRes = await api.post('/pricing/lock', {
+          categoryId:   selectedCategory.id,
+          ...(subcategoryId && { subcategoryId }),
+          isUrgent,
+          scheduledFor: scheduledFor || new Date().toISOString(),
+          pricingMode,
+        });
+        if (cancelled) return;
+        setPricingToken(lockRes.pricingToken);
+        setServerPrice(lockRes.price);
+
+        const payload: Record<string, unknown> = {
           title:        serviceType,
           description:  description || `Service de ${serviceType}`,
           serviceType,
           categoryId:   selectedCategory.id,
           ...(subcategoryId && { subcategoryId }),
-          price:        isQuoteFlow ? 0 : estimatedPrice,
+          price:        isQuoteFlow ? 0 : parseFloat(lockRes.price.totalTVAC),
           address:      location.address,
           lat:          location.lat,
           lng:          location.lng,
@@ -673,14 +721,16 @@ export default function NewRequestStepper() {
           scheduledFor: scheduledFor || new Date().toISOString(),
           status:       isQuoteFlow ? 'QUOTE_PENDING' : 'PENDING_PAYMENT',
           pricingMode,
+          pricingToken: lockRes.pricingToken,
         };
         const reqRes = await api.post('/requests', payload);
         const rId    = reqRes.id || reqRes.data?.id;
         if (!rId) throw new Error('Request ID manquant');
+        if (cancelled) return;
         setRequestId(rId);
 
+        // Initialiser le payment sheet
         if (isQuoteFlow) {
-          // Quote flow → payer le callout fee via /quotes/callout-payment
           const calloutRes = await api.post('/quotes/callout-payment', { requestId: rId });
           const { error } = await initPaymentSheet({
             merchantDisplayName:      'Fixed',
@@ -688,9 +738,8 @@ export default function NewRequestStepper() {
             applePay:  { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: true },
           });
-          if (!error) setPaymentReady(true);
+          if (!error && !cancelled) setPaymentReady(true);
         } else {
-          // Forfait flow → payer le total via /payments/intent
           const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(rId);
           const { error } = await initPaymentSheet({
             merchantDisplayName:      'Fixed',
@@ -700,14 +749,18 @@ export default function NewRequestStepper() {
             applePay:  { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: true },
           });
-          if (!error) setPaymentReady(true);
+          if (!error && !cancelled) setPaymentReady(true);
         }
       } catch (e: any) {
-        devError('Payment init error:', e);
+        if (!cancelled) {
+          devError('Payment init error:', e);
+          setPricingError(e?.message || 'Erreur lors du calcul du prix');
+        }
       } finally {
-        setPaymentInitLoading(false);
+        if (!cancelled) setPaymentInitLoading(false);
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -771,6 +824,14 @@ export default function NewRequestStepper() {
     if (!paymentReady || !requestId) return;
     setLoading(true);
     try {
+      // Service gratuit → pas de payment sheet, publication directe
+      if (isFreeService) {
+        await api.payments.success(String(requestId)).catch(() => {});
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        goToMissionView();
+        return;
+      }
+
       const { error: presentError } = await presentPaymentSheet();
       if (presentError) {
         if (presentError.code !== 'Canceled') devError('Payment sheet error:', presentError.message);
@@ -778,7 +839,6 @@ export default function NewRequestStepper() {
       }
 
       if (isQuoteFlow) {
-        // Quote flow → callout payé, redirect vers écran "en attente de devis"
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace({
           pathname: '/request/[id]/quote-pending',
@@ -1149,20 +1209,34 @@ export default function NewRequestStepper() {
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
-                <TouchableOpacity style={s.v4Row} onPress={handleChangePayment} activeOpacity={0.7} disabled={!paymentReady} accessibilityRole="button">
-                  <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
-                  {paymentInitLoading ? (
-                    <ActivityIndicator size="small" color={theme.textSub as string} style={{ marginLeft: 4 }} />
-                  ) : (
-                    <Text style={[s.v4Val, { color: theme.text }]}>{t('stepper.card_saved')}</Text>
-                  )}
-                  <Ionicons name="chevron-forward" size={14} color={theme.textMuted as string} style={s.v4Chevron} />
-                </TouchableOpacity>
+                {!isFreeService && (
+                  <TouchableOpacity style={s.v4Row} onPress={handleChangePayment} activeOpacity={0.7} disabled={!paymentReady} accessibilityRole="button">
+                    <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
+                    {paymentInitLoading ? (
+                      <ActivityIndicator size="small" color={theme.textSub as string} style={{ marginLeft: 4 }} />
+                    ) : (
+                      <Text style={[s.v4Val, { color: theme.text }]}>{t('stepper.card_saved')}</Text>
+                    )}
+                    <Ionicons name="chevron-forward" size={14} color={theme.textMuted as string} style={s.v4Chevron} />
+                  </TouchableOpacity>
+                )}
 
               </View>
 
               {/* Prix / Callout fee section */}
-              {isQuoteFlow ? (
+              {isFreeService ? (
+                <View style={s.v4PriceBreakdown}>
+                  <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+                    <Ionicons name="gift-outline" size={18} color={theme.text as string} />
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>Service gratuit</Text>
+                      <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>
+                        Aucun paiement requis. Confirmez pour lancer la recherche d'un prestataire.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ) : isQuoteFlow ? (
                 <View style={s.v4PriceBreakdown}>
                   <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
                     <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={18} color={theme.text as string} />
@@ -1201,14 +1275,14 @@ export default function NewRequestStepper() {
                     <View style={{ marginBottom: 6, gap: 2 }}>
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Base HTVA</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.baseHTVA} €</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.baseHTVA} €</Text>
                       </View>
                       <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
-                      {priceDetails.multiplier > 1 && (
+                      {displayPrice.multiplier > 1 && (
                         <>
                           <View style={s.v4PriceLine}>
-                            <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (x{priceDetails.multiplier.toFixed(1)})</Text>
-                            <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.adjustedBase} €</Text>
+                            <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (x{displayPrice.multiplier.toFixed(1)})</Text>
+                            <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.adjustedBase} €</Text>
                           </View>
                           <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
                         </>
@@ -1217,24 +1291,24 @@ export default function NewRequestStepper() {
                         <>
                           <View style={s.v4PriceLine}>
                             <Text style={[s.v4PriceLabel, { color: COLORS.red }]}>Urgence (+50%)</Text>
-                            <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{priceDetails.urgentFee} €</Text>
+                            <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{displayPrice.urgentFee} €</Text>
                           </View>
                           <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
                         </>
                       )}
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Déplacement</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.travelFee} €</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.travelFee} €</Text>
                       </View>
                       <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Frais plateforme</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{priceDetails.platformFee} €</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.platformFee} €</Text>
                       </View>
                       <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>TVA (21%)</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(priceDetails.totalTVAC) - parseFloat(priceDetails.totalHTVA)).toFixed(2)} €</Text>
+                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(displayPrice.totalTVAC) - parseFloat(displayPrice.totalHTVA)).toFixed(2)} €</Text>
                       </View>
                       <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 6 }]} />
                     </View>
@@ -1245,7 +1319,7 @@ export default function NewRequestStepper() {
                       <Text style={[s.v4TotalLabel, { color: theme.text }]}>TTC</Text>
                       <Ionicons name={priceDetailOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
                     </View>
-                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{priceDetails.totalTVAC} €</Text>
+                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{displayPrice.totalTVAC} €</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1254,22 +1328,26 @@ export default function NewRequestStepper() {
 
             {/* Footer */}
             <View style={s.v4Footer}>
-              <View style={s.v4SecureRow}>
-                <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
-                <Text style={[s.v4Secure, { color: theme.textMuted }]}>
-                  {isQuoteFlow
-                    ? 'Vous ne serez facturé que si vous acceptez le devis'
-                    : t('stepper.charge_after_validation')}
-                </Text>
-              </View>
+              {!isFreeService && (
+                <View style={s.v4SecureRow}>
+                  <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
+                  <Text style={[s.v4Secure, { color: theme.textMuted }]}>
+                    {isQuoteFlow
+                      ? 'Vous ne serez facturé que si vous acceptez le devis'
+                      : t('stepper.charge_after_validation')}
+                  </Text>
+                </View>
+              )}
               <BottomCTA
-                label={isQuoteFlow
-                  ? `Réserver · ${calloutFee.toFixed(2)} €`
-                  : t('stepper.confirm_mission')}
+                label={isFreeService
+                  ? 'Confirmer (gratuit)'
+                  : isQuoteFlow
+                    ? `Réserver · ${serverPrice?.calloutFee ?? calloutFee.toFixed(2)} €`
+                    : t('stepper.confirm_mission')}
                 onPress={handlePay}
-                disabled={loading || !paymentReady}
+                disabled={loading || !paymentReady || !!pricingError}
                 loading={loading}
-                price={isQuoteFlow ? undefined : estimatedPrice}
+                price={isFreeService ? undefined : (isQuoteFlow ? undefined : displayTotal)}
               />
             </View>
           </View>

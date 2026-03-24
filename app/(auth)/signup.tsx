@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, Platform,
+  Animated, Dimensions, Platform, KeyboardAvoidingView,
   Easing, StatusBar, ScrollView, ActivityIndicator, Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -529,7 +529,7 @@ export default function Signup() {
               <>
                 <Text style={s.logoWordmark}>
                   VOTRE{"\n"}
-                  <Text style={s.logoWordmarkOutline}>ACTIVITE.</Text>
+                  <Text style={s.logoWordmarkOutline}>ACTIVITÉ.</Text>
                 </Text>
                 <Text style={s.titleSub}>Zone d'intervention et domaines d'expertise.</Text>
               </>
@@ -538,12 +538,16 @@ export default function Signup() {
         </Animated.View>
 
         {/* Body */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+        >
         <Animated.View style={[s.bodyWrapper, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
           <ScrollView
             contentContainerStyle={s.bodyScroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            automaticallyAdjustKeyboardInsets
           >
             {/* === IDENTITY PHASE === */}
             {phase === "identity" && (
@@ -736,6 +740,7 @@ export default function Signup() {
             )}
           </ScrollView>
         </Animated.View>
+        </KeyboardAvoidingView>
 
         {/* Actions */}
         <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
@@ -749,7 +754,7 @@ export default function Signup() {
             activeOpacity={0.9}
           >
             <Text style={s.btnPrimaryText}>
-              {phase === "identity" && isProvider ? "CONTINUER" : "CREER MON COMPTE"}
+              {phase === "identity" && isProvider ? "CONTINUER" : "CRÉER MON COMPTE"}
             </Text>
             <View style={s.arrowPill}>
               <Ionicons name="arrow-forward" size={14} color={C.white} />

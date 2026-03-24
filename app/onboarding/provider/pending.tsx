@@ -272,7 +272,7 @@ export default function PendingValidation() {
               style={s.stripeCta}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push("/settings/support");
+                router.push("/support");
               }}
               activeOpacity={0.9}
             >

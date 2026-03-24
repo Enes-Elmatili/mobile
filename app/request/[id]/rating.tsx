@@ -16,6 +16,7 @@ import {
   Platform,
   StatusBar,
   BackHandler,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -247,6 +248,11 @@ export default function RatingScreen() {
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+      >
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
@@ -363,6 +369,7 @@ export default function RatingScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ── CTA fixe en bas ── */}
       <View style={[s.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>

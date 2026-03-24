@@ -49,6 +49,8 @@ const MISSION_FLOW_ROUTES = [
   'onboarding',
   'signup',
   'verify-email',
+  'reset-password',
+  'forgot-password',
   'messages',
   'notifications',
   'connect',

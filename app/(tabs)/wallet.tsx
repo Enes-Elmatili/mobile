@@ -38,7 +38,7 @@ function dateGroup(iso: string): string {
 
 // --- Label lisible depuis la reference ---
 function readableLabel(type: string, reference?: string | null): string {
-  if (!reference) return type === 'CREDIT' ? 'Credit' : type === 'DEBIT' ? 'Debit' : type;
+  if (!reference) return type === 'CREDIT' ? 'Crédit' : type === 'DEBIT' ? 'Débit' : type;
   const m = reference.match(/request[_-](\d+)/i);
   if (m) return `Mission #${m[1]}`;
   if (/withdraw|retrait/i.test(reference)) return 'Retrait bancaire';
@@ -58,9 +58,9 @@ const FILTERS: { key: Filter; label: string }[] = [
 // --- Statut des retraits ---
 const WD_STATUS: Record<string, { label: string; color: string }> = {
   PENDING:   { label: 'En attente', color: COLORS.amber },
-  APPROVED:  { label: 'Approuve',   color: COLORS.green },
-  REJECTED:  { label: 'Refuse',     color: COLORS.red },
-  COMPLETED: { label: 'Effectue',   color: COLORS.green },
+  APPROVED:  { label: 'Approuvé',   color: COLORS.green },
+  REJECTED:  { label: 'Refusé',     color: COLORS.red },
+  COMPLETED: { label: 'Effectué',   color: COLORS.green },
 };
 
 // --- Consolidation : fusionne HOLD+RELEASE d'une meme mission ---
@@ -119,10 +119,10 @@ function consolidateTxs(raw: any[]): ConsolidatedTx[] {
 // --- Ligne transaction ---
 function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
   const cfg = {
-    released: { icon: 'checkmark-circle-outline' as const, iconColor: COLORS.green, badge: 'Libere', badgeColor: COLORS.green, sign: '+' },
-    credit:   { icon: 'arrow-down-outline' as const,       iconColor: COLORS.green, badge: 'Recu',   badgeColor: COLORS.green, sign: '+' },
+    released: { icon: 'checkmark-circle-outline' as const, iconColor: COLORS.green, badge: 'Libéré', badgeColor: COLORS.green, sign: '+' },
+    credit:   { icon: 'arrow-down-outline' as const,       iconColor: COLORS.green, badge: 'Reçu',   badgeColor: COLORS.green, sign: '+' },
     pending:  { icon: 'time-outline' as const,             iconColor: COLORS.amber, badge: 'En validation', badgeColor: COLORS.amber, sign: '' },
-    debit:    { icon: 'arrow-up-outline' as const,         iconColor: COLORS.red, badge: 'Debite', badgeColor: COLORS.red, sign: '\u2212' },
+    debit:    { icon: 'arrow-up-outline' as const,         iconColor: COLORS.red, badge: 'Débité', badgeColor: COLORS.red, sign: '\u2212' },
   }[item.status];
 
   const isGain = item.status === 'released' || item.status === 'credit';

@@ -73,21 +73,26 @@ export default function VerifyEmail() {
     AsyncStorage.getItem(ROLE_INTENT_KEY).then(r => setRole(r));
   }, []);
 
-  // Poll /auth/me every 4s
+  // Poll /auth/me every 4s — single effect, no re-trigger on state change
   useEffect(() => {
-    if (verified) return;
+    let cancelled = false;
     pollRef.current = setInterval(async () => {
+      if (cancelled) return;
       try {
         const res = await api.get("/auth/me");
-        if (res?.user?.emailVerified) {
-          setVerified(true);
+        if (res?.user?.emailVerified && !cancelled) {
           if (pollRef.current) clearInterval(pollRef.current);
-          await refreshMe();
+          setVerified(true);
+          refreshMe().catch(() => {});
         }
       } catch {}
     }, 4000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [verified]);
+    return () => {
+      cancelled = true;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleResend = async () => {
     setResending(true);
@@ -251,7 +256,7 @@ export default function VerifyEmail() {
             <View style={s.infoCard}>
               <Ionicons name="information-circle-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
               <Text style={s.infoText}>
-                Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 24 heures.
+                Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 48 heures.
               </Text>
             </View>
 

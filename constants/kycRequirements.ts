@@ -2,7 +2,7 @@
 
 export type DocumentType =
   | 'identity_card'
-  | 'proof_of_address'
+  | 'bce'
   | 'professional_cert'
   | 'liability_insurance'
   | 'vat_number'
@@ -18,6 +18,7 @@ export interface DocumentRequirement {
 }
 
 // Documents communs à TOUS les prestataires
+// Note GDPR : justificatif de domicile supprimé — non conforme pour travailleur indépendant belge
 export const BASE_REQUIREMENTS: DocumentRequirement[] = [
   {
     type: 'identity_card',
@@ -28,26 +29,26 @@ export const BASE_REQUIREMENTS: DocumentRequirement[] = [
     maxSizeMB: 10,
   },
   {
-    type: 'proof_of_address',
-    label: 'Justificatif de domicile',
-    description: 'Facture d\'eau, gaz, électricité ou avis d\'imposition de moins de 3 mois.',
+    type: 'bce',
+    label: 'Numéro BCE / Extrait BCE',
+    description: 'Numéro d\'entreprise à la Banque-Carrefour des Entreprises ou extrait BCE de moins de 3 mois.',
     required: true,
     accept: ['jpg', 'jpeg', 'png', 'pdf'],
     maxSizeMB: 10,
   },
+  {
+    type: 'liability_insurance',
+    label: 'Assurance RC professionnelle',
+    description: 'Attestation d\'assurance responsabilité civile professionnelle en cours de validité.',
+    required: true,
+    accept: ['pdf', 'jpg', 'jpeg', 'png'],
+    maxSizeMB: 10,
+  },
 ];
 
-// Documents spécifiques par métier
+// Documents spécifiques par métier (BCE + RC Pro déjà dans BASE_REQUIREMENTS)
 export const SKILL_REQUIREMENTS: Record<string, DocumentRequirement[]> = {
   'Bricolage': [
-    {
-      type: 'liability_insurance',
-      label: 'Assurance RC professionnelle',
-      description: 'Attestation d\'assurance responsabilité civile professionnelle en cours de validité.',
-      required: true,
-      accept: ['pdf', 'jpg', 'jpeg', 'png'],
-      maxSizeMB: 10,
-    },
     {
       type: 'professional_cert',
       label: 'Certificat de qualification',
@@ -59,14 +60,6 @@ export const SKILL_REQUIREMENTS: Record<string, DocumentRequirement[]> = {
   ],
   'Urgences techniques': [
     {
-      type: 'liability_insurance',
-      label: 'Assurance RC professionnelle',
-      description: 'Obligatoire pour les interventions d\'urgence.',
-      required: true,
-      accept: ['pdf', 'jpg', 'jpeg', 'png'],
-      maxSizeMB: 10,
-    },
-    {
       type: 'electrical_cert',
       label: 'Certification AREI / BA4-BA5',
       description: 'Requis pour les interventions électriques en Belgique.',
@@ -75,16 +68,7 @@ export const SKILL_REQUIREMENTS: Record<string, DocumentRequirement[]> = {
       maxSizeMB: 10,
     },
   ],
-  'Ménage': [
-    {
-      type: 'liability_insurance',
-      label: 'Assurance RC professionnelle',
-      description: 'Recommandée pour les interventions à domicile.',
-      required: false,
-      accept: ['pdf', 'jpg', 'jpeg', 'png'],
-      maxSizeMB: 10,
-    },
-  ],
+  'Ménage': [],
 };
 
 /**

@@ -111,7 +111,7 @@ export default function HelpScreen() {
             <Ionicons name="chatbubbles-outline" size={22} color={theme.textSub} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.supportTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Un probleme avec une mission ?</Text>
+            <Text style={[s.supportTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Un problème avec une mission ?</Text>
             <Text style={[s.supportSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Obtenez de l'aide en quelques clics</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />

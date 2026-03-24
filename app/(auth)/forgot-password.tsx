@@ -139,6 +139,7 @@ export default function ForgotPassword() {
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
@@ -190,7 +191,7 @@ export default function ForgotPassword() {
                 <View style={s.infoCard}>
                   <Ionicons name="information-circle-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
                   <Text style={s.infoText}>
-                    Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 1 heure.
+                    Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 48 heures.
                   </Text>
                 </View>
               </>

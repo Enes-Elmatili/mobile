@@ -56,12 +56,12 @@ function GridLines() {
 // ── Service ticker data ─────────────────────────────────────────────────────
 const SERVICES: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
   { icon: "water-outline", label: "Plomberie" },
-  { icon: "flash-outline", label: "Electricite" },
-  { icon: "home-outline", label: "Menage" },
+  { icon: "flash-outline", label: "Électricité" },
+  { icon: "home-outline", label: "Ménage" },
   { icon: "lock-closed-outline", label: "Serrurerie" },
   { icon: "brush-outline", label: "Peinture" },
   { icon: "hammer-outline", label: "Bricolage" },
-  { icon: "flame-outline", label: "Chaudiere" },
+  { icon: "flame-outline", label: "Chaudière" },
 ];
 
 const TICKER_ITEM_H = 28;
@@ -194,7 +194,7 @@ function TrustBadge() {
   return (
     <View style={s.trustRow}>
       <Animated.View style={[s.trustDot, { opacity }]} />
-      <Text style={s.trustLabel}>14 prestataires actifs a Bruxelles</Text>
+      <Text style={s.trustLabel}>14 prestataires actifs à Bruxelles</Text>
     </View>
   );
 }
@@ -327,7 +327,7 @@ export default function Welcome() {
 
           <Animated.View style={[s.splashTagRow, { opacity: tagOp, transform: [{ translateY: tagTy }] }]}>
             <GreenDot />
-            <Text style={s.splashTagline}>Services a la demande</Text>
+            <Text style={s.splashTagline}>Services à la demande</Text>
           </Animated.View>
 
           {/* Loading bar */}
@@ -353,7 +353,7 @@ export default function Welcome() {
           {/* Header */}
           <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
             <View style={s.logoLockup}>
-              <Text style={s.logoEyebrow}>Services a domicile</Text>
+              <Text style={s.logoEyebrow}>Services à domicile</Text>
               <Text style={s.logoWordmark}>FIXED</Text>
             </View>
           </Animated.View>
@@ -371,7 +371,7 @@ export default function Welcome() {
             </View>
 
             <Text style={s.heroSub}>
-              Plomberie, electricite, menage — reserve en quelques secondes.
+              Plomberie, électricité, ménage — réservé en quelques secondes.
             </Text>
 
             <ServiceTicker />
@@ -390,7 +390,7 @@ export default function Welcome() {
                 router.push("/(auth)/role-select");
               }}
             >
-              <Text style={s.btnPrimaryText}>CREER UN COMPTE</Text>
+              <Text style={s.btnPrimaryText}>CRÉER UN COMPTE</Text>
               <View style={s.arrowPill}>
                 <Ionicons name="arrow-forward" size={14} color={C.white} />
               </View>
@@ -399,7 +399,7 @@ export default function Welcome() {
             {/* Divider */}
             <View style={s.divider}>
               <View style={s.dividerLine} />
-              <Text style={s.dividerLabel}>Deja un compte ?</Text>
+              <Text style={s.dividerLabel}>Déjà un compte ?</Text>
               <View style={s.dividerLine} />
             </View>
 

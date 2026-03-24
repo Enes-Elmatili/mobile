@@ -158,14 +158,16 @@ class ApiClient {
       }
 
       // ── 401 → refresh token puis retry ───────────────────────────────────
-      if (response.status === 401 && retryCount === 0) {
-        devLog('🔐 Got 401, attempting token refresh...');
+      // Skip auto-refresh for auth routes (login/signup return 401 for invalid credentials, not expired session)
+      const isAuthRoute = endpoint.startsWith('/auth/login') || endpoint.startsWith('/auth/signup');
+      if (response.status === 401 && retryCount === 0 && !isAuthRoute) {
+        devLog('Got 401, attempting token refresh...');
         const newToken = await this.refreshAccessToken();
         if (newToken) {
-          devLog('🔄 Retrying request with new token...');
+          devLog('Retrying request with new token...');
           return this.request(endpoint, options, retryCount + 1);
         } else {
-          devLog('❌ Token refresh failed, clearing session...');
+          devLog('Token refresh failed, clearing session...');
           await tokenStorage.removeToken();
           Alert.alert('Session expirée', 'Veuillez vous reconnecter.');
         }

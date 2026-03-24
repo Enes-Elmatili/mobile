@@ -88,7 +88,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
         {missions.length === 0 && (
           <View style={[s.emptyCard, { backgroundColor: theme.surface }]}>
             <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-              Aucune mission recente
+              Aucune mission récente
             </Text>
           </View>
         )}

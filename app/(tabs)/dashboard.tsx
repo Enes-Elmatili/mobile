@@ -845,7 +845,7 @@ export default function Dashboard() {
           theme={theme}
           onPress={(category) =>
             router.push(category
-              ? `/request/NewRequestStepper?category=${category}`
+              ? `/request/NewRequestStepper?selectedCategory=${category}`
               : '/request/NewRequestStepper'
             )
           }

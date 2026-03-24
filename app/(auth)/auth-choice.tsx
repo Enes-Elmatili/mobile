@@ -143,7 +143,7 @@ export default function AuthChoice() {
           </View>
           <View style={s.cardContent}>
             <Text style={s.cardTitle}>Se connecter</Text>
-            <Text style={s.cardSub}>J'ai deja un compte</Text>
+            <Text style={s.cardSub}>J'ai déjà un compte</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
         </TouchableOpacity>
@@ -160,7 +160,7 @@ export default function AuthChoice() {
             <Ionicons name="person-add-outline" size={20} color={C.white} />
           </View>
           <View style={s.cardContent}>
-            <Text style={s.cardTitle}>Creer un compte</Text>
+            <Text style={s.cardTitle}>Créer un compte</Text>
             <Text style={s.cardSub}>Nouveau sur FIXED</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />

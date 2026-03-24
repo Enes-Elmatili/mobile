@@ -224,19 +224,25 @@ export default function Profile() {
   const email = user?.email || '';
   const roles = user?.roles?.join(' · ') || 'Prestataire';
 
-  // ── Chargement avatar : DB (via /me) → AsyncStorage fallback ────────────
+  // ── Chargement avatar : AsyncStorage (cache local) prioritaire, API en fallback ──
   useEffect(() => {
     if (!user?.id) return;
-    // Priorité : avatarUrl depuis l'API (DB), sinon AsyncStorage local
-    const apiAvatar = (user as any)?.avatarUrl;
-    if (apiAvatar) {
-      const serverBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
-      const uri = apiAvatar.startsWith('http') ? apiAvatar : `${serverBase}${apiAvatar}`;
-      setAvatarUri(uri);
-    } else {
-      AsyncStorage.getItem(avatarKey(user.id)).then(uri => { if (uri) setAvatarUri(uri); });
-    }
-  }, [user?.id, (user as any)?.avatarUrl]);
+    (async () => {
+      // 1. Cache local (persiste entre les sessions, survit au filesystem éphémère Railway)
+      const cached = await AsyncStorage.getItem(avatarKey(user.id));
+      if (cached) {
+        setAvatarUri(cached);
+        return;
+      }
+      // 2. Fallback : URL serveur depuis /auth/me
+      const apiAvatar = (user as any)?.avatarUrl;
+      if (apiAvatar) {
+        const serverBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
+        const uri = apiAvatar.startsWith('http') ? apiAvatar : `${serverBase}${apiAvatar}`;
+        setAvatarUri(uri);
+      }
+    })();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.roles?.includes('PROVIDER')) return;
@@ -585,7 +591,7 @@ export default function Profile() {
           <View style={tk.wrap}>
             <View style={tk.header}>
               <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>Support</Text>
-              <TouchableOpacity onPress={() => router.push('/settings/support')} activeOpacity={0.6}>
+              <TouchableOpacity onPress={() => router.push('/support')} activeOpacity={0.6}>
                 <Text style={tk.newTicket}>Nouveau ticket</Text>
               </TouchableOpacity>
             </View>
@@ -601,7 +607,7 @@ export default function Profile() {
                     <TouchableOpacity
                       key={ticket.id}
                       style={[tk.row, i < tickets.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
-                      onPress={() => router.push({ pathname: '/settings/support', params: { ticketId: ticket.id } })}
+                      onPress={() => router.push({ pathname: '/support', params: { ticketId: ticket.id } })}
                       activeOpacity={0.7}
                     >
                       <View style={[tk.dot, { backgroundColor: isOpen ? '#E8783A' : '#D0D0CE' }]} />
@@ -618,7 +624,7 @@ export default function Profile() {
                     </TouchableOpacity>
                   );
                 })}
-                <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/settings/support')} activeOpacity={0.6}>
+                <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/support')} activeOpacity={0.6}>
                   <Text style={tk.viewAllText}>Voir tous les tickets</Text>
                   <Ionicons name="chevron-forward" size={11} color="#999" />
                 </TouchableOpacity>
@@ -626,7 +632,7 @@ export default function Profile() {
             ) : (
               <TouchableOpacity
                 style={[tk.empty, { borderColor: theme.borderLight }]}
-                onPress={() => router.push('/settings/support')}
+                onPress={() => router.push('/support')}
                 activeOpacity={0.7}
               >
                 <View style={[tk.emptyIcon, { backgroundColor: theme.surface }]}>
