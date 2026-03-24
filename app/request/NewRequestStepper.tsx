@@ -148,44 +148,21 @@ function useTheme() {
   };
 }
 
-// ─── Step Indicator animé ──────────────────────────────────────────────────────
-const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | 'checkmark-circle-outline')[] = [
-  'location-outline', 'construct-outline', 'time-outline', 'checkmark-circle-outline',
-];
-
+// ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step }: { step: number }) {
   const t = useTheme();
 
-  // One animated value per segment (3 segments for 4 steps)
   const segmentAnims = useRef(
     Array.from({ length: TOTAL_STEPS - 1 }, (_, i) => new Animated.Value(i < step - 1 ? 1 : 0))
   ).current;
 
-  // Scale animation for the active dot
-  const dotScales = useRef(
-    Array.from({ length: TOTAL_STEPS }, (_, i) => new Animated.Value(i === step - 1 ? 1.25 : 1))
-  ).current;
-
   useEffect(() => {
-    // Animate segments: fill segments up to (step - 1)
     segmentAnims.forEach((anim, i) => {
       Animated.timing(anim, {
         toValue: i < step - 1 ? 1 : 0,
         duration: 350,
         useNativeDriver: false,
       }).start();
-    });
-
-    // Animate dot scales: active = pop, others = normal
-    dotScales.forEach((anim, i) => {
-      if (i === step - 1) {
-        Animated.sequence([
-          Animated.timing(anim, { toValue: 1.35, duration: 180, useNativeDriver: true }),
-          Animated.spring(anim, { toValue: 1.15, useNativeDriver: true, tension: 200, friction: 10 }),
-        ]).start();
-      } else {
-        Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -195,27 +172,14 @@ function StepIndicator({ step }: { step: number }) {
       {Array.from({ length: TOTAL_STEPS }, (_, i) => {
         const isActive    = i === step - 1;
         const isCompleted = i < step - 1;
-        const dotBg       = isActive ? t.accent : isCompleted ? t.accent : t.progressTrack;
-        const iconColor   = isActive || isCompleted ? t.accentText as string : t.textMuted as string;
+        const dotBg       = isActive || isCompleted ? t.text : t.progressTrack;
 
         return (
           <React.Fragment key={i}>
-            {/* Dot */}
-            <Animated.View style={[
-              si.dot,
-              { backgroundColor: dotBg, transform: [{ scale: dotScales[i] }] },
-              isActive && si.dotActive,
-            ]}>
-              {isCompleted
-                ? <Ionicons name="checkmark" size={14} color={iconColor} />
-                : <Ionicons name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
-              }
-            </Animated.View>
-
-            {/* Segment line between dots */}
+            <View style={[si.dot, { backgroundColor: dotBg }]} />
             {i < TOTAL_STEPS - 1 && (
               <View style={[si.segment, { backgroundColor: t.progressTrack }]}>
-                <Animated.View style={[si.segmentFill, { backgroundColor: t.accent as string }, {
+                <Animated.View style={[si.segmentFill, { backgroundColor: t.text as string }, {
                   width: segmentAnims[i].interpolate({
                     inputRange: [0, 1],
                     outputRange: ['0%', '100%'],
@@ -232,8 +196,7 @@ function StepIndicator({ step }: { step: number }) {
 
 const si = StyleSheet.create({
   container:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 6 },
-  dot:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  dotActive:   { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  dot:         { width: 8, height: 8, borderRadius: 4 },
   segment:     { flex: 1, height: 2, borderRadius: 1, overflow: 'hidden', marginHorizontal: 4 },
   segmentFill: { height: '100%', borderRadius: 1 },
 });
@@ -246,28 +209,22 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
 }) {
   const t = useTheme();
   const parts: string[] = [];
-  if (location)      parts.push(location.address.split(',')[0]);
-  if (serviceName)   parts.push(serviceName);
+  if (location)       parts.push(location.address.split(',')[0]);
+  if (serviceName)    parts.push(serviceName);
   if (scheduledLabel) parts.push(scheduledLabel);
 
   if (parts.length === 0) return null;
 
   return (
     <View style={ls.wrap}>
-      {parts.map((p, i) => (
-        <View key={i} style={ls.row}>
-          <Ionicons name="checkmark-circle" size={12} color={t.textMuted as string} />
-          <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{p}</Text>
-        </View>
-      ))}
+      <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{parts.join(' · ')}</Text>
     </View>
   );
 }
 
 const ls = StyleSheet.create({
-  wrap: { marginHorizontal: 24, marginTop: 8, marginBottom: 2, gap: 3 },
-  row:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  text: { fontSize: 11, flex: 1, fontFamily: FONTS.sans },
+  wrap: { marginHorizontal: 24, marginTop: 6, marginBottom: 2 },
+  text: { fontSize: 12, fontFamily: FONTS.sans },
 });
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
