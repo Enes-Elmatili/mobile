@@ -41,6 +41,8 @@ const MISSION_FLOW_ROUTES = [
   'rating',
   'NewRequestStepper',
   'missionview',
+  'quote-pending',
+  'scheduled',
   'explore',
   'onboarding',
   'subscription',

@@ -1,46 +1,64 @@
-// app/request/[id]/quote-pending.tsx — En attente de devis (dark premium design)
-import React, { useEffect, useRef, useState } from "react";
+// app/request/[id]/quote-pending.tsx
+// Page affichee apres paiement du callout fee pour un service diagnostic/devis.
+// Design : dark premium avec grid lines, animations stagger, timeline 4 etapes.
+
+import React, { useEffect, useRef } from "react";
 import {
-  View, Text, StyleSheet, StatusBar, Dimensions,
-  Animated, Easing, Platform, TouchableOpacity,
+  View,
+  Text,
+  StyleSheet,
+  StatusBar,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { api } from "@/lib/api";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
-const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  green: "#3D8B3D",
-  outlineText: "rgba(255,255,255,0.3)",
-};
-
-function GridLines() {
+// ── Grid background (theme-adaptive) ──────────────────────────────────────
+function GridLines({ bg, isDark }: { bg: string; isDark: boolean }) {
   const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
   const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
-  const stroke = "rgba(255,255,255,0.025)";
+  const stroke = isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.035)";
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
         {Array.from({ length: cols }, (_, i) => (
-          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
+          <Line
+            key={`v${i}`}
+            x1={i * GRID_SIZE}
+            y1={0}
+            x2={i * GRID_SIZE}
+            y2={SCREEN_H}
+            stroke={stroke}
+            strokeWidth={1}
+          />
         ))}
         {Array.from({ length: rows }, (_, i) => (
-          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
+          <Line
+            key={`h${i}`}
+            x1={0}
+            y1={i * GRID_SIZE}
+            x2={SCREEN_W}
+            y2={i * GRID_SIZE}
+            stroke={stroke}
+            strokeWidth={1}
+          />
         ))}
       </Svg>
       <LinearGradient
-        colors={["transparent", "transparent", C.bg]}
+        colors={["transparent", "transparent", bg]}
         locations={[0, 0.35, 0.75]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0.5, y: 0 }}
@@ -51,245 +69,690 @@ function GridLines() {
   );
 }
 
+// ── Timeline steps ────────────────────────────────────────────────────────
+interface TimelineStep {
+  label: string;
+  status: "done" | "active" | "pending";
+}
+
+function Timeline({
+  steps,
+  isDark,
+  cardBg,
+  border,
+  text,
+  textSub,
+  accent,
+  accentText,
+}: {
+  steps: TimelineStep[];
+  isDark: boolean;
+  cardBg: string;
+  border: string;
+  text: string;
+  textSub: string;
+  accent: string;
+  accentText: string;
+}) {
+  return (
+    <View
+      style={[
+        tl.card,
+        {
+          backgroundColor: cardBg,
+          borderWidth: 1,
+          borderColor: border,
+        },
+      ]}
+    >
+      {steps.map((step, i) => {
+        const isLast = i === steps.length - 1;
+        const dotBg =
+          step.status === "done"
+            ? accent
+            : step.status === "active"
+              ? isDark
+                ? "rgba(255,255,255,0.15)"
+                : "rgba(0,0,0,0.08)"
+              : isDark
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(0,0,0,0.04)";
+        const dotBorder =
+          step.status === "done"
+            ? accent
+            : step.status === "active"
+              ? isDark
+                ? "rgba(255,255,255,0.3)"
+                : "rgba(0,0,0,0.15)"
+              : isDark
+                ? "rgba(255,255,255,0.1)"
+                : "rgba(0,0,0,0.08)";
+        const labelColor =
+          step.status === "done"
+            ? text
+            : step.status === "active"
+              ? text
+              : textSub;
+        const labelFont =
+          step.status === "done" || step.status === "active"
+            ? FONTS.sansMedium
+            : FONTS.sans;
+        const lineBg =
+          step.status === "done"
+            ? accent
+            : isDark
+              ? "rgba(255,255,255,0.08)"
+              : "rgba(0,0,0,0.06)";
+
+        return (
+          <View key={i} style={tl.stepWrap}>
+            <View style={tl.dotCol}>
+              <View
+                style={[
+                  tl.dot,
+                  {
+                    backgroundColor: dotBg,
+                    borderColor: dotBorder,
+                  },
+                ]}
+              >
+                {step.status === "done" && (
+                  <Ionicons name="checkmark" size={10} color={accentText} />
+                )}
+                {step.status === "active" && (
+                  <View
+                    style={[
+                      tl.activePulse,
+                      {
+                        backgroundColor: isDark
+                          ? "rgba(255,255,255,0.5)"
+                          : "rgba(0,0,0,0.3)",
+                      },
+                    ]}
+                  />
+                )}
+              </View>
+              {!isLast && (
+                <View style={[tl.line, { backgroundColor: lineBg }]} />
+              )}
+            </View>
+            <Text
+              style={[
+                tl.label,
+                { color: labelColor, fontFamily: labelFont },
+              ]}
+            >
+              {step.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const tl = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+  },
+  stepWrap: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  dotCol: {
+    alignItems: "center",
+    width: 24,
+    marginRight: 12,
+  },
+  dot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activePulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  line: {
+    width: 2,
+    height: 24,
+    borderRadius: 1,
+    marginVertical: 2,
+  },
+  label: {
+    fontSize: 14,
+    lineHeight: 22,
+    flex: 1,
+    paddingTop: 1,
+  },
+});
+
+// ── Main component ────────────────────────────────────────────────────────
 export default function QuotePending() {
   const router = useRouter();
-  const { id, serviceName, address, calloutFee, pricingMode } = useLocalSearchParams<{
-    id: string;
-    serviceName?: string;
-    address?: string;
-    calloutFee?: string;
-    pricingMode?: string;
-  }>();
+  const theme = useAppTheme();
+  const { id, serviceName, address, calloutFee, pricingMode } =
+    useLocalSearchParams<{
+      id: string;
+      serviceName?: string;
+      address?: string;
+      calloutFee?: string;
+      pricingMode?: string;
+    }>();
 
-  const [quoteReceived, setQuoteReceived] = useState(false);
+  const isDiagnostic = pricingMode === "diagnostic";
 
-  // Poll pour vérifier si un devis a été envoyé
-  useEffect(() => {
-    if (!id || quoteReceived) return;
-    const interval = setInterval(async () => {
-      try {
-        const res: any = await api.get(`/quotes/request/${id}`);
-        if (res?.quotes?.length > 0) {
-          setQuoteReceived(true);
-          clearInterval(interval);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.replace({
-            pathname: "/request/[id]/quote-review",
-            params: { id },
-          });
-        }
-      } catch {}
-    }, 10_000); // Poll toutes les 10s
-    return () => clearInterval(interval);
-  }, [id, quoteReceived]);
+  // ── Stagger entrance animations ──
+  const iconAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(0)).current;
+  const subtitleAnim = useRef(new Animated.Value(0)).current;
+  const recapAnim = useRef(new Animated.Value(0)).current;
+  const infoAnim = useRef(new Animated.Value(0)).current;
+  const timelineAnim = useRef(new Animated.Value(0)).current;
+  const ctaAnim = useRef(new Animated.Value(0)).current;
 
-  // Animations
-  const pulseOp = useRef(new Animated.Value(1)).current;
+  // ── Glow pulse ──
   const glowScale = useRef(new Animated.Value(1)).current;
   const glowOp = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseOp, { toValue: 0.35, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseOp, { toValue: 1, duration: 1200, useNativeDriver: true }),
-      ])
-    ).start();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const stagger = (anim: Animated.Value, delay: number) =>
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 480,
+        delay,
+        easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
+      });
+
+    Animated.parallel([
+      stagger(iconAnim, 0),
+      stagger(titleAnim, 80),
+      stagger(subtitleAnim, 160),
+      stagger(recapAnim, 240),
+      stagger(infoAnim, 320),
+      stagger(timelineAnim, 400),
+      stagger(ctaAnim, 500),
+    ]).start();
 
     Animated.loop(
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(glowScale, {
+            toValue: 1.1,
+            duration: 3000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowScale, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
         ]),
         Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
+          Animated.timing(glowOp, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowOp, {
+            toValue: 0.5,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
         ]),
-      ])
+      ]),
     ).start();
   }, []);
 
-  const isDiagnostic = pricingMode === "diagnostic";
+  const makeAnimStyle = (anim: Animated.Value) => ({
+    opacity: anim,
+    transform: [
+      {
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [18, 0],
+        }),
+      },
+    ],
+  });
+
+  const timelineSteps: TimelineStep[] = [
+    { label: "Frais de deplacement payes", status: "done" },
+    { label: "Visite du prestataire", status: "active" },
+    { label: "Devis envoye", status: "pending" },
+    { label: "Votre decision", status: "pending" },
+  ];
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
-      <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <GridLines bg={theme.bg} isDark={theme.isDark} />
+
+      {/* Glow effect */}
+      <Animated.View
+        style={[
+          s.glowWrap,
+          { opacity: glowOp, transform: [{ scale: glowScale }] },
+        ]}
+      >
         <LinearGradient
-          colors={["rgba(255,255,255,0.025)", "transparent"]}
+          colors={[
+            theme.isDark
+              ? "rgba(255,255,255,0.025)"
+              : "rgba(0,0,0,0.015)",
+            "transparent",
+          ]}
           style={s.glowGradient}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
         />
       </Animated.View>
 
-      <View style={s.content}>
-        {/* Icon */}
-        <View style={s.iconCircle}>
-          <Ionicons name={isDiagnostic ? "search-outline" : "document-text-outline"} size={40} color={C.white} />
-        </View>
-
-        {/* Title */}
-        <Text style={s.title}>
-          EN ATTENTE DE{"\n"}
-          <Text style={s.titleOutline}>
-            {isDiagnostic ? "DIAGNOSTIC." : "DEVIS."}
-          </Text>
-        </Text>
-
-        <Text style={s.subtitle}>
-          {isDiagnostic
-            ? "Le prestataire va se déplacer pour diagnostiquer le problème et vous enverra un devis détaillé."
-            : "Le prestataire va évaluer votre demande sur place et vous enverra un devis détaillé."}
-        </Text>
-
-        {/* Steps card */}
-        <View style={s.stepsCard}>
-          {[
-            { label: "Demande envoyée", done: true },
-            { label: `${isDiagnostic ? "Diagnostic" : "Visite"} ${calloutFee ? calloutFee + "€" : ""} payé`, done: true },
-            { label: "Devis en cours", done: false },
-          ].map((step, i) => (
-            <View key={i} style={s.stepRow}>
-              <View style={[s.stepDot, step.done && s.stepDotDone]}>
-                {step.done && <Ionicons name="checkmark" size={10} color={C.bg} />}
-              </View>
-              <Text style={[s.stepLabel, step.done && s.stepLabelDone]}>{step.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Info card */}
-        <View style={s.infoCard}>
-          <Ionicons name="information-circle-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
-          <Text style={s.infoText}>
-            Vous recevrez une notification dès que le devis sera prêt. Vous pourrez l'accepter ou le refuser.
-            {calloutFee ? ` Les ${calloutFee}€ seront déduits du total si vous acceptez.` : ""}
-          </Text>
-        </View>
-
-        {/* Recap */}
-        {(serviceName || address) && (
-          <View style={s.recapCard}>
-            {serviceName && (
-              <View style={s.recapRow}>
-                <Ionicons name="construct-outline" size={14} color={C.grey} />
-                <Text style={s.recapText}>{serviceName}</Text>
-              </View>
-            )}
-            {address && (
-              <View style={s.recapRow}>
-                <Ionicons name="location-outline" size={14} color={C.grey} />
-                <Text style={s.recapText} numberOfLines={1}>{address}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Pulse indicator */}
-        <Animated.View style={{ opacity: pulseOp, alignItems: "center", marginTop: 16 }}>
-          <View style={s.pulseDotRow}>
-            <View style={s.pulseDot} />
-            <Text style={s.eta}>Devis sous 72h maximum</Text>
-          </View>
-        </Animated.View>
+      {/* Back button */}
+      <View style={s.header}>
+        <TouchableOpacity
+          style={[
+            s.backBtn,
+            {
+              backgroundColor: theme.cardBg,
+              borderColor: theme.border,
+            },
+          ]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.replace("/(tabs)/dashboard");
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={18} color={theme.text} />
+        </TouchableOpacity>
       </View>
 
-      {/* Back to dashboard */}
-      <View style={s.footer}>
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Icon */}
+        <Animated.View style={[s.iconWrap, makeAnimStyle(iconAnim)]}>
+          <View
+            style={[
+              s.iconCircle,
+              {
+                backgroundColor: theme.cardBg,
+                borderWidth: 1,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons
+              name={
+                isDiagnostic ? "search-outline" : "document-text-outline"
+              }
+              size={40}
+              color={theme.text}
+            />
+          </View>
+        </Animated.View>
+
+        {/* Title */}
+        <Animated.View style={makeAnimStyle(titleAnim)}>
+          <Text style={[s.title, { color: theme.text }]}>
+            DEVIS EN ATTENTE
+          </Text>
+        </Animated.View>
+
+        {/* Subtitle */}
+        <Animated.View style={makeAnimStyle(subtitleAnim)}>
+          <Text style={[s.subtitle, { color: theme.textSub }]}>
+            Votre prestataire va se deplacer pour evaluer les travaux et vous
+            envoyer un devis detaille.
+          </Text>
+        </Animated.View>
+
+        {/* Recap card */}
+        <Animated.View
+          style={[{ width: "100%" }, makeAnimStyle(recapAnim)]}
+        >
+          <View
+            style={[
+              s.recapCard,
+              {
+                backgroundColor: theme.cardBg,
+                borderWidth: 1,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            {serviceName ? (
+              <View style={s.recapRow}>
+                <Ionicons
+                  name="construct-outline"
+                  size={16}
+                  color={theme.textSub}
+                />
+                <Text
+                  style={[
+                    s.recapLabel,
+                    { color: theme.textMuted, fontFamily: FONTS.sans },
+                  ]}
+                >
+                  Service
+                </Text>
+                <Text
+                  style={[
+                    s.recapValue,
+                    { color: theme.text, fontFamily: FONTS.sansMedium },
+                  ]}
+                >
+                  {serviceName}
+                </Text>
+              </View>
+            ) : null}
+
+            {address ? (
+              <>
+                <View
+                  style={[s.recapSep, { backgroundColor: theme.border }]}
+                />
+                <View style={s.recapRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={16}
+                    color={theme.textSub}
+                  />
+                  <Text
+                    style={[
+                      s.recapLabel,
+                      { color: theme.textMuted, fontFamily: FONTS.sans },
+                    ]}
+                  >
+                    Adresse
+                  </Text>
+                  <Text
+                    style={[
+                      s.recapValue,
+                      { color: theme.text, fontFamily: FONTS.sansMedium },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {address}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+
+            {calloutFee ? (
+              <>
+                <View
+                  style={[s.recapSep, { backgroundColor: theme.border }]}
+                />
+                <View style={s.recapRow}>
+                  <Ionicons
+                    name="card-outline"
+                    size={16}
+                    color={theme.textSub}
+                  />
+                  <Text
+                    style={[
+                      s.recapLabel,
+                      { color: theme.textMuted, fontFamily: FONTS.sans },
+                    ]}
+                  >
+                    Frais de deplacement
+                  </Text>
+                  <Text
+                    style={[
+                      s.recapValue,
+                      { color: theme.text, fontFamily: FONTS.mono },
+                    ]}
+                  >
+                    {calloutFee} EUR
+                  </Text>
+                </View>
+              </>
+            ) : null}
+
+            {pricingMode ? (
+              <>
+                <View
+                  style={[s.recapSep, { backgroundColor: theme.border }]}
+                />
+                <View style={s.recapRow}>
+                  <Ionicons
+                    name={
+                      isDiagnostic ? "search-outline" : "document-text-outline"
+                    }
+                    size={16}
+                    color={theme.textSub}
+                  />
+                  <Text
+                    style={[
+                      s.recapLabel,
+                      { color: theme.textMuted, fontFamily: FONTS.sans },
+                    ]}
+                  >
+                    Mode
+                  </Text>
+                  <Text
+                    style={[
+                      s.recapValue,
+                      { color: theme.text, fontFamily: FONTS.sansMedium },
+                    ]}
+                  >
+                    {isDiagnostic ? "Diagnostic" : "Devis"}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+        </Animated.View>
+
+        {/* Info card */}
+        <Animated.View
+          style={[{ width: "100%" }, makeAnimStyle(infoAnim)]}
+        >
+          <View
+            style={[
+              s.infoCard,
+              {
+                backgroundColor: theme.cardBg,
+                borderWidth: 1,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={18}
+              color={theme.textSub}
+              style={{ marginTop: 1 }}
+            />
+            <Text
+              style={[
+                s.infoText,
+                {
+                  color: theme.textSub,
+                  fontFamily: FONTS.sansLight,
+                },
+              ]}
+            >
+              Vous recevrez une notification des que le devis sera disponible.
+              Vous pourrez alors l'accepter ou le refuser.
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Timeline */}
+        <Animated.View
+          style={[{ width: "100%" }, makeAnimStyle(timelineAnim)]}
+        >
+          <Timeline
+            steps={timelineSteps}
+            isDark={theme.isDark}
+            cardBg={theme.cardBg}
+            border={theme.border}
+            text={theme.text}
+            textSub={theme.textSub}
+            accent={theme.accent}
+            accentText={theme.accentText}
+          />
+        </Animated.View>
+      </ScrollView>
+
+      {/* CTA */}
+      <Animated.View style={[s.footer, makeAnimStyle(ctaAnim)]}>
         <TouchableOpacity
-          style={s.btnPrimary}
+          style={[s.btnPrimary, { backgroundColor: theme.accent }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.replace("/(tabs)/dashboard");
           }}
           activeOpacity={0.9}
         >
-          <Text style={s.btnPrimaryText}>RETOUR À L'ACCUEIL</Text>
-          <View style={s.arrowPill}>
-            <Ionicons name="arrow-forward" size={14} color={C.white} />
+          <Text
+            style={[
+              s.btnPrimaryText,
+              { color: theme.accentText, fontFamily: FONTS.bebas },
+            ]}
+          >
+            RETOUR AU TABLEAU DE BORD
+          </Text>
+          <View
+            style={[
+              s.arrowPill,
+              { backgroundColor: theme.accentText },
+            ]}
+          >
+            <Ionicons name="arrow-forward" size={14} color={theme.accent} />
           </View>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
+  root: { flex: 1 },
 
   glowWrap: {
-    position: "absolute", top: -80,
-    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
+    position: "absolute",
+    top: -80,
+    left: (SCREEN_W - 420) / 2,
+    width: 420,
+    height: 420,
   },
   glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
 
-  content: {
-    flex: 1, justifyContent: "center", alignItems: "center",
-    paddingHorizontal: 28, gap: 16, zIndex: 2,
+  header: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 56 : 36,
+    left: 20,
+    zIndex: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
+  scroll: { flex: 1, zIndex: 2 },
+  scrollContent: {
+    alignItems: "center",
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === "ios" ? 120 : 100,
+    paddingBottom: 24,
+    gap: 16,
+  },
+
+  iconWrap: { marginBottom: 4 },
   iconCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    alignItems: "center", justifyContent: "center", marginBottom: 8,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 8 },
+    }),
   },
 
   title: {
-    fontFamily: FONTS.bebas, fontSize: 36, color: C.white,
-    letterSpacing: 1, lineHeight: 40, textAlign: "center",
+    fontFamily: FONTS.bebas,
+    fontSize: 34,
+    letterSpacing: 1.5,
+    textAlign: "center",
+    lineHeight: 40,
   },
-  titleOutline: { color: C.outlineText },
 
   subtitle: {
-    fontFamily: FONTS.sansLight, fontSize: 15, color: C.grey,
-    textAlign: "center", lineHeight: 22, paddingHorizontal: 8,
-  },
-
-  stepsCard: {
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 20, width: "100%", gap: 14, marginTop: 4,
-  },
-  stepRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  stepDot: {
-    width: 20, height: 20, borderRadius: 10,
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    alignItems: "center", justifyContent: "center",
-  },
-  stepDotDone: { backgroundColor: C.white, borderColor: C.white },
-  stepLabel: { fontFamily: FONTS.sans, fontSize: 14, color: C.grey },
-  stepLabelDone: { fontFamily: FONTS.sansMedium, color: C.white },
-
-  infoCard: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 16, width: "100%",
-  },
-  infoText: {
-    flex: 1, fontFamily: FONTS.sansLight, fontSize: 13,
-    lineHeight: 20, color: "rgba(255,255,255,0.5)",
+    fontFamily: FONTS.sansLight,
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: 4,
   },
 
   recapCard: {
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 16, width: "100%", gap: 10,
+    borderRadius: 16,
+    padding: 18,
+    width: "100%",
   },
-  recapRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  recapText: { fontFamily: FONTS.sans, fontSize: 13, color: C.grey, flex: 1 },
+  recapRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 2,
+  },
+  recapLabel: {
+    fontSize: 13,
+    width: 110,
+  },
+  recapValue: {
+    fontSize: 14,
+    flex: 1,
+    textAlign: "right",
+  },
+  recapSep: {
+    height: 1,
+    marginVertical: 10,
+  },
 
-  pulseDotRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  pulseDot: {
-    width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.green,
-    shadowColor: C.green, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 6, elevation: 4,
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 16,
+    padding: 16,
+    width: "100%",
   },
-  eta: {
-    fontFamily: FONTS.sansLight, fontSize: 12, color: "rgba(255,255,255,0.25)",
-    letterSpacing: 1,
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
   },
 
   footer: {
@@ -298,14 +761,32 @@ const s = StyleSheet.create({
     zIndex: 2,
   },
   btnPrimary: {
-    width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
+    width: "100%",
+    height: 60,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 6 },
+    }),
   },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
+    fontSize: 20,
+    letterSpacing: 3,
   },
   arrowPill: {
-    width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
-    alignItems: "center", justifyContent: "center",
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

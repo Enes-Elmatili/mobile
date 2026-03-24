@@ -321,16 +321,20 @@ const cc = StyleSheet.create({
   selectedDot:      { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
 });
 
-// ─── Sub Row ───────────────────────────────────────────────────────────────────
-function SubChip({ label, price, selected, onPress, icon }: {
-  label:    string;
-  price?:   number;
-  selected: boolean;
-  onPress:  () => void;
-  icon?:    string;
+// ─── Sub Row — matches HTML mockup exactly ──────────────────────────────────
+function SubChip({ label, basePrice, priceMin, priceMax, selected, onPress, pricingMode, calloutFee }: {
+  label:        string;
+  basePrice?:   number;
+  priceMin?:    number;
+  priceMax?:    number;
+  selected:     boolean;
+  onPress:      () => void;
+  pricingMode?: string;
+  calloutFee?:  number;
 }) {
   const t     = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
+  const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
 
   const handlePress = () => {
     Animated.sequence([
@@ -341,22 +345,46 @@ function SubChip({ label, price, selected, onPress, icon }: {
     onPress();
   };
 
+  const badgeBg     = isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)';
+  const badgeColor  = isQuote ? '#C8820A' : '#3D8B3D';
+  const badgeBorder = isQuote ? 'rgba(200,130,10,0.3)' : 'rgba(61,139,61,0.3)';
+  const badgeLabel  = isQuote ? 'Sur devis' : 'Prix fixe';
+  const badgeIcon   = isQuote ? 'document-text-outline' : 'checkmark';
+
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[sc.row, { borderBottomColor: t.surfaceBorder }]}
+        style={[sc.item, { backgroundColor: t.isDark ? '#1C1C1C' : '#F8F8F8', borderColor: selected ? t.isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)' : 'transparent' }]}
         onPress={handlePress}
         activeOpacity={0.7}
         accessibilityLabel={label}
         accessibilityRole="button"
       >
-        <View style={[sc.dot, { backgroundColor: t.surfaceBorder }, selected && { backgroundColor: t.text }]} />
-        <Text style={[sc.text, { color: t.textSub }, selected && { fontWeight: '700', color: t.text }]}>{label}</Text>
+        <View style={sc.left}>
+          <Text style={[sc.name, { color: t.text }]} numberOfLines={1}>{label}</Text>
+          <View style={[sc.badge, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
+            <Ionicons name={badgeIcon as any} size={9} color={badgeColor} />
+            <Text style={[sc.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+          </View>
+        </View>
         <View style={sc.right}>
-          {price !== undefined && (
-            <Text style={[sc.price, { color: t.textMuted }, selected && { color: t.textSub }]}>{price} €</Text>
+          {isQuote ? (
+            <View style={{ alignItems: 'flex-end' }}>
+              {priceMin && priceMax ? (
+                <Text style={[sc.priceRange, { color: t.isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)' }]}>{priceMin} – {priceMax} €</Text>
+              ) : null}
+              {calloutFee ? (
+                <Text style={[sc.calloutLabel, { color: t.textMuted }]}>Visite {calloutFee} €</Text>
+              ) : null}
+            </View>
+          ) : (
+            <Text style={[sc.priceFixed, { color: t.text }]}>
+              {basePrice ? `${basePrice} €` : ''}
+            </Text>
           )}
-          {selected && <Ionicons name="checkmark" size={16} color={t.text as string} />}
+          <View style={[sc.check, { opacity: selected ? 1 : 0, transform: [{ scale: selected ? 1 : 0.5 }] }]}>
+            <Ionicons name="checkmark" size={11} color={t.isDark ? '#0A0A0A' : '#FFFFFF'} />
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -364,11 +392,16 @@ function SubChip({ label, price, selected, onPress, icon }: {
 }
 
 const sc = StyleSheet.create({
-  row:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, gap: 12, borderBottomWidth: 1 },
-  dot:   { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
-  text:  { flex: 1, fontSize: 15, fontFamily: FONTS.sans },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  price: { fontSize: 14, fontFamily: FONTS.mono },
+  item:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
+  left:        { flex: 1, gap: 5 },
+  name:        { fontSize: 14, fontFamily: FONTS.sansMedium },
+  badge:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignSelf: 'flex-start' },
+  badgeText:   { fontSize: 11, fontFamily: FONTS.sansMedium },
+  right:       { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  priceRange:  { fontSize: 12, fontFamily: FONTS.mono, lineHeight: 18 },
+  calloutLabel: { fontSize: 10, fontFamily: FONTS.sans },
+  priceFixed:  { fontSize: 14, fontFamily: FONTS.mono, fontWeight: '500' },
+  check:       { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -1033,16 +1066,17 @@ export default function NewRequestStepper() {
                           <View style={s.inlineSubs}>
                             <View style={s.subHeader}>
                               <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
-                              {estimatedPrice > 0 && !subcategoryId && (
-                                <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
-                              )}
                             </View>
                             <View style={s.subList}>
                               {subs.map((sub: any) => (
                                 <SubChip
                                   key={sub.id}
                                   label={sub.name}
-                                  price={sub.price}
+                                  basePrice={sub.basePrice}
+                                  priceMin={sub.priceMin}
+                                  priceMax={sub.priceMax}
+                                  pricingMode={sub.pricingMode}
+                                  calloutFee={sub.calloutFee}
                                   selected={subcategoryId === sub.id}
                                   onPress={() => setSubcategoryId(sub.id)}
                                 />
@@ -1079,7 +1113,14 @@ export default function NewRequestStepper() {
               <View style={{ height: 100 }} />
             </ScrollView>
 
-            <BottomCTA label={t('stepper.continue')} onPress={goNext} disabled={!categoryId} price={estimatedPrice > 0 ? estimatedPrice : undefined} />
+            <BottomCTA
+              label={isQuoteFlow
+                ? (pricingMode === 'diagnostic' ? 'Demander un diagnostic' : 'Demander un devis')
+                : t('stepper.continue')}
+              onPress={goNext}
+              disabled={!categoryId}
+              price={isQuoteFlow ? undefined : (estimatedPrice > 0 ? estimatedPrice : undefined)}
+            />
           </KeyboardAvoidingView>
         )}
 
@@ -1200,12 +1241,20 @@ export default function NewRequestStepper() {
                 <View style={s.v4Row}>
                   <Ionicons name={toIoniconName(selectedCategory?.icon, 'construct-outline') as any} size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{serviceName}</Text>
+                  {isQuoteFlow && (
+                    <View style={{ backgroundColor: 'rgba(200,130,10,0.15)', borderColor: 'rgba(200,130,10,0.3)', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, fontFamily: FONTS.sansMedium, color: '#C8820A' }}>Sur devis</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
                 <View style={s.v4Row}>
                   <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
+                  {scheduleMode === 'now' && (
+                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#3D8B3D', shadowColor: '#3D8B3D', shadowOpacity: 0.3, shadowRadius: 3 }} />
+                  )}
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
@@ -1223,6 +1272,17 @@ export default function NewRequestStepper() {
 
               </View>
 
+              {/* Erreur pricing */}
+              {pricingError && (
+                <View style={[s.v4QuoteInfo, { backgroundColor: 'rgba(229,57,53,0.08)', borderColor: 'rgba(229,57,53,0.2)', marginHorizontal: 16, marginTop: 12 }]}>
+                  <Ionicons name="alert-circle-outline" size={18} color={COLORS.red} />
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[s.v4QuoteInfoTitle, { color: COLORS.red }]}>Erreur de calcul</Text>
+                    <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>{pricingError}</Text>
+                  </View>
+                </View>
+              )}
+
               {/* Prix / Callout fee section */}
               {isFreeService ? (
                 <View style={s.v4PriceBreakdown}>
@@ -1237,38 +1297,80 @@ export default function NewRequestStepper() {
                   </View>
                 </View>
               ) : isQuoteFlow ? (
-                <View style={s.v4PriceBreakdown}>
-                  <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
-                    <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={18} color={theme.text as string} />
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>
-                        {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
-                      </Text>
-                      <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>
-                        Le prestataire se déplace pour évaluer et vous envoie un devis détaillé. Vous décidez ensuite d'accepter ou non.
-                      </Text>
+                <ScrollView style={s.flex} contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                  {/* Devis info card with timeline */}
+                  <View style={[s.v4DevisCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    {/* Header */}
+                    <View style={s.v4DevisHeader}>
+                      <View style={[s.v4DevisIcon, { backgroundColor: 'rgba(200,130,10,0.15)', borderColor: 'rgba(200,130,10,0.3)' }]}>
+                        <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={17} color="#C8820A" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.v4DevisTitle, { color: theme.text }]}>
+                          {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
+                        </Text>
+                        <Text style={[s.v4DevisDesc, { color: theme.textSub }]}>
+                          Le prestataire se déplace, évalue les travaux et vous envoie un devis détaillé. Vous décidez ensuite d'accepter ou non.
+                        </Text>
+                      </View>
+                    </View>
+                    {/* Divider */}
+                    <View style={[s.v4DevisDivider, { backgroundColor: theme.border }]} />
+                    {/* Timeline steps */}
+                    <View style={s.v4DevisSteps}>
+                      {[
+                        { num: '1', text: 'Visite de diagnostic', desc: ' — le prestataire arrive et évalue les travaux' },
+                        { num: '2', text: 'Devis envoyé', desc: ' — vous recevez une estimation détaillée in-app' },
+                        { num: '3', text: 'Vous choisissez', desc: ' — acceptez ou refusez sans obligation' },
+                      ].map((step, i) => (
+                        <View key={i} style={[s.v4DevisStep, i < 2 && s.v4DevisStepWithLine]}>
+                          {i < 2 && <View style={[s.v4DevisLine, { backgroundColor: theme.border }]} />}
+                          <View style={[s.v4DevisStepNum, { backgroundColor: theme.surfaceAlt, borderColor: 'rgba(255,255,255,0.18)' }]}>
+                            <Text style={[s.v4DevisStepNumText, { color: theme.textSub }]}>{step.num}</Text>
+                          </View>
+                          <Text style={[s.v4DevisStepText, { color: theme.textSub }]}>
+                            <Text style={{ color: theme.text, fontFamily: FONTS.sansMedium }}>{step.text}</Text>
+                            {step.desc}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                   </View>
 
-                  {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
-                    <View style={s.v4PriceLine}>
-                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Estimation</Text>
-                      <Text style={[s.v4PriceVal, { color: theme.textSub }]}>{selectedSubcategory.priceMin}€ — {selectedSubcategory.priceMax}€</Text>
+                  {/* Price rows */}
+                  <View style={s.v4PriceBlock}>
+                    {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
+                      <View style={[s.v4PriceRow, { borderBottomColor: theme.border }]}>
+                        <Text style={[s.v4PriceRowLabel, { color: theme.textMuted }]}>Estimation travaux</Text>
+                        <View style={[s.v4RangeTag, { backgroundColor: 'rgba(200,130,10,0.15)', borderColor: 'rgba(200,130,10,0.3)' }]}>
+                          <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: '#C8820A' }}>
+                            {selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €
+                          </Text>
+                        </View>
+                      </View>
+                    ) : null}
+                    <View style={[s.v4PriceRow, { borderBottomColor: theme.border }]}>
+                      <Text style={[s.v4PriceRowLabel, { color: theme.textMuted }]}>Frais de visite</Text>
+                      <Text style={{ fontFamily: FONTS.mono, fontSize: 13, color: theme.text as string }}>{calloutFee.toFixed(2)} €</Text>
                     </View>
-                  ) : null}
-
-                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 4 }]} />
-
-                  <View style={s.v4PriceLine}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[s.v4TotalLabel, { color: theme.text }]}>
-                        {pricingMode === 'diagnostic' ? 'Frais de diagnostic' : 'Frais de visite'}
-                      </Text>
-                      <Text style={[s.v4PriceLabel, { color: theme.textMuted }]}>Déduit du devis si accepté</Text>
-                    </View>
-                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{calloutFee.toFixed(2)} €</Text>
                   </View>
-                </View>
+
+                  {/* Main price */}
+                  <View style={s.v4MainPrice}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={[s.v4MainPriceLabel, { color: theme.textMuted }]}>À régler maintenant</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="checkmark" size={10} color="#3D8B3D" />
+                        <Text style={{ fontSize: 11, color: '#3D8B3D', fontFamily: FONTS.sans }}>Déduit si devis accepté</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                      <Text style={[s.v4MainPriceValue, { color: theme.text }]}>{Math.floor(calloutFee)}</Text>
+                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 28, color: theme.textSub as string }}>,{String(Math.round((calloutFee % 1) * 100)).padStart(2, '0')} €</Text>
+                    </View>
+                  </View>
+                  <Text style={[s.v4MainPriceSub, { color: theme.textMuted }]}>Vous n'acceptez le devis qu'après la visite</Text>
+                </ScrollView>
               ) : (
                 <View style={s.v4PriceBreakdown}>
                   {priceDetailOpen && (
@@ -1456,14 +1558,14 @@ const s = StyleSheet.create({
   pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
-  v4Body:       { flex: 1, paddingHorizontal: 20, paddingTop: 20, justifyContent: 'center' },
-  v4Card:       { borderRadius: 20, overflow: 'hidden', marginBottom: 20 },
-  v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
-  v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
-  v4Sub:        { fontSize: 13, maxWidth: 120, fontFamily: FONTS.sans },
+  v4Body:       { flex: 1, paddingTop: 8 },
+  v4Card:       { borderRadius: 18, overflow: 'hidden', marginHorizontal: 16, marginBottom: 14, borderWidth: 1 },
+  v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12, minHeight: 52 },
+  v4Val:        { flex: 1, fontSize: 14, fontFamily: FONTS.sansMedium },
+  v4Sub:        { fontSize: 12, maxWidth: 120, fontFamily: FONTS.sans },
   v4Sep:        { height: 1, marginHorizontal: 16 },
   v4Chevron:    { marginLeft: 'auto' as any },
-  v4PriceBreakdown: { marginTop: 10, paddingHorizontal: 4, gap: 0 },
+  v4PriceBreakdown: { marginTop: 10, paddingHorizontal: 16, gap: 0 },
   v4PriceLine:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   v4PriceLabel: { fontSize: 10, fontFamily: FONTS.sans },
   v4PriceVal:   { fontSize: 10, fontFamily: FONTS.mono },
@@ -1471,12 +1573,37 @@ const s = StyleSheet.create({
   v4Total:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
   v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
   v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
-  v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
+  v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 8 },
   v4QuoteInfoTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   v4QuoteInfoDesc:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
   v4Footer:     { paddingHorizontal: 0, paddingBottom: 0 },
   v4SecureRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingBottom: 8 },
   v4Secure:     { textAlign: 'center', fontSize: 12, fontFamily: FONTS.sans },
+
+  // Step 4 — Devis card
+  v4DevisCard:      { marginHorizontal: 16, marginBottom: 14, borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  v4DevisHeader:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, paddingBottom: 10 },
+  v4DevisIcon:      { width: 36, height: 36, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  v4DevisTitle:     { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 4 },
+  v4DevisDesc:      { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
+  v4DevisDivider:   { height: 1, marginHorizontal: 16 },
+  v4DevisSteps:     { padding: 12, paddingTop: 12, paddingBottom: 14, gap: 0 },
+  v4DevisStep:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingBottom: 14 },
+  v4DevisStepWithLine: { position: 'relative' },
+  v4DevisLine:      { position: 'absolute', left: 10, top: 22, bottom: 0, width: 1 },
+  v4DevisStepNum:   { width: 22, height: 22, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  v4DevisStepNumText: { fontFamily: FONTS.mono, fontSize: 11 },
+  v4DevisStepText:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19, paddingTop: 2, flex: 1 },
+
+  // Step 4 — Price block
+  v4PriceBlock:     { marginHorizontal: 16, marginBottom: 6 },
+  v4PriceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
+  v4PriceRowLabel:  { fontSize: 13, fontFamily: FONTS.sans },
+  v4RangeTag:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  v4MainPrice:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 6 },
+  v4MainPriceLabel: { fontSize: 13, fontFamily: FONTS.sans },
+  v4MainPriceValue: { fontFamily: FONTS.bebas, fontSize: 44, letterSpacing: 1, lineHeight: 44 },
+  v4MainPriceSub:   { fontSize: 11, textAlign: 'right', marginHorizontal: 16, marginBottom: 16 },
 
   // Legacy
   recapCard:  { borderRadius: 22, padding: 4, marginBottom: 24 },
