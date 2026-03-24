@@ -18,13 +18,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Switch,
-  LayoutAnimation,
-  UIManager,
 } from 'react-native';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -148,21 +142,44 @@ function useTheme() {
   };
 }
 
-// ─── Step Indicator ───────────────────────────────────────────────────────────
+// ─── Step Indicator animé ──────────────────────────────────────────────────────
+const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | 'checkmark-circle-outline')[] = [
+  'location-outline', 'construct-outline', 'time-outline', 'checkmark-circle-outline',
+];
+
 function StepIndicator({ step }: { step: number }) {
   const t = useTheme();
 
+  // One animated value per segment (3 segments for 4 steps)
   const segmentAnims = useRef(
     Array.from({ length: TOTAL_STEPS - 1 }, (_, i) => new Animated.Value(i < step - 1 ? 1 : 0))
   ).current;
 
+  // Scale animation for the active dot
+  const dotScales = useRef(
+    Array.from({ length: TOTAL_STEPS }, (_, i) => new Animated.Value(i === step - 1 ? 1.25 : 1))
+  ).current;
+
   useEffect(() => {
+    // Animate segments: fill segments up to (step - 1)
     segmentAnims.forEach((anim, i) => {
       Animated.timing(anim, {
         toValue: i < step - 1 ? 1 : 0,
         duration: 350,
         useNativeDriver: false,
       }).start();
+    });
+
+    // Animate dot scales: active = pop, others = normal
+    dotScales.forEach((anim, i) => {
+      if (i === step - 1) {
+        Animated.sequence([
+          Animated.timing(anim, { toValue: 1.35, duration: 180, useNativeDriver: true }),
+          Animated.spring(anim, { toValue: 1.15, useNativeDriver: true, tension: 200, friction: 10 }),
+        ]).start();
+      } else {
+        Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -172,14 +189,27 @@ function StepIndicator({ step }: { step: number }) {
       {Array.from({ length: TOTAL_STEPS }, (_, i) => {
         const isActive    = i === step - 1;
         const isCompleted = i < step - 1;
-        const dotBg       = isActive || isCompleted ? t.text : t.progressTrack;
+        const dotBg       = isActive ? t.accent : isCompleted ? t.accent : t.progressTrack;
+        const iconColor   = isActive || isCompleted ? t.accentText as string : t.textMuted as string;
 
         return (
           <React.Fragment key={i}>
-            <View style={[si.dot, { backgroundColor: dotBg }]} />
+            {/* Dot */}
+            <Animated.View style={[
+              si.dot,
+              { backgroundColor: dotBg, transform: [{ scale: dotScales[i] }] },
+              isActive && si.dotActive,
+            ]}>
+              {isCompleted
+                ? <Ionicons name="checkmark" size={14} color={iconColor} />
+                : <Ionicons name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
+              }
+            </Animated.View>
+
+            {/* Segment line between dots */}
             {i < TOTAL_STEPS - 1 && (
               <View style={[si.segment, { backgroundColor: t.progressTrack }]}>
-                <Animated.View style={[si.segmentFill, { backgroundColor: t.text as string }, {
+                <Animated.View style={[si.segmentFill, { backgroundColor: t.accent as string }, {
                   width: segmentAnims[i].interpolate({
                     inputRange: [0, 1],
                     outputRange: ['0%', '100%'],
@@ -196,7 +226,8 @@ function StepIndicator({ step }: { step: number }) {
 
 const si = StyleSheet.create({
   container:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 6 },
-  dot:         { width: 8, height: 8, borderRadius: 4 },
+  dot:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  dotActive:   { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   segment:     { flex: 1, height: 2, borderRadius: 1, overflow: 'hidden', marginHorizontal: 4 },
   segmentFill: { height: '100%', borderRadius: 1 },
 });
@@ -209,22 +240,28 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
 }) {
   const t = useTheme();
   const parts: string[] = [];
-  if (location)       parts.push(location.address.split(',')[0]);
-  if (serviceName)    parts.push(serviceName);
+  if (location)      parts.push(location.address.split(',')[0]);
+  if (serviceName)   parts.push(serviceName);
   if (scheduledLabel) parts.push(scheduledLabel);
 
   if (parts.length === 0) return null;
 
   return (
     <View style={ls.wrap}>
-      <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{parts.join(' · ')}</Text>
+      {parts.map((p, i) => (
+        <View key={i} style={ls.row}>
+          <Ionicons name="checkmark-circle" size={12} color={t.textMuted as string} />
+          <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{p}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 const ls = StyleSheet.create({
-  wrap: { marginHorizontal: 24, marginTop: 6, marginBottom: 2 },
-  text: { fontSize: 12, fontFamily: FONTS.sans },
+  wrap: { marginHorizontal: 24, marginTop: 8, marginBottom: 2, gap: 3 },
+  row:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  text: { fontSize: 11, flex: 1, fontFamily: FONTS.sans },
 });
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
@@ -284,100 +321,54 @@ const cc = StyleSheet.create({
   selectedDot:      { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
 });
 
-// ─── Sub-service row (flat, inline inside expanded category) ─────────────────
-function SubServiceRow({ label, basePrice, priceMin, priceMax, selected, onPress, pricingMode, calloutFee }: {
-  label:        string;
-  basePrice?:   number;
-  priceMin?:    number;
-  priceMax?:    number;
-  selected:     boolean;
-  onPress:      () => void;
-  pricingMode?: string;
-  calloutFee?:  number;
+// ─── Sub Row ───────────────────────────────────────────────────────────────────
+function SubChip({ label, price, selected, onPress, icon }: {
+  label:    string;
+  price?:   number;
+  selected: boolean;
+  onPress:  () => void;
+  icon?:    string;
 }) {
-  const t = useTheme();
-  const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
+  const t     = useTheme();
+  const scale = useRef(new Animated.Value(1)).current;
 
-  // Animated checkmark (spring scale + opacity)
-  const checkScale = useRef(new Animated.Value(selected ? 1 : 0.5)).current;
-  const checkOp    = useRef(new Animated.Value(selected ? 1 : 0)).current;
-
-  useEffect(() => {
-    if (selected) {
-      Animated.parallel([
-        Animated.spring(checkScale, { toValue: 1, tension: 200, friction: 10, useNativeDriver: true }),
-        Animated.timing(checkOp,    { toValue: 1, duration: 150, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(checkScale, { toValue: 0.5, duration: 120, useNativeDriver: true }),
-        Animated.timing(checkOp,    { toValue: 0,   duration: 120, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [selected]);
-
-  const badgeBg     = isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)';
-  const badgeColor  = isQuote ? '#C8820A' : '#3D8B3D';
-  const badgeBorder = isQuote ? 'rgba(200,130,10,0.3)' : 'rgba(61,139,61,0.3)';
-  const badgeLabel  = isQuote ? 'Sur devis' : 'Prix fixe';
-  const badgeIcon: keyof typeof Ionicons.glyphMap = isQuote ? 'document-text-outline' : 'checkmark';
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.98, duration: 60, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1,    duration: 80, useNativeDriver: true }),
+    ]).start();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   return (
-    <TouchableOpacity
-      style={[
-        sr.row,
-        { borderColor: 'transparent' },
-        selected && { backgroundColor: t.isDark ? '#1C1C1C' : '#F0F0F0', borderColor: t.isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)' },
-      ]}
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
-      activeOpacity={0.7}
-      accessibilityLabel={label}
-      accessibilityRole="button"
-    >
-      {/* Left: name + badge */}
-      <View style={sr.left}>
-        <Text style={[sr.name, { color: t.text }]} numberOfLines={1}>{label}</Text>
-        <View style={[sr.badge, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
-          <Ionicons name={badgeIcon} size={9} color={badgeColor} />
-          <Text style={[sr.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={[sc.row, { borderBottomColor: t.surfaceBorder }]}
+        onPress={handlePress}
+        activeOpacity={0.7}
+        accessibilityLabel={label}
+        accessibilityRole="button"
+      >
+        <View style={[sc.dot, { backgroundColor: t.surfaceBorder }, selected && { backgroundColor: t.text }]} />
+        <Text style={[sc.text, { color: t.textSub }, selected && { fontWeight: '700', color: t.text }]}>{label}</Text>
+        <View style={sc.right}>
+          {price !== undefined && (
+            <Text style={[sc.price, { color: t.textMuted }, selected && { color: t.textSub }]}>{price} €</Text>
+          )}
+          {selected && <Ionicons name="checkmark" size={16} color={t.text as string} />}
         </View>
-      </View>
-
-      {/* Right: price + checkmark */}
-      <View style={sr.right}>
-        {isQuote ? (
-          <View style={sr.priceCol}>
-            {priceMin && priceMax ? (
-              <Text style={[sr.priceRange, { color: t.isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' }]}>{priceMin} – {priceMax} €</Text>
-            ) : null}
-            {calloutFee ? (
-              <Text style={[sr.visitLabel, { color: t.textMuted }]}>Visite {calloutFee} €</Text>
-            ) : null}
-          </View>
-        ) : basePrice ? (
-          <Text style={[sr.priceFixed, { color: t.text }]}>{basePrice} €</Text>
-        ) : null}
-
-        <Animated.View style={[sr.check, { backgroundColor: t.text, opacity: checkOp, transform: [{ scale: checkScale }] }]}>
-          <Ionicons name="checkmark" size={11} color={t.isDark ? '#0A0A0A' : '#FFFFFF'} />
-        </Animated.View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-const sr = StyleSheet.create({
-  row:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
-  left:       { flex: 1, gap: 5 },
-  name:       { fontSize: 14, fontFamily: FONTS.sansMedium },
-  badge:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignSelf: 'flex-start' },
-  badgeText:  { fontSize: 11, fontFamily: FONTS.sansMedium },
-  right:      { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
-  priceCol:   { alignItems: 'flex-end' },
-  priceRange: { fontSize: 12, fontFamily: FONTS.mono, lineHeight: 18 },
-  visitLabel: { fontSize: 10, fontFamily: FONTS.sans },
-  priceFixed: { fontSize: 14, fontFamily: FONTS.mono, fontWeight: '500' },
-  check:      { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+const sc = StyleSheet.create({
+  row:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, gap: 12, borderBottomWidth: 1 },
+  dot:   { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
+  text:  { flex: 1, fontSize: 15, fontFamily: FONTS.sans },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  price: { fontSize: 14, fontFamily: FONTS.mono },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -1036,23 +1027,22 @@ export default function NewRequestStepper() {
                         <CategoryCard
                           cat={cat}
                           selected={isSelected}
-                          onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setCategoryId(cat.id); setSubcategoryId(null); }}
+                          onPress={() => { setCategoryId(cat.id); setSubcategoryId(null); }}
                         />
                         {subs.length > 0 && (
                           <View style={s.inlineSubs}>
                             <View style={s.subHeader}>
                               <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
+                              {estimatedPrice > 0 && !subcategoryId && (
+                                <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
+                              )}
                             </View>
                             <View style={s.subList}>
                               {subs.map((sub: any) => (
-                                <SubServiceRow
+                                <SubChip
                                   key={sub.id}
                                   label={sub.name}
-                                  basePrice={sub.basePrice}
-                                  priceMin={sub.priceMin}
-                                  priceMax={sub.priceMax}
-                                  pricingMode={sub.pricingMode}
-                                  calloutFee={sub.calloutFee}
+                                  price={sub.price}
                                   selected={subcategoryId === sub.id}
                                   onPress={() => setSubcategoryId(sub.id)}
                                 />
@@ -1089,14 +1079,7 @@ export default function NewRequestStepper() {
               <View style={{ height: 100 }} />
             </ScrollView>
 
-            <BottomCTA
-              label={isQuoteFlow
-                ? (pricingMode === 'diagnostic' ? 'Demander un diagnostic' : 'Demander un devis')
-                : t('stepper.continue')}
-              onPress={goNext}
-              disabled={!categoryId}
-              price={isQuoteFlow ? undefined : (estimatedPrice > 0 ? estimatedPrice : undefined)}
-            />
+            <BottomCTA label={t('stepper.continue')} onPress={goNext} disabled={!categoryId} price={estimatedPrice > 0 ? estimatedPrice : undefined} />
           </KeyboardAvoidingView>
         )}
 
@@ -1217,20 +1200,12 @@ export default function NewRequestStepper() {
                 <View style={s.v4Row}>
                   <Ionicons name={toIoniconName(selectedCategory?.icon, 'construct-outline') as any} size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{serviceName}</Text>
-                  {isQuoteFlow && (
-                    <View style={{ backgroundColor: 'rgba(200,130,10,0.15)', borderColor: 'rgba(200,130,10,0.3)', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 10, fontFamily: FONTS.sansMedium, color: '#C8820A' }}>Sur devis</Text>
-                    </View>
-                  )}
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
                 <View style={s.v4Row}>
                   <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
-                  {scheduleMode === 'now' && (
-                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#3D8B3D', shadowColor: '#3D8B3D', shadowOpacity: 0.3, shadowRadius: 3 }} />
-                  )}
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
 
@@ -1248,17 +1223,6 @@ export default function NewRequestStepper() {
 
               </View>
 
-              {/* Erreur pricing */}
-              {pricingError && (
-                <View style={[s.v4QuoteInfo, { backgroundColor: 'rgba(229,57,53,0.08)', borderColor: 'rgba(229,57,53,0.2)', marginHorizontal: 16, marginTop: 12 }]}>
-                  <Ionicons name="alert-circle-outline" size={18} color={COLORS.red} />
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[s.v4QuoteInfoTitle, { color: COLORS.red }]}>Erreur de calcul</Text>
-                    <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>{pricingError}</Text>
-                  </View>
-                </View>
-              )}
-
               {/* Prix / Callout fee section */}
               {isFreeService ? (
                 <View style={s.v4PriceBreakdown}>
@@ -1273,80 +1237,38 @@ export default function NewRequestStepper() {
                   </View>
                 </View>
               ) : isQuoteFlow ? (
-                <ScrollView style={s.flex} contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
-                  {/* Devis info card with timeline */}
-                  <View style={[s.v4DevisCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    {/* Header */}
-                    <View style={s.v4DevisHeader}>
-                      <View style={[s.v4DevisIcon, { backgroundColor: 'rgba(200,130,10,0.15)', borderColor: 'rgba(200,130,10,0.3)' }]}>
-                        <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={17} color="#C8820A" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.v4DevisTitle, { color: theme.text }]}>
-                          {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
-                        </Text>
-                        <Text style={[s.v4DevisDesc, { color: theme.textSub }]}>
-                          Le prestataire se déplace, évalue les travaux et vous envoie un devis détaillé. Vous décidez ensuite d'accepter ou non.
-                        </Text>
-                      </View>
-                    </View>
-                    {/* Divider */}
-                    <View style={[s.v4DevisDivider, { backgroundColor: theme.border }]} />
-                    {/* Timeline steps */}
-                    <View style={s.v4DevisSteps}>
-                      {[
-                        { num: '1', text: 'Visite de diagnostic', desc: ' — le prestataire arrive et évalue les travaux' },
-                        { num: '2', text: 'Devis envoyé', desc: ' — vous recevez une estimation détaillée in-app' },
-                        { num: '3', text: 'Vous choisissez', desc: ' — acceptez ou refusez sans obligation' },
-                      ].map((step, i) => (
-                        <View key={i} style={[s.v4DevisStep, i < 2 && s.v4DevisStepWithLine]}>
-                          {i < 2 && <View style={[s.v4DevisLine, { backgroundColor: theme.border }]} />}
-                          <View style={[s.v4DevisStepNum, { backgroundColor: theme.surfaceAlt, borderColor: 'rgba(255,255,255,0.18)' }]}>
-                            <Text style={[s.v4DevisStepNumText, { color: theme.textSub }]}>{step.num}</Text>
-                          </View>
-                          <Text style={[s.v4DevisStepText, { color: theme.textSub }]}>
-                            <Text style={{ color: theme.text, fontFamily: FONTS.sansMedium }}>{step.text}</Text>
-                            {step.desc}
-                          </Text>
-                        </View>
-                      ))}
+                <View style={s.v4PriceBreakdown}>
+                  <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+                    <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={18} color={theme.text as string} />
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>
+                        {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
+                      </Text>
+                      <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>
+                        Le prestataire se déplace pour évaluer et vous envoie un devis détaillé. Vous décidez ensuite d'accepter ou non.
+                      </Text>
                     </View>
                   </View>
 
-                  {/* Price rows */}
-                  <View style={s.v4PriceBlock}>
-                    {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
-                      <View style={[s.v4PriceRow, { borderBottomColor: theme.border }]}>
-                        <Text style={[s.v4PriceRowLabel, { color: theme.textMuted }]}>Estimation travaux</Text>
-                        <View style={[s.v4RangeTag, { backgroundColor: 'rgba(200,130,10,0.15)', borderColor: 'rgba(200,130,10,0.3)' }]}>
-                          <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: '#C8820A' }}>
-                            {selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €
-                          </Text>
-                        </View>
-                      </View>
-                    ) : null}
-                    <View style={[s.v4PriceRow, { borderBottomColor: theme.border }]}>
-                      <Text style={[s.v4PriceRowLabel, { color: theme.textMuted }]}>Frais de visite</Text>
-                      <Text style={{ fontFamily: FONTS.mono, fontSize: 13, color: theme.text as string }}>{calloutFee.toFixed(2)} €</Text>
+                  {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
+                    <View style={s.v4PriceLine}>
+                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Estimation</Text>
+                      <Text style={[s.v4PriceVal, { color: theme.textSub }]}>{selectedSubcategory.priceMin}€ — {selectedSubcategory.priceMax}€</Text>
                     </View>
-                  </View>
+                  ) : null}
 
-                  {/* Main price */}
-                  <View style={s.v4MainPrice}>
-                    <View style={{ gap: 2 }}>
-                      <Text style={[s.v4MainPriceLabel, { color: theme.textMuted }]}>À régler maintenant</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Ionicons name="checkmark" size={10} color="#3D8B3D" />
-                        <Text style={{ fontSize: 11, color: '#3D8B3D', fontFamily: FONTS.sans }}>Déduit si devis accepté</Text>
-                      </View>
+                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 4 }]} />
+
+                  <View style={s.v4PriceLine}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[s.v4TotalLabel, { color: theme.text }]}>
+                        {pricingMode === 'diagnostic' ? 'Frais de diagnostic' : 'Frais de visite'}
+                      </Text>
+                      <Text style={[s.v4PriceLabel, { color: theme.textMuted }]}>Déduit du devis si accepté</Text>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                      <Text style={[s.v4MainPriceValue, { color: theme.text }]}>{Math.floor(calloutFee)}</Text>
-                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 28, color: theme.textSub as string }}>,{String(Math.round((calloutFee % 1) * 100)).padStart(2, '0')} €</Text>
-                    </View>
+                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{calloutFee.toFixed(2)} €</Text>
                   </View>
-                  <Text style={[s.v4MainPriceSub, { color: theme.textMuted }]}>Vous n'acceptez le devis qu'après la visite</Text>
-                </ScrollView>
+                </View>
               ) : (
                 <View style={s.v4PriceBreakdown}>
                   {priceDetailOpen && (
@@ -1534,14 +1456,14 @@ const s = StyleSheet.create({
   pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
-  v4Body:       { flex: 1, paddingTop: 8 },
-  v4Card:       { borderRadius: 18, overflow: 'hidden', marginHorizontal: 16, marginBottom: 14, borderWidth: 1 },
-  v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12, minHeight: 52 },
-  v4Val:        { flex: 1, fontSize: 14, fontFamily: FONTS.sansMedium },
-  v4Sub:        { fontSize: 12, maxWidth: 120, fontFamily: FONTS.sans },
+  v4Body:       { flex: 1, paddingHorizontal: 20, paddingTop: 20, justifyContent: 'center' },
+  v4Card:       { borderRadius: 20, overflow: 'hidden', marginBottom: 20 },
+  v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
+  v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
+  v4Sub:        { fontSize: 13, maxWidth: 120, fontFamily: FONTS.sans },
   v4Sep:        { height: 1, marginHorizontal: 16 },
   v4Chevron:    { marginLeft: 'auto' as any },
-  v4PriceBreakdown: { marginTop: 10, paddingHorizontal: 16, gap: 0 },
+  v4PriceBreakdown: { marginTop: 10, paddingHorizontal: 4, gap: 0 },
   v4PriceLine:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   v4PriceLabel: { fontSize: 10, fontFamily: FONTS.sans },
   v4PriceVal:   { fontSize: 10, fontFamily: FONTS.mono },
@@ -1549,37 +1471,12 @@ const s = StyleSheet.create({
   v4Total:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
   v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
   v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
-  v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 8 },
+  v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
   v4QuoteInfoTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   v4QuoteInfoDesc:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
   v4Footer:     { paddingHorizontal: 0, paddingBottom: 0 },
   v4SecureRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingBottom: 8 },
   v4Secure:     { textAlign: 'center', fontSize: 12, fontFamily: FONTS.sans },
-
-  // Step 4 — Devis card
-  v4DevisCard:      { marginHorizontal: 16, marginBottom: 14, borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
-  v4DevisHeader:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, paddingBottom: 10 },
-  v4DevisIcon:      { width: 36, height: 36, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  v4DevisTitle:     { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 4 },
-  v4DevisDesc:      { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
-  v4DevisDivider:   { height: 1, marginHorizontal: 16 },
-  v4DevisSteps:     { padding: 12, paddingTop: 12, paddingBottom: 14, gap: 0 },
-  v4DevisStep:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingBottom: 14 },
-  v4DevisStepWithLine: { position: 'relative' },
-  v4DevisLine:      { position: 'absolute', left: 10, top: 22, bottom: 0, width: 1 },
-  v4DevisStepNum:   { width: 22, height: 22, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  v4DevisStepNumText: { fontFamily: FONTS.mono, fontSize: 11 },
-  v4DevisStepText:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19, paddingTop: 2, flex: 1 },
-
-  // Step 4 — Price block
-  v4PriceBlock:     { marginHorizontal: 16, marginBottom: 6 },
-  v4PriceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
-  v4PriceRowLabel:  { fontSize: 13, fontFamily: FONTS.sans },
-  v4RangeTag:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
-  v4MainPrice:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 6 },
-  v4MainPriceLabel: { fontSize: 13, fontFamily: FONTS.sans },
-  v4MainPriceValue: { fontFamily: FONTS.bebas, fontSize: 44, letterSpacing: 1, lineHeight: 44 },
-  v4MainPriceSub:   { fontSize: 11, textAlign: 'right', marginHorizontal: 16, marginBottom: 16 },
 
   // Legacy
   recapCard:  { borderRadius: 22, padding: 4, marginBottom: 24 },
