@@ -18,7 +18,13 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Switch,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -321,8 +327,8 @@ const cc = StyleSheet.create({
   selectedDot:      { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
 });
 
-// ─── Sub Row — matches HTML mockup exactly ──────────────────────────────────
-function SubChip({ label, basePrice, priceMin, priceMax, selected, onPress, pricingMode, calloutFee }: {
+// ─── Sub-service row (flat, inline inside expanded category) ─────────────────
+function SubServiceRow({ label, basePrice, priceMin, priceMax, selected, onPress, pricingMode, calloutFee }: {
   label:        string;
   basePrice?:   number;
   priceMin?:    number;
@@ -332,76 +338,89 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, onPress, pric
   pricingMode?: string;
   calloutFee?:  number;
 }) {
-  const t     = useTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  const t = useTheme();
   const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
 
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.98, duration: 60, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 1,    duration: 80, useNativeDriver: true }),
-    ]).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
-  };
+  // Animated checkmark (spring scale + opacity)
+  const checkScale = useRef(new Animated.Value(selected ? 1 : 0.5)).current;
+  const checkOp    = useRef(new Animated.Value(selected ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (selected) {
+      Animated.parallel([
+        Animated.spring(checkScale, { toValue: 1, tension: 200, friction: 10, useNativeDriver: true }),
+        Animated.timing(checkOp,    { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(checkScale, { toValue: 0.5, duration: 120, useNativeDriver: true }),
+        Animated.timing(checkOp,    { toValue: 0,   duration: 120, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [selected]);
 
   const badgeBg     = isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)';
   const badgeColor  = isQuote ? '#C8820A' : '#3D8B3D';
   const badgeBorder = isQuote ? 'rgba(200,130,10,0.3)' : 'rgba(61,139,61,0.3)';
   const badgeLabel  = isQuote ? 'Sur devis' : 'Prix fixe';
-  const badgeIcon   = isQuote ? 'document-text-outline' : 'checkmark';
+  const badgeIcon: keyof typeof Ionicons.glyphMap = isQuote ? 'document-text-outline' : 'checkmark';
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={[sc.item, { backgroundColor: t.isDark ? '#1C1C1C' : '#F8F8F8', borderColor: selected ? t.isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)' : 'transparent' }]}
-        onPress={handlePress}
-        activeOpacity={0.7}
-        accessibilityLabel={label}
-        accessibilityRole="button"
-      >
-        <View style={sc.left}>
-          <Text style={[sc.name, { color: t.text }]} numberOfLines={1}>{label}</Text>
-          <View style={[sc.badge, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
-            <Ionicons name={badgeIcon as any} size={9} color={badgeColor} />
-            <Text style={[sc.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
-          </View>
+    <TouchableOpacity
+      style={[
+        sr.row,
+        { borderColor: 'transparent' },
+        selected && { backgroundColor: t.isDark ? '#1C1C1C' : '#F0F0F0', borderColor: t.isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)' },
+      ]}
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+      activeOpacity={0.7}
+      accessibilityLabel={label}
+      accessibilityRole="button"
+    >
+      {/* Left: name + badge */}
+      <View style={sr.left}>
+        <Text style={[sr.name, { color: t.text }]} numberOfLines={1}>{label}</Text>
+        <View style={[sr.badge, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
+          <Ionicons name={badgeIcon} size={9} color={badgeColor} />
+          <Text style={[sr.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
         </View>
-        <View style={sc.right}>
-          {isQuote ? (
-            <View style={{ alignItems: 'flex-end' }}>
-              {priceMin && priceMax ? (
-                <Text style={[sc.priceRange, { color: t.isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)' }]}>{priceMin} – {priceMax} €</Text>
-              ) : null}
-              {calloutFee ? (
-                <Text style={[sc.calloutLabel, { color: t.textMuted }]}>Visite {calloutFee} €</Text>
-              ) : null}
-            </View>
-          ) : (
-            <Text style={[sc.priceFixed, { color: t.text }]}>
-              {basePrice ? `${basePrice} €` : ''}
-            </Text>
-          )}
-          <View style={[sc.check, { opacity: selected ? 1 : 0, transform: [{ scale: selected ? 1 : 0.5 }] }]}>
-            <Ionicons name="checkmark" size={11} color={t.isDark ? '#0A0A0A' : '#FFFFFF'} />
+      </View>
+
+      {/* Right: price + checkmark */}
+      <View style={sr.right}>
+        {isQuote ? (
+          <View style={sr.priceCol}>
+            {priceMin && priceMax ? (
+              <Text style={[sr.priceRange, { color: t.isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' }]}>{priceMin} – {priceMax} €</Text>
+            ) : null}
+            {calloutFee ? (
+              <Text style={[sr.visitLabel, { color: t.textMuted }]}>Visite {calloutFee} €</Text>
+            ) : null}
           </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+        ) : basePrice ? (
+          <Text style={[sr.priceFixed, { color: t.text }]}>{basePrice} €</Text>
+        ) : null}
+
+        <Animated.View style={[sr.check, { backgroundColor: t.text, opacity: checkOp, transform: [{ scale: checkScale }] }]}>
+          <Ionicons name="checkmark" size={11} color={t.isDark ? '#0A0A0A' : '#FFFFFF'} />
+        </Animated.View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
-const sc = StyleSheet.create({
-  item:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
-  left:        { flex: 1, gap: 5 },
-  name:        { fontSize: 14, fontFamily: FONTS.sansMedium },
-  badge:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignSelf: 'flex-start' },
-  badgeText:   { fontSize: 11, fontFamily: FONTS.sansMedium },
-  right:       { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
-  priceRange:  { fontSize: 12, fontFamily: FONTS.mono, lineHeight: 18 },
-  calloutLabel: { fontSize: 10, fontFamily: FONTS.sans },
-  priceFixed:  { fontSize: 14, fontFamily: FONTS.mono, fontWeight: '500' },
-  check:       { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+const sr = StyleSheet.create({
+  row:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
+  left:       { flex: 1, gap: 5 },
+  name:       { fontSize: 14, fontFamily: FONTS.sansMedium },
+  badge:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignSelf: 'flex-start' },
+  badgeText:  { fontSize: 11, fontFamily: FONTS.sansMedium },
+  right:      { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  priceCol:   { alignItems: 'flex-end' },
+  priceRange: { fontSize: 12, fontFamily: FONTS.mono, lineHeight: 18 },
+  visitLabel: { fontSize: 10, fontFamily: FONTS.sans },
+  priceFixed: { fontSize: 14, fontFamily: FONTS.mono, fontWeight: '500' },
+  check:      { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -1060,7 +1079,7 @@ export default function NewRequestStepper() {
                         <CategoryCard
                           cat={cat}
                           selected={isSelected}
-                          onPress={() => { setCategoryId(cat.id); setSubcategoryId(null); }}
+                          onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setCategoryId(cat.id); setSubcategoryId(null); }}
                         />
                         {subs.length > 0 && (
                           <View style={s.inlineSubs}>
@@ -1069,7 +1088,7 @@ export default function NewRequestStepper() {
                             </View>
                             <View style={s.subList}>
                               {subs.map((sub: any) => (
-                                <SubChip
+                                <SubServiceRow
                                   key={sub.id}
                                   label={sub.name}
                                   basePrice={sub.basePrice}
