@@ -1041,8 +1041,8 @@ export default function Dashboard() {
                   onPress={() => {
                     bottomSheetRef.current?.close();
                     router.push({
-                      pathname: '/request/NewRequestStepper',
-                      params: { selectedCategory: selectedRequest.category?.name || selectedRequest.serviceType },
+                      pathname: '/request/[id]/resume-payment',
+                      params: { id: String(selectedRequest.id) },
                     });
                   }}
                 >
