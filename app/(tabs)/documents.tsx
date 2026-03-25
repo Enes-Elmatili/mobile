@@ -5,7 +5,7 @@ import {
   SafeAreaView, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -13,8 +13,20 @@ import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 
 const fmtEur = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmtEurCents = (cents: number) => (cents / 100).toFixed(2);
 
 type Filter = 'all' | 'paid' | 'pending';
+
+interface QuoteRequest {
+  id: string;
+  title?: string;
+  serviceType?: string;
+  status: string;
+  calloutFee?: number;
+  category?: { name: string };
+  subcategory?: { name: string };
+  createdAt: string;
+}
 
 // ── Summary Card ──
 function SummaryCard({ icon, value, label, dark, theme }: {
@@ -123,16 +135,27 @@ export default function Documents() {
   const router = useRouter();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
 
-  const loadInvoices = useCallback(async () => {
+  const QUOTE_STATUSES = ['QUOTE_SENT', 'QUOTE_ACCEPTED', 'QUOTE_PENDING'];
+
+  const load = useCallback(async () => {
     try {
-      const res = await api.invoices.list();
-      const data = res.data || res;
-      setInvoices(Array.isArray(data) ? data : []);
+      const [invRes, reqRes] = await Promise.all([
+        api.invoices.list(),
+        api.requests.list(),
+      ]);
+      const invData = invRes?.data || invRes;
+      setInvoices(Array.isArray(invData) ? invData : []);
+
+      const reqData: any[] = reqRes?.data || reqRes || [];
+      setQuoteRequests(
+        reqData.filter((r: any) => QUOTE_STATUSES.includes(r.status?.toUpperCase()))
+      );
     } catch (e) {
       devError('Documents load error:', e);
     } finally {
@@ -141,8 +164,8 @@ export default function Documents() {
     }
   }, []);
 
-  useEffect(() => { loadInvoices(); }, []);
-  const onRefresh = () => { setRefreshing(true); loadInvoices(); };
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const onRefresh = () => { setRefreshing(true); load(); };
 
   // Stats
   const totalCount = invoices.length;
@@ -202,6 +225,62 @@ export default function Documents() {
           <SummaryCard icon="cash-outline" value={String(Math.round(totalEur))} label="EUR total" theme={theme} />
           <SummaryCard icon="checkmark-outline" value={String(paidCount)} label="Réglées" theme={theme} />
         </View>
+
+        {/* Devis section */}
+        {quoteRequests.length > 0 && (
+          <>
+            <View style={s.sectionHeader}>
+              <Text style={[s.sectionLabel, { color: theme.textMuted }]}>DEVIS</Text>
+            </View>
+            <View style={[s.invoiceList, { marginBottom: 26 }]}>
+              {quoteRequests.map(req => {
+                const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
+                const statusUp = req.status?.toUpperCase();
+                const isSent = statusUp === 'QUOTE_SENT';
+                const isAccepted = statusUp === 'QUOTE_ACCEPTED';
+                const isPending = statusUp === 'QUOTE_PENDING';
+                const pillBg = isSent ? 'rgba(232,120,58,0.1)' : isAccepted ? 'rgba(61,139,61,0.1)' : 'rgba(150,150,150,0.1)';
+                const pillColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : theme.textMuted as string;
+                const pillLabel = isSent ? 'À examiner' : isAccepted ? 'Accepté' : 'En cours';
+                const barColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : '#888';
+                return (
+                  <TouchableOpacity
+                    key={req.id}
+                    style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+                    onPress={() => router.push({ pathname: '/request/[id]/quote-review', params: { id: req.id } })}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[iv.bar, { backgroundColor: barColor }]} />
+                    <View style={[iv.icon, { backgroundColor: pillBg }]}>
+                      <Ionicons name="document-text-outline" size={16} color={pillColor} />
+                    </View>
+                    <View style={iv.body}>
+                      <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                        {req.calloutFee != null && req.calloutFee > 0 && (
+                          <View style={{ backgroundColor: 'rgba(61,139,61,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                            <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: '#3D8B3D' }}>PAYÉ</Text>
+                          </View>
+                        )}
+                        <Text style={[iv.meta, { color: theme.textMuted }]}>
+                          {new Date(req.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={iv.right}>
+                      {req.calloutFee != null && req.calloutFee > 0 && (
+                        <Text style={[iv.amount, { color: theme.text }]}>{fmtEurCents(req.calloutFee)}</Text>
+                      )}
+                      <View style={[iv.pill, { backgroundColor: pillBg }]}>
+                        <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* Section label */}
         <View style={s.sectionHeader}>
