@@ -11,6 +11,7 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { FONTS } from "@/hooks/use-app-theme";
 import { devError } from "@/lib/logger";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 const C = {
   bg: "#0A0A0A",
@@ -29,6 +30,7 @@ export default function QuoteReview() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<any>(null);
@@ -41,6 +43,22 @@ export default function QuoteReview() {
     if (!id) return;
     (async () => {
       try {
+        // Guard: fetch request to verify ownership and status
+        const reqRes: any = await api.requests.get(String(id));
+        const request = reqRes?.data || reqRes;
+        if (!request || request.clientId !== user?.id) {
+          Alert.alert("Accès refusé", "Vous n'êtes pas autorisé à voir ce devis.");
+          router.replace("/(tabs)/documents");
+          return;
+        }
+        const allowed = ["QUOTE_SENT", "QUOTE_ACCEPTED", "QUOTE_REFUSED", "QUOTE_EXPIRED"].includes(
+          request.status?.toUpperCase()
+        );
+        if (!allowed) {
+          router.replace("/(tabs)/documents");
+          return;
+        }
+
         const res: any = await api.get(`/quotes/request/${id}`);
         const latest = res?.quotes?.[0];
         if (latest) setQuote(latest);
@@ -50,7 +68,7 @@ export default function QuoteReview() {
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, user?.id]);
 
   const handleAccept = async () => {
     if (!quote) return;

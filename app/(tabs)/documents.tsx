@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import InvoiceSheet from '../../components/sheets/InvoiceSheet';
+import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 
 const fmtEur = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -137,6 +138,7 @@ export default function Documents() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
@@ -231,9 +233,12 @@ export default function Documents() {
           <>
             <View style={s.sectionHeader}>
               <Text style={[s.sectionLabel, { color: theme.textMuted }]}>DEVIS</Text>
+              {quoteRequests.length > 5 && (
+                <Text style={s.sectionAction}>{quoteRequests.length} au total</Text>
+              )}
             </View>
             <View style={[s.invoiceList, { marginBottom: 26 }]}>
-              {quoteRequests.map(req => {
+              {quoteRequests.slice(0, 5).map(req => {
                 const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
                 const statusUp = req.status?.toUpperCase();
                 const isSent = statusUp === 'QUOTE_SENT';
@@ -243,11 +248,20 @@ export default function Documents() {
                 const pillColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : theme.textMuted as string;
                 const pillLabel = isSent ? 'À examiner' : isAccepted ? 'Accepté' : 'En cours';
                 const barColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : '#888';
+
+                const handlePress = () => {
+                  if (isPending) {
+                    router.push({ pathname: '/request/[id]/quote-pending', params: { id: req.id } });
+                  } else {
+                    setSelectedQuote(req);
+                  }
+                };
+
                 return (
                   <TouchableOpacity
                     key={req.id}
                     style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-                    onPress={() => router.push({ pathname: '/request/[id]/quote-review', params: { id: req.id } })}
+                    onPress={handlePress}
                     activeOpacity={0.85}
                   >
                     <View style={[iv.bar, { backgroundColor: barColor }]} />
@@ -356,6 +370,18 @@ export default function Documents() {
         isVisible={!!selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
         userRole="client"
+      />
+
+      <QuoteSheet
+        requestId={selectedQuote?.id ?? null}
+        requestStatus={selectedQuote?.status ?? ''}
+        serviceName={
+          selectedQuote
+            ? (selectedQuote.serviceType || selectedQuote.subcategory?.name || selectedQuote.category?.name || selectedQuote.title || 'Service')
+            : ''
+        }
+        isVisible={!!selectedQuote}
+        onClose={() => setSelectedQuote(null)}
       />
     </SafeAreaView>
   );

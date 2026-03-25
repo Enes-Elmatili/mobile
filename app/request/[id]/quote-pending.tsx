@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Dimensions,
-  Animated, Easing, Platform, TouchableOpacity,
+  Animated, Easing, Platform, TouchableOpacity, Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { FONTS } from "@/hooks/use-app-theme";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -60,8 +61,32 @@ export default function QuotePending() {
     calloutFee?: string;
     pricingMode?: string;
   }>();
+  const { user } = useAuth();
 
   const [quoteReceived, setQuoteReceived] = useState(false);
+
+  // Guard: verify ownership + status on mount
+  useEffect(() => {
+    if (!id || !user?.id) return;
+    (async () => {
+      try {
+        const res: any = await api.requests.get(String(id));
+        const request = res?.data || res;
+        if (!request || request.clientId !== user.id) {
+          Alert.alert("Accès refusé", "Vous n'êtes pas autorisé à accéder à cette page.");
+          router.replace("/(tabs)/dashboard");
+          return;
+        }
+        const st = request.status?.toUpperCase();
+        if (st === 'QUOTE_SENT') {
+          router.replace({ pathname: "/request/[id]/quote-review", params: { id: String(id) } });
+        } else if (st !== 'QUOTE_PENDING' && st !== 'PENDING_PAYMENT') {
+          // PENDING_PAYMENT is valid while the callout webhook is processing
+          router.replace("/(tabs)/dashboard");
+        }
+      } catch {}
+    })();
+  }, [id, user?.id]);
 
   // Poll pour vérifier si un devis a été envoyé
   useEffect(() => {

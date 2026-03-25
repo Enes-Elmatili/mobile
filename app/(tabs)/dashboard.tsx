@@ -70,11 +70,11 @@ const getStatusInfo = (status: string, t: (key: string) => string) => {
     PUBLISHED:       { label: t('dashboard.status_published'), icon: 'radio-outline',            ledColor: COLORS.amber },
     ACCEPTED:        { label: t('dashboard.status_accepted'),  icon: 'hand-left-outline',        ledColor: COLORS.green },
     PENDING_PAYMENT: { label: t('dashboard.status_payment'),   icon: 'card-outline',             ledColor: COLORS.amber },
-    QUOTE_PENDING:   { label: 'En attente de devis',          icon: 'time-outline',             ledColor: COLORS.amber },
+    QUOTE_PENDING:   { label: 'Devis en cours',                icon: 'document-text-outline',    ledColor: COLORS.amber },
     QUOTE_SENT:      { label: 'Devis reçu',                   icon: 'document-text-outline',    ledColor: COLORS.green },
     QUOTE_ACCEPTED:  { label: 'Devis accepté',                icon: 'checkmark-circle-outline', ledColor: COLORS.green },
     QUOTE_REFUSED:   { label: 'Devis refusé',                 icon: 'close-circle-outline',     ledColor: COLORS.red },
-    QUOTE_EXPIRED:   { label: 'Devis expiré',                 icon: 'time-outline',             ledColor: COLORS.red },
+    QUOTE_EXPIRED:   { label: 'Devis expiré — remboursé',     icon: 'time-outline',             ledColor: COLORS.red },
     EXPIRED:         { label: t('dashboard.status_expired'),   icon: 'time-outline',             ledColor: COLORS.red },
   };
   return map[s] || { label: s, icon: 'help-circle-outline', ledColor: COLORS.amber };
@@ -552,7 +552,7 @@ function ActivityItem({
   if (statusKey === 'CANCELLED' || statusKey === 'EXPIRED') {
     badgeBg = theme.badgeCancelledBg;
     badgeTextColor = theme.badgeCancelledText;
-  } else if (['PUBLISHED', 'PENDING', 'PENDING_PAYMENT', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(statusKey || '')) {
+  } else if (['PUBLISHED', 'PENDING', 'PENDING_PAYMENT', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING'].includes(statusKey || '')) {
     badgeBg = theme.badgePendingBg;
     badgeTextColor = theme.badgePendingText;
   }
@@ -783,7 +783,7 @@ export default function Dashboard() {
     [data, activeMission]
   );
 
-  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
+  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING'];
   const latestRequest = useMemo(
     () => (activeMission || searchingMission)
       ? null
@@ -791,12 +791,27 @@ export default function Dashboard() {
     [data, activeMission, searchingMission]
   );
 
-  const displayedRequests = useMemo(() => {
-    const all = data?.requests || [];
-    return showAllRequests ? all : all.slice(0, PREVIEW_COUNT);
-  }, [data, showAllRequests]);
+  const HIDDEN_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED'];
+  const DOCUMENT_STATUSES = ['QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
 
-  const totalCount = data?.requests?.length || 0;
+  const quoteDocuments = useMemo(
+    () => (data?.requests || []).filter(r => DOCUMENT_STATUSES.includes(r.status?.toUpperCase())),
+    [data]
+  );
+
+  const activityRequests = useMemo(
+    () => (data?.requests || []).filter(r =>
+      !HIDDEN_STATUSES.includes(r.status?.toUpperCase()) &&
+      !DOCUMENT_STATUSES.includes(r.status?.toUpperCase())
+    ),
+    [data]
+  );
+
+  const displayedRequests = useMemo(() => {
+    return showAllRequests ? activityRequests : activityRequests.slice(0, PREVIEW_COUNT);
+  }, [activityRequests, showAllRequests]);
+
+  const totalCount = activityRequests.length;
   const hasMore = totalCount > PREVIEW_COUNT;
 
   // ── Guards ──

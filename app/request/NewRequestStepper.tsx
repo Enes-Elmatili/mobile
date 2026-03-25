@@ -18,6 +18,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Switch,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -29,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { toIoniconName } from '../../lib/iconMapper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { computePrice } from '@/lib/services/priceService';
 
@@ -150,36 +152,17 @@ const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | '
 function StepIndicator({ step }: { step: number }) {
   const t = useTheme();
 
-  // One animated value per segment (3 segments for 4 steps)
   const segmentAnims = useRef(
     Array.from({ length: TOTAL_STEPS - 1 }, (_, i) => new Animated.Value(i < step - 1 ? 1 : 0))
   ).current;
 
-  // Scale animation for the active dot
-  const dotScales = useRef(
-    Array.from({ length: TOTAL_STEPS }, (_, i) => new Animated.Value(i === step - 1 ? 1.25 : 1))
-  ).current;
-
   useEffect(() => {
-    // Animate segments: fill segments up to (step - 1)
     segmentAnims.forEach((anim, i) => {
       Animated.timing(anim, {
         toValue: i < step - 1 ? 1 : 0,
         duration: 350,
         useNativeDriver: false,
       }).start();
-    });
-
-    // Animate dot scales: active = pop, others = normal
-    dotScales.forEach((anim, i) => {
-      if (i === step - 1) {
-        Animated.sequence([
-          Animated.timing(anim, { toValue: 1.35, duration: 180, useNativeDriver: true }),
-          Animated.spring(anim, { toValue: 1.15, useNativeDriver: true, tension: 200, friction: 10 }),
-        ]).start();
-      } else {
-        Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -194,19 +177,12 @@ function StepIndicator({ step }: { step: number }) {
 
         return (
           <React.Fragment key={i}>
-            {/* Dot */}
-            <Animated.View style={[
-              si.dot,
-              { backgroundColor: dotBg, transform: [{ scale: dotScales[i] }] },
-              isActive && si.dotActive,
-            ]}>
+            <View style={[si.dot, { backgroundColor: dotBg }]}>
               {isCompleted
                 ? <Ionicons name="checkmark" size={14} color={iconColor} />
                 : <Ionicons name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
               }
-            </Animated.View>
-
-            {/* Segment line between dots */}
+            </View>
             {i < TOTAL_STEPS - 1 && (
               <View style={[si.segment, { backgroundColor: t.progressTrack }]}>
                 <Animated.View style={[si.segmentFill, { backgroundColor: t.accent as string }, {
@@ -227,7 +203,6 @@ function StepIndicator({ step }: { step: number }) {
 const si = StyleSheet.create({
   container:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 6 },
   dot:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  dotActive:   { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   segment:     { flex: 1, height: 2, borderRadius: 1, overflow: 'hidden', marginHorizontal: 4 },
   segmentFill: { height: '100%', borderRadius: 1 },
 });
@@ -265,9 +240,14 @@ const ls = StyleSheet.create({
 });
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
-function CategoryCard({ cat, selected, onPress }: { cat: any; selected: boolean; onPress: () => void }) {
+function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: boolean; dimmed?: boolean; onPress: () => void }) {
   const t     = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: dimmed ? 0.25 : 1, duration: 250, useNativeDriver: true }).start();
+  }, [dimmed]);
 
   const handlePress = () => {
     Animated.sequence([
@@ -279,7 +259,7 @@ function CategoryCard({ cat, selected, onPress }: { cat: any; selected: boolean;
   };
 
   return (
-    <Animated.View style={[cc.wrap, { transform: [{ scale }] }]}>
+    <Animated.View style={[cc.wrap, { transform: [{ scale }], opacity }]}>
       <TouchableOpacity
         style={[
           cc.card,
@@ -322,15 +302,29 @@ const cc = StyleSheet.create({
 });
 
 // ─── Sub Row ───────────────────────────────────────────────────────────────────
-function SubChip({ label, price, selected, onPress, icon }: {
-  label:    string;
-  price?:   number;
-  selected: boolean;
-  onPress:  () => void;
-  icon?:    string;
+function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPress, pricingMode, calloutFee }: {
+  label:        string;
+  basePrice?:   number;
+  priceMin?:    number;
+  priceMax?:    number;
+  selected:     boolean;
+  dimmed?:      boolean;
+  onPress:      () => void;
+  pricingMode?: string;
+  calloutFee?:  number;
 }) {
   const t     = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
+
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: dimmed ? 0.3 : 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [dimmed]);
 
   const handlePress = () => {
     Animated.sequence([
@@ -342,7 +336,7 @@ function SubChip({ label, price, selected, onPress, icon }: {
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={{ transform: [{ scale }], opacity }}>
       <TouchableOpacity
         style={[sc.row, { borderBottomColor: t.surfaceBorder }]}
         onPress={handlePress}
@@ -350,12 +344,17 @@ function SubChip({ label, price, selected, onPress, icon }: {
         accessibilityLabel={label}
         accessibilityRole="button"
       >
-        <View style={[sc.dot, { backgroundColor: t.surfaceBorder }, selected && { backgroundColor: t.text }]} />
+        <View style={[sc.dot, { backgroundColor: isQuote ? '#C8820A' : '#3D8B3D' }, selected && { backgroundColor: t.text }]} />
         <Text style={[sc.text, { color: t.textSub }, selected && { fontWeight: '700', color: t.text }]}>{label}</Text>
         <View style={sc.right}>
-          {price !== undefined && (
-            <Text style={[sc.price, { color: t.textMuted }, selected && { color: t.textSub }]}>{price} €</Text>
-          )}
+          <Text style={[sc.priceSmall, { color: t.textMuted }]}>
+            {isQuote
+              ? (priceMin && priceMax ? `${priceMin}–${priceMax} €` : '')
+              : (basePrice ? `${basePrice} €` : '')}
+          </Text>
+          <View style={[sc.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)' }]}>
+            <Text style={[sc.pillText, { color: isQuote ? '#C8820A' : '#3D8B3D' }]}>{isQuote ? 'Sur devis' : 'Prix fixe'}</Text>
+          </View>
           {selected && <Ionicons name="checkmark" size={16} color={t.text as string} />}
         </View>
       </TouchableOpacity>
@@ -364,11 +363,13 @@ function SubChip({ label, price, selected, onPress, icon }: {
 }
 
 const sc = StyleSheet.create({
-  row:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, gap: 12, borderBottomWidth: 1 },
+  row:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 4, gap: 10, borderBottomWidth: 1 },
   dot:   { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
   text:  { flex: 1, fontSize: 15, fontFamily: FONTS.sans },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  price: { fontSize: 14, fontFamily: FONTS.mono },
+  pill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  pillText: { fontSize: 11, fontFamily: FONTS.sansMedium },
+  priceSmall: { fontSize: 10, fontFamily: FONTS.mono },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -450,12 +451,15 @@ const dc = StyleSheet.create({
 });
 
 // ─── Bottom CTA ────────────────────────────────────────────────────────────────
-function BottomCTA({ label, onPress, disabled, loading, price }: {
-  label:     string;
-  onPress:   () => void;
-  disabled?: boolean;
-  loading?:  boolean;
-  price?:    number;
+function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelStyle, glow }: {
+  label:       string;
+  onPress:     () => void;
+  disabled?:   boolean;
+  loading?:    boolean;
+  price?:      number;
+  wrapStyle?:  object;
+  labelStyle?: object;
+  glow?:       boolean;
 }) {
   const t     = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
@@ -469,8 +473,17 @@ function BottomCTA({ label, onPress, disabled, loading, price }: {
   };
 
   return (
-    <View style={[cta.wrap, { backgroundColor: t.ctaBg, borderTopColor: t.ctaBorder }]}>
-      <Animated.View style={{ transform: [{ scale }] }}>
+    <View style={[cta.wrap, { backgroundColor: t.ctaBg, borderTopColor: t.ctaBorder }, wrapStyle]}>
+      <Animated.View style={[
+        { transform: [{ scale }], borderRadius: 55 },
+        glow && !disabled && {
+          shadowColor: t.accent as string,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.45,
+          shadowRadius: 18,
+          elevation: 10,
+        },
+      ]}>
         <Pressable
           onPressIn={springIn}
           onPressOut={springOut}
@@ -484,7 +497,7 @@ function BottomCTA({ label, onPress, disabled, loading, price }: {
             <ActivityIndicator color={t.accentText as string} />
           ) : (
             <View style={cta.inner}>
-              <Text style={[cta.label, { color: t.accentText }, disabled && [cta.labelDisabled, { color: t.textMuted }]]}>{label}</Text>
+              <Text style={[cta.label, { color: t.accentText }, disabled && [cta.labelDisabled, { color: t.textMuted }], labelStyle]}>{label}</Text>
               {price !== undefined && price > 0 ? (
                 <View style={cta.priceBadge}>
                   <Text style={[cta.priceText, { color: t.accentText }]}>{price} €</Text>
@@ -505,7 +518,7 @@ const cta = StyleSheet.create({
   btn:           { borderRadius: 55, height: 55, alignItems: 'center', justifyContent: 'center' },
   btnDisabled:   {},
   inner:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, width: '100%' },
-  label:         { fontSize: 17, flex: 1, textAlign: 'center', fontFamily: FONTS.sansMedium },
+  label:         { fontSize: 17, fontFamily: FONTS.sansMedium, textAlign: 'center', flex: 1 },
   labelDisabled: {},
   priceBadge:    { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
   priceText:     { fontSize: 15, fontFamily: FONTS.mono },
@@ -535,6 +548,102 @@ const getTimeGroups = (t: any) => [
   { label: t('stepper.evening'),    slots: ['18:00', '19:00'] },
 ];
 
+// ─── Devis Info Modal ────────────────────────────────────────────────────────
+function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
+  visible: boolean;
+  onClose: () => void;
+  pricingMode: string;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  const steps = [
+    { num: '1', title: 'Visite de diagnostic', sub: 'Le prestataire arrive et évalue les travaux' },
+    { num: '2', title: 'Devis envoyé',         sub: 'Vous recevez une estimation détaillée in-app' },
+    { num: '3', title: 'Vous choisissez',      sub: 'Acceptez ou refusez sans obligation' },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={onClose}>
+        <Pressable onPress={() => {}}>
+          <View style={[dim.sheet, { backgroundColor: '#141414' }]}>
+            <View style={dim.handle} />
+
+            {/* Header */}
+            <View style={dim.header}>
+              <View style={dim.titleRow}>
+                <View style={dim.iconWrap}>
+                  <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={20} color="#C8820A" />
+                </View>
+                <Text style={[dim.title, { color: theme.text }]}>
+                  {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
+                </Text>
+              </View>
+              <Text style={[dim.subtitle, { color: theme.textSub }]}>
+                Le prestataire se déplace, évalue les travaux et vous envoie un devis détaillé.
+              </Text>
+            </View>
+
+            <View style={[dim.divider, { backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+
+            {/* Steps */}
+            <View style={dim.steps}>
+              {steps.map((item, i) => (
+                <View key={i} style={dim.stepRow}>
+                  {/* Colonne gauche : numéro + connecteur */}
+                  <View style={dim.stepLeft}>
+                    <View style={[dim.numCircle, {
+                      backgroundColor: i === 0 ? 'rgba(200,130,10,0.2)' : 'rgba(255,255,255,0.06)',
+                      borderColor:     i === 0 ? 'rgba(200,130,10,0.5)' : 'rgba(255,255,255,0.1)',
+                    }]}>
+                      <Text style={[dim.numText, { color: i === 0 ? '#C8820A' : theme.textSub }]}>{item.num}</Text>
+                    </View>
+                    {i < steps.length - 1 && <View style={[dim.connector, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />}
+                  </View>
+                  {/* Contenu */}
+                  <View style={[dim.stepContent, i < steps.length - 1 && { paddingBottom: 24 }]}>
+                    <Text style={[dim.stepTitle, { color: i === 0 ? '#F0A830' : theme.text }]}>{item.title}</Text>
+                    <Text style={[dim.stepSub, { color: theme.textMuted as string }]}>{item.sub}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity style={[dim.closeBtn, { backgroundColor: theme.accent }]} onPress={onClose} activeOpacity={0.85} accessibilityRole="button">
+              <Text style={[dim.closeBtnText, { color: theme.accentText, fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 }]}>Compris</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const dim = StyleSheet.create({
+  sheet:        { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 36, paddingTop: 14 },
+  handle:       { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 28, backgroundColor: 'rgba(255,255,255,0.15)' },
+  header:       { paddingHorizontal: 24, gap: 8, marginBottom: 24 },
+  titleRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconWrap:     { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(200,130,10,0.15)', borderWidth: 1, borderColor: 'rgba(200,130,10,0.3)' },
+  title:        { fontSize: 18, fontFamily: FONTS.sansMedium, letterSpacing: -0.2 },
+  subtitle:     { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19, opacity: 0.7 },
+  divider:      { height: 1, marginHorizontal: 24, marginBottom: 24 },
+  steps:        { paddingHorizontal: 24, marginBottom: 32 },
+  stepRow:      { flexDirection: 'row', gap: 14 },
+  stepLeft:     { alignItems: 'center', width: 28 },
+  connector:    { flex: 1, width: 1, marginTop: 6 },
+  numCircle:    { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderWidth: 1 },
+  numText:      { fontSize: 12, fontFamily: FONTS.mono },
+  stepContent:  { flex: 1, gap: 3, paddingTop: 4 },
+  stepTitle:    { fontSize: 15, fontFamily: FONTS.sansMedium },
+  stepSub:      { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18 },
+  closeBtn:     { marginHorizontal: 24, borderRadius: 55, height: 54, alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { fontSize: 16, fontFamily: FONTS.sansMedium },
+  // legacy
+  step:         { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingBottom: 16, zIndex: 1 },
+  line:         { position: 'absolute', left: 34, top: 22, bottom: 0, width: 1 },
+  stepText:     { fontSize: 14, fontFamily: FONTS.sans, lineHeight: 20, paddingTop: 2 },
+});
+
 // ─── MAIN ──────────────────────────────────────────────────────────────────────
 export default function NewRequestStepper() {
   const router = useRouter();
@@ -542,6 +651,8 @@ export default function NewRequestStepper() {
   const { t }  = useTranslation();
   const { selectedCategory: preselectedCategory } = useLocalSearchParams<{ selectedCategory?: string }>();
   const mapRef    = useRef<MapView | null>(null);
+  const step2ScrollRef = useRef<ScrollView>(null);
+  const catLayoutsRef  = useRef<Record<number, number>>({});
   const mountedRef = useRef(true);
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -649,6 +760,7 @@ export default function NewRequestStepper() {
   };
 
   // Étape 4 — paiement
+  const [devisModalVisible, setDevisModalVisible] = useState(false);
   const [requestId,          setRequestId]         = useState<string | null>(null);
   const [paymentReady,       setPaymentReady]       = useState(false);
   const [paymentInitLoading, setPaymentInitLoading] = useState(false);
@@ -656,6 +768,7 @@ export default function NewRequestStepper() {
   const [pricingToken,       setPricingToken]       = useState<string | null>(null);
   const [serverPrice,        setServerPrice]        = useState<ReturnType<typeof computePrice> | null>(null);
   const [pricingError,       setPricingError]       = useState<string | null>(null);
+  const [confirmedCalloutCents, setConfirmedCalloutCents] = useState<number | null>(null);
 
   // Prix affiché = prix serveur (si disponible) ou estimation client
   const displayPrice = serverPrice || priceDetails;
@@ -695,7 +808,41 @@ export default function NewRequestStepper() {
           return;
         }
 
-        // ── Flow payant : verrouiller le prix côté serveur ──
+        // ── Flow devis : pas de prix à verrouiller — le callout fee vient de la subcategory ──
+        if (isQuoteFlow) {
+          const payload: Record<string, unknown> = {
+            title:        serviceType,
+            description:  description || `Service de ${serviceType}`,
+            serviceType,
+            categoryId:   selectedCategory.id,
+            ...(subcategoryId && { subcategoryId }),
+            price:        0,
+            address:      location.address,
+            lat:          location.lat,
+            lng:          location.lng,
+            urgent:       isUrgent,
+            scheduledFor: scheduledFor || new Date().toISOString(),
+            status:       'PENDING_PAYMENT', // → QUOTE_PENDING après confirmation webhook Stripe
+            pricingMode,
+          };
+          const reqRes = await api.post('/requests', payload);
+          const rId    = reqRes.id || reqRes.data?.id;
+          if (!rId) throw new Error('Request ID manquant');
+          if (cancelled) return;
+          setRequestId(rId);
+          const calloutRes = await api.post('/quotes/callout-payment', { requestId: rId });
+          if (calloutRes.amount) setConfirmedCalloutCents(calloutRes.amount);
+          const { error } = await initPaymentSheet({
+            merchantDisplayName:      'Fixed',
+            paymentIntentClientSecret: calloutRes.clientSecret,
+            applePay:  { merchantCountryCode: 'BE' },
+            googlePay: { merchantCountryCode: 'BE', testEnv: true },
+          });
+          if (!error && !cancelled) setPaymentReady(true);
+          return;
+        }
+
+        // ── Flow prix fixe : verrouiller le prix côté serveur ──
         const lockRes = await api.post('/pricing/lock', {
           categoryId:   selectedCategory.id,
           ...(subcategoryId && { subcategoryId }),
@@ -713,13 +860,13 @@ export default function NewRequestStepper() {
           serviceType,
           categoryId:   selectedCategory.id,
           ...(subcategoryId && { subcategoryId }),
-          price:        isQuoteFlow ? 0 : parseFloat(lockRes.price.totalTVAC),
+          price:        parseFloat(lockRes.price.totalTVAC),
           address:      location.address,
           lat:          location.lat,
           lng:          location.lng,
           urgent:       isUrgent,
           scheduledFor: scheduledFor || new Date().toISOString(),
-          status:       isQuoteFlow ? 'QUOTE_PENDING' : 'PENDING_PAYMENT',
+          status:       'PENDING_PAYMENT',
           pricingMode,
           pricingToken: lockRes.pricingToken,
         };
@@ -729,28 +876,17 @@ export default function NewRequestStepper() {
         if (cancelled) return;
         setRequestId(rId);
 
-        // Initialiser le payment sheet
-        if (isQuoteFlow) {
-          const calloutRes = await api.post('/quotes/callout-payment', { requestId: rId });
-          const { error } = await initPaymentSheet({
-            merchantDisplayName:      'Fixed',
-            paymentIntentClientSecret: calloutRes.clientSecret,
-            applePay:  { merchantCountryCode: 'BE' },
-            googlePay: { merchantCountryCode: 'BE', testEnv: true },
-          });
-          if (!error && !cancelled) setPaymentReady(true);
-        } else {
-          const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(rId);
-          const { error } = await initPaymentSheet({
-            merchantDisplayName:      'Fixed',
-            paymentIntentClientSecret: paymentIntent,
-            customerEphemeralKeySecret: ephemeralKey,
-            customerId:                customer,
-            applePay:  { merchantCountryCode: 'BE' },
-            googlePay: { merchantCountryCode: 'BE', testEnv: true },
-          });
-          if (!error && !cancelled) setPaymentReady(true);
-        }
+        // Initialiser le payment sheet — prix fixe uniquement
+        const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(rId);
+        const { error } = await initPaymentSheet({
+          merchantDisplayName:      'Fixed',
+          paymentIntentClientSecret: paymentIntent,
+          customerEphemeralKeySecret: ephemeralKey,
+          customerId:                customer,
+          applePay:  { merchantCountryCode: 'BE' },
+          googlePay: { merchantCountryCode: 'BE', testEnv: true },
+        });
+        if (!error && !cancelled) setPaymentReady(true);
       } catch (e: any) {
         if (!cancelled) {
           devError('Payment init error:', e);
@@ -894,7 +1030,7 @@ export default function NewRequestStepper() {
       <StepIndicator step={step} />
 
       {/* ── Live Summary ── */}
-      {step >= 2 && (
+      {step >= 2 && step < 4 && (
         <LiveSummary
           location={location}
           serviceName={step >= 3 ? serviceName : null}
@@ -1009,7 +1145,8 @@ export default function NewRequestStepper() {
         {/* ══ ÉTAPE 2 — Service ══ */}
         {step === 2 && (
           <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
-            <ScrollView style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={s.flex}>
+            <ScrollView ref={step2ScrollRef} style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={[s.step2Title, { color: theme.text }]}>{t('stepper.what_do_you_need')}</Text>
 
               {categories.length === 0 ? (
@@ -1019,15 +1156,25 @@ export default function NewRequestStepper() {
                 </View>
               ) : (
                 <View style={s.catList}>
-                  {categories.map((cat) => {
+                  {categories.map((cat, catIndex) => {
                     const isSelected = categoryId === cat.id;
+                    const isDimmed = categoryId !== null && !isSelected;
                     const subs = isSelected && cat.subcategories?.length > 0 ? cat.subcategories : [];
                     return (
-                      <View key={cat.id}>
+                      <View key={cat.id} onLayout={(e) => { catLayoutsRef.current[catIndex] = e.nativeEvent.layout.y; }}>
                         <CategoryCard
                           cat={cat}
                           selected={isSelected}
-                          onPress={() => { setCategoryId(cat.id); setSubcategoryId(null); }}
+                          dimmed={isDimmed}
+                          onPress={() => {
+                            setCategoryId(cat.id);
+                            setSubcategoryId(null);
+                            // Scroll to center the selected category
+                            setTimeout(() => {
+                              const y = catLayoutsRef.current[catIndex] || 0;
+                              step2ScrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
+                            }, 100);
+                          }}
                         />
                         {subs.length > 0 && (
                           <View style={s.inlineSubs}>
@@ -1042,8 +1189,13 @@ export default function NewRequestStepper() {
                                 <SubChip
                                   key={sub.id}
                                   label={sub.name}
-                                  price={sub.price}
+                                  basePrice={sub.basePrice}
+                                  priceMin={sub.priceMin}
+                                  priceMax={sub.priceMax}
+                                  pricingMode={sub.pricingMode}
+                                  calloutFee={sub.calloutFee}
                                   selected={subcategoryId === sub.id}
+                                  dimmed={subcategoryId !== null && subcategoryId !== sub.id}
                                   onPress={() => setSubcategoryId(sub.id)}
                                 />
                               ))}
@@ -1079,7 +1231,17 @@ export default function NewRequestStepper() {
               <View style={{ height: 100 }} />
             </ScrollView>
 
-            <BottomCTA label={t('stepper.continue')} onPress={goNext} disabled={!categoryId} price={estimatedPrice > 0 ? estimatedPrice : undefined} />
+            {/* Brouillard haut + bas */}
+            <LinearGradient colors={[theme.bg as string, 'transparent']} style={s.fogTop} pointerEvents="none" />
+            <LinearGradient colors={['transparent', theme.bg as string]} style={s.fogBottom} pointerEvents="none" />
+            </View>
+
+            <BottomCTA
+              label={isQuoteFlow ? 'Demander un devis' : t('stepper.continue')}
+              onPress={goNext}
+              disabled={!categoryId}
+              price={isQuoteFlow ? undefined : (estimatedPrice > 0 ? estimatedPrice : undefined)}
+            />
           </KeyboardAvoidingView>
         )}
 
@@ -1185,9 +1347,34 @@ export default function NewRequestStepper() {
         {/* ══ ÉTAPE 4 — Validation ══ */}
         {step === 4 && (
           <View style={s.flex}>
+            {/* Fond premium */}
+            <LinearGradient
+              colors={theme.isDark
+                ? ['#0A0A0A', '#161616', '#1A1A1A']
+                : ['#F4F4F2', '#EAEAE8', '#E2E2E0']}
+              locations={[0, 0.6, 1]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              pointerEvents="none"
+            />
+            {/* Formes décoratives */}
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              {/* Grand cercle flou top-right */}
+              <View style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.015)' }} />
+              {/* Cercle moyen bottom-left */}
+              <View style={{ position: 'absolute', bottom: 40, left: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.012)' }} />
+              {/* Petit losange centre-droit */}
+              <View style={{ position: 'absolute', top: '45%', right: 20, width: 50, height: 50, borderRadius: 8, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.018)', transform: [{ rotate: '45deg' }] }} />
+              {/* Icône checkmark fantôme top-left */}
+              <Ionicons name="checkmark-circle-outline" size={80} color={theme.isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.015)'} style={{ position: 'absolute', top: 30, left: 10 }} />
+              {/* Icône shield fantôme bottom-right */}
+              <Ionicons name="shield-checkmark-outline" size={60} color={theme.isDark ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.018)'} style={{ position: 'absolute', bottom: 100, right: 15 }} />
+            </View>
             <View style={s.v4Body}>
 
               {/* Carte récap */}
+              <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginHorizontal: 16, marginBottom: 10 }}>RÉCAPITULATIF</Text>
               <View style={[s.v4Card, { backgroundColor: theme.v4CardBg }]}>
 
                 <View style={s.v4Row}>
@@ -1207,23 +1394,10 @@ export default function NewRequestStepper() {
                   <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
                 </View>
-                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-
-                {!isFreeService && (
-                  <TouchableOpacity style={s.v4Row} onPress={handleChangePayment} activeOpacity={0.7} disabled={!paymentReady} accessibilityRole="button">
-                    <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
-                    {paymentInitLoading ? (
-                      <ActivityIndicator size="small" color={theme.textSub as string} style={{ marginLeft: 4 }} />
-                    ) : (
-                      <Text style={[s.v4Val, { color: theme.text }]}>{t('stepper.card_saved')}</Text>
-                    )}
-                    <Ionicons name="chevron-forward" size={14} color={theme.textMuted as string} style={s.v4Chevron} />
-                  </TouchableOpacity>
-                )}
 
               </View>
 
-              {/* Prix / Callout fee section */}
+              {/* Prix / Callout fee section — prix fixe et gratuit seulement (devis = footer) */}
               {isFreeService ? (
                 <View style={s.v4PriceBreakdown}>
                   <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
@@ -1236,40 +1410,7 @@ export default function NewRequestStepper() {
                     </View>
                   </View>
                 </View>
-              ) : isQuoteFlow ? (
-                <View style={s.v4PriceBreakdown}>
-                  <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
-                    <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={18} color={theme.text as string} />
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>
-                        {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
-                      </Text>
-                      <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>
-                        Le prestataire se déplace pour évaluer et vous envoie un devis détaillé. Vous décidez ensuite d'accepter ou non.
-                      </Text>
-                    </View>
-                  </View>
-
-                  {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
-                    <View style={s.v4PriceLine}>
-                      <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Estimation</Text>
-                      <Text style={[s.v4PriceVal, { color: theme.textSub }]}>{selectedSubcategory.priceMin}€ — {selectedSubcategory.priceMax}€</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 4 }]} />
-
-                  <View style={s.v4PriceLine}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[s.v4TotalLabel, { color: theme.text }]}>
-                        {pricingMode === 'diagnostic' ? 'Frais de diagnostic' : 'Frais de visite'}
-                      </Text>
-                      <Text style={[s.v4PriceLabel, { color: theme.textMuted }]}>Déduit du devis si accepté</Text>
-                    </View>
-                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{calloutFee.toFixed(2)} €</Text>
-                  </View>
-                </View>
-              ) : (
+              ) : !isQuoteFlow ? (
                 <View style={s.v4PriceBreakdown}>
                   {priceDetailOpen && (
                     <View style={{ marginBottom: 6, gap: 2 }}>
@@ -1322,19 +1463,53 @@ export default function NewRequestStepper() {
                     <Text style={[s.v4TotalValue, { color: theme.text }]}>{displayPrice.totalTVAC} €</Text>
                   </TouchableOpacity>
                 </View>
-              )}
+              ) : null}
 
             </View>
 
             {/* Footer */}
             <View style={s.v4Footer}>
-              {!isFreeService && (
+              {isQuoteFlow && (
+                <View style={{ gap: 12, marginBottom: 8 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginHorizontal: 16 }}>MONTANT</Text>
+                  <View style={{ marginHorizontal: 16, backgroundColor: theme.v4CardBg as string, borderRadius: 16, borderWidth: 1, borderColor: theme.surfaceBorder as string, padding: 16, gap: 12 }}>
+                    {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }}>Estimation travaux</Text>
+                        <Text style={{ fontSize: 13, fontFamily: FONTS.mono, color: theme.textSub as string }}>{selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €</Text>
+                      </View>
+                    ) : null}
+                    <View style={{ height: 1, backgroundColor: theme.surfaceBorder as string }} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textMuted as string }}>À régler maintenant</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <Ionicons name="checkmark" size={8} color="#3D8B3D" />
+                        <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: '#3D8B3D' }}>Déduit si devis accepté</Text>
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 44, letterSpacing: 1, lineHeight: 44, color: theme.text as string }}>
+                        {Math.floor(calloutFee)}<Text style={{ fontSize: 22, color: theme.textSub as string }}>,{String(Math.round((calloutFee % 1) * 100)).padStart(2, '0')} €</Text>
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
+                    onPress={() => setDevisModalVisible(true)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="document-text-outline" size={14} color="#C8820A" />
+                    <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>Comment fonctionne le devis ?</Text>
+                    <Ionicons name="chevron-forward" size={13} color={theme.textMuted as string} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {!isFreeService && !isQuoteFlow && (
                 <View style={s.v4SecureRow}>
                   <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
                   <Text style={[s.v4Secure, { color: theme.textMuted }]}>
-                    {isQuoteFlow
-                      ? 'Vous ne serez facturé que si vous acceptez le devis'
-                      : t('stepper.charge_after_validation')}
+                    {t('stepper.charge_after_validation')}
                   </Text>
                 </View>
               )}
@@ -1342,18 +1517,27 @@ export default function NewRequestStepper() {
                 label={isFreeService
                   ? 'Confirmer (gratuit)'
                   : isQuoteFlow
-                    ? `Réserver · ${serverPrice?.calloutFee ?? calloutFee.toFixed(2)} €`
+                    ? `Réserver · ${confirmedCalloutCents != null ? (confirmedCalloutCents / 100).toFixed(2) : calloutFee > 0 ? calloutFee.toFixed(2) : '...'} €`
                     : t('stepper.confirm_mission')}
                 onPress={handlePay}
                 disabled={loading || !paymentReady || !!pricingError}
                 loading={loading}
                 price={isFreeService ? undefined : (isQuoteFlow ? undefined : displayTotal)}
+                wrapStyle={{ paddingHorizontal: 16 }}
+                labelStyle={{ fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 4 }}
+                glow
               />
             </View>
           </View>
         )}
 
       </Animated.View>
+      <DevisInfoModal
+        visible={devisModalVisible}
+        onClose={() => setDevisModalVisible(false)}
+        pricingMode={pricingMode}
+        theme={theme}
+      />
     </SafeAreaView>
   );
 }
@@ -1362,6 +1546,10 @@ export default function NewRequestStepper() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
+
+  // Fog overlays
+  fogTop:    { position: 'absolute', top: 0, left: 0, right: 0, height: 48, zIndex: 5 },
+  fogBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, zIndex: 5 },
 
   // Header
   header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
@@ -1383,12 +1571,12 @@ const s = StyleSheet.create({
   loadText: { fontSize: 14, fontFamily: FONTS.sans },
 
   // Step 2
-  step2Pad:   { paddingHorizontal: 20, paddingTop: 24 },
+  step2Pad:   { paddingHorizontal: 12, paddingTop: 16 },
   step2Title: { fontSize: 22, letterSpacing: 1, marginBottom: 22, fontFamily: FONTS.bebas },
   catList:    { marginBottom: 4 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
-  inlineSubs: { paddingLeft: 48, paddingRight: 4, paddingBottom: 8 },
+  inlineSubs: { paddingLeft: 4, paddingRight: 4, paddingBottom: 4 },
   subSection: { marginTop: 20 },
   subHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   subTitle:   { fontSize: 14, fontFamily: FONTS.sansMedium },
@@ -1456,8 +1644,8 @@ const s = StyleSheet.create({
   pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
-  v4Body:       { flex: 1, paddingHorizontal: 20, paddingTop: 20, justifyContent: 'center' },
-  v4Card:       { borderRadius: 20, overflow: 'hidden', marginBottom: 20 },
+  v4Body:       { flex: 1, paddingTop: 12, justifyContent: 'center' },
+  v4Card:       { borderRadius: 18, overflow: 'hidden', marginBottom: 12, marginHorizontal: 16 },
   v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
   v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
   v4Sub:        { fontSize: 13, maxWidth: 120, fontFamily: FONTS.sans },
