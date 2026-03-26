@@ -30,6 +30,13 @@
     }
   },
   "submit": {
+    "preview": {
+      "ios": {
+        "appleId": "enesk2a@icloud.com",
+        "ascAppId": "6760902496",
+        "appleTeamId": "LYTWV44JVS"
+      }
+    },
     "production": {
       "ios": {
         "appleId": "enesk2a@icloud.com",
