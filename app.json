@@ -24,6 +24,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.thefixed.client",
+      "buildNumber": "2",
       "config": {
         "googleMapsApiKey": "AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s"
       },
