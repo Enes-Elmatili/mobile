@@ -89,14 +89,29 @@ export default function ResumePayment() {
 
         setRequest(req);
 
-        // Init Stripe payment sheet
-        const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(String(id));
-        if (!mountedRef.current) return;
+        // Init Stripe payment sheet — quote flow uses callout endpoint
+        const isQuoteFlow = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
+        let clientSecret: string | undefined;
+        let ephemeralKey: string | undefined;
+        let customer: string | undefined;
+
+        if (isQuoteFlow) {
+          const calloutRes = await api.post('/quotes/callout-payment', { requestId: String(id) });
+          if (!mountedRef.current) return;
+          clientSecret = calloutRes.clientSecret;
+        } else {
+          const intentRes = await api.payments.intent(String(id));
+          if (!mountedRef.current) return;
+          clientSecret = intentRes.paymentIntent;
+          ephemeralKey = intentRes.ephemeralKey;
+          customer = intentRes.customer;
+        }
+
         const { error } = await initPaymentSheet({
           merchantDisplayName: 'Fixed',
-          paymentIntentClientSecret: paymentIntent,
-          customerEphemeralKeySecret: ephemeralKey,
-          customerId: customer,
+          paymentIntentClientSecret: clientSecret!,
+          ...(ephemeralKey && { customerEphemeralKeySecret: ephemeralKey }),
+          ...(customer && { customerId: customer }),
           applePay: { merchantCountryCode: 'BE' },
           googlePay: { merchantCountryCode: 'BE', testEnv: true },
         });

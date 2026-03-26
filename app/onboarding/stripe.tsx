@@ -11,13 +11,7 @@ import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
 import { FONTS } from "@/hooks/use-app-theme";
 
-const C = {
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  stripe: "#635BFF",
-};
+WebBrowser.maybeCompleteAuthSession();
 
 const BENEFITS = [
   { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés sur votre compte bancaire." },
@@ -26,6 +20,14 @@ const BENEFITS = [
   { icon: "globe-outline" as const, title: "Paiements partout", desc: "Carte bancaire, Apple Pay, Google Pay — tous les modes acceptés." },
 ];
 
+const C = {
+  white: "#FAFAFA",
+  grey: "#888888",
+  border: "rgba(255,255,255,0.08)",
+  cardBg: "#141414",
+  stripe: "#635BFF",
+};
+
 export default function OnboardingStripe() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -33,22 +35,47 @@ export default function OnboardingStripe() {
   const handleConfigure = async () => {
     setLoading(true);
     try {
-      const redirectUrl = Linking.createURL("onboarding/provider/stripe-return");
-      const res: any = await api.connect.onboarding(redirectUrl);
+      // 1. S'assurer que le profil prestataire existe (peut manquer si signup classique)
+      const statusCheck: any = await api.connect.status().catch(() => null);
+      if (!statusCheck?.isProvider) {
+        const raw = await AsyncStorage.getItem("onboarding_data");
+        const data = raw ? JSON.parse(raw) : {};
+        await api.providers.register({
+          name: data.name || data.displayName || '',
+          description: data.bio || data.description || '',
+          phone: data.phone || '',
+          city: data.city || '',
+          lat: data.lat,
+          lng: data.lng,
+          categoryIds: (data.categories || []).map((c: any) => c.id).filter(Boolean),
+        });
+      }
+
+      // 2. Ouvrir Stripe Connect onboarding
+      const returnUrl = Linking.createURL("onboarding/provider/stripe-return");
+      const refreshUrl = Linking.createURL("onboarding/provider/stripe-refresh");
+      const res: any = await api.connect.onboarding(returnUrl, refreshUrl);
       const url: string = res?.url;
       if (!url) throw new Error("URL Stripe introuvable. Réessayez.");
-      await WebBrowser.openBrowserAsync(url, { dismissButtonStyle: "done" });
+
+      const result = await WebBrowser.openAuthSessionAsync(url, returnUrl);
+      if (__DEV__) console.log("AUTH SESSION RESULT:", JSON.stringify(result));
+
+      // 3. Vérifier le statut après retour
       const status: any = await api.connect.status();
       if (status?.isStripeReady) {
         AsyncStorage.removeItem("onboarding_data").catch(() => {});
         router.replace("/onboarding/provider/pending");
         return;
       }
-    } catch (e: any) {
-      Alert.alert("Erreur Stripe", e?.message || "Réessayez dans quelques instants.", [
+      // Stripe pas encore configuré (annulé ou incomplet)
+    } catch (err: any) {
+      Alert.alert("Erreur Stripe", err?.message || "Impossible d'ouvrir la configuration. Vérifiez votre connexion.", [
         { text: "Réessayer", onPress: handleConfigure },
       ]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

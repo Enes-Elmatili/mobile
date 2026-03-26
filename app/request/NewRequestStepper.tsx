@@ -145,8 +145,8 @@ function useTheme() {
 }
 
 // ─── Step Indicator animé ──────────────────────────────────────────────────────
-const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | 'checkmark-circle-outline')[] = [
-  'location-outline', 'construct-outline', 'time-outline', 'checkmark-circle-outline',
+const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | 'checkmark')[] = [
+  'location-outline', 'construct-outline', 'time-outline', 'checkmark',
 ];
 
 function StepIndicator({ step }: { step: number }) {
@@ -663,6 +663,18 @@ export default function NewRequestStepper() {
 
   // Étape 1
   const [location, setLocation] = useState<{ address: string; lat: number; lng: number } | null>(null);
+  const [locationAllowed, setLocationAllowed] = useState<boolean>(true);
+
+  // ── Phase test : zones autorisées seulement ──────────────────────────────
+  const ALLOWED_POSTAL = ['1050', '1060', '1180'];
+  const ALLOWED_COMMUNES = ['ixelles', 'saint-gilles', 'uccle', 'elsene', 'sint-gillis'];
+  function checkLocation(description: string, addressComponents?: any[]): boolean {
+    const postalComp = addressComponents?.find((c: any) => c.types.includes('postal_code'));
+    const postal = postalComp?.short_name || postalComp?.long_name || '';
+    if (ALLOWED_POSTAL.includes(postal)) return true;
+    const lower = description.toLowerCase();
+    return ALLOWED_COMMUNES.some(c => lower.includes(c));
+  }
 
   // Étape 2
   const [categories,    setCategories]    = useState<any[]>([]);
@@ -725,7 +737,15 @@ export default function NewRequestStepper() {
     (async () => {
       try {
         const response = await api.get('/categories');
-        setCategories(extractArrayPayload(response));
+        const all = extractArrayPayload(response);
+        // Phase test — seulement Plomberie et Serrurerie
+        const LAUNCH_SLUGS = ['plomberie', 'serrurerie'];
+        const LAUNCH_NAMES = ['plomberie', 'serrurerie'];
+        const filtered = all.filter((c: any) =>
+          LAUNCH_SLUGS.includes(c.slug?.toLowerCase()) ||
+          LAUNCH_NAMES.some(n => c.name?.toLowerCase().includes(n))
+        );
+        setCategories(filtered.length > 0 ? filtered : all);
       } catch (e) {
         devError('Categories load error:', e);
       }
@@ -1077,9 +1097,11 @@ export default function NewRequestStepper() {
                   onPress={(data, details = null) => {
                     if (details) {
                       const { lat, lng } = details.geometry.location;
+                      const allowed = checkLocation(data.description, details.address_components);
                       setLocation({ address: data.description, lat, lng });
+                      setLocationAllowed(allowed);
                       mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.006, longitudeDelta: 0.006 });
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Haptics.notificationAsync(allowed ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
                     }
                   }}
                   query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr', components: 'country:be' }}
@@ -1125,9 +1147,17 @@ export default function NewRequestStepper() {
                 <View style={[s.addrConfirm, { backgroundColor: theme.addrConfirmBg }]}>
                   <View style={[s.addrDot, { backgroundColor: theme.text as string }]} />
                   <Text style={[s.addrText, { color: theme.text }]} numberOfLines={1}>{location.address}</Text>
-                  <TouchableOpacity onPress={() => setLocation(null)} style={[s.addrClear, { backgroundColor: theme.addrClearBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.clear')} accessibilityRole="button">
+                  <TouchableOpacity onPress={() => { setLocation(null); setLocationAllowed(true); }} style={[s.addrClear, { backgroundColor: theme.addrClearBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.clear')} accessibilityRole="button">
                     <Ionicons name="close" size={18} color={theme.textSub as string} />
                   </TouchableOpacity>
+                </View>
+              )}
+              {location && !locationAllowed && (
+                <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
+                  <Ionicons name="warning-outline" size={16} color="#E8783A" />
+                  <Text style={[s.addrText, { color: '#E8783A', flex: 1 }]} numberOfLines={2}>
+                    {'Zone test : Ixelles, Saint-Gilles et Uccle uniquement'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -1136,7 +1166,7 @@ export default function NewRequestStepper() {
               <BottomCTA
                 label={location ? t('stepper.confirm_address') : t('stepper.select_address')}
                 onPress={goNext}
-                disabled={!location}
+                disabled={!location || !locationAllowed}
               />
             </View>
           </View>
@@ -1256,7 +1286,7 @@ export default function NewRequestStepper() {
                 <Switch
                   value={isUrgent}
                   onValueChange={(v) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsUrgent(v); }}
-                  trackColor={{ false: theme.border as string, true: COLORS.red }}
+                  trackColor={{ false: theme.sep as string, true: COLORS.red }}
                   thumbColor={isUrgent ? '#FFF' : theme.surface as string}
                   style={{ transform: [{ scaleX: 0.55 }, { scaleY: 0.55 }], marginRight: -10 }}
                 />
@@ -1366,10 +1396,6 @@ export default function NewRequestStepper() {
               <View style={{ position: 'absolute', bottom: 40, left: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.012)' }} />
               {/* Petit losange centre-droit */}
               <View style={{ position: 'absolute', top: '45%', right: 20, width: 50, height: 50, borderRadius: 8, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.018)', transform: [{ rotate: '45deg' }] }} />
-              {/* Icône checkmark fantôme top-left */}
-              <Ionicons name="checkmark-circle-outline" size={80} color={theme.isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.015)'} style={{ position: 'absolute', top: 30, left: 10 }} />
-              {/* Icône shield fantôme bottom-right */}
-              <Ionicons name="shield-checkmark-outline" size={60} color={theme.isDark ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.018)'} style={{ position: 'absolute', bottom: 100, right: 15 }} />
             </View>
             <View style={s.v4Body}>
 
@@ -1418,14 +1444,14 @@ export default function NewRequestStepper() {
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Base HTVA</Text>
                         <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.baseHTVA} €</Text>
                       </View>
-                      <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
                       {displayPrice.multiplier > 1 && (
                         <>
                           <View style={s.v4PriceLine}>
                             <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (x{displayPrice.multiplier.toFixed(1)})</Text>
                             <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.adjustedBase} €</Text>
                           </View>
-                          <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                          <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
                         </>
                       )}
                       {isUrgent && (
@@ -1434,19 +1460,19 @@ export default function NewRequestStepper() {
                             <Text style={[s.v4PriceLabel, { color: COLORS.red }]}>Urgence (+50%)</Text>
                             <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{displayPrice.urgentFee} €</Text>
                           </View>
-                          <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                          <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
                         </>
                       )}
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Déplacement</Text>
                         <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.travelFee} €</Text>
                       </View>
-                      <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Frais plateforme</Text>
                         <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.platformFee} €</Text>
                       </View>
-                      <View style={[s.v4PriceSep, { backgroundColor: theme.border }]} />
+                      <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
                       <View style={s.v4PriceLine}>
                         <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>TVA (21%)</Text>
                         <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(displayPrice.totalTVAC) - parseFloat(displayPrice.totalHTVA)).toFixed(2)} €</Text>
@@ -1522,9 +1548,9 @@ export default function NewRequestStepper() {
                 onPress={handlePay}
                 disabled={loading || !paymentReady || !!pricingError}
                 loading={loading}
-                price={isFreeService ? undefined : (isQuoteFlow ? undefined : displayTotal)}
+                price={undefined}
                 wrapStyle={{ paddingHorizontal: 16 }}
-                labelStyle={{ fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 4 }}
+                labelStyle={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2 }}
                 glow
               />
             </View>
@@ -1644,7 +1670,7 @@ const s = StyleSheet.create({
   pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
-  v4Body:       { flex: 1, paddingTop: 12, justifyContent: 'center' },
+  v4Body:       { flex: 1, paddingTop: 12 },
   v4Card:       { borderRadius: 18, overflow: 'hidden', marginBottom: 12, marginHorizontal: 16 },
   v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
   v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },

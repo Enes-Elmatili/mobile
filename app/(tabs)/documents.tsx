@@ -16,6 +16,7 @@ import type { Invoice } from '@/hooks/useInvoice';
 const fmtEur = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fmtEurCents = (cents: number) => (cents / 100).toFixed(2);
 
+type Tab = 'factures' | 'devis';
 type Filter = 'all' | 'paid' | 'pending';
 
 interface QuoteRequest {
@@ -142,6 +143,7 @@ export default function Documents() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
+  const [activeTab, setActiveTab] = useState<Tab>('factures');
 
   const QUOTE_STATUSES = ['QUOTE_SENT', 'QUOTE_ACCEPTED', 'QUOTE_PENDING'];
 
@@ -156,7 +158,13 @@ export default function Documents() {
 
       const reqData: any[] = reqRes?.data || reqRes || [];
       setQuoteRequests(
-        reqData.filter((r: any) => QUOTE_STATUSES.includes(r.status?.toUpperCase()))
+        reqData.filter((r: any) => {
+          const st = r.status?.toUpperCase();
+          if (!QUOTE_STATUSES.includes(st)) return false;
+          // QUOTE_PENDING sans calloutFee = pas encore payé → ne pas afficher
+          if (st === 'QUOTE_PENDING' && !(r.calloutFee > 0)) return false;
+          return true;
+        })
       );
     } catch (e) {
       devError('Documents load error:', e);
@@ -204,7 +212,9 @@ export default function Documents() {
       <View style={s.header}>
         <View>
           <Text style={[s.headerTitle, { color: theme.text }]}>DOCUMENTS</Text>
-          <Text style={[s.headerSub, { color: theme.textMuted }]}>Factures et reçus</Text>
+          <Text style={[s.headerSub, { color: theme.textMuted }]}>
+            {activeTab === 'factures' ? 'Factures et reçus' : 'Devis et estimations'}
+          </Text>
         </View>
         <TouchableOpacity
           style={[s.helpBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
@@ -215,153 +225,180 @@ export default function Documents() {
         </TouchableOpacity>
       </View>
 
+      {/* Main tabs */}
+      <View style={[s.mainTabBar, { borderBottomColor: theme.borderLight }]}>
+        {(['factures', 'devis'] as Tab[]).map(tab => {
+          const isActive = activeTab === tab;
+          const label = tab === 'factures' ? 'FACTURES' : 'DEVIS';
+          const count = tab === 'factures' ? invoices.length : quoteRequests.length;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[s.mainTab, isActive && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
+              onPress={() => setActiveTab(tab)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.mainTabText, { color: isActive ? theme.text : theme.textMuted }]}>{label}</Text>
+              {count > 0 && (
+                <View style={[s.mainTabBadge, { backgroundColor: isActive ? theme.accent : theme.surface }]}>
+                  <Text style={[s.mainTabBadgeText, { color: isActive ? theme.accentText : theme.textMuted }]}>{count}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
       >
 
-        {/* Summary strip */}
-        <View style={s.summaryRow}>
-          <SummaryCard dark icon="document-text-outline" value={String(totalCount)} label="Factures" theme={theme} />
-          <SummaryCard icon="cash-outline" value={String(Math.round(totalEur))} label="EUR total" theme={theme} />
-          <SummaryCard icon="checkmark-outline" value={String(paidCount)} label="Réglées" theme={theme} />
-        </View>
-
-        {/* Devis section */}
-        {quoteRequests.length > 0 && (
+        {/* ── FACTURES TAB ── */}
+        {activeTab === 'factures' && (
           <>
-            <View style={s.sectionHeader}>
-              <Text style={[s.sectionLabel, { color: theme.textMuted }]}>DEVIS</Text>
-              {quoteRequests.length > 5 && (
-                <Text style={s.sectionAction}>{quoteRequests.length} au total</Text>
-              )}
+            {/* Summary strip */}
+            <View style={s.summaryRow}>
+              <SummaryCard dark icon="document-text-outline" value={String(totalCount)} label="Factures" theme={theme} />
+              <SummaryCard icon="cash-outline" value={String(Math.round(totalEur))} label="EUR total" theme={theme} />
+              <SummaryCard icon="checkmark-outline" value={String(paidCount)} label="Réglées" theme={theme} />
             </View>
-            <View style={[s.invoiceList, { marginBottom: 26 }]}>
-              {quoteRequests.slice(0, 5).map(req => {
-                const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
-                const statusUp = req.status?.toUpperCase();
-                const isSent = statusUp === 'QUOTE_SENT';
-                const isAccepted = statusUp === 'QUOTE_ACCEPTED';
-                const isPending = statusUp === 'QUOTE_PENDING';
-                const pillBg = isSent ? 'rgba(232,120,58,0.1)' : isAccepted ? 'rgba(61,139,61,0.1)' : 'rgba(150,150,150,0.1)';
-                const pillColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : theme.textMuted as string;
-                const pillLabel = isSent ? 'À examiner' : isAccepted ? 'Accepté' : 'En cours';
-                const barColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : '#888';
 
-                const handlePress = () => {
-                  if (isPending) {
-                    router.push({ pathname: '/request/[id]/quote-pending', params: { id: req.id } });
-                  } else {
-                    setSelectedQuote(req);
-                  }
-                };
-
+            {/* Filter tabs */}
+            <View style={s.filterRow}>
+              {FILTERS.map(f => {
+                const active = filter === f.key;
                 return (
                   <TouchableOpacity
-                    key={req.id}
-                    style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-                    onPress={handlePress}
-                    activeOpacity={0.85}
+                    key={f.key}
+                    style={[s.filterTab, active
+                      ? { backgroundColor: theme.accent }
+                      : { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1.5 }
+                    ]}
+                    onPress={() => setFilter(f.key)}
+                    activeOpacity={0.7}
                   >
-                    <View style={[iv.bar, { backgroundColor: barColor }]} />
-                    <View style={[iv.icon, { backgroundColor: pillBg }]}>
-                      <Ionicons name="document-text-outline" size={16} color={pillColor} />
-                    </View>
-                    <View style={iv.body}>
-                      <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                        {req.calloutFee != null && req.calloutFee > 0 && (
-                          <View style={{ backgroundColor: 'rgba(61,139,61,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                            <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: '#3D8B3D' }}>PAYÉ</Text>
-                          </View>
-                        )}
-                        <Text style={[iv.meta, { color: theme.textMuted }]}>
-                          {new Date(req.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={iv.right}>
-                      {req.calloutFee != null && req.calloutFee > 0 && (
-                        <Text style={[iv.amount, { color: theme.text }]}>{fmtEurCents(req.calloutFee)}</Text>
-                      )}
-                      <View style={[iv.pill, { backgroundColor: pillBg }]}>
-                        <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
-                      </View>
-                    </View>
+                    <Text style={[s.filterTabText, { color: active ? theme.accentText : theme.textMuted }]}>{f.label}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+
+            {/* Invoice list */}
+            {filtered.length === 0 ? (
+              <View style={[s.empty, { borderColor: theme.borderLight }]}>
+                <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="document-text-outline" size={22} color={theme.textDisabled} />
+                </View>
+                <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune facture</Text>
+                <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
+                  Vos factures apparaîtront ici après chaque service terminé.
+                </Text>
+              </View>
+            ) : (
+              <View style={s.invoiceList}>
+                {filtered.map(inv => (
+                  <InvoiceCard
+                    key={inv.id}
+                    invoice={inv}
+                    onPress={() => setSelectedInvoice(inv)}
+                    theme={theme}
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* Assistance card */}
+            <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>ASSISTANCE</Text>
+            <TouchableOpacity style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
+              <View style={s.assistIcon}>
+                <Ionicons name="chatbubble-outline" size={18} color="rgba(255,255,255,0.7)" />
+              </View>
+              <View style={s.assistBody}>
+                <Text style={s.assistTitle}>Un problème avec une facture ?</Text>
+                <Text style={s.assistSub}>Ouvrir un ticket · Support client</Text>
+              </View>
+              <View style={s.assistArrow}>
+                <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.6)" />
+              </View>
+            </TouchableOpacity>
           </>
         )}
 
-        {/* Section label */}
-        <View style={s.sectionHeader}>
-          <Text style={[s.sectionLabel, { color: theme.textMuted }]}>FACTURES</Text>
-          {invoices.length > 5 && (
-            <Text style={s.sectionAction}>Tout voir</Text>
-          )}
-        </View>
+        {/* ── DEVIS TAB ── */}
+        {activeTab === 'devis' && (
+          <>
+            {quoteRequests.length === 0 ? (
+              <View style={[s.empty, { borderColor: theme.borderLight }]}>
+                <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="document-outline" size={22} color={theme.textDisabled} />
+                </View>
+                <Text style={[s.emptyTitle, { color: theme.text }]}>Aucun devis</Text>
+                <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
+                  Vos devis apparaîtront ici une fois qu'un prestataire aura fait son diagnostic.
+                </Text>
+              </View>
+            ) : (
+              <View style={s.invoiceList}>
+                {quoteRequests.slice(0, 5).map(req => {
+                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
+                  const statusUp = req.status?.toUpperCase();
+                  const isSent = statusUp === 'QUOTE_SENT';
+                  const isAccepted = statusUp === 'QUOTE_ACCEPTED';
+                  const isPending = statusUp === 'QUOTE_PENDING';
+                  const pillBg = isSent ? 'rgba(232,120,58,0.1)' : isAccepted ? 'rgba(61,139,61,0.1)' : 'rgba(150,150,150,0.1)';
+                  const pillColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : theme.textMuted as string;
+                  const pillLabel = isSent ? 'À examiner' : isAccepted ? 'Accepté' : 'En cours';
+                  const barColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : '#888';
 
-        {/* Filter tabs */}
-        <View style={s.filterRow}>
-          {FILTERS.map(f => {
-            const active = filter === f.key;
-            return (
-              <TouchableOpacity
-                key={f.key}
-                style={[s.tab, active
-                  ? { backgroundColor: theme.accent }
-                  : { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1.5 }
-                ]}
-                onPress={() => setFilter(f.key)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.tabText, { color: active ? theme.accentText : theme.textMuted }]}>{f.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  const handlePress = () => {
+                    if (isPending) {
+                      router.push({ pathname: '/request/[id]/quote-pending', params: { id: req.id } });
+                    } else {
+                      setSelectedQuote(req);
+                    }
+                  };
 
-        {/* Invoice list */}
-        {filtered.length === 0 ? (
-          <View style={[s.empty, { borderColor: theme.borderLight }]}>
-            <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-              <Ionicons name="document-text-outline" size={22} color={theme.textDisabled} />
-            </View>
-            <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune facture</Text>
-            <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
-              Vos factures apparaîtront ici après chaque service terminé.
-            </Text>
-          </View>
-        ) : (
-          <View style={s.invoiceList}>
-            {filtered.map(inv => (
-              <InvoiceCard
-                key={inv.id}
-                invoice={inv}
-                onPress={() => setSelectedInvoice(inv)}
-                theme={theme}
-              />
-            ))}
-          </View>
+                  return (
+                    <TouchableOpacity
+                      key={req.id}
+                      style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+                      onPress={handlePress}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[iv.bar, { backgroundColor: barColor }]} />
+                      <View style={[iv.icon, { backgroundColor: pillBg }]}>
+                        <Ionicons name="document-text-outline" size={16} color={pillColor} />
+                      </View>
+                      <View style={iv.body}>
+                        <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                          {req.calloutFee != null && req.calloutFee > 0 && (
+                            <View style={{ backgroundColor: 'rgba(61,139,61,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: '#3D8B3D' }}>PAYÉ</Text>
+                            </View>
+                          )}
+                          <Text style={[iv.meta, { color: theme.textMuted }]}>
+                            {new Date(req.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={iv.right}>
+                        {req.calloutFee != null && req.calloutFee > 0 && (
+                          <Text style={[iv.amount, { color: theme.text }]}>{fmtEurCents(req.calloutFee)}</Text>
+                        )}
+                        <View style={[iv.pill, { backgroundColor: pillBg }]}>
+                          <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </>
         )}
-
-        {/* Assistance card — dark premium */}
-        <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>ASSISTANCE</Text>
-        <TouchableOpacity style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
-          <View style={s.assistIcon}>
-            <Ionicons name="chatbubble-outline" size={18} color="rgba(255,255,255,0.7)" />
-          </View>
-          <View style={s.assistBody}>
-            <Text style={s.assistTitle}>Un problème avec une facture ?</Text>
-            <Text style={s.assistSub}>Ouvrir un ticket · Support client</Text>
-          </View>
-          <View style={s.assistArrow}>
-            <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.6)" />
-          </View>
-        </TouchableOpacity>
 
       </ScrollView>
 
@@ -421,10 +458,27 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sansMedium, fontSize: 10, color: '#BBBBBB', letterSpacing: 0.4,
   },
 
-  // Filter tabs
+  // Main tab bar
+  mainTabBar: {
+    flexDirection: 'row', borderBottomWidth: 1,
+    paddingHorizontal: 20, marginBottom: 4,
+  },
+  mainTab: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 4, paddingVertical: 12, marginRight: 24,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
+  },
+  mainTabText: { fontFamily: FONTS.sansMedium, fontSize: 13, letterSpacing: 0.5 },
+  mainTabBadge: {
+    minWidth: 18, height: 18, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
+  },
+  mainTabBadgeText: { fontFamily: FONTS.mono, fontSize: 10 },
+
+  // Filter tabs (inside Factures)
   filterRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  tab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
-  tabText: { fontFamily: FONTS.sansMedium, fontSize: 11, letterSpacing: 0.4 },
+  filterTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  filterTabText: { fontFamily: FONTS.sansMedium, fontSize: 11, letterSpacing: 0.4 },
 
   // Invoice list
   invoiceList: { gap: 8, marginBottom: 26 },

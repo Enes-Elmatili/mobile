@@ -87,6 +87,7 @@ export default function HelpScreen() {
   const theme = useAppTheme();
 
   const openEmail = () => Linking.openURL('mailto:support@fixed.app?subject=Support Fixed');
+  const openWhatsApp = () => Linking.openURL('https://wa.me/32478061330?text=Bonjour%2C%20j%27ai%20besoin%20d%27aide%20avec%20FIXED.');
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -133,6 +134,17 @@ export default function HelpScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>E-mail support</Text>
               <Text style={[s.contactValue, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>support@fixed.app</Text>
+            </View>
+            <Ionicons name="open-outline" size={16} color={theme.textMuted} />
+          </TouchableOpacity>
+          <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+          <TouchableOpacity style={s.contactRow} onPress={openWhatsApp} activeOpacity={0.7}>
+            <View style={[s.contactIcon, { backgroundColor: 'rgba(37,211,102,0.1)' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>WhatsApp support</Text>
+              <Text style={[s.contactValue, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>+32 478 06 13 30</Text>
             </View>
             <Ionicons name="open-outline" size={16} color={theme.textMuted} />
           </TouchableOpacity>
