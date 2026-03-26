@@ -147,8 +147,8 @@ export default function HelpScreen() {
               <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>WhatsApp support</Text>
-              <Text style={[s.contactValue, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>+32 478 06 13 30</Text>
+              <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>WhatsApp</Text>
+              <Text style={[s.contactValue, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Contacter le support</Text>
             </View>
             <Ionicons name="open-outline" size={16} color={theme.textMuted} />
           </TouchableOpacity>

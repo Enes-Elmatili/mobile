@@ -565,8 +565,8 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={onClose}>
         <Pressable onPress={() => {}}>
-          <View style={[dim.sheet, { backgroundColor: '#141414' }]}>
-            <View style={dim.handle} />
+          <View style={[dim.sheet, { backgroundColor: theme.cardBg }]}>
+            <View style={[dim.handle, { backgroundColor: theme.borderLight }]} />
 
             {/* Header */}
             <View style={dim.header}>
@@ -583,7 +583,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
               </Text>
             </View>
 
-            <View style={[dim.divider, { backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+            <View style={[dim.divider, { backgroundColor: theme.borderLight }]} />
 
             {/* Steps */}
             <View style={dim.steps}>
@@ -592,12 +592,12 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
                   {/* Colonne gauche : numéro + connecteur */}
                   <View style={dim.stepLeft}>
                     <View style={[dim.numCircle, {
-                      backgroundColor: i === 0 ? 'rgba(200,130,10,0.2)' : 'rgba(255,255,255,0.06)',
-                      borderColor:     i === 0 ? 'rgba(200,130,10,0.5)' : 'rgba(255,255,255,0.1)',
+                      backgroundColor: i === 0 ? 'rgba(200,130,10,0.2)' : theme.surface,
+                      borderColor:     i === 0 ? 'rgba(200,130,10,0.5)' : theme.borderLight,
                     }]}>
                       <Text style={[dim.numText, { color: i === 0 ? '#C8820A' : theme.textSub }]}>{item.num}</Text>
                     </View>
-                    {i < steps.length - 1 && <View style={[dim.connector, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />}
+                    {i < steps.length - 1 && <View style={[dim.connector, { backgroundColor: theme.borderLight }]} />}
                   </View>
                   {/* Contenu */}
                   <View style={[dim.stepContent, i < steps.length - 1 && { paddingBottom: 24 }]}>
@@ -789,6 +789,15 @@ export default function NewRequestStepper() {
   const [serverPrice,        setServerPrice]        = useState<ReturnType<typeof computePrice> | null>(null);
   const [pricingError,       setPricingError]       = useState<string | null>(null);
   const [confirmedCalloutCents, setConfirmedCalloutCents] = useState<number | null>(null);
+
+  // Reset prix/paiement quand l'utilisateur change de service
+  useEffect(() => {
+    setServerPrice(null);
+    setPaymentReady(false);
+    setPricingToken(null);
+    setRequestId(null);
+    setConfirmedCalloutCents(null);
+  }, [subcategoryId, categoryId]);
 
   // Prix affiché = prix serveur (si disponible) ou estimation client
   const displayPrice = serverPrice || priceDetails;
@@ -1261,8 +1270,7 @@ export default function NewRequestStepper() {
               <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Brouillard haut + bas */}
-            <LinearGradient colors={[theme.bg as string, 'transparent']} style={s.fogTop} pointerEvents="none" />
+            {/* Brouillard bas uniquement */}
             <LinearGradient colors={['transparent', theme.bg as string]} style={s.fogBottom} pointerEvents="none" />
             </View>
 
@@ -1358,7 +1366,7 @@ export default function NewRequestStepper() {
             </ScrollView>
 
             <View style={s.floatingCTA}>
-              <View style={[s.floatingGradient, { backgroundColor: theme.gradientBg }]} pointerEvents="none" />
+              <LinearGradient colors={['transparent', theme.bg as string]} style={s.floatingGradient} pointerEvents="none" />
               <BottomCTA
                 label={
                   scheduleMode === 'now'
@@ -1420,12 +1428,17 @@ export default function NewRequestStepper() {
                   <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
                 </View>
+                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+                <View style={s.v4Row}>
+                  <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
+                  <Text style={[{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }]}>Carte · Apple Pay · Google Pay</Text>
+                </View>
 
               </View>
 
               {/* Prix / Callout fee section — prix fixe et gratuit seulement (devis = footer) */}
               {isFreeService ? (
-                <View style={s.v4PriceBreakdown}>
+                <View style={[s.v4PriceBreakdown, { backgroundColor: theme.v4CardBg }]}>
                   <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
                     <Ionicons name="gift-outline" size={18} color={theme.text as string} />
                     <View style={{ flex: 1, gap: 4 }}>
@@ -1437,7 +1450,7 @@ export default function NewRequestStepper() {
                   </View>
                 </View>
               ) : !isQuoteFlow ? (
-                <View style={s.v4PriceBreakdown}>
+                <View style={[s.v4PriceBreakdown, { backgroundColor: theme.v4CardBg }]}>
                   {priceDetailOpen && (
                     <View style={{ marginBottom: 6, gap: 2 }}>
                       <View style={s.v4PriceLine}>
@@ -1677,7 +1690,7 @@ const s = StyleSheet.create({
   v4Sub:        { fontSize: 13, maxWidth: 120, fontFamily: FONTS.sans },
   v4Sep:        { height: 1, marginHorizontal: 16 },
   v4Chevron:    { marginLeft: 'auto' as any },
-  v4PriceBreakdown: { marginTop: 10, paddingHorizontal: 4, gap: 0 },
+  v4PriceBreakdown: { marginTop: 10, marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 0 },
   v4PriceLine:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   v4PriceLabel: { fontSize: 10, fontFamily: FONTS.sans },
   v4PriceVal:   { fontSize: 10, fontFamily: FONTS.mono },
