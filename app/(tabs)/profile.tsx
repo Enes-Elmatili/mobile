@@ -323,16 +323,21 @@ export default function Profile() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.8,
+      quality: 0.6,
       allowsEditing: true,
       aspect: [1, 1],
+      base64: true,
     });
 
     if (result.canceled || !result.assets?.[0]) return;
 
     const asset = result.assets[0];
-    setAvatarUri(asset.uri);
-    if (user?.id) await AsyncStorage.setItem(avatarKey(user.id), asset.uri);
+    // Store base64 locally — survives Railway restarts and network issues
+    const localUri = asset.base64
+      ? `data:image/jpeg;base64,${asset.base64}`
+      : asset.uri;
+    setAvatarUri(localUri);
+    if (user?.id) await AsyncStorage.setItem(avatarKey(user.id), localUri);
 
     // Upload vers /api/me/avatar → met à jour avatarUrl en DB (User + Provider)
     try {
@@ -352,13 +357,7 @@ export default function Profile() {
       clearTimeout(timeout);
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       const data = await res.json();
-      // Mettre à jour avec l'URL serveur
-      if (data.avatarUrl) {
-        const sBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
-        const serverUri = data.avatarUrl.startsWith('http') ? data.avatarUrl : `${sBase}${data.avatarUrl}`;
-        setAvatarUri(serverUri);
-        if (user?.id) await AsyncStorage.setItem(avatarKey(user.id), serverUri);
-      }
+      // Ne pas écraser le cache base64 local avec l'URL serveur (filesystem éphémère Railway)
       await refreshMe();
       showSocketToast(t('common.success'), 'success');
     } catch {
