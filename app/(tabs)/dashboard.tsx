@@ -153,6 +153,9 @@ const SERVICE_CARDS = [
   { key: 'peinture',    label: 'Peinture',     icon: 'color-palette-outline',  theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
 ];
 
+// Phase test : uniquement Plomberie et Serrurerie
+const LAUNCH_CARDS = SERVICE_CARDS.filter(c => c.key === 'plomberie' || c.key === 'serrurerie');
+
 function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => void; theme: AppTheme }) {
   const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
@@ -160,7 +163,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
 
   const handleScroll = (e: any) => {
     const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + CARD_GAP));
-    setActiveIndex(Math.min(idx, SERVICE_CARDS.length - 1));
+    setActiveIndex(Math.min(idx, LAUNCH_CARDS.length - 1));
   };
 
   return (
@@ -185,7 +188,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        {SERVICE_CARDS.map((card, index) => {
+        {LAUNCH_CARDS.map((card, index) => {
           const isBlack = card.theme === 'black';
           const cardBg = isBlack
             ? theme.accent
@@ -247,7 +250,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
 
       {/* Dots */}
       <View style={runway.dots}>
-        {SERVICE_CARDS.map((_, i) => (
+        {LAUNCH_CARDS.map((_, i) => (
           <View key={i} style={[
             runway.dot,
             { backgroundColor: theme.borderLight },

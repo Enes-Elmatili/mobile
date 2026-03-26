@@ -83,7 +83,7 @@ export default function QuoteReview() {
           merchantDisplayName: "Fixed",
           paymentIntentClientSecret: res.paymentIntent.clientSecret,
           applePay: { merchantCountryCode: "BE" },
-          googlePay: { merchantCountryCode: "BE", testEnv: true },
+          googlePay: { merchantCountryCode: "BE", testEnv: false },
         });
 
         if (initError) {

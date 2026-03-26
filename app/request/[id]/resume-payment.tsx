@@ -113,7 +113,7 @@ export default function ResumePayment() {
           ...(ephemeralKey && { customerEphemeralKeySecret: ephemeralKey }),
           ...(customer && { customerId: customer }),
           applePay: { merchantCountryCode: 'BE' },
-          googlePay: { merchantCountryCode: 'BE', testEnv: true },
+          googlePay: { merchantCountryCode: 'BE', testEnv: false },
         });
         if (!error && mountedRef.current) setPaymentReady(true);
       } catch (e: any) {

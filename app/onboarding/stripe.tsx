@@ -40,15 +40,20 @@ export default function OnboardingStripe() {
       if (!statusCheck?.isProvider) {
         const raw = await AsyncStorage.getItem("onboarding_data");
         const data = raw ? JSON.parse(raw) : {};
-        await api.providers.register({
-          name: data.name || data.displayName || '',
-          description: data.bio || data.description || '',
-          phone: data.phone || '',
-          city: data.city || '',
-          lat: data.lat,
-          lng: data.lng,
-          categoryIds: (data.categories || []).map((c: any) => c.id).filter(Boolean),
-        });
+        try {
+          await api.providers.register({
+            name: data.name || data.displayName || '',
+            description: data.bio || data.description || '',
+            phone: data.phone || '',
+            city: data.city || '',
+            lat: data.lat,
+            lng: data.lng,
+            categoryIds: (data.categories || []).map((c: any) => c.id).filter(Boolean),
+          });
+        } catch (regErr: any) {
+          // 409 = déjà prestataire (conflit) → continuer
+          if (regErr?.status !== 409 && regErr?.statusCode !== 409) throw regErr;
+        }
       }
 
       // 2. Ouvrir Stripe Connect onboarding

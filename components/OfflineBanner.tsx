@@ -7,17 +7,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNetwork } from '../lib/NetworkContext';
 import { useOfflineQueue } from '../lib/OfflineQueueContext';
 import { useTranslation } from 'react-i18next';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 export function OfflineBanner() {
-  const { isOnline, wasOffline } = useNetwork();
+  const { isOnline } = useNetwork();
   const { pendingCount, isProcessing } = useOfflineQueue();
   const { t } = useTranslation();
   const theme = useAppTheme();
   const slideAnim = useRef(new Animated.Value(-80)).current;
-  const reconnectAnim = useRef(new Animated.Value(-80)).current;
   const [offlineVisible, setOfflineVisible] = useState(false);
-  const [reconnectVisible, setReconnectVisible] = useState(false);
 
   // Slide down quand offline, unmount quand online
   useEffect(() => {
@@ -40,19 +38,6 @@ export function OfflineBanner() {
     }
   }, [isOnline]);
 
-  // Bandeau "Reconnecté" fugace
-  useEffect(() => {
-    if (wasOffline) {
-      setReconnectVisible(true);
-      Animated.sequence([
-        Animated.spring(reconnectAnim, { toValue: 0, useNativeDriver: true, tension: 100, friction: 10 }),
-        Animated.delay(2500),
-        Animated.timing(reconnectAnim, { toValue: -80, duration: 300, useNativeDriver: true }),
-      ]).start(() => {
-        setReconnectVisible(false);
-      });
-    }
-  }, [wasOffline]);
 
   return (
     <>
@@ -76,18 +61,6 @@ export function OfflineBanner() {
         </Animated.View>
       )}
 
-      {/* Bandeau reconnexion fugace */}
-      {reconnectVisible && (
-        <Animated.View
-          style={[styles.onlineBanner, { backgroundColor: COLORS.green, transform: [{ translateY: reconnectAnim }] }]}
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-          pointerEvents="none"
-        >
-          <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />
-          <Text style={[styles.bannerText, { color: '#FFFFFF', fontFamily: FONTS.sansMedium }]}>{t('offline.reconnected')}</Text>
-        </Animated.View>
-      )}
     </>
   );
 }
@@ -106,20 +79,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingTop: Platform.OS === 'ios' ? 54 : 34,
   },
-  onlineBanner: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 9997,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingTop: Platform.OS === 'ios' ? 54 : 34,
-  },
-  bannerText: {
+bannerText: {
     fontSize: 13,
   },
 });

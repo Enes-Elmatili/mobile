@@ -856,7 +856,7 @@ export default function NewRequestStepper() {
             merchantDisplayName:      'Fixed',
             paymentIntentClientSecret: calloutRes.clientSecret,
             applePay:  { merchantCountryCode: 'BE' },
-            googlePay: { merchantCountryCode: 'BE', testEnv: true },
+            googlePay: { merchantCountryCode: 'BE', testEnv: false },
           });
           if (!error && !cancelled) setPaymentReady(true);
           return;
@@ -904,7 +904,7 @@ export default function NewRequestStepper() {
           customerEphemeralKeySecret: ephemeralKey,
           customerId:                customer,
           applePay:  { merchantCountryCode: 'BE' },
-          googlePay: { merchantCountryCode: 'BE', testEnv: true },
+          googlePay: { merchantCountryCode: 'BE', testEnv: false },
         });
         if (!error && !cancelled) setPaymentReady(true);
       } catch (e: any) {
