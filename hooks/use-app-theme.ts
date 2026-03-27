@@ -23,6 +23,7 @@ export const COLORS = {
   danger: '#DC2626',
   stripe: '#635BFF',
   verified: '#1D9BF0',
+  blue:   '#3478F6',
 } as const;
 
 export function useAppTheme() {

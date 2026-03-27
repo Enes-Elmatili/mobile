@@ -210,7 +210,7 @@ export default function ConversationScreen() {
 
   const MessageStatus = ({ msg }: { msg: Message }) => {
     if (msg.senderId !== user?.id) return null;
-    const color = msg.readAt ? COLORS.blue || '#3478F6' : (theme.textMuted as string);
+    const color = msg.readAt ? COLORS.blue : (theme.textMuted as string);
     return (
       <View style={b.statusRow}>
         <Ionicons
