@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import { api } from './api';
 import { devLog, devWarn } from './logger';
 
@@ -38,10 +39,12 @@ export function usePushNotifications(userId?: string | null) {
       }
     );
 
-    // Listener : l'utilisateur a appuyé sur la notification
+    // Listener : l'utilisateur a appuyé sur la notification → navigation
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
-        devLog('[Push] Notification tapée:', response.notification.request.content.data);
+        const data = response.notification.request.content.data as any;
+        devLog('[Push] Notification tapée:', data);
+        handleNotificationNavigation(data);
       }
     );
 
@@ -83,6 +86,33 @@ async function registerForPushNotifications() {
   } catch (e: any) {
     // Sur simulateur iOS, getExpoPushTokenAsync() échoue — c'est normal
     devWarn('[Push] Impossible d\'obtenir le token (simulateur ?):', e?.message);
+  }
+}
+
+function handleNotificationNavigation(data: any) {
+  if (!data) return;
+  const { screen, requestId } = data;
+  try {
+    switch (screen) {
+      case 'MissionView':
+        router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
+        break;
+      case 'QuoteReview':
+        router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } });
+        break;
+      case 'Rating':
+        router.push({ pathname: '/request/[id]/rating', params: { id: requestId } });
+        break;
+      case 'Dashboard':
+        router.replace('/(tabs)/dashboard');
+        break;
+      default:
+        if (requestId) {
+          router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
+        }
+    }
+  } catch (e: any) {
+    devWarn('[Push] Navigation error:', e?.message);
   }
 }
 
