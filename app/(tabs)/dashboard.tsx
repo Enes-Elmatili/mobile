@@ -642,7 +642,14 @@ export default function Dashboard() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadDashboard(); }, [loadDashboard]));
+  const lastFetchRef = useRef(0);
+  useFocusEffect(useCallback(() => {
+    const now = Date.now();
+    if (now - lastFetchRef.current > 15000) { // 15s cache
+      lastFetchRef.current = now;
+      loadDashboard();
+    }
+  }, [loadDashboard]));
   const onRefresh = () => { setRefreshing(true); loadDashboard(); };
 
   // ── Navigation ──

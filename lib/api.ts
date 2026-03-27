@@ -122,7 +122,10 @@ class ApiClient {
     devLog(`📡 API ${config.method} ${url}`);
 
     try {
-      const response = await fetch(url, config);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const response = await fetch(url, { ...config, signal: controller.signal });
+      clearTimeout(timeout);
       const text = await response.text();
 
       // ── Détection HTML / tunnel error (ngrok 503, Cloudflare, proxy pages) ──

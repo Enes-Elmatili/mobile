@@ -1,5 +1,5 @@
 // app/(tabs)/documents.tsx — Client Documents (Glow Up v2)
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   SafeAreaView, ActivityIndicator, RefreshControl, Platform, StatusBar,
@@ -174,7 +174,14 @@ export default function Documents() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const lastFetchRef = useRef(0);
+  useFocusEffect(useCallback(() => {
+    const now = Date.now();
+    if (now - lastFetchRef.current > 15000) {
+      lastFetchRef.current = now;
+      load();
+    }
+  }, [load]));
   const onRefresh = () => { setRefreshing(true); load(); };
 
   // Stats

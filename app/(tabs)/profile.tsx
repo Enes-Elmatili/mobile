@@ -244,64 +244,58 @@ export default function Profile() {
     })();
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!user?.roles?.includes('PROVIDER')) return;
-    (async () => {
-      try {
-        const [provResult, walletResult] = await Promise.allSettled([
-          api.get<any>('/providers/me'),
-          api.wallet.balance(),
-        ]);
-        if (provResult.status === 'fulfilled') {
-          const prov = provResult.value?.data ?? provResult.value;
-          const provider = prov?.provider ?? prov;
-          setIsVerified(provider?.validationStatus === 'ACTIVE');
-          const avgRating: number = provider?.avgRating ?? 0;
-          const jobsCompleted: number = provider?.jobsCompleted ?? 0;
-          const totalRequests: number = provider?.totalRequests ?? 0;
-          const acceptedRequests: number = provider?.acceptedRequests ?? 0;
-          const acceptanceRate = totalRequests > 0
-            ? Math.round((acceptedRequests / totalRequests) * 100)
-            : 0;
-          setProfileStats(prev => ({
-            ...prev,
-            rating: avgRating > 0 ? avgRating.toFixed(1).replace('.', ',') : '—',
-            missions: String(jobsCompleted),
-            acceptance: totalRequests > 0 ? `${acceptanceRate}%` : '—',
-          }));
-        }
-        if (walletResult.status === 'fulfilled') {
-          const wallet = walletResult.value?.data ?? walletResult.value;
-          const balanceCents: number = wallet?.balance ?? 0;
-          setProfileStats(prev => ({
-            ...prev,
-            earnings: `${Math.floor(balanceCents / 100).toLocaleString('fr-FR')} €`,
-          }));
-        }
-      } catch {
-        // Garde les placeholders en cas d'erreur réseau
-      }
-    })();
-  }, [user?.id, user?.roles?.join(',')]);
-
-  useEffect(() => {
-    if (!user?.roles?.includes('PROVIDER')) return;
-    api.connect.status()
-      .then((res: any) => {
-        setStripeReady(!!(res?.isStripeReady || res?.isConnected));
-      })
-      .catch(() => setStripeReady(false));
-  }, [user?.id, user?.roles?.join(',')]);
-
-  // ── Tickets ──
+  // ── Chargement consolidé : provider stats + stripe + tickets en 1 seul useEffect ──
   useEffect(() => {
     if (!user?.id) return;
-    api.tickets.list()
-      .then((res: any) => {
-        const data = res?.data || res?.tickets || res;
-        if (Array.isArray(data)) setTickets(data.slice(0, 3));
-      })
-      .catch(() => {});
+    const isProvider = user?.roles?.includes('PROVIDER');
+
+    const promises: Promise<any>[] = [
+      api.tickets.list().catch(() => null),
+    ];
+    if (isProvider) {
+      promises.push(
+        api.get<any>('/providers/me').catch(() => null),
+        api.wallet.balance().catch(() => null),
+        api.connect.status().catch(() => null),
+      );
+    }
+
+    Promise.all(promises).then(([ticketsRes, provRes, walletRes, stripeRes]) => {
+      // Tickets
+      const tickets = ticketsRes?.data || ticketsRes?.tickets || ticketsRes;
+      if (Array.isArray(tickets)) setTickets(tickets.slice(0, 3));
+
+      if (!isProvider) return;
+
+      // Provider stats
+      if (provRes) {
+        const prov = provRes?.data ?? provRes;
+        const provider = prov?.provider ?? prov;
+        setIsVerified(provider?.validationStatus === 'ACTIVE');
+        const avgRating: number = provider?.avgRating ?? 0;
+        const jobsCompleted: number = provider?.jobsCompleted ?? 0;
+        const totalRequests: number = provider?.totalRequests ?? 0;
+        const acceptedRequests: number = provider?.acceptedRequests ?? 0;
+        const acceptanceRate = totalRequests > 0 ? Math.round((acceptedRequests / totalRequests) * 100) : 0;
+        setProfileStats(prev => ({
+          ...prev,
+          rating: avgRating > 0 ? avgRating.toFixed(1).replace('.', ',') : '—',
+          missions: String(jobsCompleted),
+          acceptance: totalRequests > 0 ? `${acceptanceRate}%` : '—',
+        }));
+      }
+      // Wallet
+      if (walletRes) {
+        const wallet = walletRes?.data ?? walletRes;
+        const balanceCents: number = wallet?.balance ?? 0;
+        setProfileStats(prev => ({
+          ...prev,
+          earnings: `${Math.floor(balanceCents / 100).toLocaleString('fr-FR')} €`,
+        }));
+      }
+      // Stripe
+      setStripeReady(!!(stripeRes?.isStripeReady || stripeRes?.isConnected));
+    });
   }, [user?.id]);
 
   // ── Photo upload ──────────────────────────────────────────────────────────
