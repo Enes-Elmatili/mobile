@@ -18,6 +18,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { FONTS } from "@/hooks/use-app-theme";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
+import Slider from "@react-native-community/slider";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -185,6 +186,10 @@ const str = StyleSheet.create({
 const ROLE_INTENT_KEY = "@fixed:signup:role";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+const CITY_OPTIONS = [
+  { value: "Bruxelles", label: "Bruxelles" },
+];
+
 const RADIUS_OPTIONS = [
   { value: 5, label: "5 km", hint: "Quartier" },
   { value: 10, label: "10 km", hint: "Ville" },
@@ -298,7 +303,7 @@ export default function Signup() {
 
   // ── Zone state (provider) ──
   const [city, setCity] = useState("");
-  const [radius, setRadius] = useState(10);
+  const [radius, setRadius] = useState(5);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCats, setSelectedCats] = useState<number[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
@@ -663,45 +668,46 @@ export default function Signup() {
             {/* === ZONE PHASE (provider) === */}
             {phase === "zone" && isProvider && (
               <>
-                {/* City */}
+                {/* City — dropdown */}
                 <View style={s.field}>
                   <Text style={s.fieldLabel}>Ville de base</Text>
-                  <View style={[s.inputWrap, focused === "city" && s.inputFocused]}>
-                    <View style={s.inputIcon}>
-                      <Ionicons name="location-outline" size={15} color={focused === "city" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
-                    </View>
-                    <TextInput
-                      style={s.input}
-                      placeholder="Paris, Lyon, Marseille..."
-                      placeholderTextColor="rgba(255,255,255,0.2)"
-                      autoCapitalize="words"
-                      maxLength={80}
-                      returnKeyType="done"
-                      value={city}
-                      onChangeText={setCity}
-                      onFocus={() => setFocused("city")}
-                      onBlur={() => setFocused(null)}
-                    />
+                  <View style={s.cityDropdown}>
+                    {CITY_OPTIONS.map(opt => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[s.cityOption, city === opt.value && s.cityOptionActive]}
+                        onPress={() => { Haptics.selectionAsync(); setCity(opt.value); }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="location-outline" size={15} color={city === opt.value ? C.bg : C.grey} />
+                        <Text style={[s.cityOptionText, city === opt.value && s.cityOptionTextActive]}>{opt.label}</Text>
+                        {city === opt.value && <Ionicons name="checkmark-circle" size={18} color={C.bg} />}
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
 
-                {/* Radius */}
+                {/* Radius — slider */}
                 <Text style={s.sectionLabel}>Rayon d'intervention</Text>
-                <View style={s.radiusGrid}>
-                  {RADIUS_OPTIONS.map(opt => {
-                    const active = radius === opt.value;
-                    return (
-                      <TouchableOpacity
-                        key={opt.value}
-                        style={[s.radiusCard, active && s.radiusCardActive]}
-                        onPress={() => { Haptics.selectionAsync(); setRadius(opt.value); }}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[s.radiusLabel, active && s.radiusLabelActive]}>{opt.label}</Text>
-                        <Text style={[s.radiusHint, active && s.radiusHintActive]}>{opt.hint}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                <View style={s.sliderWrap}>
+                  <View style={s.sliderHeader}>
+                    <Text style={s.sliderValue}>{radius} km</Text>
+                  </View>
+                  <Slider
+                    minimumValue={1}
+                    maximumValue={15}
+                    step={1}
+                    value={radius}
+                    onValueChange={(v: number) => setRadius(v)}
+                    minimumTrackTintColor={C.white}
+                    maximumTrackTintColor="rgba(255,255,255,0.12)"
+                    thumbTintColor={C.white}
+                    style={{ width: '100%', height: 40 }}
+                  />
+                  <View style={s.sliderLabels}>
+                    <Text style={s.sliderLabelText}>1 km</Text>
+                    <Text style={s.sliderLabelText}>15 km</Text>
+                  </View>
                 </View>
 
                 {/* Categories */}
@@ -1012,6 +1018,23 @@ const s = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
+  cityDropdown: { gap: 8 },
+  cityOption: {
+    flexDirection: "row" as const, alignItems: "center" as const, gap: 10,
+    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+  },
+  cityOptionActive: { backgroundColor: C.white, borderColor: C.white },
+  cityOptionText: { flex: 1, fontFamily: FONTS.sansMedium, fontSize: 15, color: C.white },
+  cityOptionTextActive: { color: C.bg },
+  sliderWrap: {
+    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
+    borderRadius: 16, padding: 16,
+  },
+  sliderHeader: { alignItems: "center" as const, marginBottom: 4 },
+  sliderValue: { fontFamily: FONTS.bebas, fontSize: 28, color: C.white, letterSpacing: 1 },
+  sliderLabels: { flexDirection: "row" as const, justifyContent: "space-between" as const },
+  sliderLabelText: { fontFamily: FONTS.sans, fontSize: 11, color: C.grey },
   radiusGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
