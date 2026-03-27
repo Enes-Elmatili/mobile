@@ -788,6 +788,7 @@ export default function NewRequestStepper() {
   const [pricingToken,       setPricingToken]       = useState<string | null>(null);
   const [serverPrice,        setServerPrice]        = useState<ReturnType<typeof computePrice> | null>(null);
   const [pricingError,       setPricingError]       = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
   const [confirmedCalloutCents, setConfirmedCalloutCents] = useState<number | null>(null);
 
   // Reset prix/paiement quand l'utilisateur change de service
@@ -1113,7 +1114,7 @@ export default function NewRequestStepper() {
                       Haptics.notificationAsync(allowed && hasStreetNumber ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
                     }
                   }}
-                  query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr', components: 'country:be' }}
+                  query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr', components: 'country:be', location: '50.8333,4.3333', radius: 15000, strictbounds: true }}
                   styles={{
                     container:          { flex: 1, marginLeft: 8 },
                     textInputContainer: { backgroundColor: 'transparent' },
@@ -1402,160 +1403,127 @@ export default function NewRequestStepper() {
             />
             {/* Formes décoratives */}
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              {/* Grand cercle flou top-right */}
               <View style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.015)' }} />
-              {/* Cercle moyen bottom-left */}
               <View style={{ position: 'absolute', bottom: 40, left: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.012)' }} />
-              {/* Petit losange centre-droit */}
               <View style={{ position: 'absolute', top: '45%', right: 20, width: 50, height: 50, borderRadius: 8, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.018)', transform: [{ rotate: '45deg' }] }} />
             </View>
-            <View style={s.v4Body}>
 
-              {/* Carte récap */}
-              <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginHorizontal: 16, marginBottom: 10 }}>RÉCAPITULATIF</Text>
-              <View style={[s.v4Card, { backgroundColor: theme.v4CardBg }]}>
+            <View style={[s.v4Body, { paddingHorizontal: 16 }]}>
 
+              {/* ── RÉCAPITULATIF ── */}
+              <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>RÉCAPITULATIF</Text>
+              <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
                 <View style={s.v4Row}>
                   <Ionicons name="location-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]} numberOfLines={1}>{location?.address?.split(',')[0]}</Text>
                   <Text style={[s.v4Sub, { color: theme.textSub }]} numberOfLines={1}>{location?.address?.split(',').slice(1).join(',').trim()}</Text>
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-
                 <View style={s.v4Row}>
                   <Ionicons name={toIoniconName(selectedCategory?.icon, 'construct-outline') as any} size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{serviceName}</Text>
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-
                 <View style={s.v4Row}>
                   <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
                 </View>
-                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                <View style={s.v4Row}>
-                  <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
-                  <Text style={[{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }]}>Carte · Apple Pay · Google Pay</Text>
-                </View>
-
               </View>
 
-              {/* Prix / Callout fee section — prix fixe et gratuit seulement (devis = footer) */}
+              {/* ── MOYEN DE PAIEMENT ── */}
+              {!isFreeService && (
+                <>
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginTop: 16, marginBottom: 8 }}>MOYEN DE PAIEMENT</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, alignItems: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, backgroundColor: theme.v4CardBg as string, borderColor: paymentMethod === 'card' ? theme.text as string : theme.borderLight as string }}
+                      onPress={() => setPaymentMethod('card')} activeOpacity={0.7}
+                    >
+                      <Ionicons name="card-outline" size={20} color={paymentMethod === 'card' ? theme.text as string : theme.textMuted as string} />
+                      <Text style={{ fontSize: 11, fontFamily: FONTS.sansMedium, color: paymentMethod === 'card' ? theme.text as string : theme.textMuted as string }}>Carte</Text>
+                    </TouchableOpacity>
+                    {Platform.OS === 'ios' && (
+                      <TouchableOpacity
+                        style={{ flex: 1, alignItems: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, backgroundColor: theme.v4CardBg as string, borderColor: paymentMethod === 'apple_pay' ? theme.text as string : theme.borderLight as string }}
+                        onPress={() => setPaymentMethod('apple_pay')} activeOpacity={0.7}
+                      >
+                        <Ionicons name="logo-apple" size={20} color={paymentMethod === 'apple_pay' ? theme.text as string : theme.textMuted as string} />
+                        <Text style={{ fontSize: 11, fontFamily: FONTS.sansMedium, color: paymentMethod === 'apple_pay' ? theme.text as string : theme.textMuted as string }}>Apple Pay</Text>
+                      </TouchableOpacity>
+                    )}
+                    {Platform.OS === 'android' && (
+                      <TouchableOpacity
+                        style={{ flex: 1, alignItems: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, backgroundColor: theme.v4CardBg as string, borderColor: paymentMethod === 'google_pay' ? theme.text as string : theme.borderLight as string }}
+                        onPress={() => setPaymentMethod('google_pay')} activeOpacity={0.7}
+                      >
+                        <Ionicons name="logo-google" size={20} color={paymentMethod === 'google_pay' ? theme.text as string : theme.textMuted as string} />
+                        <Text style={{ fontSize: 11, fontFamily: FONTS.sansMedium, color: paymentMethod === 'google_pay' ? theme.text as string : theme.textMuted as string }}>Google Pay</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
+
+              {/* ── MONTANT ── */}
               {isFreeService ? (
-                <View style={[s.v4PriceBreakdown, { backgroundColor: theme.v4CardBg }]}>
-                  <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
-                    <Ionicons name="gift-outline" size={18} color={theme.text as string} />
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>Service gratuit</Text>
-                      <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>
-                        Aucun paiement requis. Confirmez pour lancer la recherche d'un prestataire.
-                      </Text>
-                    </View>
+                <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder, marginTop: 16 }]}>
+                  <Ionicons name="gift-outline" size={18} color={theme.text as string} />
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>Service gratuit</Text>
+                    <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>Aucun paiement requis.</Text>
                   </View>
                 </View>
-              ) : !isQuoteFlow ? (
-                <View style={[s.v4PriceBreakdown, { backgroundColor: theme.v4CardBg }]}>
-                  {priceDetailOpen && (
-                    <View style={{ marginBottom: 6, gap: 2 }}>
-                      <View style={s.v4PriceLine}>
-                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Base HTVA</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.baseHTVA} €</Text>
-                      </View>
-                      <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
-                      {displayPrice.multiplier > 1 && (
-                        <>
-                          <View style={s.v4PriceLine}>
-                            <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Majoration horaire (x{displayPrice.multiplier.toFixed(1)})</Text>
-                            <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.adjustedBase} €</Text>
-                          </View>
-                          <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
-                        </>
-                      )}
-                      {isUrgent && (
-                        <>
-                          <View style={s.v4PriceLine}>
-                            <Text style={[s.v4PriceLabel, { color: COLORS.red }]}>Urgence (+50%)</Text>
-                            <Text style={[s.v4PriceVal, { color: COLORS.red }]}>{displayPrice.urgentFee} €</Text>
-                          </View>
-                          <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
-                        </>
-                      )}
-                      <View style={s.v4PriceLine}>
-                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Déplacement</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.travelFee} €</Text>
-                      </View>
-                      <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
-                      <View style={s.v4PriceLine}>
-                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>Frais plateforme</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{displayPrice.platformFee} €</Text>
-                      </View>
-                      <View style={[s.v4PriceSep, { backgroundColor: theme.sep }]} />
-                      <View style={s.v4PriceLine}>
-                        <Text style={[s.v4PriceLabel, { color: theme.textSub }]}>TVA (21%)</Text>
-                        <Text style={[s.v4PriceVal, { color: theme.text }]}>{(parseFloat(displayPrice.totalTVAC) - parseFloat(displayPrice.totalHTVA)).toFixed(2)} €</Text>
-                      </View>
-                      <View style={[s.v4Sep, { backgroundColor: theme.v4Sep, marginVertical: 6 }]} />
-                    </View>
-                  )}
-
-                  <TouchableOpacity style={s.v4PriceLine} onPress={() => setPriceDetailOpen(p => !p)} activeOpacity={0.7}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={[s.v4TotalLabel, { color: theme.text }]}>TTC</Text>
-                      <Ionicons name={priceDetailOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
-                    </View>
-                    <Text style={[s.v4TotalValue, { color: theme.text }]}>{displayPrice.totalTVAC} €</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-
-            </View>
-
-            {/* Footer */}
-            <View style={s.v4Footer}>
-              {isQuoteFlow && (
-                <View style={{ gap: 12, marginBottom: 8 }}>
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginHorizontal: 16 }}>MONTANT</Text>
-                  <View style={{ marginHorizontal: 16, backgroundColor: theme.v4CardBg as string, borderRadius: 16, borderWidth: 1, borderColor: theme.surfaceBorder as string, padding: 16, gap: 12 }}>
+              ) : isQuoteFlow ? (
+                <View style={{ gap: 10, marginTop: 16 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string }}>MONTANT</Text>
+                  <View style={{ backgroundColor: theme.v4CardBg as string, borderRadius: 16, borderWidth: 1, borderColor: theme.surfaceBorder as string, padding: 16, gap: 10 }}>
                     {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }}>Estimation travaux</Text>
                         <Text style={{ fontSize: 13, fontFamily: FONTS.mono, color: theme.textSub as string }}>{selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €</Text>
                       </View>
                     ) : null}
                     <View style={{ height: 1, backgroundColor: theme.surfaceBorder as string }} />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textMuted as string }}>À régler maintenant</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                        <Ionicons name="checkmark" size={8} color="#3D8B3D" />
-                        <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: '#3D8B3D' }}>Déduit si devis accepté</Text>
+                        <Ionicons name="checkmark" size={8} color={COLORS.green} />
+                        <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: COLORS.green }}>Déduit si devis accepté</Text>
                       </View>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 44, letterSpacing: 1, lineHeight: 44, color: theme.text as string }}>
-                        {Math.floor(calloutFee)}<Text style={{ fontSize: 22, color: theme.textSub as string }}>,{String(Math.round((calloutFee % 1) * 100)).padStart(2, '0')} €</Text>
+                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 36, letterSpacing: 1, lineHeight: 36, color: theme.text as string }}>
+                        {Math.floor(calloutFee)}<Text style={{ fontSize: 18, color: theme.textSub as string }}>,{String(Math.round((calloutFee % 1) * 100)).padStart(2, '0')} €</Text>
                       </Text>
                     </View>
                   </View>
                   <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
-                    onPress={() => setDevisModalVisible(true)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
+                    onPress={() => setDevisModalVisible(true)} activeOpacity={0.7}
                   >
-                    <Ionicons name="document-text-outline" size={14} color="#C8820A" />
+                    <Ionicons name="document-text-outline" size={14} color={COLORS.amber} />
                     <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>Comment fonctionne le devis ?</Text>
                     <Ionicons name="chevron-forward" size={13} color={theme.textMuted as string} />
                   </TouchableOpacity>
                 </View>
-              )}
-              {!isFreeService && !isQuoteFlow && (
-                <View style={s.v4SecureRow}>
-                  <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
-                  <Text style={[s.v4Secure, { color: theme.textMuted }]}>
-                    {t('stepper.charge_after_validation')}
-                  </Text>
+              ) : (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 8 }}>MONTANT</Text>
+                  <View style={{ backgroundColor: theme.v4CardBg as string, borderRadius: 16, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontFamily: FONTS.sans, fontSize: 14, color: theme.textSub as string }}>Total TTC</Text>
+                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1, color: theme.text as string }}>{displayPrice.totalTVAC} €</Text>
+                  </View>
+                  <View style={[s.v4SecureRow, { marginTop: 8 }]}>
+                    <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
+                    <Text style={[s.v4Secure, { color: theme.textMuted }]}>{t('stepper.charge_after_validation')}</Text>
+                  </View>
                 </View>
               )}
+
+            </View>
+
+            {/* Footer CTA */}
+            <View style={[s.v4Footer, { paddingHorizontal: 16 }]}>
               <BottomCTA
                 label={isFreeService
                   ? 'Confirmer (gratuit)'

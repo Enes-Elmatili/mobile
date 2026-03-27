@@ -5,7 +5,6 @@ import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import { SocketProvider } from '../lib/SocketContext';
 import { NetworkProvider } from '../lib/NetworkContext';
 import { OfflineQueueProvider } from '../lib/OfflineQueueContext';
-import { OfflineBanner } from '../components/OfflineBanner';
 import { CallProvider } from '../lib/webrtc/CallContext';
 import IncomingCallOverlay from '../components/IncomingCallOverlay';
 import { usePushNotifications } from '../lib/usePushNotifications';
