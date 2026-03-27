@@ -76,7 +76,7 @@ export default function ProblemSelector({ missionStatus, onSelect, onBack }: Pro
         {problems.map((problem) => (
           <TouchableOpacity
             key={problem.id}
-            style={[s.option, { backgroundColor: theme.cardBg }]}
+            style={[s.option, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.borderLight }]}
             onPress={() => onSelect(problem)}
             activeOpacity={0.7}
           >

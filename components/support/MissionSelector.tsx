@@ -56,7 +56,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
           <TouchableOpacity
             key={mission.id}
             style={[s.card, {
-              backgroundColor: theme.cardBg,
+              backgroundColor: theme.cardBg, borderColor: theme.borderLight,
               ...Platform.select({
                 ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
                 android: { elevation: 2 },
@@ -119,7 +119,7 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 14, marginTop: -8 },
   list: { gap: 10 },
   card: {
-    borderRadius: 14, padding: 16, gap: 12,
+    borderRadius: 14, padding: 16, gap: 12, borderWidth: 1,
   },
   cardTop: {
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,

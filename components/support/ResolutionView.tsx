@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import type { ProblemOption, Severity } from './ProblemSelector';
 
-const WHATSAPP_NUMBER = '+32XXXXXXXXX'; // Replace with real WhatsApp Business number
+const WHATSAPP_LINK = 'https://wa.me/message/SXNKDKILPEFMO1';
 
 interface Mission {
   id: number;
@@ -44,10 +45,8 @@ function buildWhatsAppMessage(mission: Mission | null, problem: ProblemOption, u
   ].join('\n');
 }
 
-function openWhatsApp(message: string) {
-  const encoded = encodeURIComponent(message);
-  const url = `https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}?text=${encoded}`;
-  Linking.openURL(url);
+function openWhatsApp() {
+  WebBrowser.openBrowserAsync(WHATSAPP_LINK);
 }
 
 const SEVERITY_CONFIG: Record<Severity, { icon: string; btnLabel: string; btnIcon: string }> = {
@@ -84,12 +83,12 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
       } finally {
         setEscalating(false);
       }
-      openWhatsApp(message);
+      openWhatsApp();
       return;
     }
 
     // Medium — just open WhatsApp
-    openWhatsApp(message);
+    openWhatsApp();
   };
 
   return (
@@ -101,7 +100,7 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
 
       {/* Resolution card */}
       <View style={[s.card, {
-        backgroundColor: theme.cardBg,
+        backgroundColor: theme.cardBg, borderColor: theme.borderLight,
         ...Platform.select({
           ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
           android: { elevation: 2 },
@@ -167,10 +166,7 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
       {problem.severity === 'high' && (
         <TouchableOpacity
           style={[s.secondaryBtn, { backgroundColor: theme.surface }]}
-          onPress={() => {
-            const message = buildWhatsAppMessage(mission, problem, userName);
-            openWhatsApp(message);
-          }}
+          onPress={() => openWhatsApp()}
           activeOpacity={0.7}
         >
           <Ionicons name="logo-whatsapp" size={16} color={theme.textSub} />
@@ -188,7 +184,7 @@ const s = StyleSheet.create({
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontSize: 14 },
   card: {
-    borderRadius: 18, padding: 24, alignItems: 'center', gap: 12,
+    borderRadius: 18, padding: 24, alignItems: 'center', gap: 12, borderWidth: 1,
   },
   iconCircle: {
     width: 56, height: 56, borderRadius: 28,
