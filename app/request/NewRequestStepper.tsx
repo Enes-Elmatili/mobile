@@ -1428,41 +1428,36 @@ export default function NewRequestStepper() {
                   <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
                 </View>
+                {!isFreeService && (
+                  <>
+                    <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+                    <TouchableOpacity
+                      style={s.v4Row}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        const options = Platform.OS === 'ios'
+                          ? ['Carte bancaire', 'Apple Pay', 'Annuler']
+                          : ['Carte bancaire', 'Google Pay', 'Annuler'];
+                        Alert.alert('Moyen de paiement', 'Choisissez votre moyen de paiement', options.map((label, i) => ({
+                          text: label,
+                          style: i === options.length - 1 ? 'cancel' as const : 'default' as const,
+                          onPress: () => {
+                            if (i === 0) setPaymentMethod('card');
+                            else if (i === 1) setPaymentMethod(Platform.OS === 'ios' ? 'apple_pay' : 'google_pay');
+                          },
+                        })));
+                      }}
+                    >
+                      <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
+                      <Text style={[s.v4Val, { color: theme.text }]}>
+                        {paymentMethod === 'card' ? 'Carte bancaire' : paymentMethod === 'apple_pay' ? 'Apple Pay' : 'Google Pay'}
+                      </Text>
+                      <Ionicons name="chevron-down" size={14} color={theme.textMuted as string} />
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
 
-              {/* ── MOYEN DE PAIEMENT ── */}
-              {!isFreeService && (
-                <>
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginTop: 16, marginBottom: 8 }}>MOYEN DE PAIEMENT</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, alignItems: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, backgroundColor: theme.v4CardBg as string, borderColor: paymentMethod === 'card' ? theme.text as string : theme.borderLight as string }}
-                      onPress={() => setPaymentMethod('card')} activeOpacity={0.7}
-                    >
-                      <Ionicons name="card-outline" size={20} color={paymentMethod === 'card' ? theme.text as string : theme.textMuted as string} />
-                      <Text style={{ fontSize: 11, fontFamily: FONTS.sansMedium, color: paymentMethod === 'card' ? theme.text as string : theme.textMuted as string }}>Carte</Text>
-                    </TouchableOpacity>
-                    {Platform.OS === 'ios' && (
-                      <TouchableOpacity
-                        style={{ flex: 1, alignItems: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, backgroundColor: theme.v4CardBg as string, borderColor: paymentMethod === 'apple_pay' ? theme.text as string : theme.borderLight as string }}
-                        onPress={() => setPaymentMethod('apple_pay')} activeOpacity={0.7}
-                      >
-                        <Ionicons name="logo-apple" size={20} color={paymentMethod === 'apple_pay' ? theme.text as string : theme.textMuted as string} />
-                        <Text style={{ fontSize: 11, fontFamily: FONTS.sansMedium, color: paymentMethod === 'apple_pay' ? theme.text as string : theme.textMuted as string }}>Apple Pay</Text>
-                      </TouchableOpacity>
-                    )}
-                    {Platform.OS === 'android' && (
-                      <TouchableOpacity
-                        style={{ flex: 1, alignItems: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, backgroundColor: theme.v4CardBg as string, borderColor: paymentMethod === 'google_pay' ? theme.text as string : theme.borderLight as string }}
-                        onPress={() => setPaymentMethod('google_pay')} activeOpacity={0.7}
-                      >
-                        <Ionicons name="logo-google" size={20} color={paymentMethod === 'google_pay' ? theme.text as string : theme.textMuted as string} />
-                        <Text style={{ fontSize: 11, fontFamily: FONTS.sansMedium, color: paymentMethod === 'google_pay' ? theme.text as string : theme.textMuted as string }}>Google Pay</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </>
-              )}
 
               {/* ── MONTANT ── */}
               {isFreeService ? (
