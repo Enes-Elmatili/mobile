@@ -367,7 +367,7 @@ const sc = StyleSheet.create({
   dot:   { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
   text:  { flex: 1, fontSize: 15, fontFamily: FONTS.sans },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  pill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, minWidth: 70, alignItems: 'center' as const },
   pillText: { fontSize: 11, fontFamily: FONTS.sansMedium },
   priceSmall: { fontSize: 10, fontFamily: FONTS.mono },
 });
@@ -562,11 +562,10 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
         <Pressable onPress={() => {}}>
-          <View style={[dim.sheet, { backgroundColor: theme.cardBg }]}>
-            <View style={[dim.handle, { backgroundColor: theme.borderLight }]} />
+          <View style={[dim.sheet, { backgroundColor: theme.cardBg, borderRadius: 24 }]}>
 
             {/* Header */}
             <View style={dim.header}>
@@ -664,6 +663,7 @@ export default function NewRequestStepper() {
   // Étape 1
   const [location, setLocation] = useState<{ address: string; lat: number; lng: number } | null>(null);
   const [locationAllowed, setLocationAllowed] = useState<boolean>(true);
+  const [addressMissingNumber, setAddressMissingNumber] = useState<boolean>(false);
 
   // ── Phase test : zones autorisées seulement ──────────────────────────────
   const ALLOWED_POSTAL = ['1050', '1060', '1180'];
@@ -1086,11 +1086,9 @@ export default function NewRequestStepper() {
             >
               {location && (
                 <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} anchor={{ x: 0.5, y: 0.5 }}>
-                  <View style={s.markerWrap}>
-                    <View style={s.markerHalo} />
-                    <View style={[s.markerDot, { backgroundColor: theme.accent, borderColor: theme.accentText }]}>
-                      <Ionicons name="location" size={20} color={theme.accentText as string} />
-                    </View>
+                  <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(52,199,89,0.2)' }} />
+                    <View style={{ position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: '#34C759', borderWidth: 2, borderColor: '#FFFFFF' }} />
                   </View>
                 </Marker>
               )}
@@ -1107,10 +1105,12 @@ export default function NewRequestStepper() {
                     if (details) {
                       const { lat, lng } = details.geometry.location;
                       const allowed = checkLocation(data.description, details.address_components);
+                      const hasStreetNumber = details.address_components?.some((c: any) => c.types.includes('street_number'));
                       setLocation({ address: data.description, lat, lng });
                       setLocationAllowed(allowed);
+                      setAddressMissingNumber(!hasStreetNumber);
                       mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.006, longitudeDelta: 0.006 });
-                      Haptics.notificationAsync(allowed ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
+                      Haptics.notificationAsync(allowed && hasStreetNumber ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
                     }
                   }}
                   query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr', components: 'country:be' }}
@@ -1169,13 +1169,21 @@ export default function NewRequestStepper() {
                   </Text>
                 </View>
               )}
+              {location && addressMissingNumber && (
+                <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
+                  <Ionicons name="alert-circle-outline" size={16} color="#E8783A" />
+                  <Text style={[s.addrText, { color: '#E8783A', flex: 1 }]} numberOfLines={2}>
+                    {'Veuillez préciser le numéro d\'immeuble'}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={s.ctaFloating}>
               <BottomCTA
                 label={location ? t('stepper.confirm_address') : t('stepper.select_address')}
                 onPress={goNext}
-                disabled={!location || !locationAllowed}
+                disabled={!location || !locationAllowed || addressMissingNumber}
               />
             </View>
           </View>
@@ -1270,15 +1278,12 @@ export default function NewRequestStepper() {
               <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Brouillard bas uniquement */}
-            <LinearGradient colors={['transparent', theme.bg as string]} style={s.fogBottom} pointerEvents="none" />
             </View>
 
             <BottomCTA
               label={isQuoteFlow ? 'Demander un devis' : t('stepper.continue')}
               onPress={goNext}
               disabled={!categoryId}
-              price={isQuoteFlow ? undefined : (estimatedPrice > 0 ? estimatedPrice : undefined)}
             />
           </KeyboardAvoidingView>
         )}
@@ -1366,7 +1371,6 @@ export default function NewRequestStepper() {
             </ScrollView>
 
             <View style={s.floatingCTA}>
-              <LinearGradient colors={['transparent', theme.bg as string]} style={s.floatingGradient} pointerEvents="none" />
               <BottomCTA
                 label={
                   scheduleMode === 'now'

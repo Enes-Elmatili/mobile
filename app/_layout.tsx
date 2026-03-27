@@ -226,7 +226,6 @@ export default function RootLayout() {
               <OfflineQueueProvider>
                 <SocketProvider>
                   <CallProvider>
-                    <OfflineBanner />
                     <IncomingCallOverlay />
                     <RootLayoutNav />
                   </CallProvider>
