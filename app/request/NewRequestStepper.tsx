@@ -1514,7 +1514,7 @@ export default function NewRequestStepper() {
                 disabled={loading || !paymentReady || !!pricingError}
                 loading={loading}
                 price={undefined}
-                wrapStyle={{ paddingHorizontal: 16 }}
+                wrapStyle={{ paddingHorizontal: 16, borderTopWidth: 0, backgroundColor: 'transparent' }}
                 labelStyle={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2 }}
                 glow
               />
