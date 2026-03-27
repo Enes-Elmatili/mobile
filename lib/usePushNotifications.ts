@@ -103,6 +103,9 @@ function handleNotificationNavigation(data: any) {
       case 'Rating':
         router.push({ pathname: '/request/[id]/rating', params: { id: requestId } });
         break;
+      case 'Messages':
+        router.push('/(tabs)/messages');
+        break;
       case 'Dashboard':
         router.replace('/(tabs)/dashboard');
         break;
