@@ -14,7 +14,7 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -61,6 +61,7 @@ function GridLines() {
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const router = useRouter();
+  const theme = useAppTheme();
   const { refreshMe, signOut } = useAuth();
 
   const [resending, setResending] = useState(false);
@@ -183,8 +184,8 @@ export default function VerifyEmail() {
   }, [verified]);
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOpAnim, transform: [{ scale: glowScale }] }]}>
@@ -214,11 +215,11 @@ export default function VerifyEmail() {
 
         {/* Icon */}
         <View style={s.iconRow}>
-          <View style={[s.iconWrap, verified && s.iconWrapVerified]}>
+          <View style={[s.iconWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }, verified && s.iconWrapVerified]}>
             <Ionicons
               name={verified ? "checkmark-circle" : "mail-outline"}
               size={34}
-              color={verified ? C.green : C.white}
+              color={verified ? C.green : theme.text}
             />
             {!verified && (
               <Animated.View style={[s.iconDot, { opacity: pulseOp }]} />
@@ -226,26 +227,26 @@ export default function VerifyEmail() {
           </View>
         </View>
 
-        <Text style={s.logoEyebrow}>
+        <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>
           {verified ? "Confirmation" : "Vérification"}
         </Text>
-        <Text style={s.logoWordmark}>
+        <Text style={[s.logoWordmark, { color: theme.text }]}>
           {verified ? (
-            <>EMAIL{"\n"}<Text style={s.logoWordmarkOutline}>VÉRIFIÉ !</Text></>
+            <>EMAIL{"\n"}<Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>VÉRIFIÉ !</Text></>
           ) : (
-            <>VÉRIFIEZ{"\n"}<Text style={s.logoWordmarkOutline}>VOTRE EMAIL.</Text></>
+            <>VÉRIFIEZ{"\n"}<Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>VOTRE EMAIL.</Text></>
           )}
         </Text>
       </Animated.View>
 
       {/* Body */}
       <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
-        <Text style={s.subtitle}>
+        <Text style={[s.subtitle, { color: theme.textSub }]}>
           {verified
             ? "Votre adresse email a été confirmée avec succès."
             : <>
                 {"Un lien a été envoyé à\n"}
-                <Text style={s.emailText}>{email || "votre adresse email"}</Text>
+                <Text style={[s.emailText, { color: theme.text }]}>{email || "votre adresse email"}</Text>
               </>
           }
         </Text>
@@ -253,23 +254,23 @@ export default function VerifyEmail() {
         {!verified && (
           <>
             {/* Info card */}
-            <View style={s.infoCard}>
-              <Ionicons name="information-circle-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
-              <Text style={s.infoText}>
+            <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+              <Ionicons name="information-circle-outline" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
+              <Text style={[s.infoText, { color: theme.textSub }]}>
                 Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 48 heures.
               </Text>
             </View>
 
             {/* Resend button */}
             <TouchableOpacity
-              style={[s.resendBtn, (resending || resent) && { borderColor: "rgba(255,255,255,0.04)" }]}
+              style={[s.resendBtn, { borderColor: theme.borderLight }, (resending || resent) && { borderColor: theme.textDisabled }]}
               onPress={handleResend}
               disabled={resending || resent}
               activeOpacity={0.7}
             >
               {resending
-                ? <ActivityIndicator size="small" color={C.white} />
-                : <Text style={[s.resendText, resent && { color: C.grey }]}>
+                ? <ActivityIndicator size="small" color={theme.text} />
+                : <Text style={[s.resendText, { color: theme.text }, resent && { color: theme.textMuted }]}>
                     {resent ? "\u2713  Email renvoyé" : "Renvoyer le lien"}
                   </Text>
               }
@@ -281,14 +282,14 @@ export default function VerifyEmail() {
       {/* Actions */}
       <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
         <TouchableOpacity
-          style={[s.btnPrimary, !verified && { opacity: 0.35 }]}
+          style={[s.btnPrimary, { backgroundColor: theme.accent }, !verified && { opacity: 0.35 }]}
           onPress={handleContinue}
           disabled={!verified}
           activeOpacity={0.9}
         >
-          <Text style={s.btnPrimaryText}>CONTINUER</Text>
-          <View style={s.arrowPill}>
-            <Ionicons name="arrow-forward" size={14} color={C.white} />
+          <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>CONTINUER</Text>
+          <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+            <Ionicons name="arrow-forward" size={14} color={theme.text} />
           </View>
         </TouchableOpacity>
 
@@ -301,8 +302,8 @@ export default function VerifyEmail() {
           activeOpacity={0.6}
           style={s.logoutLink}
         >
-          <Ionicons name="log-out-outline" size={14} color={C.grey} />
-          <Text style={s.logoutText}>Se déconnecter</Text>
+          <Ionicons name="log-out-outline" size={14} color={theme.textMuted} />
+          <Text style={[s.logoutText, { color: theme.textSub }]}>Se déconnecter</Text>
         </TouchableOpacity>
       </Animated.View>
     </View>

@@ -9,7 +9,7 @@ import Svg, { Line } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -51,6 +51,7 @@ function GridLines() {
 
 export default function AuthChoice() {
   const router = useRouter();
+  const theme = useAppTheme();
 
   const ease = Easing.bezier(0.16, 1, 0.3, 1);
   const headerOp = useRef(new Animated.Value(0)).current;
@@ -94,8 +95,8 @@ export default function AuthChoice() {
   }, []);
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
@@ -110,7 +111,7 @@ export default function AuthChoice() {
       {/* Header */}
       <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
         <TouchableOpacity
-          style={s.backBtn}
+          style={[s.backBtn, { borderColor: theme.borderLight }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.canGoBack() ? router.back() : router.replace("/(auth)/welcome");
@@ -118,20 +119,20 @@ export default function AuthChoice() {
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+          <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
-        <Text style={s.logoEyebrow}>Bienvenue</Text>
-        <Text style={s.logoWordmark}>
+        <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>Bienvenue</Text>
+        <Text style={[s.logoWordmark, { color: theme.text }]}>
           COMMENT{"\n"}
-          <Text style={s.logoWordmarkOutline}>CONTINUER ?</Text>
+          <Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>CONTINUER ?</Text>
         </Text>
       </Animated.View>
 
       {/* Cards */}
       <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
         <TouchableOpacity
-          style={s.card}
+          style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           activeOpacity={0.8}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -139,17 +140,17 @@ export default function AuthChoice() {
           }}
         >
           <View style={s.cardIconWrap}>
-            <Ionicons name="log-in-outline" size={20} color={C.white} />
+            <Ionicons name="log-in-outline" size={20} color={theme.text} />
           </View>
           <View style={s.cardContent}>
-            <Text style={s.cardTitle}>Se connecter</Text>
-            <Text style={s.cardSub}>J'ai déjà un compte</Text>
+            <Text style={[s.cardTitle, { color: theme.text }]}>Se connecter</Text>
+            <Text style={[s.cardSub, { color: theme.textSub }]}>J'ai déjà un compte</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+          <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={s.card}
+          style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           activeOpacity={0.8}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -157,29 +158,29 @@ export default function AuthChoice() {
           }}
         >
           <View style={s.cardIconWrap}>
-            <Ionicons name="person-add-outline" size={20} color={C.white} />
+            <Ionicons name="person-add-outline" size={20} color={theme.text} />
           </View>
           <View style={s.cardContent}>
-            <Text style={s.cardTitle}>Créer un compte</Text>
-            <Text style={s.cardSub}>Nouveau sur FIXED</Text>
+            <Text style={[s.cardTitle, { color: theme.text }]}>Créer un compte</Text>
+            <Text style={[s.cardSub, { color: theme.textSub }]}>Nouveau sur FIXED</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+          <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
         </TouchableOpacity>
       </Animated.View>
 
       {/* Actions */}
       <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
         <TouchableOpacity
-          style={s.btnPrimary}
+          style={[s.btnPrimary, { backgroundColor: theme.accent }]}
           activeOpacity={0.9}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.push("/(auth)/role-select");
           }}
         >
-          <Text style={s.btnPrimaryText}>COMMENCER</Text>
-          <View style={s.arrowPill}>
-            <Ionicons name="arrow-forward" size={14} color={C.white} />
+          <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>COMMENCER</Text>
+          <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+            <Ionicons name="arrow-forward" size={14} color={theme.text} />
           </View>
         </TouchableOpacity>
       </Animated.View>

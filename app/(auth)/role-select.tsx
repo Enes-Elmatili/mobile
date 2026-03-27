@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '@/lib/api';
-import { FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const GRID_SIZE = 40;
@@ -102,7 +102,7 @@ function RoleCard({
       >
         {/* Icon */}
         <View style={[s.cardIcon, isSelected && s.cardIconSelected]}>
-          <Ionicons name={icon} size={20} color={isSelected ? C.bg : 'rgba(255,255,255,0.7)'} />
+          <Ionicons name={icon} size={20} color={isSelected ? C.bg : C.white} />
         </View>
 
         {/* Text */}
@@ -123,6 +123,7 @@ function RoleCard({
 // ── Main Screen ─────────────────────────────────────────────────────────────
 export default function RoleSelect() {
   const router = useRouter();
+  const theme = useAppTheme();
   const { user, signIn } = useAuth();
   const [selected, setSelected] = useState<'CLIENT' | 'PROVIDER' | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -210,8 +211,8 @@ export default function RoleSelect() {
   };
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       {/* Background */}
       <GridLines />
@@ -229,28 +230,28 @@ export default function RoleSelect() {
         <View style={s.headerRow}>
           {!isAuthenticated ? (
             <Pressable
-              style={s.backBtn}
+              style={[s.backBtn, { borderColor: theme.borderLight }]}
               onPress={() => { Haptics.selectionAsync(); router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'); }}
               hitSlop={12}
             >
-              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+              <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
             </Pressable>
           ) : (
             <View style={{ width: 36 }} />
           )}
-          <Text style={s.logoEyebrow}>Inscription</Text>
+          <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>Inscription</Text>
           <View style={{ width: 36 }} />
         </View>
       </Animated.View>
 
       {/* Hero */}
       <Animated.View style={[s.hero, { opacity: heroOp, transform: [{ translateY: heroTy }] }]}>
-        <Text style={s.heroKicker}>Étape 1 sur 3</Text>
+        <Text style={[s.heroKicker, { color: theme.textMuted }]}>Étape 1 sur 3</Text>
         <View>
-          <Text style={s.heroTitle}>JE SUIS</Text>
-          <Text style={[s.heroTitle, s.heroTitleOutline]}>QUI ?</Text>
+          <Text style={[s.heroTitle, { color: theme.text }]}>JE SUIS</Text>
+          <Text style={[s.heroTitle, s.heroTitleOutline, { color: theme.textMuted }]}>QUI ?</Text>
         </View>
-        <Text style={s.heroSub}>Choisissez votre profil pour personnaliser l'expérience.</Text>
+        <Text style={[s.heroSub, { color: theme.textSub }]}>Choisissez votre profil pour personnaliser l'expérience.</Text>
       </Animated.View>
 
       {/* Cards — flex spacer pushes actions to bottom */}
@@ -276,15 +277,15 @@ export default function RoleSelect() {
       {/* Actions */}
       <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
         <TouchableOpacity
-          style={[s.btnPrimary, !selected && s.btnPrimaryDisabled, submitting && { opacity: 0.6 }]}
+          style={[s.btnPrimary, { backgroundColor: theme.accent }, !selected && s.btnPrimaryDisabled, submitting && { opacity: 0.6 }]}
           activeOpacity={0.9}
           onPress={confirm}
           disabled={!selected || submitting}
         >
-          <Text style={s.btnPrimaryText}>{submitting ? 'CHARGEMENT...' : 'CONTINUER'}</Text>
+          <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>{submitting ? 'CHARGEMENT...' : 'CONTINUER'}</Text>
           {selected && (
-            <View style={s.arrowPill}>
-              <Ionicons name="arrow-forward" size={14} color={C.white} />
+            <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+              <Ionicons name="arrow-forward" size={14} color={theme.text} />
             </View>
           )}
         </TouchableOpacity>
@@ -295,8 +296,8 @@ export default function RoleSelect() {
             activeOpacity={0.7}
             onPress={() => { Haptics.selectionAsync(); router.push('/(auth)/login'); }}
           >
-            <Text style={s.loginLabel}>Déjà un compte ?</Text>
-            <Text style={s.loginLink}>Se connecter</Text>
+            <Text style={[s.loginLabel, { color: theme.textMuted }]}>Déjà un compte ?</Text>
+            <Text style={[s.loginLink, { color: theme.textSub }]}>Se connecter</Text>
           </TouchableOpacity>
         )}
       </Animated.View>

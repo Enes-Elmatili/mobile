@@ -17,7 +17,7 @@ import Svg, { Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const LOGO_WHITE = require("../../assets/logo-variants/logo-transparent-white.png");
 
@@ -201,6 +201,7 @@ function TrustBadge() {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Welcome() {
+  const theme = useAppTheme();
   const [phase, setPhase] = useState<"splash" | "main">("splash");
 
   // Splash anims
@@ -291,8 +292,8 @@ export default function Welcome() {
   }, []);
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       {/* ── Grid lines ── */}
       <GridLines />
@@ -353,24 +354,24 @@ export default function Welcome() {
           {/* Header */}
           <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
             <View style={s.logoLockup}>
-              <Text style={s.logoEyebrow}>Services à domicile</Text>
-              <Text style={s.logoWordmark}>FIXED</Text>
+              <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>Services à domicile</Text>
+              <Text style={[s.logoWordmark, { color: theme.text }]}>FIXED</Text>
             </View>
           </Animated.View>
 
           {/* Hero */}
           <Animated.View style={[s.hero, { opacity: heroOp, transform: [{ translateY: heroTy }] }]}>
-            <Text style={s.heroKicker}>Bruxelles  ·  Disponible maintenant</Text>
+            <Text style={[s.heroKicker, { color: theme.textMuted }]}>Bruxelles  ·  Disponible maintenant</Text>
 
             <View style={s.heroTitleWrap}>
-              <Text style={s.heroTitle}>UN PRO</Text>
-              <Text style={s.heroTitle}>
-                CHEZ <Text style={s.heroTitleOutline}>VOUS</Text>
+              <Text style={[s.heroTitle, { color: theme.text }]}>UN PRO</Text>
+              <Text style={[s.heroTitle, { color: theme.text }]}>
+                CHEZ <Text style={[s.heroTitleOutline, { color: theme.textMuted }]}>VOUS</Text>
               </Text>
-              <Text style={s.heroTitle}>EN 30 MIN</Text>
+              <Text style={[s.heroTitle, { color: theme.text }]}>EN 30 MIN</Text>
             </View>
 
-            <Text style={s.heroSub}>
+            <Text style={[s.heroSub, { color: theme.textSub }]}>
               Plomberie, électricité, ménage — réservé en quelques secondes.
             </Text>
 
@@ -383,37 +384,37 @@ export default function Welcome() {
 
             {/* Primary CTA */}
             <TouchableOpacity
-              style={s.btnPrimary}
+              style={[s.btnPrimary, { backgroundColor: theme.accent }]}
               activeOpacity={0.9}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 router.push("/(auth)/role-select");
               }}
             >
-              <Text style={s.btnPrimaryText}>CRÉER UN COMPTE</Text>
-              <View style={s.arrowPill}>
-                <Ionicons name="arrow-forward" size={14} color={C.white} />
+              <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>CRÉER UN COMPTE</Text>
+              <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                <Ionicons name="arrow-forward" size={14} color={theme.text} />
               </View>
             </TouchableOpacity>
 
             {/* Divider */}
             <View style={s.divider}>
-              <View style={s.dividerLine} />
-              <Text style={s.dividerLabel}>Déjà un compte ?</Text>
-              <View style={s.dividerLine} />
+              <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
+              <Text style={[s.dividerLabel, { color: theme.textMuted }]}>Déjà un compte ?</Text>
+              <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
             </View>
 
             {/* Secondary CTA */}
             <TouchableOpacity
-              style={s.btnSecondary}
+              style={[s.btnSecondary, { borderColor: theme.borderLight }]}
               activeOpacity={0.8}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push("/(auth)/login");
               }}
             >
-              <Ionicons name="log-in-outline" size={16} color="rgba(255,255,255,0.4)" />
-              <Text style={s.btnSecondaryText}>Se connecter</Text>
+              <Ionicons name="log-in-outline" size={16} color={theme.textMuted} />
+              <Text style={[s.btnSecondaryText, { color: theme.text }]}>Se connecter</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>

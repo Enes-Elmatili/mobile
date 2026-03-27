@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -56,6 +56,7 @@ function GridLines() {
 
 export default function ResetPassword() {
   const router = useRouter();
+  const theme = useAppTheme();
   const { token } = useLocalSearchParams<{ token: string }>();
 
   const [password, setPassword] = useState("");
@@ -157,7 +158,7 @@ export default function ResetPassword() {
   let title = "NOUVEAU\nMOT DE PASSE.";
   let subtitle = "Choisissez un nouveau mot de passe pour votre compte.";
   let iconName: keyof typeof Ionicons.glyphMap = "key-outline";
-  let iconColor = C.white;
+  let iconColor = theme.text;
 
   if (validating) {
     title = "VÉRIFICATION\nDU LIEN...";
@@ -175,8 +176,8 @@ export default function ResetPassword() {
   }
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
@@ -202,7 +203,7 @@ export default function ResetPassword() {
           {/* Header */}
           <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
             <TouchableOpacity
-              style={s.backBtn}
+              style={[s.backBtn, { borderColor: theme.borderLight }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.replace("/(auth)/login");
@@ -210,26 +211,27 @@ export default function ResetPassword() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+              <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
             </TouchableOpacity>
 
             <View style={s.iconRow}>
               <View style={[
                 s.iconWrap,
+                { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
                 done && { backgroundColor: "rgba(61,139,61,0.1)", borderColor: "rgba(61,139,61,0.3)" },
                 (!token || !tokenValid) && !validating && { backgroundColor: "rgba(229,57,53,0.1)", borderColor: "rgba(229,57,53,0.3)" },
               ]}>
                 {validating
-                  ? <ActivityIndicator size="small" color={C.white} />
+                  ? <ActivityIndicator size="small" color={theme.text} />
                   : <Ionicons name={iconName} size={34} color={iconColor} />
                 }
               </View>
             </View>
 
-            <Text style={s.logoWordmark}>
+            <Text style={[s.logoWordmark, { color: theme.text }]}>
               {title.split("\n").map((line, i) =>
                 i === 1
-                  ? <Text key={i} style={s.logoWordmarkOutline}>{line}</Text>
+                  ? <Text key={i} style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>{line}</Text>
                   : <Text key={i}>{line}{"\n"}</Text>
               )}
             </Text>
@@ -237,20 +239,20 @@ export default function ResetPassword() {
 
           {/* Body */}
           <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
-            <Text style={s.subtitle}>{subtitle}</Text>
+            <Text style={[s.subtitle, { color: theme.textSub }]}>{subtitle}</Text>
 
             {tokenValid && !done && !validating && (
               <View style={s.form}>
                 <View style={s.field}>
-                  <Text style={s.fieldLabel}>Nouveau mot de passe</Text>
-                  <View style={[s.inputWrap, focused === "password" && s.inputFocused]}>
+                  <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Nouveau mot de passe</Text>
+                  <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "password" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                     <View style={s.inputIcon}>
-                      <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                      <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
                     </View>
                     <TextInput
-                      style={s.input}
+                      style={[s.input, { color: theme.text }]}
                       placeholder="Min. 8 caractères"
-                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      placeholderTextColor={theme.textMuted}
                       secureTextEntry={!showPwd}
                       returnKeyType="next"
                       autoFocus
@@ -261,22 +263,22 @@ export default function ResetPassword() {
                       onSubmitEditing={() => confirmRef.current?.focus()}
                     />
                     <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                      <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color="rgba(255,255,255,0.4)" />
+                      <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color={theme.textMuted} />
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.fieldLabel}>Confirmer</Text>
-                  <View style={[s.inputWrap, focused === "confirm" && s.inputFocused]}>
+                  <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Confirmer</Text>
+                  <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "confirm" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                     <View style={s.inputIcon}>
-                      <Ionicons name="lock-closed-outline" size={14} color={focused === "confirm" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                      <Ionicons name="lock-closed-outline" size={14} color={focused === "confirm" ? theme.textSub : theme.textMuted} />
                     </View>
                     <TextInput
                       ref={confirmRef}
-                      style={s.input}
+                      style={[s.input, { color: theme.text }]}
                       placeholder="Confirmez le mot de passe"
-                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      placeholderTextColor={theme.textMuted}
                       secureTextEntry={!showPwd}
                       returnKeyType="done"
                       value={confirm}
@@ -302,45 +304,45 @@ export default function ResetPassword() {
           <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
             {validating ? null : done ? (
               <TouchableOpacity
-                style={s.btnPrimary}
+                style={[s.btnPrimary, { backgroundColor: theme.accent }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.replace("/(auth)/login");
                 }}
                 activeOpacity={0.9}
               >
-                <Text style={s.btnPrimaryText}>SE CONNECTER</Text>
-                <View style={s.arrowPill}>
-                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>SE CONNECTER</Text>
+                <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                  <Ionicons name="arrow-forward" size={14} color={theme.text} />
                 </View>
               </TouchableOpacity>
             ) : !tokenValid ? (
               <TouchableOpacity
-                style={s.btnPrimary}
+                style={[s.btnPrimary, { backgroundColor: theme.accent }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.replace("/(auth)/forgot-password");
                 }}
                 activeOpacity={0.9}
               >
-                <Text style={s.btnPrimaryText}>DEMANDER UN NOUVEAU LIEN</Text>
-                <View style={s.arrowPill}>
-                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>DEMANDER UN NOUVEAU LIEN</Text>
+                <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                  <Ionicons name="arrow-forward" size={14} color={theme.text} />
                 </View>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={[s.btnPrimary, (loading || password.length < 8 || password !== confirm) && { opacity: 0.55 }]}
+                style={[s.btnPrimary, { backgroundColor: theme.accent }, (loading || password.length < 8 || password !== confirm) && { opacity: 0.55 }]}
                 onPress={handleSubmit}
                 disabled={loading || password.length < 8 || password !== confirm}
                 activeOpacity={0.9}
               >
                 {loading
-                  ? <ActivityIndicator size="small" color={C.bg} />
+                  ? <ActivityIndicator size="small" color={theme.accentText} />
                   : <>
-                      <Text style={s.btnPrimaryText}>RÉINITIALISER</Text>
-                      <View style={s.arrowPill}>
-                        <Ionicons name="arrow-forward" size={14} color={C.white} />
+                      <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RÉINITIALISER</Text>
+                      <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                        <Ionicons name="arrow-forward" size={14} color={theme.text} />
                       </View>
                     </>
                 }

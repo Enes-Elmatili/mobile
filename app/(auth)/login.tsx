@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -157,6 +157,7 @@ export default function Login() {
   const router = useRouter();
   const { signIn, isBooting } = useAuth();
   const { t } = useTranslation();
+  const theme = useAppTheme();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -329,15 +330,15 @@ export default function Login() {
   const isBusy = loading || !!socialLoading;
 
   if (isBooting) return (
-    <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: "center", alignItems: "center" }}>
-      <StatusBar barStyle="light-content" />
-      <Spinner color={C.white} />
+    <View style={{ flex: 1, backgroundColor: theme.bg, justifyContent: "center", alignItems: "center" }}>
+      <StatusBar barStyle={theme.statusBar} />
+      <Spinner color={theme.text} />
     </View>
   );
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       {/* Grid + glow background */}
       <GridLines />
@@ -371,7 +372,7 @@ export default function Login() {
         {/* Header */}
         <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
           <TouchableOpacity
-            style={s.backBtn}
+            style={[s.backBtn, { borderColor: theme.borderLight }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.canGoBack() ? router.back() : router.replace("/(auth)/welcome");
@@ -379,10 +380,10 @@ export default function Login() {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+            <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
           </TouchableOpacity>
 
-          <Text style={s.logoWordmark}>CONNEXION</Text>
+          <Text style={[s.logoWordmark, { color: theme.text }]}>CONNEXION</Text>
         </Animated.View>
 
         {/* Body */}
@@ -390,31 +391,31 @@ export default function Login() {
           {/* Social buttons */}
           <View style={s.socialRow}>
             <TouchableOpacity
-              style={s.socialBtn}
+              style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
               onPress={handleAppleSignIn}
               disabled={isBusy}
               activeOpacity={0.7}
             >
               {socialLoading === "apple"
-                ? <Spinner color={C.white} />
+                ? <Spinner color={theme.text} />
                 : <>
                     <AppleLogo />
-                    <Text style={s.socialText}>Apple</Text>
+                    <Text style={[s.socialText, { color: theme.textSub }]}>Apple</Text>
                   </>
               }
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={s.socialBtn}
+              style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
               onPress={() => googlePromptAsync()}
               disabled={isBusy || !googleRequest}
               activeOpacity={0.7}
             >
               {socialLoading === "google"
-                ? <Spinner color={C.white} />
+                ? <Spinner color={theme.text} />
                 : <>
                     <GoogleLogo />
-                    <Text style={s.socialText}>Google</Text>
+                    <Text style={[s.socialText, { color: theme.textSub }]}>Google</Text>
                   </>
               }
             </TouchableOpacity>
@@ -422,24 +423,24 @@ export default function Login() {
 
           {/* Divider */}
           <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerLabel}>ou</Text>
-            <View style={s.dividerLine} />
+            <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
+            <Text style={[s.dividerLabel, { color: theme.textMuted }]}>ou</Text>
+            <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
           </View>
 
           {/* Form */}
           <View style={s.form}>
             {/* Email */}
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Email</Text>
-              <View style={[s.inputWrap, focused === "email" && s.inputFocused]}>
+              <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Email</Text>
+              <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "email" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                 <View style={s.inputIcon}>
-                  <Ionicons name="mail-outline" size={15} color={focused === "email" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                  <Ionicons name="mail-outline" size={15} color={focused === "email" ? theme.textSub : theme.textMuted} />
                 </View>
                 <TextInput
-                  style={s.input}
+                  style={[s.input, { color: theme.text }]}
                   placeholder="votre@email.com"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={theme.textMuted}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   returnKeyType="next"
@@ -454,16 +455,16 @@ export default function Login() {
 
             {/* Password */}
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Mot de passe</Text>
-              <View style={[s.inputWrap, focused === "password" && s.inputFocused]}>
+              <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Mot de passe</Text>
+              <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "password" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                 <View style={s.inputIcon}>
-                  <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                  <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
                 </View>
                 <TextInput
                   ref={pwdRef}
-                  style={s.input}
+                  style={[s.input, { color: theme.text }]}
                   placeholder="••••••••"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={theme.textMuted}
                   secureTextEntry={!showPwd}
                   returnKeyType="done"
                   value={password}
@@ -473,7 +474,7 @@ export default function Login() {
                   onSubmitEditing={onSubmit}
                 />
                 <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                  <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color={theme.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -481,7 +482,7 @@ export default function Login() {
             {/* Forgot password */}
             <View style={s.forgotRow}>
               <TouchableOpacity activeOpacity={0.6} onPress={() => router.push("/(auth)/forgot-password")}>
-                <Text style={s.forgotLink}>Mot de passe oublié ?</Text>
+                <Text style={[s.forgotLink, { color: theme.textMuted }]}>Mot de passe oublié ?</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -490,7 +491,7 @@ export default function Login() {
         {/* Actions */}
         <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
           <TouchableOpacity
-            style={[s.btnPrimary, isBusy && { opacity: 0.55 }]}
+            style={[s.btnPrimary, { backgroundColor: theme.accent }, isBusy && { opacity: 0.55 }]}
 
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -500,18 +501,18 @@ export default function Login() {
             activeOpacity={0.9}
           >
             {loading
-              ? <Spinner color={C.bg} />
+              ? <Spinner color={theme.accentText} />
               : <>
-                  <Text style={s.btnPrimaryText}>SE CONNECTER</Text>
-                  <View style={s.arrowPill}>
-                    <Ionicons name="arrow-forward" size={14} color={C.white} />
+                  <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>SE CONNECTER</Text>
+                  <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                    <Ionicons name="arrow-forward" size={14} color={theme.text} />
                   </View>
                 </>
             }
           </TouchableOpacity>
 
           <View style={s.registerRow}>
-            <Text style={s.registerLabel}>Pas encore de compte ?</Text>
+            <Text style={[s.registerLabel, { color: theme.textMuted }]}>Pas encore de compte ?</Text>
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -519,7 +520,7 @@ export default function Login() {
               }}
               activeOpacity={0.7}
             >
-              <Text style={s.registerLink}>Créer un compte</Text>
+              <Text style={[s.registerLink, { color: theme.textSub }]}>Créer un compte</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

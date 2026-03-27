@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -55,6 +55,7 @@ function GridLines() {
 
 export default function ForgotPassword() {
   const router = useRouter();
+  const theme = useAppTheme();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -123,8 +124,8 @@ export default function ForgotPassword() {
   };
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
@@ -150,7 +151,7 @@ export default function ForgotPassword() {
           {/* Header */}
           <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
             <TouchableOpacity
-              style={s.backBtn}
+              style={[s.backBtn, { borderColor: theme.borderLight }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.back();
@@ -158,22 +159,22 @@ export default function ForgotPassword() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+              <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
             </TouchableOpacity>
 
             <View style={s.iconRow}>
-              <View style={[s.iconWrap, sent && s.iconWrapSent]}>
+              <View style={[s.iconWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }, sent && s.iconWrapSent]}>
                 <Ionicons
                   name={sent ? "checkmark-circle" : "lock-open-outline"}
                   size={34}
-                  color={sent ? C.green : C.white}
+                  color={sent ? C.green : theme.text}
                 />
               </View>
             </View>
 
-            <Text style={s.logoWordmark}>
+            <Text style={[s.logoWordmark, { color: theme.text }]}>
               {sent ? "EMAIL\n" : "MOT DE PASSE\n"}
-              <Text style={s.logoWordmarkOutline}>
+              <Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>
                 {sent ? "ENVOYÉ." : "OUBLIÉ ?"}
               </Text>
             </Text>
@@ -183,35 +184,35 @@ export default function ForgotPassword() {
           <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
             {sent ? (
               <>
-                <Text style={s.subtitle}>
+                <Text style={[s.subtitle, { color: theme.textSub }]}>
                   Un email de réinitialisation a été envoyé à{"\n"}
-                  <Text style={s.emailText}>{email.trim().toLowerCase()}</Text>
+                  <Text style={[s.emailText, { color: theme.text }]}>{email.trim().toLowerCase()}</Text>
                 </Text>
 
-                <View style={s.infoCard}>
-                  <Ionicons name="information-circle-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
-                  <Text style={s.infoText}>
+                <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+                  <Ionicons name="information-circle-outline" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
+                  <Text style={[s.infoText, { color: theme.textSub }]}>
                     Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 48 heures.
                   </Text>
                 </View>
               </>
             ) : (
               <>
-                <Text style={s.subtitle}>
+                <Text style={[s.subtitle, { color: theme.textSub }]}>
                   Entrez l'email associé à votre compte. Nous vous enverrons un lien de réinitialisation.
                 </Text>
 
                 <View style={s.form}>
                   <View style={s.field}>
-                    <Text style={s.fieldLabel}>Email</Text>
-                    <View style={[s.inputWrap, focused && s.inputFocused]}>
+                    <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Email</Text>
+                    <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                       <View style={s.inputIcon}>
-                        <Ionicons name="mail-outline" size={15} color={focused ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                        <Ionicons name="mail-outline" size={15} color={focused ? theme.textSub : theme.textMuted} />
                       </View>
                       <TextInput
-                        style={s.input}
+                        style={[s.input, { color: theme.text }]}
                         placeholder="votre@email.com"
-                        placeholderTextColor="rgba(255,255,255,0.2)"
+                        placeholderTextColor={theme.textMuted}
                         autoCapitalize="none"
                         keyboardType="email-address"
                         returnKeyType="done"
@@ -240,31 +241,31 @@ export default function ForgotPassword() {
           <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
             {sent ? (
               <TouchableOpacity
-                style={s.btnPrimary}
+                style={[s.btnPrimary, { backgroundColor: theme.accent }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.back();
                 }}
                 activeOpacity={0.9}
               >
-                <Text style={s.btnPrimaryText}>RETOUR À LA CONNEXION</Text>
-                <View style={s.arrowPill}>
-                  <Ionicons name="arrow-back" size={14} color={C.white} />
+                <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RETOUR À LA CONNEXION</Text>
+                <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                  <Ionicons name="arrow-back" size={14} color={theme.text} />
                 </View>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={[s.btnPrimary, (loading || !email.trim()) && { opacity: 0.55 }]}
+                style={[s.btnPrimary, { backgroundColor: theme.accent }, (loading || !email.trim()) && { opacity: 0.55 }]}
                 onPress={handleSubmit}
                 disabled={loading || !email.trim()}
                 activeOpacity={0.9}
               >
                 {loading
-                  ? <ActivityIndicator size="small" color={C.bg} />
+                  ? <ActivityIndicator size="small" color={theme.accentText} />
                   : <>
-                      <Text style={s.btnPrimaryText}>ENVOYER LE LIEN</Text>
-                      <View style={s.arrowPill}>
-                        <Ionicons name="arrow-forward" size={14} color={C.white} />
+                      <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>ENVOYER LE LIEN</Text>
+                      <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                        <Ionicons name="arrow-forward" size={14} color={theme.text} />
                       </View>
                     </>
                 }
@@ -276,7 +277,7 @@ export default function ForgotPassword() {
               activeOpacity={0.7}
               style={s.secondaryLink}
             >
-              <Text style={s.secondaryLinkText}>Retour à la connexion</Text>
+              <Text style={[s.secondaryLinkText, { color: theme.textMuted }]}>Retour à la connexion</Text>
             </TouchableOpacity>
           </Animated.View>
         </ScrollView>
