@@ -87,7 +87,7 @@ export default function HelpScreen() {
   const theme = useAppTheme();
 
   const openEmail = () => Linking.openURL('mailto:support@fixed.app?subject=Support Fixed');
-  const openWhatsApp = () => Linking.openURL('https://api.whatsapp.com/send?phone=32478061330&text=Bonjour%2C%20j%27ai%20besoin%20d%27aide%20avec%20FIXED.');
+  const openWhatsApp = () => Linking.openURL('https://wa.me/message/SXNKDKILPEFMO1');
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
