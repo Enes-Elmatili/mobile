@@ -347,11 +347,6 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
         <View style={[sc.dot, { backgroundColor: isQuote ? '#C8820A' : '#3D8B3D' }, selected && { backgroundColor: t.text }]} />
         <Text style={[sc.text, { color: t.textSub }, selected && { fontWeight: '700', color: t.text }]}>{label}</Text>
         <View style={sc.right}>
-          <Text style={[sc.priceSmall, { color: t.textMuted }]}>
-            {isQuote
-              ? (priceMin && priceMax ? `${priceMin}–${priceMax} €` : '')
-              : (basePrice ? `${basePrice} €` : '')}
-          </Text>
           <View style={[sc.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)' }]}>
             <Text style={[sc.pillText, { color: isQuote ? '#C8820A' : '#3D8B3D' }]}>{isQuote ? 'Sur devis' : 'Prix fixe'}</Text>
           </View>
@@ -867,6 +862,7 @@ export default function NewRequestStepper() {
             paymentIntentClientSecret: calloutRes.clientSecret,
             applePay:  { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
+            paymentMethodOrder: ['card', 'klarna'],
           });
           if (!error && !cancelled) setPaymentReady(true);
           return;
@@ -915,6 +911,7 @@ export default function NewRequestStepper() {
           customerId:                customer,
           applePay:  { merchantCountryCode: 'BE' },
           googlePay: { merchantCountryCode: 'BE', testEnv: false },
+          paymentMethodOrder: ['card', 'klarna'],
         });
         if (!error && !cancelled) setPaymentReady(true);
       } catch (e: any) {
@@ -1293,18 +1290,6 @@ export default function NewRequestStepper() {
         {step === 3 && (
           <View style={s.flex}>
             <ScrollView style={s.flex} contentContainerStyle={s.step3Pad} showsVerticalScrollIndicator={false}>
-
-              <View style={[s.urgencyRow, { opacity: isUrgent ? 1 : 0.4 }]}>
-                <Ionicons name="alert-circle-outline" size={14} color={COLORS.red} />
-                <Text style={[s.urgencyLabel, { color: isUrgent ? theme.text : theme.textSub, marginLeft: 6, flex: 1 }]}>{t('stepper.urgency_desc')}</Text>
-                <Switch
-                  value={isUrgent}
-                  onValueChange={(v) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsUrgent(v); }}
-                  trackColor={{ false: theme.sep as string, true: COLORS.red }}
-                  thumbColor={isUrgent ? '#FFF' : theme.surface as string}
-                  style={{ transform: [{ scaleX: 0.55 }, { scaleY: 0.55 }], marginRight: -10 }}
-                />
-              </View>
 
               <View style={s.modeGrid}>
                 {/* Maintenant */}

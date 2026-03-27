@@ -1,5 +1,6 @@
 // app/(tabs)/documents.tsx — Client Documents (Glow Up v2)
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   SafeAreaView, ActivityIndicator, RefreshControl, Platform, StatusBar,
@@ -179,7 +180,7 @@ export default function Documents() {
     const now = Date.now();
     if (now - lastFetchRef.current > 15000) {
       lastFetchRef.current = now;
-      load();
+      InteractionManager.runAfterInteractions(() => load());
     }
   }, [load]));
   const onRefresh = () => { setRefreshing(true); load(); };

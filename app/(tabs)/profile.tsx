@@ -15,6 +15,7 @@ import {
   Image,
   StatusBar,
   Dimensions,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -247,6 +248,7 @@ export default function Profile() {
   // ── Chargement consolidé : provider stats + stripe + tickets en 1 seul useEffect ──
   useEffect(() => {
     if (!user?.id) return;
+    const task = InteractionManager.runAfterInteractions(() => {
     const isProvider = user?.roles?.includes('PROVIDER');
 
     const promises: Promise<any>[] = [
@@ -296,6 +298,8 @@ export default function Profile() {
       // Stripe
       setStripeReady(!!(stripeRes?.isStripeReady || stripeRes?.isConnected));
     });
+    });
+    return () => task.cancel();
   }, [user?.id]);
 
   // ── Photo upload ──────────────────────────────────────────────────────────

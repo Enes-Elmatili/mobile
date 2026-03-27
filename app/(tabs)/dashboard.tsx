@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // app/(tabs)/dashboard.tsx
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import { InteractionManager } from 'react-native';
 import {
   View,
   Text,
@@ -645,9 +646,9 @@ export default function Dashboard() {
   const lastFetchRef = useRef(0);
   useFocusEffect(useCallback(() => {
     const now = Date.now();
-    if (now - lastFetchRef.current > 15000) { // 15s cache
+    if (now - lastFetchRef.current > 15000) {
       lastFetchRef.current = now;
-      loadDashboard();
+      InteractionManager.runAfterInteractions(() => loadDashboard());
     }
   }, [loadDashboard]));
   const onRefresh = () => { setRefreshing(true); loadDashboard(); };

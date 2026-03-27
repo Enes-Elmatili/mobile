@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import * as WebBrowser from 'expo-web-browser';
 
 // ── FAQ data ──────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ export default function HelpScreen() {
   const theme = useAppTheme();
 
   const openEmail = () => Linking.openURL('mailto:support@fixed.app?subject=Support Fixed');
-  const openWhatsApp = () => Linking.openURL('https://wa.me/message/SXNKDKILPEFMO1');
+  const openWhatsApp = () => WebBrowser.openBrowserAsync('https://wa.me/message/SXNKDKILPEFMO1');
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
