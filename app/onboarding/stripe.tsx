@@ -90,7 +90,7 @@ export default function OnboardingStripe() {
       showBack={false}
       title={"Compte de\npaiement."}
       subtitle="FIXED utilise Stripe pour virer vos gains directement sur votre compte bancaire, de façon sécurisée et transparente."
-      cta={{ label: loading ? "Chargement..." : "Configurer mon compte Stripe", onPress: handleConfigure, disabled: loading, loading }}
+      cta={{ label: loading ? "Chargement..." : "Configurer Stripe", onPress: handleConfigure, disabled: loading, loading }}
     >
       {/* Hero icon */}
       <View style={s.heroWrap}>

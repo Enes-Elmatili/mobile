@@ -269,10 +269,10 @@ const s = StyleSheet.create({
   },
   btnPrimary: {
     width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 20,
   },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
+    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2, color: C.bg, flexShrink: 1,
   },
   arrowPill: {
     width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
