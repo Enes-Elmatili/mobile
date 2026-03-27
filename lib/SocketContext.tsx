@@ -150,87 +150,6 @@ const ts = StyleSheet.create({
   text: { fontSize: 14, color: '#FFF', fontWeight: '600', flex: 1 },
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// RECONNECTION BANNER
-// ─── Barre discrète animée en haut de l'app lors d'une perte de connexion ─────
-// ═══════════════════════════════════════════════════════════════════════════════
-function ReconnectionBanner({ status }: { status: ConnectionStatus }) {
-  const anim             = useRef(new Animated.Value(0)).current;
-  const prevRef          = useRef<ConnectionStatus>('connected');
-  const disconnectAtRef  = useRef<number | null>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    // 'connecting' = état initial avant première connexion → pas de bannière
-    const showing = status === 'reconnecting' || status === 'disconnected';
-
-    if (showing) {
-      setVisible(true); // mount before animating in
-      if (disconnectAtRef.current === null) disconnectAtRef.current = Date.now();
-    }
-
-    Animated.timing(anim, {
-      toValue:  showing ? 1 : 0,
-      duration: 300,
-      easing:   Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start(() => {
-      if (!showing) {
-        setVisible(false); // unmount after animating out
-      }
-    });
-
-    // Toast discret uniquement si déconnexion > 3s (évite le spam sur micro-coupures)
-    if (prevRef.current === 'reconnecting' && status === 'connected') {
-      const duration = disconnectAtRef.current ? Date.now() - disconnectAtRef.current : 0;
-      if (duration >= 3000) {
-        showSocketToast('Connexion rétablie.', 'success');
-      }
-      disconnectAtRef.current = null;
-    }
-    if (!showing) disconnectAtRef.current = null;
-    prevRef.current = status;
-  }, [status]);
-
-  if (!visible) return null;
-
-  const translateY    = anim.interpolate({ inputRange: [0, 1], outputRange: [-48, 0] });
-  const isReconnecting = status === 'reconnecting';
-
-  return (
-    <Animated.View
-      style={[
-        rb.bar,
-        { opacity: anim, transform: [{ translateY }] },
-        isReconnecting ? rb.reconnecting : rb.disconnected,
-      ]}
-      pointerEvents="none"
-    >
-      <View style={rb.dot} />
-      <Text style={rb.label}>
-        {isReconnecting ? 'Reconnexion en cours…' : 'Connexion perdue'}
-      </Text>
-    </Animated.View>
-  );
-}
-
-const rb = StyleSheet.create({
-  bar: {
-    position:       'absolute',
-    top: 0, left: 0, right: 0,
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'center',
-    paddingTop:     Platform.OS === 'ios' ? 54 : 34,
-    paddingBottom:  10,
-    gap:    8,
-    zIndex: 9998,
-  },
-  reconnecting: { backgroundColor: '#1A1A1A' },
-  disconnected: { backgroundColor: '#4B4B4B' },
-  dot:   { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.7)' },
-  label: { fontSize: 12, fontWeight: '700', color: '#FFF', letterSpacing: 0.2 },
-});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MESSAGE EMITTER
@@ -490,7 +409,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setConnectionStatus('disconnected');
       setIsConnected(false);
-      showSocketToast('Connexion temps réel indisponible', 'error');
     });
 
     newSocket.on('reconnect_attempt', (attempt) => {
@@ -507,7 +425,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     newSocket.on('reconnect_failed', () => {
       devError('❌ Reconnection failed — all attempts exhausted');
       setConnectionStatus('disconnected');
-      showSocketToast('Connexion impossible. Vérifiez votre réseau.', 'error');
     });
 
     // ── PROVIDER EVENTS ───────────────────────────────────────────────────────
@@ -705,9 +622,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <SocketContext.Provider value={contextValue}>
       {children}
-
-      {/* Barre noire animée — visible uniquement si reconnecting/disconnected */}
-      <ReconnectionBanner status={connectionStatus} />
 
       {/* Toasts globaux (paiement, acceptation, erreurs socket…) */}
       <SocketToastLayer />
