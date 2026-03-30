@@ -24,8 +24,8 @@ Notifications.setNotificationHandler({
  * @param userId - ID de l'utilisateur connecté, ou null/undefined si déconnecté
  */
 export function usePushNotifications(userId?: string | null) {
-  const notificationListener = useRef<Notifications.EventSubscription>();
-  const responseListener = useRef<Notifications.EventSubscription>();
+  const notificationListener = useRef<Notifications.EventSubscription>(undefined);
+  const responseListener = useRef<Notifications.EventSubscription>(undefined);
 
   useEffect(() => {
     if (!userId) return; // Pas d'utilisateur connecté → rien à faire

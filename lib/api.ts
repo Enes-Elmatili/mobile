@@ -432,13 +432,6 @@ class ApiClient {
     },
   };
 
-  // ==================== TICKETS ====================
-  tickets = {
-    list: () => this.request('/tickets'),
-    get: (id: string) => this.request(`/tickets/${id}`),
-    create: (data: any) => this.post('/tickets', data),
-  };
-
   // ==================== DOCUMENTS ====================
   documents = {
     list: () => this.request('/documents'),

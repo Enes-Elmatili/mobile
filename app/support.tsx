@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TouchableOpacity, Animated, Easing, Platform,
+  TouchableOpacity, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -138,15 +138,15 @@ export default function SupportScreen() {
       <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
-      <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
+      <View style={[s.header, { backgroundColor: theme.bg }]}>
         <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: theme.surface }]}
+          style={s.backBtn}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={theme.text} />
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Support</Text>
+        <Text style={[s.headerTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>Support</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -232,30 +232,29 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 17 },
+  headerTitle: { fontSize: 22, letterSpacing: 1 },
 
   // Progress indicator
   progressRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 16, paddingHorizontal: 32, gap: 0,
+    paddingVertical: 20, paddingHorizontal: 32,
   },
-  progressLine: { width: 32, height: 2, marginHorizontal: 4 },
-  progressItem: { alignItems: 'center', gap: 4 },
+  progressLine: { width: 40, height: 2, marginHorizontal: 6 },
+  progressItem: { alignItems: 'center', gap: 6 },
   progressDot: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
   },
-  progressDotText: { fontSize: 11 },
-  progressLabel: { fontSize: 10, letterSpacing: 0.3 },
+  progressDotText: { fontSize: 12 },
+  progressLabel: { fontSize: 11, letterSpacing: 0.3 },
 
   // Content area
   content: {
-    flex: 1, paddingHorizontal: 16, paddingTop: 8,
+    flex: 1, paddingHorizontal: 16, paddingTop: 12,
   },
 });

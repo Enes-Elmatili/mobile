@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
+import { devError } from '../../lib/logger';
 import {
   useSocket,
   onIncomingMessage,
@@ -68,7 +69,7 @@ export default function ConversationScreen() {
     api.messages.contactInfo(userId).then((res: any) => {
       const n = res?.data?.name;
       if (n) setContactName(n);
-    }).catch(() => {});
+    }).catch((e: any) => devError('[Chat] contactInfo failed:', e?.message));
   }, [userId, contactName]);
 
   // ── Load conversation ─────────────────────────────────────────────────────

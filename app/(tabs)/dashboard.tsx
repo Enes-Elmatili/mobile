@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // app/(tabs)/dashboard.tsx
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { InteractionManager } from 'react-native';
@@ -10,10 +9,8 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  FlatList,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Platform,
   Dimensions,
   Animated,
@@ -25,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
-import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
@@ -34,8 +31,6 @@ import type { AppTheme } from '@/hooks/use-app-theme';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ============================================================================
 // TYPES
@@ -628,7 +623,7 @@ export default function Dashboard() {
   const bottomSheetRef = useRef<BottomSheet>(null);
 
   const invoiceRequestId = selectedRequest?.status?.toUpperCase() === 'DONE' ? selectedRequest?.id : null;
-  const { invoice, loading: invoiceLoading } = useInvoice(invoiceRequestId ? Number(invoiceRequestId) : null);
+  const { invoice } = useInvoice(invoiceRequestId ? Number(invoiceRequestId) : null);
 
   // ── Data ──
   const loadDashboard = useCallback(async () => {
@@ -716,26 +711,32 @@ export default function Dashboard() {
           });
       }
     };
-    const handleStarted   = (d: any) => { updateRequestStatus(d.id || d.requestId, 'ONGOING'); };
-    const handleCompleted = (d: any) => { updateRequestStatus(d.id || d.requestId, 'DONE');     loadDashboard(); };
-    const handleCancelled = (d: any) => { updateRequestStatus(d.id || d.requestId, 'CANCELLED'); loadDashboard(); };
-    const handleExpired   = (d: any) => { updateRequestStatus(d.id || d.requestId, 'EXPIRED');   loadDashboard(); };
+    const handleStarted       = (d: any) => { updateRequestStatus(d.id || d.requestId, 'ONGOING'); };
+    const handleCompleted     = (d: any) => { updateRequestStatus(d.id || d.requestId, 'DONE');      loadDashboard(); };
+    const handleCancelled     = (d: any) => { updateRequestStatus(d.id || d.requestId, 'CANCELLED'); loadDashboard(); };
+    const handleExpired       = (d: any) => { updateRequestStatus(d.id || d.requestId, 'EXPIRED');   loadDashboard(); };
+    const handlePublished     = (d: any) => { updateRequestStatus(d.requestId, 'PUBLISHED'); };
+    const handleStatusUpdated = (d: any) => { updateRequestStatus(d.requestId, d.status);   loadDashboard(); };
 
-    socket.on('request:accepted',  handleAccepted);
-    socket.on('request:started',   handleStarted);
-    socket.on('request:completed', handleCompleted);
-    socket.on('request:cancelled', handleCancelled);
-    socket.on('request:expired',   handleExpired);
-    socket.on('provider:accepted', handleAccepted);
+    socket.on('request:accepted',      handleAccepted);
+    socket.on('request:started',       handleStarted);
+    socket.on('request:completed',     handleCompleted);
+    socket.on('request:cancelled',     handleCancelled);
+    socket.on('request:expired',       handleExpired);
+    socket.on('request:published',     handlePublished);
+    socket.on('request:statusUpdated', handleStatusUpdated);
+    socket.on('provider:accepted',     handleAccepted);
 
     return () => {
       leaveRoom('user', user.id);
-      socket.off('request:accepted',  handleAccepted);
-      socket.off('request:started',   handleStarted);
-      socket.off('request:completed', handleCompleted);
-      socket.off('request:cancelled', handleCancelled);
-      socket.off('request:expired',   handleExpired);
-      socket.off('provider:accepted', handleAccepted);
+      socket.off('request:accepted',      handleAccepted);
+      socket.off('request:started',       handleStarted);
+      socket.off('request:completed',     handleCompleted);
+      socket.off('request:cancelled',     handleCancelled);
+      socket.off('request:expired',       handleExpired);
+      socket.off('request:published',     handlePublished);
+      socket.off('request:statusUpdated', handleStatusUpdated);
+      socket.off('provider:accepted',     handleAccepted);
     };
   }, [socket, user?.id, router, loadDashboard, navigateToMissionView, joinRoom, leaveRoom]);
 

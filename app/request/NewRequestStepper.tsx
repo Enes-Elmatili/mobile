@@ -17,7 +17,6 @@ import {
   Platform,
   StatusBar,
   KeyboardAvoidingView,
-  Switch,
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -560,7 +559,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
         <Pressable onPress={() => {}}>
-          <View style={[dim.sheet, { backgroundColor: theme.cardBg, borderRadius: 24 }]}>
+          <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24 }]}>
 
             {/* Header */}
             <View style={dim.header}>
@@ -577,7 +576,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
               </Text>
             </View>
 
-            <View style={[dim.divider, { backgroundColor: theme.borderLight }]} />
+            <View style={[dim.divider, { backgroundColor: theme.sep }]} />
 
             {/* Steps */}
             <View style={dim.steps}>
@@ -587,11 +586,11 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
                   <View style={dim.stepLeft}>
                     <View style={[dim.numCircle, {
                       backgroundColor: i === 0 ? 'rgba(200,130,10,0.2)' : theme.surface,
-                      borderColor:     i === 0 ? 'rgba(200,130,10,0.5)' : theme.borderLight,
+                      borderColor:     i === 0 ? 'rgba(200,130,10,0.5)' : theme.sep,
                     }]}>
                       <Text style={[dim.numText, { color: i === 0 ? '#C8820A' : theme.textSub }]}>{item.num}</Text>
                     </View>
-                    {i < steps.length - 1 && <View style={[dim.connector, { backgroundColor: theme.borderLight }]} />}
+                    {i < steps.length - 1 && <View style={[dim.connector, { backgroundColor: theme.sep }]} />}
                   </View>
                   {/* Contenu */}
                   <View style={[dim.stepContent, i < steps.length - 1 && { paddingBottom: 24 }]}>
@@ -1635,7 +1634,7 @@ const s = StyleSheet.create({
   pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
-  v4Body:       { flex: 1, paddingTop: 12 },
+  v4Body:       { flex: 1, justifyContent: 'center' },
   v4Card:       { borderRadius: 18, overflow: 'hidden', marginBottom: 12, marginHorizontal: 16 },
   v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
   v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },

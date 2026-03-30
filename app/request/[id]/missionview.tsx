@@ -486,7 +486,7 @@ const pm = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function MissionView() {
   const router = useRouter();
-  const params = useLocalSearchParams<MissionParams>();
+  const params = useLocalSearchParams<Record<string, string>>();
   const id = params.id;
   const serviceName = params.serviceName;
   const address = params.address;

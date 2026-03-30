@@ -25,7 +25,7 @@ function timeAgo(dateStr: string): string {
 }
 
 // ─── Icône selon le type ──────────────────────────────────────────────────────
-function notifIcon(type: string): string {
+function notifIcon(type: string): keyof typeof Ionicons.glyphMap {
   switch (type) {
     case 'success': return 'checkmark-circle';
     case 'warning': return 'warning';

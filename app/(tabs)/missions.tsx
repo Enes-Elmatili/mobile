@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // app/(tabs)/missions.tsx — Provider Mission Hub
 // --- Design FIXED : Dark mode support, FONTS/COLORS from design system ---
 
@@ -6,7 +5,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, SafeAreaView,
-  Animated, Easing, Dimensions, Linking, Platform,
+  Animated, Dimensions, Linking, Platform,
   TextInput, ScrollView, Modal, Pressable, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,7 +16,7 @@ import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
 import { useCall } from '@/lib/webrtc/CallContext';
 import * as Haptics from 'expo-haptics';
@@ -136,11 +135,6 @@ function formatScheduledDate(iso: string): { day: string; time: string; relative
 
 const formatEuros = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
-
-const formatShortDate = (d?: string) => {
-  if (!d) return null;
-  return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-};
 
 const formatTime = (d?: string) => {
   if (!d) return null;
@@ -821,6 +815,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   mission: Mission; onNavigate: () => void; onComplete: () => void; onViewFull: () => void;
 }) {
   const t = useAppTheme();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { initiateCall } = useCall();
   const TAB_BAR_H = Platform.OS === 'ios' ? 70 : 54;
@@ -828,7 +823,6 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const net         = mission.price * NET_RATE;
   const canComplete = mission.status === 'ONGOING';
   const canNavigate = !!(cfg.active) && !!(mission.lat || mission.location?.lat);
-  const isDone      = mission.status === 'DONE';
   const address     = mission.location?.address || mission.address || '';
   const lat         = mission.lat || mission.location?.lat;
   const lng         = mission.lng || mission.location?.lng;
@@ -1115,7 +1109,7 @@ export default function Missions() {
   const [loadingDetails,  setLoadingDetails]  = useState(false);
   const [tab,             setTab]             = useState<Tab>('opportunities');
   const [historyFilter,   setHistoryFilter]   = useState<string>('all');
-  const [completing,      setCompleting]      = useState<string | null>(null);
+  const [, setCompleting] = useState<string | null>(null);
   const [searchQuery,     setSearchQuery]     = useState('');
   const [searchActive,    setSearchActive]    = useState(false);
   const [selectedDay,     setSelectedDay]     = useState<string | null>(null);

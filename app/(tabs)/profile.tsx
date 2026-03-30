@@ -533,11 +533,11 @@ export default function Profile() {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Hero Card — dark premium */}
-        <View style={s.heroCard}>
+        <View style={[s.heroCard, { backgroundColor: theme.heroBg }]}>
           <View style={s.heroTop}>
             <ProviderAvatar name={displayName} size={60} avatarUri={avatarUri} onPickPhoto={handlePickPhoto} />
             <View style={s.heroIdentity}>
-              <Text style={s.heroName}>{displayName.toUpperCase()}</Text>
+              <Text style={[s.heroName, { color: theme.heroText }]}>{displayName.toUpperCase()}</Text>
               <Text style={s.heroEmail}>{email}</Text>
               <View style={s.heroBadges}>
                 <View style={s.roleBadge}>
@@ -572,8 +572,8 @@ export default function Profile() {
               <Text style={s.stripLabel}>Adresse</Text>
             </View>
             <View style={s.stripItem}>
-              <View style={[s.stripIcon, s.stripIconGreen]}><Ionicons name="shield-outline" size={13} color="#5DC45D" /></View>
-              <Text style={[s.stripValue, { color: '#5DC45D' }]}>Actif</Text>
+              <View style={[s.stripIcon, s.stripIconGreen]}><Ionicons name="shield-outline" size={13} color={COLORS.green} /></View>
+              <Text style={[s.stripValue, { color: COLORS.green }]}>Actif</Text>
               <Text style={s.stripLabel}>Statut</Text>
             </View>
           </View>
@@ -589,7 +589,7 @@ export default function Profile() {
             <View style={tk.header}>
               <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>Support</Text>
               <TouchableOpacity onPress={() => router.push('/support')} activeOpacity={0.6}>
-                <Text style={tk.newTicket}>Nouveau ticket</Text>
+                <Text style={[tk.newTicket, { color: theme.textMuted }]}>Nouveau ticket</Text>
               </TouchableOpacity>
             </View>
 
@@ -607,23 +607,23 @@ export default function Profile() {
                       onPress={() => router.push({ pathname: '/support', params: { ticketId: ticket.id } })}
                       activeOpacity={0.7}
                     >
-                      <View style={[tk.dot, { backgroundColor: isOpen ? '#E8783A' : '#D0D0CE' }]} />
+                      <View style={[tk.dot, { backgroundColor: isOpen ? COLORS.amber : theme.textDisabled }]} />
                       <View style={tk.info}>
                         <Text style={[tk.title, { color: theme.text }]} numberOfLines={1}>{ticket.title}</Text>
                         <Text style={[tk.meta, { color: theme.textMuted }]}>
                           {ticket.requestId ? `Mission #${ticket.requestId} · ` : ''}{date}
                         </Text>
                       </View>
-                      <View style={pillStyle}>
-                        <Text style={[tk.pillText, ticket.status === 'CLOSED' ? { color: '#9A9A9A' } : { color: '#E8783A' }]}>{statusLabel}</Text>
+                      <View style={[pillStyle, ticket.status === 'CLOSED' && { backgroundColor: theme.surface }]}>
+                        <Text style={[tk.pillText, { color: ticket.status === 'CLOSED' ? theme.textMuted : COLORS.amber }]}>{statusLabel}</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={12} color={theme.textDisabled} />
                     </TouchableOpacity>
                   );
                 })}
                 <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/support')} activeOpacity={0.6}>
-                  <Text style={tk.viewAllText}>Voir tous les tickets</Text>
-                  <Ionicons name="chevron-forward" size={11} color="#999" />
+                  <Text style={[tk.viewAllText, { color: theme.textMuted }]}>Voir tous les tickets</Text>
+                  <Ionicons name="chevron-forward" size={11} color={theme.textMuted} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -941,7 +941,6 @@ const s = StyleSheet.create({
 
   // Hero card — dark premium
   heroCard: {
-    backgroundColor: '#0A0A0A',
     borderRadius: 24,
     paddingHorizontal: 20, paddingTop: 22,
     marginBottom: 28,
@@ -954,7 +953,7 @@ const s = StyleSheet.create({
   heroIdentity: { flex: 1, paddingTop: 2 },
   heroName: {
     fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.8,
-    color: '#FFFFFF', lineHeight: 22, marginBottom: 5,
+    lineHeight: 22, marginBottom: 5,
   },
   heroEmail: {
     fontFamily: FONTS.sans, fontSize: 11,
@@ -979,7 +978,7 @@ const s = StyleSheet.create({
   },
   verifiedBadgeText: {
     fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 1,
-    textTransform: 'uppercase', color: '#5DC45D',
+    textTransform: 'uppercase', color: COLORS.green,
   },
 
   // Strip stats
@@ -1045,7 +1044,7 @@ const tk = StyleSheet.create({
   },
   newTicket: {
     fontSize: 10, fontFamily: FONTS.sansMedium,
-    letterSpacing: 0.4, color: '#BBBBBB',
+    letterSpacing: 0.4,
   },
   card: {
     borderRadius: 18, overflow: 'hidden', borderWidth: 1.5,
@@ -1059,11 +1058,10 @@ const tk = StyleSheet.create({
   title: { fontSize: 13, fontFamily: FONTS.sansMedium, marginBottom: 2 },
   meta: { fontSize: 11, fontFamily: FONTS.sans },
   pillOrange: {
-    backgroundColor: 'rgba(232,120,58,0.1)',
+    backgroundColor: 'rgba(245,158,11,0.12)',
     borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
   },
   pillGray: {
-    backgroundColor: '#E4E4E2',
     borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
   },
   pillText: {
@@ -1075,7 +1073,7 @@ const tk = StyleSheet.create({
     gap: 5, paddingVertical: 12, borderTopWidth: 1,
   },
   viewAllText: {
-    fontSize: 11, fontFamily: FONTS.sansMedium, color: '#999', letterSpacing: 0.4,
+    fontSize: 11, fontFamily: FONTS.sansMedium, letterSpacing: 0.4,
   },
   empty: {
     borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 16,
