@@ -3,10 +3,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   Animated, Easing, Platform, Dimensions, StatusBar,
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -15,8 +16,9 @@ import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
-import { devError } from '@/lib/logger';
+import { devLog, devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { PulseDot } from '@/components/ui/PulseDot';
 
 const { width, height } = Dimensions.get('window');
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
@@ -619,7 +621,7 @@ export default function MissionView() {
 
     // Fix PIN : set directement depuis la réponse REST (évite race condition socket)
     const resolvedPin = requestData.pinCode || null;
-    if (__DEV__) console.log('[MissionView] transitionToTracking — pinCode:', resolvedPin, 'pinVerified:', requestData.pinVerified);
+    devLog('[MissionView] transitionToTracking — pinCode:', resolvedPin, 'pinVerified:', requestData.pinVerified);
     if (resolvedPin) {
       setPinCode(resolvedPin);
     }
@@ -629,7 +631,7 @@ export default function MissionView() {
 
     // Fix : setPhase AVANT l'animation pour que la PIN card s'affiche immédiatement
     setPhase('TRACKING');
-    if (__DEV__) console.log('[MissionView] phase → TRACKING, pinCode:', resolvedPin);
+    devLog('[MissionView] phase → TRACKING, pinCode:', resolvedPin);
     Animated.timing(phaseAnim, {
       toValue: 1,
       duration: 600,
@@ -666,12 +668,21 @@ export default function MissionView() {
       try {
         const res = await api.get(`/requests/${id}`);
         const data = res?.data || res;
-        if (__DEV__) console.log('[MissionView] poll data keys:', Object.keys(data || {}), 'pinCode:', data?.pinCode, 'status:', data?.status);
+        devLog('[MissionView] poll data keys:', Object.keys(data || {}), 'pinCode:', data?.pinCode, 'status:', data?.status);
         const status = (data?.status || '').toUpperCase();
         if (status === 'ACCEPTED' || status === 'ONGOING') {
           // Stop polling before transitioning
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           transitionToTracking(data);
+        } else if (status === 'QUOTE_SENT') {
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          router.replace({ pathname: '/request/[id]/quote-review', params: { id: String(id) } });
+        } else if (status === 'QUOTE_REFUSED' || status === 'QUOTE_EXPIRED') {
+          // Quote refused/expired — stop polling, redirect to dashboard
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+          router.replace('/(tabs)/dashboard');
         } else if (['CANCELLED', 'EXPIRED', 'COMPLETED', 'DONE'].includes(status)) {
           // Stop polling on terminal statuses
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -711,11 +722,13 @@ export default function MissionView() {
   // ─── Navigation automatique vers page PIN ─────────────────────────────────
   // S'affiche seulement quand le prestataire est arrivé (before_photo) ET que le PIN est dispo
   useEffect(() => {
-    if (__DEV__) console.log('[MissionView] PIN nav check — phase:', phase, 'pinCode:', pinCode, 'pinVerified:', pinVerified, 'providerArrived:', providerArrived, 'alreadyNav:', hasNavigatedToPinRef.current);
-    if (phase !== 'TRACKING' || !pinCode || pinVerified || !providerArrived) return;
+    // Guard FIRST — ref check before any log to avoid noise
     if (hasNavigatedToPinRef.current) return;
+    if (phase !== 'TRACKING' || !pinCode || pinVerified || !providerArrived) return;
+
+    // Set ref synchronously BEFORE the async push to prevent concurrent effect runs
     hasNavigatedToPinRef.current = true;
-    if (__DEV__) console.log('[MissionView] → Navigating to PIN page');
+    devLog('[MissionView] → Navigating to PIN page');
     router.push({
       pathname: '/request/[id]/pin',
       params: {
@@ -759,6 +772,24 @@ export default function MissionView() {
         setRequest((p: any) => p ? { ...p, status: 'ONGOING' } : p);
     };
 
+    const onStatusUpdated = (data: any) => {
+      if (String(data.requestId) !== String(id)) return;
+      const st = data.status?.toUpperCase();
+      if (st === 'QUOTE_SENT') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        router.replace({ pathname: '/request/[id]/quote-review', params: { id: String(id) } });
+      } else if (st === 'QUOTE_REFUSED' || st === 'QUOTE_EXPIRED') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        router.replace('/(tabs)/dashboard');
+      } else if (st === 'ONGOING') {
+        // Quote accepted and paid — reload request data for tracking
+        api.get(`/requests/${id}`).then((res: any) => {
+          const d = res?.data || res;
+          if (d) transitionToTracking(d);
+        }).catch(() => {});
+      }
+    };
+
     const onCompleted = (data: any) => {
       if (String(data.requestId) === String(id)) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -794,6 +825,7 @@ export default function MissionView() {
     const onPinVerified = (data: any) => {
       if (String(data.requestId) === String(id)) {
         setPinVerified(true);
+        showToast('Code PIN vérifié — mission en cours', 'success');
       }
     };
 
@@ -804,6 +836,7 @@ export default function MissionView() {
     socket.on('mission:pin_ready', onPinReady);
     socket.on('mission:before_photo', onBeforePhoto);
     socket.on('mission:pin_verified', onPinVerified);
+    socket.on('request:statusUpdated', onStatusUpdated);
     return () => {
       leaveRoom('request', id);
       socket.off('provider:location_update', onLocation);
@@ -813,6 +846,7 @@ export default function MissionView() {
       socket.off('mission:pin_ready', onPinReady);
       socket.off('mission:before_photo', onBeforePhoto);
       socket.off('mission:pin_verified', onPinVerified);
+      socket.off('request:statusUpdated', onStatusUpdated);
     };
   }, [socket, id, fetchETA, joinRoom, leaveRoom]);
 
@@ -1079,7 +1113,7 @@ export default function MissionView() {
 
             {/* Badge statut */}
             <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, status === 'ONGOING' && { backgroundColor: theme.surface }]} accessibilityLabel={status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')} accessibilityRole="text">
-              <View style={[s.statusDot, { backgroundColor: theme.accent }]} />
+              <PulseDot size={8} />
               <Text style={[s.statusText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                 {status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')}
               </Text>
@@ -1152,13 +1186,6 @@ export default function MissionView() {
             {/* Divider */}
             <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
-            {/* PIN vérifié — petit banner de confirmation */}
-            {pinVerified && (
-              <View style={[s.pinVerifiedBanner, { backgroundColor: theme.isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4', borderColor: theme.isDark ? 'rgba(34,197,94,0.2)' : '#BBF7D0' }]}>
-                <Ionicons name="checkmark-circle" size={18} color={COLORS.green} />
-                <Text style={[s.pinVerifiedText, { color: theme.isDark ? COLORS.green : '#15803D', fontFamily: FONTS.sansMedium }]}>Code PIN vérifié — mission en cours</Text>
-              </View>
-            )}
 
             {/* Bouton conversation */}
             <TouchableOpacity
@@ -1186,13 +1213,6 @@ export default function MissionView() {
               </TouchableOpacity>
             )}
 
-            {/* Banner ONGOING */}
-            {status === 'ONGOING' && (
-              <View style={[s.ongoingBanner, { backgroundColor: theme.surface }]}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.text} />
-                <Text style={[s.ongoingText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('mission_view.provider_on_site')}</Text>
-              </View>
-            )}
           </Animated.View>
         </>
       )}
@@ -1319,7 +1339,6 @@ const s = StyleSheet.create({
       android: { elevation: 4 },
     }),
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 13 },
 
   trackingSheet: {

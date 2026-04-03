@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { PulseDot } from '@/components/ui/PulseDot';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -181,7 +182,11 @@ export default function ProviderDetailScreen() {
         <View style={[s.identity, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
           <View style={[s.avatarWrap, { backgroundColor: theme.heroBg }]}>
             <Text style={[s.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{initials}</Text>
-            {isOnline && <View style={[s.onlineDot, { borderColor: theme.cardBg }]} />}
+            {isOnline && (
+              <View style={[s.onlineDotWrap, { borderColor: theme.cardBg }]}>
+                <PulseDot size={10} />
+              </View>
+            )}
           </View>
           <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
           {provider.city ? (
@@ -215,7 +220,7 @@ export default function ProviderDetailScreen() {
           </View>
           <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />
           <View style={s.stat}>
-            <View style={[s.statusDot, { backgroundColor: theme.textDisabled }, isOnline && { backgroundColor: COLORS.green }]} />
+            {isOnline ? <PulseDot size={8} /> : <View style={[s.statusDot, { backgroundColor: theme.textDisabled }]} />}
             <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
               {isOnline ? t('providers.online') : t('providers.offline')}
             </Text>
@@ -311,10 +316,11 @@ const s = StyleSheet.create({
     position: 'relative',
   },
   avatarText: { fontSize: 30, letterSpacing: 1 },
-  onlineDot: {
+  onlineDotWrap: {
     position: 'absolute', bottom: 4, right: 4,
     width: 16, height: 16, borderRadius: 8,
-    backgroundColor: COLORS.green,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'transparent',
     borderWidth: 2.5,
   },
   name: { fontSize: 26, marginTop: 4 },

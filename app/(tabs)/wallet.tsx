@@ -1,6 +1,6 @@
 // app/(tabs)/wallet.tsx — Onglet Gains (Provider)
 // Solde · filtres · historique consolide par mission
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   FlatList, ActivityIndicator,
@@ -17,7 +17,7 @@ import { devError } from '@/lib/logger';
 // --- Formatage ---
 const fromCents = (n: number) => n / 100;
 const fmtEur = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtTime = (d: string) =>
@@ -122,7 +122,7 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
     released: { icon: 'checkmark-circle-outline' as const, iconColor: COLORS.green, badge: 'Libéré', badgeColor: COLORS.green, sign: '+' },
     credit:   { icon: 'arrow-down-outline' as const,       iconColor: COLORS.green, badge: 'Reçu',   badgeColor: COLORS.green, sign: '+' },
     pending:  { icon: 'time-outline' as const,             iconColor: COLORS.amber, badge: 'En validation', badgeColor: COLORS.amber, sign: '' },
-    debit:    { icon: 'arrow-up-outline' as const,         iconColor: COLORS.red, badge: 'Débité', badgeColor: COLORS.red, sign: '\u2212' },
+    debit:    { icon: 'arrow-up-outline' as const,         iconColor: COLORS.red, badge: 'Débité', badgeColor: COLORS.red, sign: '−' },
   }[item.status];
 
   const isGain = item.status === 'released' || item.status === 'credit';
@@ -162,7 +162,7 @@ function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
         {item.destination ? <Text style={[styles.txDate, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
       </View>
       <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: COLORS.red }]}>\u2212{fmtEur(fromCents(item.amount))}</Text>
+        <Text style={[styles.txAmount, { color: COLORS.red }]}>−{fmtEur(fromCents(item.amount))}</Text>
         <View style={[styles.txBadge, { backgroundColor: st.color + '18' }]}>
           <Text style={[styles.txBadgeText, { color: st.color }]}>{st.label}</Text>
         </View>
@@ -222,8 +222,15 @@ export default function WalletTab() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const lastWalletFetch = useRef(0);
+  useFocusEffect(useCallback(() => {
+    const now = Date.now();
+    if (now - lastWalletFetch.current > 60_000) { // 60s cache between focus
+      lastWalletFetch.current = now;
+      load();
+    }
+  }, [load]));
+  const onRefresh = () => { lastWalletFetch.current = 0; setRefreshing(true); load(); };
 
   const handleOpenStripeDashboard = useCallback(async () => {
     setStripeLoading(true);
@@ -364,9 +371,9 @@ export default function WalletTab() {
           )}
         </View>
 
-        {/* Total gagne */}
+        {/* Total gagné */}
         <View style={[styles.heroTotalRow, { borderTopColor: 'rgba(255,255,255,0.12)' }]}>
-          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>Total gagne</Text>
+          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>Total gagné</Text>
           <Text style={[styles.heroTotalValue, { color: t.heroText }]}>{fmtEur(fromCents(totalEarnings))}</Text>
         </View>
 
@@ -390,7 +397,7 @@ export default function WalletTab() {
           : <>
               <Ionicons name="card-outline" size={15} color={t.accent} />
               <Text style={[styles.stripeLinkText, { color: t.text }]}>
-                {stripeReady ? 'Gerer mes paiements' : 'Configurer Stripe'}
+                {stripeReady ? 'Gérer mes paiements' : 'Configurer Stripe'}
               </Text>
               <Ionicons name="chevron-forward" size={13} color={t.textVeryMuted} />
             </>

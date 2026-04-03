@@ -76,7 +76,8 @@ const DARK_MAP_STYLE = [
 
 type MissionStatus =
   | 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE'
-  | 'CANCELLED' | 'PENDING_PAYMENT' | 'EXPIRED';
+  | 'CANCELLED' | 'PENDING_PAYMENT' | 'EXPIRED'
+  | 'QUOTE_PENDING' | 'QUOTE_SENT' | 'QUOTE_ACCEPTED';
 
 type Mission = {
   id: string;
@@ -134,7 +135,7 @@ function formatScheduledDate(iso: string): { day: string; time: string; relative
 // ============================================================================
 
 const formatEuros = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const formatTime = (d?: string) => {
   if (!d) return null;
@@ -152,13 +153,16 @@ const isSameDay = (a: Date, b: Date) =>
   a.getDate()     === b.getDate();
 
 const STATUS_CFG: Record<MissionStatus, { label: string; icon: string; active?: boolean; done?: boolean }> = {
-  PUBLISHED:       { label: 'Publie',    icon: 'radio-outline',            active: true },
-  ACCEPTED:        { label: 'Confirme',  icon: 'checkmark-circle-outline', active: true },
-  ONGOING:         { label: 'En cours',  icon: 'flash-outline',            active: true },
-  DONE:            { label: 'Terminé',   icon: 'checkmark-done-outline',   done: true },
-  CANCELLED:       { label: 'Annulé',    icon: 'close-circle-outline' },
-  PENDING_PAYMENT: { label: 'Paiement',  icon: 'card-outline' },
-  EXPIRED:         { label: 'Expiré',    icon: 'time-outline' },
+  PUBLISHED:       { label: 'Publie',            icon: 'radio-outline',            active: true },
+  ACCEPTED:        { label: 'Confirme',          icon: 'checkmark-circle-outline', active: true },
+  ONGOING:         { label: 'En cours',          icon: 'flash-outline',            active: true },
+  DONE:            { label: 'Terminé',           icon: 'checkmark-done-outline',   done: true },
+  CANCELLED:       { label: 'Annulé',            icon: 'close-circle-outline' },
+  PENDING_PAYMENT: { label: 'Paiement',          icon: 'card-outline' },
+  EXPIRED:         { label: 'Expiré',            icon: 'time-outline' },
+  QUOTE_PENDING:   { label: 'Devis à envoyer',   icon: 'document-text-outline',    active: true },
+  QUOTE_SENT:      { label: 'Devis envoyé',      icon: 'checkmark-circle-outline' },
+  QUOTE_ACCEPTED:  { label: 'Devis accepté',     icon: 'checkmark-done-outline',   active: true },
 };
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -181,7 +185,7 @@ const getServiceIcon = (type?: string): string => {
   return match ? SERVICE_ICONS[match] : 'construct-outline';
 };
 
-const UPCOMING_STATUSES: MissionStatus[] = ['PUBLISHED', 'ACCEPTED', 'ONGOING', 'PENDING_PAYMENT'];
+const UPCOMING_STATUSES: MissionStatus[] = ['PUBLISHED', 'ACCEPTED', 'ONGOING', 'PENDING_PAYMENT', 'QUOTE_PENDING', 'QUOTE_SENT'];
 const HISTORY_STATUSES:  MissionStatus[] = ['DONE', 'CANCELLED', 'EXPIRED'];
 
 // ============================================================================
@@ -492,7 +496,6 @@ const mc = StyleSheet.create({
   timeCol:       { width: 56, alignItems: 'center', paddingTop: 16, paddingBottom: 12, gap: 4 },
   timeText:      { fontSize: 12, fontFamily: FONTS.mono },
   timeLine:      { flex: 1, width: 2, borderRadius: 1 },
-  timeDot:       { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
 
   body:   { flex: 1, paddingRight: 14, paddingTop: 14, paddingBottom: 12 },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
@@ -830,8 +833,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const createdAt   = mission.createdAt  ? new Date(mission.createdAt)  : null;
   const scheduledAt = mission.scheduledAt ? new Date(mission.scheduledAt) : null;
 
-  const fmtT = (d: Date | null) => d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '\u2014';
-  const fmtD = (d: Date | null) => d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '\u2014';
+  const fmtT = (d: Date | null) => d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmtD = (d: Date | null) => d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '—';
 
   const badgeBg    = cfg.done ? t.surface : cfg.active ? t.accent : t.surface;
   const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
@@ -900,7 +903,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             {mission.price > 0 ? (
               <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(mission.price)}</Text>
             ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>\u2014</Text>
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>—</Text>
             )}
           </View>
         </View>
@@ -1023,18 +1026,36 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
 
       </View>
         {/* -- CTA -- */}
-        {(canNavigate || canComplete) && (
+        {mission.status === 'QUOTE_PENDING' && (
           <View style={sd.actionsBlock}>
-            {canNavigate && (
-              <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onNavigate} activeOpacity={0.85}>
-                <Ionicons name="navigate" size={18} color={t.accentText} />
-                <Text style={[sd.navBtnText, { color: t.accentText }]}>S'y rendre (GPS)</Text>
-              </TouchableOpacity>
-            )}
-            {canComplete && (
-              <TouchableOpacity style={[sd.completeBtn, { backgroundColor: t.accent }]} onPress={onComplete} activeOpacity={0.85}>
-                <Ionicons name="checkmark-circle" size={18} color={t.accentText} />
-                <Text style={[sd.completeBtnText, { color: t.accentText }]}>Terminer la mission</Text>
+            <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+              <Ionicons name="document-text-outline" size={18} color={t.accentText} />
+              <Text style={[sd.navBtnText, { color: t.accentText }]}>Envoyer un devis</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {mission.status === 'QUOTE_SENT' && (
+          <View style={[sd.actionsBlock, { opacity: 0.6 }]}>
+            <View style={[sd.navBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]}>
+              <Ionicons name="time-outline" size={18} color={t.textMuted} />
+              <Text style={[sd.navBtnText, { color: t.textMuted }]}>En attente de réponse du client</Text>
+            </View>
+          </View>
+        )}
+        {mission.status === 'QUOTE_ACCEPTED' && (
+          <View style={sd.actionsBlock}>
+            <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+              <Ionicons name="arrow-forward" size={18} color={t.accentText} />
+              <Text style={[sd.navBtnText, { color: t.accentText }]}>Commencer la mission</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {(canNavigate || canComplete || cfg.active) && !['QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(mission.status) && (
+          <View style={sd.actionsBlock}>
+            {cfg.active && (
+              <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+                <Ionicons name="arrow-forward" size={18} color={t.accentText} />
+                <Text style={[sd.navBtnText, { color: t.accentText }]}>Reprendre la mission</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1186,13 +1207,18 @@ export default function Missions() {
     }
   }, [loadMissions]);
 
-  // Real-time socket listener for new opportunities
+  // Real-time socket listener for new opportunities + quote status updates
   useEffect(() => {
     if (!socket) return;
-    const handler = () => { fetchOpportunities(); };
-    socket.on('new_opportunity', handler);
-    return () => { socket.off('new_opportunity', handler); };
-  }, [socket, fetchOpportunities]);
+    const handleOpp = () => { fetchOpportunities(); };
+    const handleStatus = () => { loadMissions(); };
+    socket.on('new_opportunity', handleOpp);
+    socket.on('request:statusUpdated', handleStatus);
+    return () => {
+      socket.off('new_opportunity', handleOpp);
+      socket.off('request:statusUpdated', handleStatus);
+    };
+  }, [socket, fetchOpportunities, loadMissions]);
 
   useEffect(() => { loadMissions(); fetchOpportunities(); }, [loadMissions, fetchOpportunities]);
   const onRefresh = () => { setRefreshing(true); loadMissions(); fetchOpportunities(); };
@@ -1340,14 +1366,24 @@ export default function Missions() {
     ), []
   );
 
-  const renderMission = useCallback(({ item }: { item: Mission }) => (
-    <MissionCard
-      mission={item}
-      onPress={() => handleMissionPress(item.id)}
-      onNavigate={() => handleNavigate(item)}
-      onComplete={() => handleComplete(item)}
-    />
-  ), [handleComplete]);
+  const renderMission = useCallback(({ item }: { item: Mission }) => {
+    const cfg = STATUS_CFG[item.status] ?? STATUS_CFG.PUBLISHED;
+    const isActive = cfg.active ?? false;
+    return (
+      <MissionCard
+        mission={item}
+        onPress={() => {
+          if (isActive) {
+            router.push({ pathname: '/request/[id]/ongoing', params: { id: item.id } });
+          } else {
+            handleMissionPress(item.id);
+          }
+        }}
+        onNavigate={() => handleNavigate(item)}
+        onComplete={() => handleComplete(item)}
+      />
+    );
+  }, [handleComplete, router]);
 
   if (loading) {
     return (
@@ -1491,7 +1527,14 @@ export default function Missions() {
             }}
             onViewFull={() => {
               bottomSheetRef.current?.close();
-              router.push({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
+              const st = selectedMission.status?.toUpperCase();
+              if (st === 'QUOTE_PENDING') {
+                router.push({ pathname: '/request/[id]/send-quote', params: { id: selectedMission.id } });
+              } else if (st === 'QUOTE_ACCEPTED') {
+                router.push({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
+              } else {
+                router.push({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
+              }
             }}
           />
         ) : null}

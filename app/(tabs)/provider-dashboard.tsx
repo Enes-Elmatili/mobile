@@ -25,6 +25,8 @@ import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { PulseDot } from '@/components/ui/PulseDot';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devWarn } from '@/lib/logger';
 
 const TIMER_DURATION = 15;
@@ -80,7 +82,7 @@ const DARK_MAP_STYLE = [
 // ============================================================================
 
 const formatEuros = (cents: number): string =>
-  (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
+  (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 // ============================================================================
 // TYPES
@@ -112,6 +114,8 @@ interface IncomingRequest {
   client: { name: string };
   latitude?: number;
   longitude?: number;
+  isQuote?: boolean;
+  pricingMode?: string;
 }
 
 // ============================================================================
@@ -184,12 +188,27 @@ function IncomingJobCard({
 }) {
   const { t } = useTranslation();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const slideUp   = useRef(new Animated.Value(400)).current;
   const timerAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const arrowAnim = useRef(new Animated.Value(0)).current;
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
 
   useEffect(() => {
     Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 12, useNativeDriver: true }).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.03, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(arrowAnim, { toValue: 4, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(arrowAnim, { toValue: 0, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
 
   useEffect(() => {
@@ -203,78 +222,91 @@ function IncomingJobCard({
     return () => clearInterval(interval);
   }, []);
 
-  const netPrice      = Math.round(request.price * 0.85);
-  const timerBarColor = timerAnim.interpolate({
-    inputRange: [0, 0.33, 1],
-    outputRange: [COLORS.red, theme.textMuted, theme.text],
-  });
-  const countdownColor = timeLeft <= 5 ? COLORS.red : timeLeft <= 10 ? COLORS.amber : theme.text;
+  const netPrice = Math.round(request.price * 0.85);
+  const isQuote = request.isQuote;
+  const etaMin = request.distance !== undefined ? Math.round(request.distance * 3) : null;
+
+  // Timer ring progress (0→1 = full→empty)
+  const progress = timeLeft / TIMER_DURATION;
+  const circumference = 2 * Math.PI * 21; // r=21
+  const strokeDashoffset = circumference * (1 - progress);
+  const timerColor = timeLeft <= 5 ? COLORS.red : COLORS.amber;
 
   return (
-    <Animated.View style={[jc.wrap, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity > 0.1 ? theme.shadowOpacity : 0.18 }, { transform: [{ translateY: slideUp }] }]}>
-
-      {/* Thin timer progress bar */}
-      <View style={[jc.timerTrack, { backgroundColor: theme.border }]}>
-        <Animated.View style={[jc.timerFill, {
-          width: timerAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-          backgroundColor: timerBarColor,
-        }]} />
-      </View>
-
+    <Animated.View style={[jc.wrap, { bottom: insets.bottom + 20, backgroundColor: theme.bg, shadowOpacity: theme.shadowOpacity > 0.1 ? theme.shadowOpacity : 0.18 }, { transform: [{ translateY: slideUp }] }]}>
       <View style={jc.content}>
+        {/* Handle */}
+        <View style={[jc.handle, { backgroundColor: theme.borderLight }]} />
 
-        {/* Top row: service title + countdown */}
+        {/* Top row: service name + timer ring */}
         <View style={jc.topRow}>
-          <View style={jc.titleWrap}>
-            <Text style={[jc.title, { color: theme.textAlt }]} numberOfLines={2}>{request.title}</Text>
-            {request.urgent && (
-              <View style={[jc.urgentPill, { backgroundColor: COLORS.red }]}>
-                <Ionicons name="flash" size={10} color={theme.accentText} />
-                <Text style={jc.urgentText}>{t('provider.urgent')}</Text>
+          <Text style={[jc.title, { color: theme.text }]} numberOfLines={2}>{request.title}</Text>
+          <View style={jc.timerRing}>
+            <View style={jc.timerSvgWrap}>
+              {/* Background circle */}
+              <View style={[jc.timerCircleBg, { borderColor: theme.border }]} />
+              {/* Progress circle (approximated with border) */}
+              <View style={[jc.timerCircleProgress, { borderColor: timerColor, borderTopColor: 'transparent', transform: [{ rotate: `${360 * progress}deg` }] }]} />
+            </View>
+            <Text style={[jc.timerText, { color: timerColor }]}>{timeLeft}</Text>
+          </View>
+        </View>
+
+        {/* Mode badge */}
+        <View style={[jc.modeBadge, isQuote
+          ? { backgroundColor: 'rgba(232,168,56,0.12)', borderColor: 'rgba(232,168,56,0.15)' }
+          : { backgroundColor: 'rgba(61,139,61,0.10)', borderColor: 'rgba(61,139,61,0.15)' }
+        ]}>
+          <View style={[jc.modeDot, { backgroundColor: isQuote ? COLORS.amber : '#3D8B3D' }]} />
+          <Text style={[jc.modeLabel, { color: isQuote ? COLORS.amber : '#3D8B3D' }]}>
+            {isQuote ? 'DEVIS — DIAGNOSTIC SUR PLACE' : 'PRIX FIXE'}
+          </Text>
+        </View>
+
+        {/* Price (only for fixed price) */}
+        {!isQuote && request.price > 0 && (
+          <View style={jc.priceBlock}>
+            <Text style={[jc.priceAmount, { color: theme.text }]}>{netPrice},00 €</Text>
+            <Text style={[jc.priceSuffix, { color: theme.textMuted }]}>net estimé</Text>
+          </View>
+        )}
+
+        {/* Info rows */}
+        <View style={jc.infoGrid}>
+          <View style={jc.infoRow}>
+            <View style={[jc.infoIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Ionicons name="location-outline" size={14} color={theme.textMuted} />
+            </View>
+            <Text style={[jc.infoText, { color: theme.textSub }]} numberOfLines={1}>{request.address}</Text>
+          </View>
+          {etaMin !== null && (
+            <View style={jc.infoRow}>
+              <View style={[jc.infoIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Ionicons name="time-outline" size={14} color={theme.textMuted} />
               </View>
-            )}
-          </View>
-          <View style={jc.countdownWrap}>
-            <Text style={[jc.countdown, { color: countdownColor }]}>{timeLeft}</Text>
-            <Text style={[jc.countdownUnit, { color: theme.textMuted }]}>s</Text>
-          </View>
-        </View>
-
-        {/* Price hero */}
-        <View style={jc.priceRow}>
-          <Text style={[jc.priceNet, { color: theme.textAlt }]}>{netPrice} €</Text>
-          <Text style={[jc.priceCaption, { color: theme.textMuted }]}>{t('provider.net_gross', { gross: request.price })}</Text>
-        </View>
-
-        {/* Metas */}
-        <View style={jc.metas}>
-          <View style={jc.meta}>
-            <Ionicons name="location-outline" size={14} color={theme.textMuted} />
-            <Text style={[jc.metaText, { color: theme.textSub }]} numberOfLines={1}>{request.address}</Text>
-          </View>
-          {request.distance !== undefined && (
-            <View style={jc.meta}>
-              <Ionicons name="time-outline" size={14} color={theme.textMuted} />
-              <Text style={[jc.metaText, { color: theme.textSub }]}>~{Math.round(request.distance * 3)} min · {request.distance.toFixed(1)} km</Text>
+              <Text style={[jc.infoText, { color: theme.textSub }]}>~{etaMin} min · {request.distance!.toFixed(1)} km</Text>
             </View>
           )}
-          <View style={jc.meta}>
-            <Ionicons name="person-outline" size={14} color={theme.textMuted} />
-            <Text style={[jc.metaText, { color: theme.textSub }]}>{request.client.name}</Text>
+          <View style={jc.infoRow}>
+            <View style={[jc.infoIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Ionicons name="person-outline" size={14} color={theme.textMuted} />
+            </View>
+            <Text style={[jc.infoText, { color: theme.textSub }]}>{request.client.name}</Text>
           </View>
         </View>
 
-        {/* Full-width Accept CTA */}
-        <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: theme.accent }]} onPress={onAccept} activeOpacity={0.88} accessibilityLabel={t('provider.accept')} accessibilityRole="button">
-          <Text style={[jc.acceptText, { color: theme.accentText }]}>{t('provider.accept')}</Text>
-          <Ionicons name="arrow-forward" size={18} color={theme.accentText} />
+        {/* CTA Accept */}
+        <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: theme.accent }]} onPress={onAccept} activeOpacity={0.88}>
+          <Text style={[jc.acceptText, { color: theme.accentText }]}>ACCEPTER</Text>
+          <Animated.View style={{ transform: [{ translateX: arrowAnim }] }}>
+            <Ionicons name="arrow-forward" size={18} color={theme.accentText as string} />
+          </Animated.View>
         </TouchableOpacity>
 
-        {/* Ghost Decline */}
-        <TouchableOpacity style={jc.declineBtn} onPress={onDecline} activeOpacity={0.7} accessibilityLabel={t('provider.decline')} accessibilityRole="button">
-          <Text style={[jc.declineText, { color: theme.textMuted }]}>{t('provider.decline')}</Text>
+        {/* Pass */}
+        <TouchableOpacity style={jc.declineBtn} onPress={onDecline} activeOpacity={0.7}>
+          <Text style={[jc.declineText, { color: theme.textMuted }]}>Passer</Text>
         </TouchableOpacity>
-
       </View>
     </Animated.View>
   );
@@ -283,7 +315,6 @@ function IncomingJobCard({
 const jc = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 83 : 60,
     left: 0, right: 0,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     overflow: 'hidden',
@@ -291,52 +322,53 @@ const jc = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     elevation: 24,
   },
-  timerTrack: { height: 4, overflow: 'hidden' },
-  timerFill:  { height: '100%' },
+  content: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
 
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+  // Top row
+  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
+  title: { fontSize: 18, fontFamily: FONTS.sansMedium, lineHeight: 24, flex: 1 },
+
+  // Timer ring
+  timerRing: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  timerSvgWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  timerCircleBg: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
+  timerCircleProgress: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
+  timerText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 1 },
+
+  // Mode badge
+  modeBadge: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
+    gap: 6, paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 100, borderWidth: 1, marginBottom: 20,
   },
+  modeDot: { width: 8, height: 8, borderRadius: 4 },
+  modeLabel: { fontSize: 11, fontFamily: FONTS.sansMedium, letterSpacing: 1.5, textTransform: 'uppercase' },
 
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 20,
+  // Price block
+  priceBlock: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 20 },
+  priceAmount: { fontFamily: FONTS.bebas, fontSize: 40, lineHeight: 44 },
+  priceSuffix: { fontFamily: FONTS.sans, fontSize: 14 },
+
+  // Info grid
+  infoGrid: { gap: 10, marginBottom: 24 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  infoIcon: {
+    width: 32, height: 32, borderRadius: 8, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
-  titleWrap:    { flex: 1, gap: 8 },
-  title:        { fontSize: 20, fontFamily: FONTS.sansMedium, letterSpacing: -0.3, lineHeight: 26 },
-  urgentPill:   {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start',
-  },
-  urgentText:   { fontSize: 10, fontFamily: FONTS.sansMedium, color: '#FFFFFF', letterSpacing: 0.5 },
-  countdownWrap:  { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
-  countdown:      { fontSize: 40, fontFamily: FONTS.bebas, letterSpacing: -2, lineHeight: 44 },
-  countdownUnit:  { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 2 },
+  infoText: { fontFamily: FONTS.sans, fontSize: 14, flex: 1 },
 
-  priceRow:    { marginBottom: 20 },
-  priceNet:    { fontSize: 52, fontFamily: FONTS.bebas, letterSpacing: -3, lineHeight: 56 },
-  priceCaption:{ fontSize: 12, fontFamily: FONTS.mono, marginTop: 2 },
-
-  metas:   { gap: 10, marginBottom: 24 },
-  meta:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  metaText:{ fontSize: 14, fontFamily: FONTS.sans, flex: 1 },
-
+  // CTA
   acceptBtn: {
-    height: 55,
-    borderRadius: 55, flexDirection: 'row',
+    height: 56, borderRadius: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 10,
     marginBottom: 12,
   },
-  acceptText: { fontSize: 16, fontFamily: FONTS.sansMedium, letterSpacing: 0.3 },
+  acceptText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 },
 
-  declineBtn:  { alignItems: 'center', paddingVertical: 8 },
-  declineText: { fontSize: 14, fontFamily: FONTS.sansMedium },
+  declineBtn: { alignItems: 'center', paddingVertical: 8 },
+  declineText: { fontSize: 14, fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
 });
 
 // ============================================================================
@@ -526,6 +558,7 @@ export default function ProviderDashboard() {
   const { socket, unreadCount } = useSocket();
   const { isOnline: networkOnline } = useNetwork();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const mapRef   = useRef<MapView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -539,7 +572,9 @@ export default function ProviderDashboard() {
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [loading,       setLoading]        = useState(true);
   const [isOnline,      setIsOnline]       = useState(false);
+  const isOnlineRef = useRef(false);
   const [activeMission, setActiveMission]  = useState<any>(null);
+  const declinedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }).start();
@@ -636,27 +671,38 @@ export default function ProviderDashboard() {
   // Socket
   useEffect(() => {
     if (!socket || !user?.id) return;
-    if (socket.connected) socket.emit('provider:register', { providerId: user.id });
+    if (socket.connected) {
+      socket.emit('provider:register', { providerId: user.id });
+      isOnlineRef.current = true;
+      setIsOnline(true);
+    }
 
     const handleNewRequest = (data: any) => {
+      if (!isOnlineRef.current) return;
+      const rid = String(data.requestId ?? data.id);
+      if (declinedIdsRef.current.has(rid)) return; // already declined, ignore rebroadcast
       Vibration.vibrate([0, 200, 100, 200]);
+      const lat = data.latitude ?? data.lat;
+      const lng = data.longitude ?? data.lng;
       const req: IncomingRequest = {
-        requestId:   data.requestId || data.id,
-        title:       data.title,
-        description: data.description,
-        price:       data.price,
-        address:     data.location?.address || data.address || t('provider.unknown_address'),
+        requestId:   String(data.requestId ?? data.id),
+        title:       data.title || data.serviceType || t('provider.mission'),
+        description: data.description || '',
+        price:       data.price ?? 0,
+        address:     data.address || t('provider.unknown_address'),
         urgent:      data.urgent || false,
         distance:    data.distance,
         clientId:    data.clientId || data.client?.id,
-        client:      { name: data.client?.name || t('provider.client') },
-        latitude:    data.location?.latitude  || data.latitude,
-        longitude:   data.location?.longitude || data.longitude,
+        client:      { name: data.client?.name || data.clientName || t('provider.client') },
+        latitude:    lat,
+        longitude:   lng,
+        isQuote:     data.isQuote || false,
+        pricingMode: data.pricingMode || null,
       };
       setIncomingRequests(prev => prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]);
-      if (req.latitude && req.longitude) {
+      if (lat && lng) {
         mapRef.current?.animateToRegion({
-          latitude: req.latitude, longitude: req.longitude,
+          latitude: lat, longitude: lng,
           latitudeDelta: 0.02, longitudeDelta: 0.02,
         }, 600);
       }
@@ -666,7 +712,11 @@ export default function ProviderDashboard() {
       setIncomingRequests(prev => prev.filter(r => r.requestId !== String(id)));
 
     const handleStatusUpdate = (data: { providerId: string; status: string }) => {
-      if (data.providerId === user.id) setIsOnline(['ONLINE', 'READY'].includes(data.status));
+      if (data.providerId === user.id) {
+        const online = ['ONLINE', 'READY'].includes(data.status);
+        isOnlineRef.current = online;
+        setIsOnline(online);
+      }
     };
 
     socket.on('new_request',           handleNewRequest);
@@ -686,6 +736,7 @@ export default function ProviderDashboard() {
   const handleToggleOnline = useCallback(() => {
     if (!user?.id) return;
     const next = !isOnline;
+    isOnlineRef.current = next;
     setIsOnline(next);
     Vibration.vibrate(next ? [0, 60, 30, 60] : 40);
     if (socket) socket.emit('provider:set_status', { providerId: user.id, status: next ? 'READY' : 'OFFLINE' });
@@ -697,14 +748,36 @@ export default function ProviderDashboard() {
 
   // Accept / Decline
   const handleAccept = useCallback(async (request: IncomingRequest) => {
-    if (!user?.id) return;
-    if (socket) socket.emit('provider:accept', { requestId: request.requestId, providerId: user.id, clientId: request.clientId });
-    Vibration.vibrate(100);
-    setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
-    router.push(`/request/${request.requestId}/ongoing`);
+    if (!user?.id || !socket) return;
+
+    // Wait for backend confirmation before navigating
+    const onSuccess = (data: any) => {
+      socket.off('provider:accept_success', onSuccess);
+      socket.off('error', onError);
+      Vibration.vibrate(100);
+      setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
+      router.push(`/request/${request.requestId}/ongoing`);
+    };
+    const onError = (err: any) => {
+      socket.off('provider:accept_success', onSuccess);
+      socket.off('error', onError);
+      declinedIdsRef.current.add(request.requestId);
+      setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
+    };
+
+    socket.on('provider:accept_success', onSuccess);
+    socket.on('error', onError);
+    socket.emit('provider:accept', { requestId: request.requestId, providerId: user.id, clientId: request.clientId });
+
+    // Timeout fallback — if no response in 8s, clean up
+    setTimeout(() => {
+      socket.off('provider:accept_success', onSuccess);
+      socket.off('error', onError);
+    }, 8000);
   }, [socket, user?.id, router]);
 
   const handleDecline = useCallback(async (requestId: string) => {
+    declinedIdsRef.current.add(requestId);
     try { await api.post(`/requests/${requestId}/refuse`); } catch { /* silent */ }
     setIncomingRequests(prev => prev.filter(r => r.requestId !== requestId));
   }, []);
@@ -782,7 +855,7 @@ export default function ProviderDashboard() {
 
       {/* == TOP ISLAND == */}
       {!activeJob && (
-        <Animated.View style={[s.topIsland, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, { opacity: fadeAnim }]}>
+        <Animated.View style={[s.topIsland, { top: insets.top + 8, backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, { opacity: fadeAnim }]}>
 
           {/* Ligne 1 -- CockpitIsland + Recenter + Notifs */}
           <View style={s.tiRow}>
@@ -830,7 +903,7 @@ export default function ProviderDashboard() {
               activeOpacity={0.85}
               onPress={() => router.push(`/request/${activeMission.id}/ongoing`)}
             >
-              <View style={[s.activeDot, { backgroundColor: activeMission.status === 'ONGOING' ? COLORS.green : COLORS.amber }]} />
+              <PulseDot size={8} color={activeMission.status === 'ONGOING' ? COLORS.green : COLORS.amber} />
               <View style={{ flex: 1 }}>
                 <Text style={[s.activeBannerTitle, { color: theme.text }]} numberOfLines={1}>
                   {activeMission.category?.name || activeMission.serviceType || t('missions.mission')}
@@ -849,7 +922,7 @@ export default function ProviderDashboard() {
               <Text style={[s.earningsCaption, { color: theme.textMuted }]}>{t('provider.net_earnings_month')}</Text>
             </View>
             <Text style={[s.earningsHero, { color: theme.text }]}>
-              {statsLoading ? '\u2014' : formatEuros(wallet?.monthEarnings || 0)}
+              {statsLoading ? '—' : formatEuros(wallet?.monthEarnings || 0)}
             </Text>
             {!statsLoading && (wallet?.pendingAmount || 0) + (wallet?.escrowAmount || 0) > 0 && (
               <Text style={[s.pendingSubtext, { color: theme.textMuted }]}>
@@ -890,14 +963,13 @@ const s = StyleSheet.create({
   vignetteTop: {
     position: 'absolute',
     top: 0, left: 0, right: 0,
-    height: Platform.OS === 'ios' ? 340 : 310,
+    height: 310,
     zIndex: 9000,
   },
 
   // -- TOP ISLAND --
   topIsland: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 58 : 44,
     left: 14, right: 14,
     zIndex: 9999,
     borderRadius: 28,
@@ -962,7 +1034,6 @@ const s = StyleSheet.create({
     borderRadius: 10, borderWidth: 1,
     marginTop: 10,
   },
-  activeDot: { width: 8, height: 8, borderRadius: 4 },
   activeBannerTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   activeBannerSub: { fontSize: 11, fontFamily: FONTS.sans, marginTop: 1 },
 

@@ -358,28 +358,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const u = userRef.current;
       if (u?.roles?.includes('PROVIDER')) {
         try {
-          // Valider le providerId via l'API pour éviter un cache AsyncStorage stale
+          // Use cached providerId first (fast), refresh from API in background
           let providerId: string | null = null;
-          try {
-            const meRes: any = await api.providers.me();
-            const provData = meRes?.data || meRes;
-            if (provData?.id) {
-              providerId = provData.id;
-              // Mettre à jour le cache AsyncStorage avec l'ID validé
-              await AsyncStorage.setItem('provider', JSON.stringify({ id: providerId }));
-            }
-          } catch {
-            // Fallback sur le cache AsyncStorage si l'API est indisponible
-            const raw = await AsyncStorage.getItem('provider');
-            providerId = raw
-              ? (JSON.parse(raw).id || JSON.parse(raw)._id || JSON.parse(raw).providerId || u.id)
-              : u.id;
+          const raw = await AsyncStorage.getItem('provider');
+          if (raw) {
+            const cached = JSON.parse(raw);
+            providerId = cached.id || cached._id || cached.providerId || null;
           }
 
-          if (!providerId) providerId = u.id;
-
+          // Register immediately with cached or userId
+          providerId = providerId || u.id;
           devLog('📝 Registering provider:', providerId);
           newSocket.emit('provider:register', { providerId, userId: u.id });
+
+          // Background: validate and refresh cache (non-blocking)
+          api.providers.me().then((meRes: any) => {
+            const provData = meRes?.data || meRes;
+            if (provData?.id && provData.id !== providerId) {
+              AsyncStorage.setItem('provider', JSON.stringify({ id: provData.id }));
+            }
+          }).catch(() => {}); // ignore — cache is good enough
         } catch (error) {
           devError('❌ Error reading provider data:', error);
         }
@@ -392,10 +390,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setConnectionStatus('disconnected');
     });
 
+    let authRetried = false; // prevent infinite connect → error → connect loop
     newSocket.on('connect_error', async (error) => {
       devError('❌ Socket connection error:', error.message);
-      if (error.message === 'AUTH_REQUIRED' || error.message === 'AUTH_INVALID') {
-        devWarn('🔒 Socket auth failed — refreshing token and retrying');
+      if (!authRetried && (error.message === 'AUTH_REQUIRED' || error.message === 'AUTH_INVALID' || error.message === 'AUTH_TOKEN_REVOKED')) {
+        authRetried = true;
+        devWarn('🔒 Socket auth failed — refreshing token and retrying (once)');
         try {
           const freshToken = await tokenStorage.getToken();
           if (freshToken) {
@@ -449,16 +449,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       showSocketToast('Cette mission a expiré.', 'info');
     });
 
-    // Ces deux événements sont gérés dans le ProviderDashboard
-    newSocket.on('provider:accept_confirmed', (data) => {
-      devLog('✅ [PROVIDER] Accept confirmed:', data);
-    });
-
-    newSocket.on('provider:accept_success', (data) => {
-      devLog('🚀 [PROVIDER] Mission accepted:', data);
+    // Guard: prevent double navigation from both accept events
+    const acceptedRequestIds = new Set<string>();
+    const handleProviderAccept = (data: any, eventName: string) => {
+      devLog(`✅ [PROVIDER] ${eventName}:`, data);
+      clearMissionRequest();
+      const reqId = String(data?.requestId);
+      if (!reqId || acceptedRequestIds.has(reqId)) return; // already handled
+      acceptedRequestIds.add(reqId);
       playRef.current('missionAccepted');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    });
+      router.push(`/request/${reqId}/ongoing`);
+    };
+
+    newSocket.on('provider:accept_confirmed', (data) => handleProviderAccept(data, 'accept_confirmed'));
+    newSocket.on('provider:accept_success',   (data) => handleProviderAccept(data, 'accept_success'));
 
     // ── CLIENT EVENTS ─────────────────────────────────────────────────────────
 
@@ -485,22 +490,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // ── SHARED EVENTS ─────────────────────────────────────────────────────────
 
-    // location_update est géré localement dans MissionView
-    newSocket.on('provider:location_update', (data) => {
-      devLog('📍 [GPS] Location update:', data);
-    });
+    // location_update est géré localement dans MissionView — pas de log global
+    // (évite le double-log GPS qui spam la console)
 
+    const completedRequestIds = new Set<string>();
     newSocket.on('request:completed', (data) => {
-      devLog('🏁 [COMPLETION] Request completed:', data);
+      const reqId = String(data?.requestId);
+      if (completedRequestIds.has(reqId)) return; // deduplicate
+      completedRequestIds.add(reqId);
+      devLog('🏁 [COMPLETION] Request completed:', reqId);
       playRef.current('missionAccepted');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       if (userRef.current?.roles?.includes('PROVIDER')) {
         showSocketToast('Mission terminée. Consultez vos gains.', 'success');
-        setTimeout(() => router.push({ pathname: '/request/[id]/earnings', params: { id: String(data.requestId) } }), 900);
+        setTimeout(() => router.push({ pathname: '/request/[id]/earnings', params: { id: reqId } }), 900);
       } else {
         showSocketToast('Mission terminée. Merci !', 'success');
-        setTimeout(() => router.push({ pathname: '/request/[id]/rating', params: { id: String(data.requestId) } }), 900);
+        setTimeout(() => router.push({ pathname: '/request/[id]/rating', params: { id: reqId } }), 900);
       }
     });
 
@@ -520,13 +527,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // ── STATUS / MISC ─────────────────────────────────────────────────────────
 
-    newSocket.on('provider:status_update', (data) => {
-      devLog('🔄 [STATUS] Provider status update:', data);
-    });
-
-    newSocket.on('provider:registered', (data) => {
-      devLog('✅ [PROVIDER] Registered successfully:', data);
-    });
+    // Status updates — handled by consumers, no global log needed
+    newSocket.on('provider:status_update', () => {});
+    newSocket.on('provider:registered', () => {});
 
     // ── MESSAGES IN-APP ───────────────────────────────────────────────────────
     newSocket.on('message:received', (msg: IncomingMessage) => {

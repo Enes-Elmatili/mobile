@@ -18,6 +18,7 @@ import {
   onMessageReadAll,
 } from '../../lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
+import { contactNameCacheGet, contactNameCacheSet } from './index';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -64,11 +65,15 @@ export default function ConversationScreen() {
 
   // ── Fetch contact name if not provided ─────────────────────────────────────
 
+  // Contact name — use module-level cache shared with inbox
   useEffect(() => {
     if (contactName || !userId) return;
+    // Check inbox's module-level cache first (imported from index)
+    const cached = contactNameCacheGet(userId);
+    if (cached) { setContactName(cached); return; }
     api.messages.contactInfo(userId).then((res: any) => {
       const n = res?.data?.name;
-      if (n) setContactName(n);
+      if (n) { setContactName(n); contactNameCacheSet(userId, n); }
     }).catch((e: any) => devError('[Chat] contactInfo failed:', e?.message));
   }, [userId, contactName]);
 

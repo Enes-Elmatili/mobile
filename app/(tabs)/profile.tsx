@@ -16,6 +16,7 @@ import {
   StatusBar,
   Dimensions,
   InteractionManager,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -218,6 +219,10 @@ export default function Profile() {
   const [avatarUri,   setAvatarUri]   = useState<string | null>(null);
   const [stripeReady, setStripeReady]  = useState(false);
   const [isVerified,  setIsVerified]  = useState(false);
+  // Category management
+  const [allCategories, setAllCategories] = useState<any[]>([]);
+  const [selectedCatIds, setSelectedCatIds] = useState<number[]>([]);
+  const [catsLoading, setCatsLoading] = useState(false);
   const [profileStats, setProfileStats] = useState({ rating: '—', missions: '—', earnings: '—', acceptance: '—' });
   const [tickets, setTickets] = useState<any[]>([]);
 
@@ -373,16 +378,62 @@ export default function Profile() {
     setNewPwd('');
     setConfirmPwd('');
     setEditVisible(true);
+
+    if (!isClientOnly) {
+      setCatsLoading(true);
+      // Taxonomies: cache in AsyncStorage (rarely changes)
+      const loadCats = async (): Promise<any[]> => {
+        try {
+          const cached = await AsyncStorage.getItem('taxonomies_cache');
+          if (cached) {
+            const { data, ts } = JSON.parse(cached);
+            if (Date.now() - ts < 24 * 60 * 60 * 1000) return data; // 24h TTL
+          }
+        } catch {}
+        const res = await api.taxonomies.list();
+        const cats = res?.data ?? res ?? [];
+        const arr = Array.isArray(cats) ? cats : [];
+        AsyncStorage.setItem('taxonomies_cache', JSON.stringify({ data: arr, ts: Date.now() })).catch(() => {});
+        return arr;
+      };
+      Promise.all([
+        loadCats(),
+        api.providers.me(),
+      ]).then(([cats, provRes]) => {
+        setAllCategories(cats);
+        const prov = provRes?.data?.provider ?? provRes?.data ?? provRes;
+        const currentIds = (prov?.categories || []).map((c: any) => c.id);
+        setSelectedCatIds(currentIds);
+      }).catch(() => {
+        showSocketToast('Erreur chargement des catégories', 'error');
+      }).finally(() => setCatsLoading(false));
+    }
   };
 
+  const toggleCategory = useCallback((id: number) => {
+    setSelectedCatIds(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
+  }, []);
+
   const saveEditInfo = async () => {
+    if (!isClientOnly && selectedCatIds.length === 0) {
+      showSocketToast('Sélectionnez au moins un service', 'error');
+      return;
+    }
     setSaving(true);
     try {
-      await api.patch('/me', {
+      const payload: any = {
         name: editName.trim() || null,
         phone: editPhone.trim() || null,
         city: editCity.trim() || null,
-      });
+      };
+      if (!isClientOnly) {
+        payload.categoryIds = selectedCatIds;
+        await api.providers.updateMe(payload);
+      } else {
+        await api.patch('/me', payload);
+      }
       await refreshMe();
       setEditVisible(false);
     } catch (e: any) {
@@ -767,11 +818,66 @@ export default function Profile() {
               </View>
             </View>
 
+            {/* ── Section: Mes services (providers only) ── */}
+            {!isClientOnly && (
+              <>
+                <Text style={[em.sectionLabel, { color: theme.textMuted, marginTop: 20 }]}>MES SERVICES</Text>
+                <View style={[em.card, { backgroundColor: theme.cardBg, padding: 16, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 2 } }) }]}>
+                  {catsLoading ? (
+                    <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                      <ActivityIndicator color={theme.textMuted} />
+                    </View>
+                  ) : (
+                    <>
+                      <View style={catStyles.grid}>
+                        {[...allCategories].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(cat => {
+                          const sel = selectedCatIds.includes(cat.id);
+                          return (
+                            <TouchableOpacity
+                              key={cat.id}
+                              style={[
+                                catStyles.chip,
+                                { borderColor: sel ? theme.accent : theme.border },
+                                sel && { backgroundColor: theme.accent },
+                              ]}
+                              onPress={() => toggleCategory(cat.id)}
+                              activeOpacity={0.7}
+                              disabled={saving}
+                            >
+                              <Ionicons
+                                name={(cat.icon || 'briefcase-outline') as any}
+                                size={14}
+                                color={sel ? theme.accentText : theme.textMuted}
+                              />
+                              <Text
+                                numberOfLines={1}
+                                style={[
+                                  catStyles.chipText,
+                                  { color: sel ? theme.accentText : theme.textSub },
+                                ]}
+                              >
+                                {cat.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      {selectedCatIds.length > 0 && (
+                        <Text style={[catStyles.count, { color: theme.textMuted }]}>
+                          {selectedCatIds.length} service{selectedCatIds.length > 1 ? 's' : ''} sélectionné{selectedCatIds.length > 1 ? 's' : ''}
+                        </Text>
+                      )}
+                    </>
+                  )}
+                </View>
+              </>
+            )}
+
             {/* ── Save button ── */}
             <TouchableOpacity
-              style={[em.saveBtn, { backgroundColor: theme.accent }, saving && { opacity: 0.6 }]}
+              style={[em.saveBtn, { backgroundColor: theme.accent }, (saving || (!isClientOnly && selectedCatIds.length === 0)) && { opacity: 0.6 }]}
               onPress={saveEditInfo}
-              disabled={saving}
+              disabled={saving || (!isClientOnly && selectedCatIds.length === 0)}
               activeOpacity={0.85}
             >
               <Text style={[em.saveBtnText, { color: theme.accentText }]}>
@@ -1150,4 +1256,18 @@ const em = StyleSheet.create({
     paddingVertical: 14, marginTop: 12, marginBottom: 8,
   },
   pwdBtnText: { fontSize: 14, fontFamily: FONTS.sansMedium },
+});
+
+const catStyles = StyleSheet.create({
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1.5, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  chipText: { fontSize: 13, fontFamily: FONTS.sansMedium },
+  count: {
+    fontSize: 11, fontFamily: FONTS.sansMedium, letterSpacing: 0.3,
+    marginTop: 12, textAlign: 'center',
+  },
 });

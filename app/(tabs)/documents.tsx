@@ -178,12 +178,12 @@ export default function Documents() {
   const lastFetchRef = useRef(0);
   useFocusEffect(useCallback(() => {
     const now = Date.now();
-    if (now - lastFetchRef.current > 15000) {
+    if (now - lastFetchRef.current > 60_000) { // 60s — invoices rarely change
       lastFetchRef.current = now;
       InteractionManager.runAfterInteractions(() => load());
     }
   }, [load]));
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { lastFetchRef.current = 0; setRefreshing(true); load(); };
 
   // Stats
   const totalCount = invoices.length;

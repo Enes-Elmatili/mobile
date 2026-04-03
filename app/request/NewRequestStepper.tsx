@@ -9,7 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   TextInput,
   Animated,
@@ -19,6 +18,7 @@ import {
   KeyboardAvoidingView,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -508,7 +508,7 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
 }
 
 const cta = StyleSheet.create({
-  wrap:          { paddingHorizontal: 24, paddingBottom: Platform.OS === 'ios' ? 0 : 16, paddingTop: 12, borderTopWidth: 1 },
+  wrap:          { paddingHorizontal: 24, paddingBottom: 16, paddingTop: 12, borderTopWidth: 1 },
   btn:           { borderRadius: 55, height: 55, alignItems: 'center', justifyContent: 'center' },
   btnDisabled:   {},
   inner:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, width: '100%' },
@@ -1001,17 +1001,19 @@ export default function NewRequestStepper() {
       }
 
       if (isQuoteFlow) {
+        // Confirmer le callout et lancer le broadcast aux providers
+        try {
+          await api.post('/quotes/confirm-callout', { requestId });
+        } catch (e: any) {
+          devError('confirm-callout error:', e);
+          Alert.alert(
+            t('stepper.error_title') || 'Erreur',
+            t('stepper.callout_confirm_failed') || 'Impossible de confirmer le paiement. Réessayez.',
+          );
+          return;
+        }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace({
-          pathname: '/request/[id]/quote-pending',
-          params: {
-            id:          String(requestId),
-            serviceName: serviceName || '',
-            address:     location?.address || '',
-            calloutFee:  String(calloutFee),
-            pricingMode,
-          },
-        });
+        goToMissionView();
       } else {
         await confirmPaymentSuccess(requestId);
         goToMissionView();
@@ -1502,22 +1504,17 @@ export default function NewRequestStepper() {
             </View>
 
             {/* Footer CTA */}
-            <View style={[s.v4Footer, { paddingHorizontal: 16 }]}>
-              <BottomCTA
-                label={isFreeService
-                  ? 'Confirmer (gratuit)'
-                  : isQuoteFlow
-                    ? `Réserver · ${confirmedCalloutCents != null ? (confirmedCalloutCents / 100).toFixed(2) : calloutFee > 0 ? calloutFee.toFixed(2) : '...'} €`
-                    : t('stepper.confirm_mission')}
-                onPress={handlePay}
-                disabled={loading || !paymentReady || !!pricingError}
-                loading={loading}
-                price={undefined}
-                wrapStyle={{ paddingHorizontal: 16, borderTopWidth: 0, backgroundColor: 'transparent' }}
-                labelStyle={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2 }}
-                glow
-              />
-            </View>
+            <BottomCTA
+              label={isFreeService
+                ? 'Confirmer (gratuit)'
+                : isQuoteFlow
+                  ? `Réserver · ${confirmedCalloutCents != null ? (confirmedCalloutCents / 100).toFixed(2) : calloutFee > 0 ? calloutFee.toFixed(2) : '...'} €`
+                  : t('stepper.confirm_mission')}
+              onPress={handlePay}
+              disabled={loading || !paymentReady || !!pricingError}
+              loading={loading}
+              glow
+            />
           </View>
         )}
 
@@ -1652,7 +1649,7 @@ const s = StyleSheet.create({
   v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
   v4QuoteInfoTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   v4QuoteInfoDesc:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
-  v4Footer:     { paddingHorizontal: 0, paddingBottom: 0 },
+  v4Footer:     { paddingHorizontal: 0, paddingBottom: Platform.OS === 'ios' ? 16 : 12 },
   v4SecureRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingBottom: 8 },
   v4Secure:     { textAlign: 'center', fontSize: 12, fontFamily: FONTS.sans },
 

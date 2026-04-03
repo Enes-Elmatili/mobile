@@ -29,6 +29,11 @@ interface Conversation {
   unread: boolean;
 }
 
+// ── Contact name cache (module-level, survives unmount, shared with [userId].tsx) ──
+const contactNameCache = new Map<string, string>();
+export const contactNameCacheGet = (id: string) => contactNameCache.get(id);
+export const contactNameCacheSet = (id: string, name: string) => { contactNameCache.set(id, name); };
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function timeAgo(isoString: string): string {
@@ -111,22 +116,24 @@ export default function MessagesInbox() {
 
       setConversations(convos);
 
-      // Fetch real names in parallel
-      const namePromises = convos.map(async (c) => {
-        try {
-          const res = await api.messages.contactInfo(c.userId);
-          const n = res?.data?.name;
-          if (n) return { userId: c.userId, name: n };
-        } catch {}
-        return null;
-      });
-      const names = await Promise.all(namePromises);
-      const nameMap = new Map<string, string>();
-      names.forEach(n => { if (n) nameMap.set(n.userId, n.name); });
-      if (nameMap.size > 0) {
+      // Fetch real names — use module-level cache to avoid N API calls per open
+      const uncachedConvos = convos.filter(c => !contactNameCache.has(c.userId));
+      if (uncachedConvos.length > 0) {
+        const namePromises = uncachedConvos.map(async (c) => {
+          try {
+            const res = await api.messages.contactInfo(c.userId);
+            const n = res?.data?.name;
+            if (n) { contactNameCache.set(c.userId, n); return { userId: c.userId, name: n }; }
+          } catch {}
+          return null;
+        });
+        await Promise.all(namePromises);
+      }
+      // Apply cached + fresh names
+      if (contactNameCache.size > 0) {
         setConversations(prev => prev.map(c => ({
           ...c,
-          displayName: nameMap.get(c.userId) || c.displayName,
+          displayName: contactNameCache.get(c.userId) || c.displayName,
         })));
       }
     } catch {

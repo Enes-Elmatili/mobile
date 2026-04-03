@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import type { AppTheme } from '@/hooks/use-app-theme';
+import { PulseDot } from '@/components/ui/PulseDot';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
@@ -101,36 +102,8 @@ const getServiceIcon = (label?: string): string => {
 };
 
 // ============================================================================
-// STATUS LED — blinking dot
+// STATUS LED — using shared PulseDot component
 // ============================================================================
-
-function StatusLed({ color, blink }: { color: string; blink?: boolean }) {
-  const opacity = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!blink) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.3, duration: 1250, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 1250, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [blink]);
-
-  return (
-    <Animated.View
-      style={[
-        { width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity },
-        blink && color === COLORS.green && Platform.select({
-          ios: { shadowColor: COLORS.green, shadowOpacity: 0.6, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
-          android: {},
-        }),
-      ]}
-    />
-  );
-}
 
 // ============================================================================
 // RUNWAY CAROUSEL — service category cards
@@ -221,7 +194,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
                     <Ionicons name={card.icon as any} size={14} color={textColor} />
                   </View>
                   <View style={runway.ledRow}>
-                    <StatusLed color={card.led} blink={card.led === COLORS.green} />
+                    <PulseDot size={6} color={card.led} />
                     <Text style={[runway.providerCount, { color: isBlack ? 'rgba(255,255,255,0.5)' : theme.textMuted }]}>
                       {card.providers}
                     </Text>
@@ -308,17 +281,21 @@ const runway = StyleSheet.create({
 function MissionIsland({
   activeMission,
   searchingMission,
+  quoteMission,
   latestRequest,
   onActiveMissionPress,
   onSearchingPress,
+  onQuotePress,
   onLatestPress,
   theme,
 }: {
   activeMission: DashboardData['requests'][0] | null;
   searchingMission: DashboardData['requests'][0] | null;
+  quoteMission?: DashboardData['requests'][0] | null;
   latestRequest: DashboardData['requests'][0] | null;
   onActiveMissionPress: () => void;
   onSearchingPress: () => void;
+  onQuotePress?: () => void;
   onLatestPress: () => void;
   theme: AppTheme;
 }) {
@@ -331,7 +308,7 @@ function MissionIsland({
 
   // Pulse animation
   useEffect(() => {
-    if (!activeMission && !searchingMission) return;
+    if (!activeMission && !searchingMission && !quoteMission) return;
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseScale, { toValue: 1, duration: 900, useNativeDriver: true }),
@@ -340,7 +317,7 @@ function MissionIsland({
     );
     anim.start();
     return () => anim.stop();
-  }, [activeMission?.id, searchingMission?.id]);
+  }, [activeMission?.id, searchingMission?.id, quoteMission?.id]);
 
   // Countdown for search
   useEffect(() => {
@@ -422,7 +399,7 @@ function MissionIsland({
               transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
               opacity: pulseOpacity,
             }]} />
-            <View style={[islandStyles.pulseDot, { backgroundColor: COLORS.green }]} />
+            <PulseDot size={10} />
           </View>
           <View style={islandStyles.textWrap}>
             <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
@@ -454,7 +431,7 @@ function MissionIsland({
               transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
               opacity: pulseOpacity,
             }]} />
-            <View style={[islandStyles.pulseDot, { backgroundColor: COLORS.amber }]} />
+            <PulseDot size={10} color={COLORS.amber} />
           </View>
           <View style={islandStyles.textWrap}>
             <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>{t('dashboard.search_in_progress').toUpperCase()}</Text>
@@ -465,6 +442,41 @@ function MissionIsland({
           </View>
           <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
             <Ionicons name="arrow-forward" size={12} color={theme.heroSub} />
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── QUOTE_PENDING / QUOTE_SENT — devis island
+  if (quoteMission && onQuotePress) {
+    const isQuoteSent = quoteMission.status?.toUpperCase() === 'QUOTE_SENT';
+    return (
+      <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
+        <TouchableOpacity
+          style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
+          onPress={onQuotePress}
+          activeOpacity={0.85}
+        >
+          <View style={islandStyles.pulseWrap}>
+            <Animated.View style={[islandStyles.pulseRing, {
+              backgroundColor: isQuoteSent ? COLORS.green : COLORS.amber,
+              transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
+              opacity: pulseOpacity,
+            }]} />
+            <PulseDot size={10} color={isQuoteSent ? COLORS.green : COLORS.amber} />
+          </View>
+          <View style={islandStyles.textWrap}>
+            <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
+              {isQuoteSent ? 'DEVIS REÇU' : 'DEVIS EN COURS'}
+            </Text>
+            <Text style={[islandStyles.mission, { color: theme.heroText }]}>{quoteMission.serviceType || quoteMission.title}</Text>
+            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>
+              {isQuoteSent ? 'Consultez et répondez au devis' : 'En attente du prestataire'}
+            </Text>
+          </View>
+          <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
+            <Ionicons name={isQuoteSent ? 'document-text' : 'time-outline'} size={12} color={theme.heroSub} />
           </View>
         </TouchableOpacity>
       </View>
@@ -641,7 +653,7 @@ export default function Dashboard() {
   const lastFetchRef = useRef(0);
   useFocusEffect(useCallback(() => {
     const now = Date.now();
-    if (now - lastFetchRef.current > 15000) {
+    if (now - lastFetchRef.current > 60_000) { // 60s cache — socket handles real-time updates
       lastFetchRef.current = now;
       InteractionManager.runAfterInteractions(() => loadDashboard());
     }
@@ -676,7 +688,8 @@ export default function Dashboard() {
   // ── Socket ──
   useEffect(() => {
     if (!socket || !user?.id) return;
-    joinRoom('user', user.id);
+    // Note: user room join is handled server-side on socket connection (server.js)
+    // No need to emit join:user from client — avoids leave/join spam on re-render
 
     const updateRequestStatus = (requestId: string | number, newStatus: string) => {
       setData(prev => {
@@ -728,7 +741,6 @@ export default function Dashboard() {
     socket.on('provider:accepted',     handleAccepted);
 
     return () => {
-      leaveRoom('user', user.id);
       socket.off('request:accepted',      handleAccepted);
       socket.off('request:started',       handleStarted);
       socket.off('request:completed',     handleCompleted);
@@ -738,7 +750,7 @@ export default function Dashboard() {
       socket.off('request:statusUpdated', handleStatusUpdated);
       socket.off('provider:accepted',     handleAccepted);
     };
-  }, [socket, user?.id, router, loadDashboard, navigateToMissionView, joinRoom, leaveRoom]);
+  }, [socket, user?.id, router, loadDashboard, navigateToMissionView]);
 
   // ── Actions ──
   const handleRequestPress = async (requestId: string) => {
@@ -795,7 +807,12 @@ export default function Dashboard() {
     [data, activeMission]
   );
 
-  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING'];
+  const quoteMission = useMemo(
+    () => (activeMission || searchingMission) ? null : (data?.requests?.find(r => ['QUOTE_PENDING', 'QUOTE_SENT'].includes(r.status?.toUpperCase())) || null),
+    [data, activeMission, searchingMission]
+  );
+
+  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING', 'QUOTE_SENT'];
   const latestRequest = useMemo(
     () => (activeMission || searchingMission)
       ? null
@@ -900,9 +917,19 @@ export default function Dashboard() {
         <MissionIsland
           activeMission={activeMission}
           searchingMission={searchingMission}
+          quoteMission={quoteMission}
           latestRequest={latestRequest}
           onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
           onSearchingPress={() => searchingMission && navigateToSearching(searchingMission)}
+          onQuotePress={() => {
+            if (!quoteMission) return;
+            const st = quoteMission.status?.toUpperCase();
+            if (st === 'QUOTE_SENT') {
+              router.push({ pathname: '/request/[id]/quote-review', params: { id: String(quoteMission.id) } });
+            } else {
+              router.push({ pathname: '/request/[id]/quote-pending', params: { id: String(quoteMission.id) } });
+            }
+          }}
           onLatestPress={() => latestRequest && handleRequestPress(latestRequest.id)}
           theme={theme}
         />
@@ -975,7 +1002,7 @@ export default function Dashboard() {
               <Text style={[s.sheetTitle, { color: theme.text }]}>{selectedRequest.title || selectedRequest.serviceType}</Text>
 
               <View style={[s.statusBadge, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                <View style={[s.statusDot, { backgroundColor: getStatusInfo(selectedRequest.status, t).ledColor }]} />
+                <PulseDot size={6} color={getStatusInfo(selectedRequest.status, t).ledColor} />
                 <Text style={[s.statusBadgeText, { color: theme.textSub }]}>{getStatusInfo(selectedRequest.status, t).label}</Text>
               </View>
 
@@ -1215,7 +1242,6 @@ const s = StyleSheet.create({
     borderRadius: 10, marginBottom: 20,
     borderWidth: 1,
   },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusBadgeText: { fontFamily: FONTS.mono, fontSize: 12 },
 
   sheetRow: { flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'flex-start' },
