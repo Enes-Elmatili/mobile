@@ -22,7 +22,7 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "app.thefixed.client",
       "buildNumber": "2",
       "config": {
@@ -115,7 +115,16 @@
       ],
       "expo-localization",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "thefixedapp",
+          "organization": "thefixedapp"
+        }
+      ],
+      "@sentry/react-native"
     ],
     "extra": {
       "apiUrl": "https://api.thefixed.app/api",
