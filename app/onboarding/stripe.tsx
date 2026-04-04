@@ -40,12 +40,20 @@ export default function OnboardingStripe() {
       if (!statusCheck?.isProvider) {
         const raw = await AsyncStorage.getItem("onboarding_data");
         const data = raw ? JSON.parse(raw) : {};
+        // Fallback: fetch user profile if onboarding_data is empty
+        let userName = data.name || data.displayName || '';
+        if (!userName) {
+          try {
+            const me: any = await api.user.me();
+            userName = me?.name || me?.data?.name || me?.email || 'Prestataire';
+          } catch { userName = 'Prestataire'; }
+        }
         try {
           await api.providers.register({
-            name: data.name || data.displayName || '',
-            description: data.bio || data.description || '',
-            phone: data.phone || '',
-            city: data.city || '',
+            name: userName,
+            description: data.bio || data.description || undefined,
+            phone: data.phone || undefined,
+            city: data.city || undefined,
             lat: data.lat,
             lng: data.lng,
             categoryIds: (data.categories || []).map((c: any) => c.id).filter(Boolean),

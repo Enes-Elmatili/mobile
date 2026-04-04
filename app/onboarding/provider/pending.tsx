@@ -2,16 +2,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, Dimensions, Animated, Easing, Platform,
+  StatusBar, Dimensions, Animated, Easing,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth/AuthContext";
+import { useSocket } from "../../../lib/SocketContext";
 import { FONTS } from "@/hooks/use-app-theme";
+import { PulseDot } from '@/components/ui/PulseDot';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -62,6 +65,7 @@ interface DocStatus {
 
 export default function PendingValidation() {
   const { signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "suspended">("pending");
   const [stripeConnected, setStripeConnected] = useState(false);
   const [documents, setDocuments] = useState<DocStatus[]>([]);
@@ -98,6 +102,7 @@ export default function PendingValidation() {
     return false;
   }
 
+  // Polling fallback (30s)
   useEffect(() => {
     checkStatus();
     const interval = setInterval(async () => {
@@ -106,6 +111,25 @@ export default function PendingValidation() {
     }, 30_000);
     return () => clearInterval(interval);
   }, []);
+
+  // Real-time: instant update when admin validates
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (data: any) => {
+      if (data.validationStatus === 'ACTIVE') {
+        setStatus('approved');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => router.replace('/(tabs)/provider-dashboard'), 1500);
+      } else if (data.validationStatus === 'REJECTED') {
+        setStatus('rejected');
+      } else if (data.validationStatus === 'SUSPENDED') {
+        setStatus('suspended');
+      }
+    };
+    socket.on('provider:validation_updated', handler);
+    return () => { socket.off('provider:validation_updated', handler); };
+  }, [socket]);
 
   // Animations
   const glowScale = useRef(new Animated.Value(1)).current;
@@ -214,7 +238,7 @@ export default function PendingValidation() {
 
             <Animated.View style={{ opacity: pulseOp, alignItems: "center", marginTop: 12 }}>
               <View style={s.pulseDotRow}>
-                <View style={s.pulseDot} />
+                <PulseDot size={5} />
                 <Text style={s.eta}>Confirmation sous 24-48h</Text>
               </View>
             </Animated.View>
@@ -304,7 +328,7 @@ export default function PendingValidation() {
         )}
 
         <TouchableOpacity
-          style={s.logoutBtn}
+          style={[s.logoutBtn, { paddingBottom: insets.bottom + 16 }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             signOut();
@@ -405,11 +429,6 @@ const s = StyleSheet.create({
   pulseDotRow: {
     flexDirection: "row", alignItems: "center", gap: 7,
   },
-  pulseDot: {
-    width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.green,
-    shadowColor: C.green, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 6, elevation: 4,
-  },
   eta: {
     fontFamily: FONTS.sansLight, fontSize: 12, color: "rgba(255,255,255,0.25)",
     letterSpacing: 1,
@@ -419,7 +438,7 @@ const s = StyleSheet.create({
   },
   logoutBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32, paddingTop: 16,
+    paddingTop: 16,
   },
   logoutText: {
     fontFamily: FONTS.sans, fontSize: 14, color: C.grey,

@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -118,7 +119,7 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
 const ts = StyleSheet.create({
   layer: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 56 : 36,
+    top: 56, // fallback; overridden inline with insets.top
     left: 20, right: 20, zIndex: 9999, gap: 8,
   },
   pill: {
@@ -155,9 +156,10 @@ function Spinner({ color = C.bg }: { color?: string }) {
 // ── LOGIN ───────────────────────────────────────────────────────────────────
 export default function Login() {
   const router = useRouter();
-  const { signIn, isBooting } = useAuth();
+  const { signIn, isBooting, refreshMe } = useAuth();
   const { t } = useTranslation();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -213,8 +215,12 @@ export default function Login() {
       const res = await api.auth.google(accessToken);
       if (!res?.token) throw new Error();
       await signIn(res.token);
+      // Force refreshMe to resolve before navigating
+      await refreshMe();
       if (res.roles && res.roles.length === 0) {
         router.replace("/(auth)/role-select");
+      } else {
+        router.replace("/(tabs)/dashboard");
       }
     } catch (e: any) {
       if (e?.status === 409) {
@@ -249,8 +255,11 @@ export default function Login() {
 
       if (!res?.token) throw new Error();
       await signIn(res.token);
+      await refreshMe();
       if (res.roles && res.roles.length === 0) {
         router.replace("/(auth)/role-select");
+      } else {
+        router.replace("/(tabs)/dashboard");
       }
     } catch (e: any) {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
@@ -352,7 +361,7 @@ export default function Login() {
       </Animated.View>
 
       {/* Toast layer */}
-      <View style={ts.layer} pointerEvents="none">
+      <View style={[ts.layer, { top: insets.top }]} pointerEvents="none">
         {msgs.map(m => (
           <Toast key={m.id} msg={m} onDone={() => setMsgs(p => p.filter(x => x.id !== m.id))} />
         ))}
@@ -370,7 +379,7 @@ export default function Login() {
           bounces={false}
         >
         {/* Header */}
-        <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+        <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
           <TouchableOpacity
             style={[s.backBtn, { borderColor: theme.borderLight }]}
             onPress={() => {
@@ -489,7 +498,7 @@ export default function Login() {
         </Animated.View>
 
         {/* Actions */}
-        <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+        <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
           <TouchableOpacity
             style={[s.btnPrimary, { backgroundColor: theme.accent }, isBusy && { opacity: 0.55 }]}
 
@@ -553,7 +562,7 @@ const s = StyleSheet.create({
 
   // Header
   header: {
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
+    paddingTop: 50, // fallback; overridden inline with insets.top + 12
     paddingHorizontal: 32,
     zIndex: 2,
   },
@@ -700,7 +709,7 @@ const s = StyleSheet.create({
   // Actions
   actions: {
     paddingHorizontal: 28,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
     gap: 14,
     zIndex: 2,
   },
