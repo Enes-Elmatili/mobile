@@ -595,6 +595,11 @@ export default function ProviderDashboard() {
       setLocation(coords);
       if (loc.coords.heading != null) setHeading(loc.coords.heading);
 
+      // Sync initial position to backend so matching can find this provider
+      if (socket && user?.id) {
+        socket.emit('provider:location_update', { providerId: user.id, ...coords });
+      }
+
       mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 900);
 
       const sub = await Location.watchPositionAsync(
@@ -606,7 +611,7 @@ export default function ProviderDashboard() {
           const now = Date.now();
           if (now - dashLastEmitRef.current >= 15_000 && socket && isOnline && networkOnline && user?.id) {
             dashLastEmitRef.current = now;
-            socket.emit('provider:location', { providerId: user.id, ...c });
+            socket.emit('provider:location_update', { providerId: user.id, ...c });
           }
         }
       );
