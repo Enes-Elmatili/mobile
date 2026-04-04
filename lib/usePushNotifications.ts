@@ -91,28 +91,48 @@ async function registerForPushNotifications() {
 
 function handleNotificationNavigation(data: any) {
   if (!data) return;
-  const { screen, requestId } = data;
+  const { screen, type, requestId } = data;
   try {
+    // Handle by explicit screen name first
     switch (screen) {
       case 'MissionView':
         router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
-        break;
+        return;
       case 'QuoteReview':
         router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } });
-        break;
+        return;
       case 'Rating':
         router.push({ pathname: '/request/[id]/rating', params: { id: requestId } });
-        break;
+        return;
       case 'Messages':
         router.push('/(tabs)/messages');
-        break;
+        return;
       case 'Dashboard':
         router.replace('/(tabs)/dashboard');
-        break;
-      default:
-        if (requestId) {
-          router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
-        }
+        return;
+    }
+
+    // Handle by notification type (from matching/backend push)
+    switch (type) {
+      case 'new_request':
+        // Provider received a new mission → go to provider dashboard (not client missionview)
+        router.replace('/(tabs)/provider-dashboard');
+        return;
+      case 'quote_received':
+        if (requestId) router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } });
+        return;
+      case 'quote_accepted':
+      case 'quote_refused':
+        if (requestId) router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
+        return;
+      case 'kyc_status':
+        router.replace('/onboarding/provider/pending');
+        return;
+    }
+
+    // Fallback: if we have a requestId but no type/screen, go to missionview
+    if (requestId) {
+      router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
     }
   } catch (e: any) {
     devWarn('[Push] Navigation error:', e?.message);
