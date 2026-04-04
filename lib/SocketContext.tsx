@@ -511,18 +511,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
-    // Désormais géré dans request:completed
-    newSocket.on('request:go_to_rating', (data) => {
-      devLog('⭐ [RATING] Redirect to rating:', data);
-    });
 
     // ── PAYMENT EVENTS ────────────────────────────────────────────────────────
 
     newSocket.on('payment:succeeded', (data) => {
-      devLog('💳 [PAYMENT] Payment succeeded:', data);
       playRef.current('paymentReceived');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showSocketToast('Paiement confirmé.', 'success');
+    });
+
+    newSocket.on('payment:refunded', (data: any) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      showSocketToast('Votre paiement a été remboursé.', 'info');
     });
 
     // ── STATUS / MISC ─────────────────────────────────────────────────────────
