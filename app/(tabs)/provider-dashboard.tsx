@@ -673,6 +673,36 @@ export default function ProviderDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Load pending opportunities via REST (complements socket new_request)
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const res: any = await api.get('/requests/opportunities');
+        const opps = res?.data || res || [];
+        if (Array.isArray(opps) && opps.length > 0) {
+          const mapped = opps.map((r: any) => ({
+            requestId: String(r.id),
+            title: r.serviceType || r.category?.name || 'Mission',
+            description: r.description || '',
+            price: r.price || 0,
+            address: r.address || '',
+            latitude: r.lat,
+            longitude: r.lng,
+            categoryId: r.categoryId,
+            urgent: r.urgent || false,
+            pricingMode: r.pricingMode,
+          }));
+          setIncomingRequests(prev => {
+            const existingIds = new Set(prev.map(r => r.requestId));
+            const newOnes = mapped.filter((r: any) => !existingIds.has(r.requestId));
+            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          });
+        }
+      } catch {}
+    })();
+  }, [user?.id]);
+
   // Socket
   useEffect(() => {
     if (!socket || !user?.id) return;
@@ -683,7 +713,6 @@ export default function ProviderDashboard() {
     }
 
     const handleNewRequest = (data: any) => {
-      if (!isOnlineRef.current) return;
       const rid = String(data.requestId ?? data.id);
       if (declinedIdsRef.current.has(rid)) return; // already declined, ignore rebroadcast
       Vibration.vibrate([0, 200, 100, 200]);
