@@ -524,7 +524,7 @@ export default function MissionView() {
   // ─── Searching state ──────────────────────────────────────────────────────
   const [elapsed, setElapsed] = useState(0);
   const [cancelling, setCancelling] = useState(false);
-  const { display, isExpiring, isExpired } = useCountdown(expiresAt);
+  // Countdown removed — no timer shown to client during searching
 
   // ─── Tracking state ───────────────────────────────────────────────────────
   const [request, setRequest] = useState<any>(null);
@@ -697,8 +697,7 @@ export default function MissionView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, phase]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (isExpired) router.replace('/(tabs)/dashboard'); }, [isExpired]);
+  // Countdown auto-redirect removed — backend handles expiration via cron
 
   // ─── Polling PIN de sécurité (fallback si socket raté) ────────────────────
   useEffect(() => {
@@ -1055,12 +1054,7 @@ export default function MissionView() {
                       <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{scheduledLabel || 'Dès maintenant'}</Text>
                     </View>
                   </View>
-                  <View style={s.missionRight}>
-                    <View style={[s.timerPill, { backgroundColor: theme.surface }, isExpiring && { backgroundColor: theme.accent }]}>
-                      <Ionicons name="timer-outline" size={10} color={isExpiring ? theme.accentText : theme.textSub} />
-                      <Text style={[s.timerText, { color: theme.textSub, fontFamily: FONTS.monoMedium }, isExpiring && { color: theme.accentText }]}>{display}</Text>
-                    </View>
-                  </View>
+                  <View style={s.missionRight} />
                 </View>
 
                 {/* Bouton annuler / contacter support */}
@@ -1291,8 +1285,6 @@ const s = StyleSheet.create({
   missionRight: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
   missionPrice: { fontSize: 22, letterSpacing: -0.5 },
 
-  timerPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  timerText: { fontSize: 12 },
 
   cancelSearchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
