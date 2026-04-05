@@ -681,7 +681,7 @@ export default function ProviderDashboard() {
         const res: any = await api.get('/requests/opportunities');
         const opps = res?.data || res || [];
         if (Array.isArray(opps) && opps.length > 0) {
-          const mapped = opps.map((r: any) => ({
+          const mapped: IncomingRequest[] = opps.map((r: any) => ({
             requestId: String(r.id),
             title: r.serviceType || r.category?.name || 'Mission',
             description: r.description || '',
@@ -689,9 +689,9 @@ export default function ProviderDashboard() {
             address: r.address || '',
             latitude: r.lat,
             longitude: r.lng,
-            categoryId: r.categoryId,
             urgent: r.urgent || false,
             pricingMode: r.pricingMode,
+            client: { name: r.client?.name || 'Client' },
           }));
           setIncomingRequests(prev => {
             const existingIds = new Set(prev.map(r => r.requestId));
