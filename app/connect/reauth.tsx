@@ -2,6 +2,7 @@
 // Stripe redirige vers fixed://connect/reauth quand le lien a expiré
 import { useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -14,10 +15,10 @@ export default function StripeConnectReauth() {
   }, []);
 
   return (
-    <View style={[s.root, { backgroundColor: theme.heroBg }]}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.heroBg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <ActivityIndicator size="large" color={theme.heroText} />
-    </View>
+    </SafeAreaView>
   );
 }
 

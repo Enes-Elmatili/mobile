@@ -54,7 +54,13 @@ export default function RequestsListScreen() {
       </Text>
       <View style={styles.footer}>
         <Text style={[styles.status, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{item.status}</Text>
-        <Text style={[styles.price, { color: theme.textAlt, fontFamily: FONTS.monoMedium }]}>{item.price}€</Text>
+        <Text style={[styles.price, { color: theme.textAlt, fontFamily: FONTS.monoMedium }]}>
+          {item.price && item.price > 0
+            ? `${item.price}€`
+            : ((item as any).pricingMode === 'estimate' || (item as any).pricingMode === 'diagnostic')
+              ? 'Devis'
+              : '—'}
+        </Text>
       </View>
     </TouchableOpacity>
   );

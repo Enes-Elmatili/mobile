@@ -336,13 +336,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (cancelled) return;
 
     const newSocket = io(SOCKET_URL, {
-      // Websocket en priorité — plus rapide et moins énergivore sur mobile
-      transports:           ['websocket', 'polling'],
+      // Polling d'abord pour fiabilité à travers Railway proxy, upgrade WS ensuite
+      transports:           ['polling', 'websocket'],
+      upgrade:              true,
       reconnection:         true,
       reconnectionDelay:    1000,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       auth:         { token },
-      extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
+      extraHeaders: __DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {},
     });
 
     socketRef.current = newSocket;
@@ -523,6 +524,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     newSocket.on('payment:refunded', (data: any) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       showSocketToast('Votre paiement a été remboursé.', 'info');
+    });
+
+    // Path 2 refactor — charge failed off-session when a provider tried to accept
+    // (card declined, insufficient funds, 3DS required). The request stays PUBLISHED
+    // and the client must update their payment method via resume-payment.
+    newSocket.on('payment:charge_failed', (data: { requestId: number; reason?: string }) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showSocketToast(
+        data?.reason || 'Le paiement de votre mission a échoué. Mettez à jour votre carte.',
+        'error',
+      );
     });
 
     // ── STATUS / MISC ─────────────────────────────────────────────────────────

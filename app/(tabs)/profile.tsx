@@ -353,7 +353,7 @@ export default function Profile() {
       const timeout = setTimeout(() => controller.abort(), 30000);
       const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/me/avatar`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+        headers: { Authorization: `Bearer ${token}`, ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}) },
         body: formData,
         signal: controller.signal,
       });

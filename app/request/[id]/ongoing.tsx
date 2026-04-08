@@ -135,24 +135,28 @@ async function uploadMissionPhoto(
   }
   const response = await fetch(url, {
     method: 'POST',
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'ngrok-skip-browser-warning': 'true' },
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}) },
     body: formData,
   });
   const text = await response.text();
   let data: any;
-  try { data = JSON.parse(text); } catch { throw new Error('Réponse invalide du serveur'); }
-  if (!response.ok) throw Object.assign(new Error(data?.message || `HTTP ${response.status}`), { status: response.status, data });
+  try { data = JSON.parse(text); } catch {
+    const snippet = (text || '').slice(0, 200).replace(/\s+/g, ' ').trim();
+    throw new Error(`Réponse invalide du serveur (HTTP ${response.status}${snippet ? `: ${snippet}` : ''})`);
+  }
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || data?.message || `HTTP ${response.status}`), { status: response.status, data });
   return data.photoUrl;
 }
 
 // ─── Step indicator component ────────────────────────────────────────────────
 
-type MissionStep = 1 | 2 | 3;
+type MissionStep = 1 | 2 | 3 | 4;
 
 const STEP_LABELS: Record<number, { title: string; icon: string }> = {
   1: { title: 'Photo avant', icon: 'camera-outline' },
   2: { title: 'Code PIN', icon: 'key-outline' },
-  3: { title: 'Photo après & Terminer', icon: 'checkmark-circle-outline' },
+  3: { title: 'Envoyer le devis', icon: 'document-text-outline' },
+  4: { title: 'Photo après & Terminer', icon: 'checkmark-circle-outline' },
 };
 
 function StepIndicator({ current, total, theme }: { current: number; total: number; theme: ReturnType<typeof useAppTheme> }) {
@@ -272,11 +276,12 @@ export default function MissionOngoing() {
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Photo + PIN state
+  // Photo + PIN + Quote state
   const [beforePhotoUploaded, setBeforePhotoUploaded] = useState(false);
   const [pin, setPin] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
   const [afterPhotoUploaded, setAfterPhotoUploaded] = useState(false);
+  const [hasQuote, setHasQuote] = useState(false);
   const pinInputRef = useRef<TextInput>(null);
 
   // ─── Route fetch ──────────────────────────────────────────────────────────
@@ -309,13 +314,13 @@ export default function MissionOngoing() {
       const data = response.data || response;
       const st = (data?.status || '').toUpperCase();
 
-      if (['PUBLISHED', 'PENDING'].includes(st)) {
+      if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
         if (attempt < RETRY_MAX) { setLoading(true); await sleep(RETRY_DELAY); return loadRequest(attempt + 1); }
         Alert.alert('Mission non disponible', "La mission n'a pas pu être confirmée.", [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
         return;
       }
 
-      if (!['ACCEPTED', 'ONGOING'].includes(st)) {
+      if (!['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(st)) {
         if (st === 'DONE') router.replace(`/request/${id}/earnings`);
         else router.replace('/(tabs)/dashboard');
         return;
@@ -325,6 +330,14 @@ export default function MissionOngoing() {
       if (data.pinVerified) setPinVerified(true);
       if (data.afterPhotoUrl) setAfterPhotoUploaded(true);
       setRequest(data);
+
+      // Check if a quote was already sent for this request
+      if (data.pricingMode === 'estimate' || data.pricingMode === 'diagnostic') {
+        try {
+          const qRes = await api.get(`/quotes/request/${id}`);
+          if (qRes?.quotes?.length > 0) setHasQuote(true);
+        } catch { /* no quote yet */ }
+      }
     } catch {
       Alert.alert('Erreur', 'Impossible de charger la mission', [{ text: 'Retour', onPress: () => router.back() }]);
     } finally {
@@ -405,8 +418,18 @@ export default function MissionOngoing() {
         router.replace('/(tabs)/dashboard');
       }
     };
+    const onStatusUpdated = (data: any) => {
+      if (String(data.requestId) !== String(id)) return;
+      // Devis accepté → statut revient à ONGOING, reload pour avancer le step
+      loadRequest();
+    };
     socket.on('request:cancelled', onCancelled);
-    return () => { leaveRoom('request', id); socket.off('request:cancelled', onCancelled); };
+    socket.on('request:statusUpdated', onStatusUpdated);
+    return () => {
+      leaveRoom('request', id);
+      socket.off('request:cancelled', onCancelled);
+      socket.off('request:statusUpdated', onStatusUpdated);
+    };
   }, [socket, id, router, joinRoom, leaveRoom]);
 
   // ─── Actions ──────────────────────────────────────────────────────────────
@@ -517,7 +540,7 @@ export default function MissionOngoing() {
             const response = await api.post(`/requests/${id}/complete`);
             if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            const earnings = response.earnings ?? (request?.price * 0.85);
+            const earnings = response.earnings ?? (request?.price * 0.80);
             router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id), earnings: String(earnings) } });
           } catch (error: any) {
             if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
@@ -548,13 +571,19 @@ export default function MissionOngoing() {
     : { ...clientLoc, latitudeDelta: 0.04, longitudeDelta: 0.04 };
   const status = (request.status || '').toUpperCase();
 
-  // Current step — 3 étapes : photo avant → PIN (= auto-start) → photo après + terminer
+  // Is this a quote/diagnostic mission?
+  const isQuoteMission = request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
+  const totalSteps = isQuoteMission ? 4 : 3;
+
+  // Current step — prix fixe: 3 étapes / devis: 4 étapes
   let currentStep: MissionStep = 1;
   if (!beforePhotoUploaded) currentStep = 1;
   else if (!pinVerified || status === 'ACCEPTED') currentStep = 2;
-  else currentStep = 3;
+  else if (isQuoteMission && !hasQuote) currentStep = 3;           // devis pas encore envoyé
+  else if (isQuoteMission && status === 'QUOTE_SENT') currentStep = 3; // devis envoyé, attente client
+  else currentStep = isQuoteMission ? 4 : 3;                       // photo après + terminer
 
-  const stepInfo = STEP_LABELS[currentStep];
+  const stepInfo = isQuoteMission ? STEP_LABELS[currentStep] : STEP_LABELS[currentStep === 3 ? 4 : currentStep];
 
   // ═════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -670,14 +699,20 @@ export default function MissionOngoing() {
             <View style={{ flex: 1 }}>
               <Text style={[s.missionName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{request.serviceType}</Text>
               <Text style={[s.stepLabel, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                Étape {currentStep}/3 · {stepInfo.title}
+                Étape {currentStep}/{totalSteps} · {stepInfo.title}
               </Text>
             </View>
-            <Text style={[s.price, { color: theme.text, fontFamily: FONTS.mono }]}>{formatEuros(request.price || 0)}</Text>
+            <Text style={[s.price, { color: theme.text, fontFamily: FONTS.mono }]}>
+              {request.price && request.price > 0
+                ? formatEuros(request.price)
+                : (request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic')
+                  ? 'Devis'
+                  : formatEuros(0)}
+            </Text>
           </View>
 
           {/* Step indicator — 3 étapes */}
-          <StepIndicator current={currentStep} total={3} theme={theme} />
+          <StepIndicator current={currentStep} total={totalSteps} theme={theme} />
 
           {/* ── Step content ───────────────────────────────────────────────── */}
 
@@ -739,8 +774,30 @@ export default function MissionOngoing() {
             </Pressable>
           )}
 
-          {/* STEP 3: After photo + Complete (combined) */}
-          {currentStep === 3 && (
+          {/* STEP 3 (quote only): Send or wait for quote */}
+          {currentStep === 3 && isQuoteMission && !hasQuote && (
+            <ActionCard icon="document-text-outline" title="Envoyer le devis" subtitle="Après votre diagnostic, envoyez le devis au client" theme={theme}>
+              <TouchableOpacity
+                style={[s.primaryBtn, { backgroundColor: theme.accent }]}
+                onPress={() => router.push({ pathname: '/request/[id]/send-quote', params: { id: String(id) } })}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="document-text-outline" size={20} color={theme.accentText} />
+                <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Rédiger le devis</Text>
+              </TouchableOpacity>
+            </ActionCard>
+          )}
+          {currentStep === 3 && isQuoteMission && hasQuote && status === 'QUOTE_SENT' && (
+            <ActionCard icon="time-outline" title="Devis envoyé" subtitle="En attente de la réponse du client" theme={theme}>
+              <View style={[s.primaryBtn, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.green} />
+                <Text style={[s.primaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>En attente de réponse</Text>
+              </View>
+            </ActionCard>
+          )}
+
+          {/* STEP 3 (fixed) / STEP 4 (quote): After photo + Complete */}
+          {((currentStep === 3 && !isQuoteMission) || currentStep === 4) && (
             <ActionCard
               icon={afterPhotoUploaded ? 'checkmark-circle-outline' : 'camera-outline'}
               title={afterPhotoUploaded ? 'Terminer la mission' : 'Photo après intervention'}

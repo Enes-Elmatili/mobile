@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -62,6 +63,7 @@ export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { refreshMe, signOut } = useAuth();
 
   const [resending, setResending] = useState(false);
@@ -198,7 +200,7 @@ export default function VerifyEmail() {
       </Animated.View>
 
       {/* Header */}
-      <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+      <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
         <View style={s.navRow}>
           <View style={{ width: 36 }} />
           <View style={s.stepIndicator}>
@@ -280,7 +282,7 @@ export default function VerifyEmail() {
       </Animated.View>
 
       {/* Actions */}
-      <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+      <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
         <TouchableOpacity
           style={[s.btnPrimary, { backgroundColor: theme.accent }, !verified && { opacity: 0.35 }]}
           onPress={handleContinue}
@@ -321,7 +323,7 @@ const s = StyleSheet.create({
 
   // Header
   header: {
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
+    paddingTop: 50, // fallback; overridden inline with insets.top + 12
     paddingHorizontal: 28,
     zIndex: 2,
   },
@@ -404,7 +406,7 @@ const s = StyleSheet.create({
   // Actions
   actions: {
     paddingHorizontal: 28,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
     gap: 12, zIndex: 2,
   },
   btnPrimary: {

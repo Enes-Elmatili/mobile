@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FONTS } from "@/hooks/use-app-theme";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import Slider from "@react-native-community/slider";
@@ -122,7 +123,7 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
 const ts = StyleSheet.create({
   layer: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 56 : 36,
+    top: 56, // fallback; overridden inline with insets.top
     left: 20, right: 20, zIndex: 9999, gap: 8,
   },
   pill: {
@@ -206,6 +207,7 @@ type Phase = "identity" | "zone" | "creating";
 
 export default function Signup() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { refreshMe, signIn } = useAuth();
 
   // ── Role ──
@@ -493,7 +495,7 @@ export default function Signup() {
       </Animated.View>
 
       {/* Toast */}
-      <View style={ts.layer} pointerEvents="none">
+      <View style={[ts.layer, { top: insets.top }]} pointerEvents="none">
         {msgs.map(m => (
           <Toast key={m.id} msg={m} onDone={() => setMsgs(p => p.filter(x => x.id !== m.id))} />
         ))}
@@ -502,7 +504,7 @@ export default function Signup() {
       <View style={{ flex: 1 }}>
 
         {/* Header */}
-        <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+        <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
           <View style={s.navRow}>
             <TouchableOpacity style={s.backBtn} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.7}>
               <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
@@ -749,7 +751,7 @@ export default function Signup() {
         </KeyboardAvoidingView>
 
         {/* Actions */}
-        <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+        <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
           <TouchableOpacity
             style={[s.btnPrimary, phase === "identity" && !canIdentity && { opacity: 0.4 }, phase === "zone" && !canZone && { opacity: 0.4 }]}
             onPress={() => {
@@ -810,7 +812,7 @@ const s = StyleSheet.create({
 
   // Header
   header: {
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
+    paddingTop: 50, // fallback; overridden inline with insets.top + 12
     paddingHorizontal: 28,
     zIndex: 2,
   },
@@ -1125,7 +1127,7 @@ const s = StyleSheet.create({
   actions: {
     paddingHorizontal: 28,
     paddingTop: 16,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
     gap: 14,
     zIndex: 2,
   },

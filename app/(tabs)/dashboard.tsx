@@ -47,12 +47,25 @@ interface DashboardData {
     status: string;
     description?: string;
     price?: number;
+    address?: string;
+    lat?: number;
+    lng?: number;
     createdAt: string;
     expiresAt?: string;
-    category?: { id: number; name: string };
+    preferredTimeStart?: string | null;
+    pricingMode?: string | null;
+    calloutFee?: number | null;
+    category?: { id: number; name: string; icon?: string };
     subcategory?: { id: number; name: string };
+    provider?: { id: string; name?: string } | null;
   }[];
 }
+
+// ─── Helper : une request est "planifiée future" si preferredTimeStart > now ────
+const isScheduledFuture = (r: { preferredTimeStart?: string | null }): boolean => {
+  if (!r?.preferredTimeStart) return false;
+  return new Date(r.preferredTimeStart).getTime() > Date.now();
+};
 
 // ============================================================================
 // UTILS
@@ -610,6 +623,168 @@ const actStyles = StyleSheet.create({
 });
 
 // ============================================================================
+// UPCOMING ISLAND CARD — demande planifiée future
+// Même layout que MissionIsland.active, mais outlined (pas filled) pour marquer
+// que la demande n'est pas encore active — juste planifiée pour plus tard.
+// ============================================================================
+
+// Live countdown: "2J 14H", "3H 45M", "45M", "< 1M"
+function useCountdown(targetDate: Date | null) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!targetDate) return;
+    const iv = setInterval(() => setNow(Date.now()), 60_000); // tick every minute
+    return () => clearInterval(iv);
+  }, [targetDate]);
+
+  if (!targetDate) return { label: '', fraction: 0 };
+  const diff = Math.max(0, targetDate.getTime() - now);
+  const totalMin = Math.floor(diff / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const d = Math.floor(h / 24);
+  const m = totalMin % 60;
+
+  let label: string;
+  if (d >= 1) label = `${d}J ${h % 24}H`;
+  else if (h >= 1) label = `${h}H ${String(m).padStart(2, '0')}M`;
+  else if (totalMin >= 1) label = `${totalMin}M`;
+  else label = '< 1M';
+
+  // fraction 0→1 based on 48h window (visual only, clamps)
+  const maxWindow = 48 * 60 * 60 * 1000;
+  const fraction = Math.min(1, Math.max(0, diff / maxWindow));
+  return { label, fraction };
+}
+
+function UpcomingIslandCard({
+  request,
+  onPress,
+  theme,
+}: {
+  request: DashboardData['requests'][0];
+  onPress: () => void;
+  theme: AppTheme;
+}) {
+  const serviceName = request.serviceType || request.category?.name || request.title;
+  const isQuote = request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
+  const statusUp = (request.status || '').toUpperCase();
+  const isAccepted = statusUp === 'ACCEPTED';
+
+  const scheduledDate = request.preferredTimeStart ? new Date(request.preferredTimeStart) : null;
+  const { label: countdownLabel, fraction } = useCountdown(scheduledDate);
+
+  // Date label: "Demain · 09:00" or "Mer 8 avr · 10:00"
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const isTomorrow = scheduledDate && scheduledDate.getDate() === tomorrow.getDate() &&
+                     scheduledDate.getMonth() === tomorrow.getMonth() &&
+                     scheduledDate.getFullYear() === tomorrow.getFullYear();
+  const dayLabel = scheduledDate
+    ? (isTomorrow
+        ? 'Demain'
+        : scheduledDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }))
+    : '';
+  const timeLabel = scheduledDate
+    ? scheduledDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  // Progress bar color: green if accepted, warm accent if waiting
+  const barColor = isAccepted ? '#3D8B3D' : (theme.isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)');
+  const barTrack = theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+
+  return (
+    <TouchableOpacity
+      style={[uc.card, {
+        backgroundColor: theme.cardBg,
+        borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+      }]}
+      onPress={onPress}
+      activeOpacity={0.82}
+    >
+      {/* Top row: service name + countdown */}
+      <View style={uc.topRow}>
+        <View style={uc.topLeft}>
+          {/* Badge devis/planifiée */}
+          <View style={[uc.typeBadge, isQuote
+            ? { backgroundColor: 'rgba(232,168,56,0.10)' }
+            : { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }
+          ]}>
+            <Text style={[uc.typeLabel, { color: isQuote ? COLORS.amber : theme.textMuted }]}>
+              {isQuote ? 'DEVIS' : 'PLANIFIÉE'}
+            </Text>
+          </View>
+          <Text style={[uc.serviceName, { color: theme.text }]} numberOfLines={1}>
+            {serviceName}
+          </Text>
+        </View>
+        {/* Countdown block */}
+        <View style={uc.countdownWrap}>
+          <Text style={[uc.countdownValue, { color: theme.text }]}>{countdownLabel}</Text>
+        </View>
+      </View>
+
+      {/* Progress bar (diminishes as time approaches) */}
+      <View style={[uc.progressTrack, { backgroundColor: barTrack }]}>
+        <View style={[uc.progressFill, { backgroundColor: barColor, width: `${Math.max(2, fraction * 100)}%` }]} />
+      </View>
+
+      {/* Bottom row: date + status */}
+      <View style={uc.bottomRow}>
+        <View style={uc.dateRow}>
+          <Ionicons name="calendar-outline" size={13} color={theme.textMuted} />
+          <Text style={[uc.dateText, { color: theme.textSub }]}>
+            {dayLabel}{timeLabel ? ` · ${timeLabel}` : ''}
+          </Text>
+        </View>
+        {isAccepted ? (
+          <View style={uc.statusBadge}>
+            <View style={[uc.statusDot, { backgroundColor: '#3D8B3D' }]} />
+            <Text style={[uc.statusText, { color: '#3D8B3D' }]}>
+              {request.provider?.name ? `${request.provider.name}` : 'Confirmé'}
+            </Text>
+          </View>
+        ) : (
+          <View style={uc.statusBadge}>
+            <View style={[uc.statusDot, { backgroundColor: theme.textMuted as string }]} />
+            <Text style={[uc.statusText, { color: theme.textMuted }]}>En attente</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const uc = StyleSheet.create({
+  card: {
+    borderRadius: 16, borderWidth: 1,
+    padding: 16, gap: 14,
+  },
+
+  // Top
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  topLeft: { flex: 1, gap: 6 },
+  typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
+  typeLabel: { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 1.5 },
+  serviceName: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.3, lineHeight: 25 },
+
+  // Countdown
+  countdownWrap: { alignItems: 'flex-end', justifyContent: 'center', paddingTop: 2 },
+  countdownValue: { fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 1, lineHeight: 30 },
+
+  // Progress bar
+  progressTrack: { height: 3, borderRadius: 1.5, overflow: 'hidden' },
+  progressFill: { height: 3, borderRadius: 1.5 },
+
+  // Bottom
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dateText: { fontFamily: FONTS.sans, fontSize: 13 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontFamily: FONTS.sansMedium, fontSize: 12 },
+});
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -664,7 +839,7 @@ export default function Dashboard() {
   const navigateToMissionView = useCallback((request: any) => {
     const r = request;
     const scheduledFor = r.scheduledFor || r.preferredTimeStart;
-    router.push({
+    router.replace({
       pathname: '/request/[id]/missionview',
       params: {
         id:             String(r.id),
@@ -714,10 +889,19 @@ export default function Dashboard() {
         api.get(`/requests/${reqId}`)
           .then(res => {
             const req = res?.data || res;
-            navigateToMissionView(req);
+            // Scheduled future mission → recap screen, not missionview
+            const pts = req.preferredTimeStart;
+            if (pts && new Date(pts).getTime() > Date.now()) {
+              router.replace({
+                pathname: '/request/[id]/scheduled',
+                params: { id: reqId, mode: 'recap' },
+              });
+            } else {
+              navigateToMissionView(req);
+            }
           })
           .catch(() => {
-            router.push({
+            router.replace({
               pathname: '/request/[id]/missionview',
               params: { id: reqId },
             });
@@ -797,18 +981,31 @@ export default function Dashboard() {
     ), []
   );
 
+  // Missions "actives maintenant" : ACCEPTED/ONGOING MAIS pas planifiées pour plus tard.
+  // Une mission ACCEPTED avec preferredTimeStart dans le futur = engagement d'un
+  // prestataire sur une date future → reste dans "À venir" jusqu'au jour J.
   const activeMission = useMemo(() =>
-    data?.requests?.find(r => ['ACCEPTED', 'ONGOING'].includes(r.status?.toUpperCase())) || null,
+    data?.requests?.find(r =>
+      ['ACCEPTED', 'ONGOING'].includes(r.status?.toUpperCase()) &&
+      !isScheduledFuture(r)
+    ) || null,
     [data]
   );
 
+  // PUBLISHED "maintenant" uniquement — exclut les demandes planifiées futures
+  // qui vont dans la section "À venir" séparée.
   const searchingMission = useMemo(
-    () => activeMission ? null : (data?.requests?.find(r => r.status?.toUpperCase() === 'PUBLISHED') || null),
+    () => activeMission ? null : (data?.requests?.find(r =>
+      r.status?.toUpperCase() === 'PUBLISHED' && !isScheduledFuture(r)
+    ) || null),
     [data, activeMission]
   );
 
+  // Devis "maintenant" uniquement — exclut les devis planifiés futurs.
   const quoteMission = useMemo(
-    () => (activeMission || searchingMission) ? null : (data?.requests?.find(r => ['QUOTE_PENDING', 'QUOTE_SENT'].includes(r.status?.toUpperCase())) || null),
+    () => (activeMission || searchingMission) ? null : (data?.requests?.find(r =>
+      ['QUOTE_PENDING', 'QUOTE_SENT'].includes(r.status?.toUpperCase()) && !isScheduledFuture(r)
+    ) || null),
     [data, activeMission, searchingMission]
   );
 
@@ -816,7 +1013,9 @@ export default function Dashboard() {
   const latestRequest = useMemo(
     () => (activeMission || searchingMission)
       ? null
-      : (data?.requests?.find(r => ACTIVE_STATUSES.includes(r.status?.toUpperCase())) || null),
+      : (data?.requests?.find(r =>
+          ACTIVE_STATUSES.includes(r.status?.toUpperCase()) && !isScheduledFuture(r)
+        ) || null),
     [data, activeMission, searchingMission]
   );
 
@@ -828,11 +1027,24 @@ export default function Dashboard() {
     [data]
   );
 
+  // Activités récentes : exclut les HIDDEN, les devis (→ tab Documents), et les scheduled futurs (→ section À venir)
   const activityRequests = useMemo(
     () => (data?.requests || []).filter(r =>
       !HIDDEN_STATUSES.includes(r.status?.toUpperCase()) &&
-      !DOCUMENT_STATUSES.includes(r.status?.toUpperCase())
+      !DOCUMENT_STATUSES.includes(r.status?.toUpperCase()) &&
+      !isScheduledFuture(r)
     ),
+    [data]
+  );
+
+  // Section "À venir" : demandes planifiées dans le futur, triées par date croissante
+  const upcomingRequests = useMemo(
+    () => (data?.requests || [])
+      .filter(r => isScheduledFuture(r))
+      .filter(r => !['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE'].includes(r.status?.toUpperCase()))
+      .sort((a, b) =>
+        new Date(a.preferredTimeStart!).getTime() - new Date(b.preferredTimeStart!).getTime()
+      ),
     [data]
   );
 
@@ -933,6 +1145,29 @@ export default function Dashboard() {
           onLatestPress={() => latestRequest && handleRequestPress(latestRequest.id)}
           theme={theme}
         />
+
+        {/* ── À VENIR (demandes planifiées futures) ── */}
+        {upcomingRequests.length > 0 && (
+          <>
+            <View style={[s.sectionHead, { paddingTop: 22 }]}>
+              <Text style={[s.sectionTitle, { color: theme.textMuted }]}>À VENIR</Text>
+              <Text style={[s.sectionActionText, { color: theme.textMuted }]}>{upcomingRequests.length}</Text>
+            </View>
+            <View style={{ paddingHorizontal: 24, gap: 10 }}>
+              {upcomingRequests.map((req) => (
+                <UpcomingIslandCard
+                  key={req.id}
+                  request={req}
+                  theme={theme}
+                  onPress={() => router.push({
+                    pathname: '/request/[id]/scheduled',
+                    params: { id: String(req.id), mode: 'recap' },
+                  })}
+                />
+              ))}
+            </View>
+          </>
+        )}
 
         {/* ── ACTIVITÉ RÉCENTE ── */}
         <View style={[s.sectionHead, { paddingTop: 22 }]}>

@@ -118,7 +118,7 @@ export default function PinPage() {
       const res = await fetch(`${baseUrl}/requests/${id}/pin`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'ngrok-skip-browser-warning': 'true',
+          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
         },
       });
       if (!res.ok) return;
@@ -131,7 +131,7 @@ export default function PinPage() {
   useEffect(() => {
     if (pinCode || pinVerified) return;
     fetchPin();
-    pinPollRef.current = setInterval(fetchPin, 4000);
+    pinPollRef.current = setInterval(fetchPin, 10000);
     return () => {
       if (pinPollRef.current) { clearInterval(pinPollRef.current); pinPollRef.current = null; }
     };

@@ -116,12 +116,12 @@ export default function EarningsScreen() {
   }
 
   const basePrice = Number(request?.price) || 0;
-  const commission = Math.round(basePrice * 0.15 * 100) / 100;
+  const commission = Math.round(basePrice * 0.20 * 100) / 100;
   const net = Math.round((basePrice - commission) * 100) / 100;
 
   const rows = [
     { label: 'Prix de la mission', value: `${basePrice.toFixed(2)} €`, highlight: false },
-    { label: 'Commission (15%)', value: `-${commission.toFixed(2)} €`, highlight: false, negative: true },
+    { label: 'Commission (20%)', value: `-${commission.toFixed(2)} €`, highlight: false, negative: true },
   ];
 
   return (
@@ -151,7 +151,7 @@ export default function EarningsScreen() {
           {displayedPrice.toFixed(2)} €
         </Animated.Text>
 
-        <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>disponible sous 48h après validation</Text>
+        <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>disponible sous 24h après validation</Text>
       </View>
       </SafeAreaView>
 

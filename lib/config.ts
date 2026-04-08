@@ -13,12 +13,6 @@ const config: AppConfig = {
   enableLogs: Constants.expoConfig?.extra?.enableLogs ?? true,
 };
 
-// Log en dev uniquement
-if (__DEV__ && config.enableLogs) {
-  console.log('🔧 App Configuration:', {
-    apiUrl: config.apiUrl,
-    environment: config.environment,
-  });
-}
+// Intentionally no log at module load — use devLog() at call sites if needed
 
 export default config;

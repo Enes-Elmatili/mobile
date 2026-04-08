@@ -2,6 +2,7 @@
 // Stripe redirige vers fixed://connect/success via la page HTML du backend
 import { useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { api } from '../../lib/api';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -27,10 +28,10 @@ export default function StripeConnectSuccess() {
   }, []);
 
   return (
-    <View style={[s.root, { backgroundColor: theme.heroBg }]}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.heroBg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <ActivityIndicator size="large" color={theme.heroText} />
-    </View>
+    </SafeAreaView>
   );
 }
 

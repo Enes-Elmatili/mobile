@@ -901,16 +901,17 @@ export default function NewRequestStepper() {
         if (cancelled) return;
         setRequestId(rId);
 
-        // Initialiser le payment sheet — prix fixe uniquement
-        const { paymentIntent, ephemeralKey, customer } = await api.payments.intent(rId);
+        // Initialiser le payment sheet — prix fixe (Path 2: SetupIntent, pas de d\u00e9bit imm\u00e9diat)
+        // Le client autorise sa carte ; le d\u00e9bit a lieu quand un prestataire accepte la mission.
+        const { setupIntentClientSecret, ephemeralKey, customer } = await api.payments.setup(rId);
         const { error } = await initPaymentSheet({
-          merchantDisplayName:      'Fixed',
-          paymentIntentClientSecret: paymentIntent,
+          merchantDisplayName:        'Fixed',
+          setupIntentClientSecret:    setupIntentClientSecret,
           customerEphemeralKeySecret: ephemeralKey,
-          customerId:                customer,
+          customerId:                 customer,
           applePay:  { merchantCountryCode: 'BE' },
           googlePay: { merchantCountryCode: 'BE', testEnv: false },
-          paymentMethodOrder: ['card', 'klarna'],
+          paymentMethodOrder: ['card'],
         });
         if (!error && !cancelled) setPaymentReady(true);
       } catch (e: any) {
@@ -954,13 +955,19 @@ export default function NewRequestStepper() {
   const goToMissionView = () => {
     if (scheduleMode === 'later') {
       // Requête planifiée → page de confirmation (pas de recherche de provider)
+      // Pour un devis, le client n'a payé QUE le callout fee — pas le prix total.
+      // On passe isQuote + calloutFee pour que l'écran n'affiche pas un faux prix.
       router.replace({
         pathname: '/request/[id]/scheduled',
         params: {
           id:             String(requestId),
           serviceName:    serviceName    || '',
           address:        location?.address  || '',
-          price:          String(estimatedPrice),
+          price:          isQuoteFlow ? '' : String(estimatedPrice),
+          calloutFee:     isQuoteFlow && confirmedCalloutCents != null
+            ? (confirmedCalloutCents / 100).toFixed(2)
+            : '',
+          isQuote:        isQuoteFlow ? '1' : '',
           scheduledLabel: scheduledLabel || '',
           lat:            String(location?.lat  ?? ''),
           lng:            String(location?.lng  ?? ''),

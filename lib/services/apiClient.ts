@@ -25,7 +25,7 @@ const apiClient: AxiosInstance = axios.create({
   timeout: 15_000,
   headers: {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
+    ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
   },
 });
 

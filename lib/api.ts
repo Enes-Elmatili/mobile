@@ -43,7 +43,7 @@ class ApiClient {
 
     return {
       'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true',
+      ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   }
@@ -73,7 +73,7 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${currentToken}`,
-          'ngrok-skip-browser-warning': 'true',
+          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
         },
       });
 
@@ -356,7 +356,7 @@ class ApiClient {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'ngrok-skip-browser-warning': 'true',
+          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
           // Content-Type intentionnellement absent : fetch le gère avec le boundary multipart
         },
         body: formData,
@@ -462,12 +462,20 @@ class ApiClient {
   payments = {
     list: () => this.request('/payments'),
     get: (id: string) => this.request(`/payments/${id}`),
+    // Path 2 refactor: prefer `.setup` (SetupIntent — client authorizes, no charge)
+    // over `.intent` (legacy PaymentIntent — immediate charge to platform balance).
+    // Charge happens when a provider accepts, via backend destination charge.
+    setup: async (requestId: string) => {
+      const token = await tokenStorage.getToken();
+      if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
+      return this.post('/payments/setup', { requestId });
+    },
+    // Legacy — kept for rollback during transition. Will be removed once setup is confirmed stable.
     intent: async (requestId: string) => {
       const token = await tokenStorage.getToken();
       if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
       return this.post('/payments/intent', { requestId });
     },
-    // ✅ FIXED: Added missing success method
     success: async (requestId: string) => {
       devLog(`✅ Confirming payment success for request ${requestId}`);
       return this.post('/payments/success', { requestId });

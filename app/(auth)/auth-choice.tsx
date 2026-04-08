@@ -9,6 +9,7 @@ import Svg, { Line } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -52,6 +53,7 @@ function GridLines() {
 export default function AuthChoice() {
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const ease = Easing.bezier(0.16, 1, 0.3, 1);
   const headerOp = useRef(new Animated.Value(0)).current;
@@ -109,7 +111,7 @@ export default function AuthChoice() {
       </Animated.View>
 
       {/* Header */}
-      <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+      <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
         <TouchableOpacity
           style={[s.backBtn, { borderColor: theme.borderLight }]}
           onPress={() => {
@@ -169,7 +171,7 @@ export default function AuthChoice() {
       </Animated.View>
 
       {/* Actions */}
-      <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+      <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
         <TouchableOpacity
           style={[s.btnPrimary, { backgroundColor: theme.accent }]}
           activeOpacity={0.9}
@@ -199,7 +201,7 @@ const s = StyleSheet.create({
 
   // Header
   header: {
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
+    paddingTop: 50, // fallback; overridden inline with insets.top + 12
     paddingHorizontal: 32,
     zIndex: 2,
   },
@@ -245,7 +247,7 @@ const s = StyleSheet.create({
   // Actions
   actions: {
     paddingHorizontal: 28,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
     zIndex: 2,
   },
   btnPrimary: {

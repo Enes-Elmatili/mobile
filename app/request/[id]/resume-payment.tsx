@@ -89,32 +89,37 @@ export default function ResumePayment() {
 
         setRequest(req);
 
-        // Init Stripe payment sheet — quote flow uses callout endpoint
+        // Init Stripe payment sheet
+        // - Quote flow: PaymentIntent via /quotes/callout-payment (destination charge, callout fee)
+        // - Fixed-price flow (Path 2): SetupIntent via /payments/setup (no charge, authorized only)
         const isQuoteFlow = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
-        let clientSecret: string | undefined;
-        let ephemeralKey: string | undefined;
-        let customer: string | undefined;
+
+        let initOptions: Parameters<typeof initPaymentSheet>[0];
 
         if (isQuoteFlow) {
           const calloutRes = await api.post('/quotes/callout-payment', { requestId: String(id) });
           if (!mountedRef.current) return;
-          clientSecret = calloutRes.clientSecret;
+          initOptions = {
+            merchantDisplayName: 'Fixed',
+            paymentIntentClientSecret: calloutRes.clientSecret,
+            applePay: { merchantCountryCode: 'BE' },
+            googlePay: { merchantCountryCode: 'BE', testEnv: false },
+          };
         } else {
-          const intentRes = await api.payments.intent(String(id));
+          const setupRes = await api.payments.setup(String(id));
           if (!mountedRef.current) return;
-          clientSecret = intentRes.paymentIntent;
-          ephemeralKey = intentRes.ephemeralKey;
-          customer = intentRes.customer;
+          initOptions = {
+            merchantDisplayName: 'Fixed',
+            setupIntentClientSecret: setupRes.setupIntentClientSecret,
+            customerEphemeralKeySecret: setupRes.ephemeralKey,
+            customerId: setupRes.customer,
+            applePay: { merchantCountryCode: 'BE' },
+            googlePay: { merchantCountryCode: 'BE', testEnv: false },
+            paymentMethodOrder: ['card'],
+          };
         }
 
-        const { error } = await initPaymentSheet({
-          merchantDisplayName: 'Fixed',
-          paymentIntentClientSecret: clientSecret!,
-          ...(ephemeralKey && { customerEphemeralKeySecret: ephemeralKey }),
-          ...(customer && { customerId: customer }),
-          applePay: { merchantCountryCode: 'BE' },
-          googlePay: { merchantCountryCode: 'BE', testEnv: false },
-        });
+        const { error } = await initPaymentSheet(initOptions);
         if (!error && mountedRef.current) setPaymentReady(true);
       } catch (e: any) {
         devError('ResumePayment init error:', e);

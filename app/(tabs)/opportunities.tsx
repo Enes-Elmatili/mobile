@@ -14,7 +14,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
 import * as Haptics from 'expo-haptics';
 
-const NET_RATE = 0.85;
+const NET_RATE = 0.80;
 
 interface Opportunity {
   id: number;
@@ -49,10 +49,10 @@ function formatScheduledDate(iso: string): { day: string; time: string; relative
 }
 
 function OpportunityCard({
-  item, theme, onAccept, accepting,
+  item, theme, onAccept, onDecline, accepting,
 }: {
   item: Opportunity; theme: ReturnType<typeof useAppTheme>;
-  onAccept: (id: number) => void; accepting: number | null;
+  onAccept: (id: number) => void; onDecline: (id: number) => void; accepting: number | null;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const { day, time, relative } = formatScheduledDate(item.preferredTimeStart);
@@ -105,7 +105,7 @@ function OpportunityCard({
           </View>
         </View>
 
-        {/* Footer: prix + bouton accepter */}
+        {/* Footer: prix + boutons */}
         <View style={st.cardFoot}>
           {net ? (
             <View>
@@ -115,21 +115,32 @@ function OpportunityCard({
           ) : (
             <View />
           )}
-          <TouchableOpacity
-            style={[st.acceptBtn, { backgroundColor: theme.accent }]}
-            onPress={handlePress}
-            disabled={accepting !== null}
-            activeOpacity={0.8}
-          >
-            {accepting === item.id ? (
-              <ActivityIndicator size="small" color={theme.accentText} />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
-                <Text style={[st.acceptText, { color: theme.accentText }]}>Accepter</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={st.cardActions}>
+            <TouchableOpacity
+              style={[st.declineBtn, { borderColor: theme.border }]}
+              onPress={() => onDecline(item.id)}
+              disabled={accepting !== null}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close-circle-outline" size={18} color={theme.textSub} />
+              <Text style={[st.declineText, { color: theme.textSub }]}>Décliner</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[st.acceptBtn, { backgroundColor: theme.accent }]}
+              onPress={handlePress}
+              disabled={accepting !== null}
+              activeOpacity={0.8}
+            >
+              {accepting === item.id ? (
+                <ActivityIndicator size="small" color={theme.accentText} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
+                  <Text style={[st.acceptText, { color: theme.accentText }]}>Accepter</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Animated.View>
@@ -165,11 +176,18 @@ export default function OpportunitiesScreen() {
   // Ecouter les nouvelles opportunites en temps reel
   useEffect(() => {
     if (!socket) return;
-    const handler = () => {
-      fetchOpportunities();
+    const handleNew = () => fetchOpportunities();
+    const handleClaimed = (requestId: number) => {
+      setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
     };
-    socket.on('new_opportunity', handler);
-    return () => { socket.off('new_opportunity', handler); };
+    socket.on('new_opportunity', handleNew);
+    socket.on('new_request', handleNew);
+    socket.on('request:claimed', handleClaimed);
+    return () => {
+      socket.off('new_opportunity', handleNew);
+      socket.off('new_request', handleNew);
+      socket.off('request:claimed', handleClaimed);
+    };
   }, [socket, fetchOpportunities]);
 
   const onRefresh = useCallback(() => {
@@ -184,7 +202,8 @@ export default function OpportunitiesScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Retirer de la liste
       setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
-      router.push(`/request/${requestId}/ongoing`);
+      // Toujours vers MissionView (ongoing), peu importe pricingMode
+      router.replace(`/request/${requestId}/ongoing`);
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || 'Erreur';
       Alert.alert('Impossible', msg);
@@ -193,9 +212,22 @@ export default function OpportunitiesScreen() {
     }
   }, [router]);
 
+  const handleDecline = useCallback(async (requestId: number) => {
+    try {
+      await api.post(`/requests/${requestId}/refuse`);
+      // Also notify via socket for real-time tracking
+      socket?.emit('request:decline', { requestId });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
+    } catch {
+      // Silently remove from list even if API fails
+      setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
+    }
+  }, [socket]);
+
   const renderItem = useCallback(({ item }: { item: Opportunity }) => (
-    <OpportunityCard item={item} theme={theme} onAccept={handleAccept} accepting={accepting} />
-  ), [theme, handleAccept, accepting]);
+    <OpportunityCard item={item} theme={theme} onAccept={handleAccept} onDecline={handleDecline} accepting={accepting} />
+  ), [theme, handleAccept, handleDecline, accepting]);
 
   return (
     <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
@@ -268,8 +300,15 @@ const st = StyleSheet.create({
   infoText: { fontSize: 13, fontFamily: FONTS.sans },
 
   cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   priceNet: { fontSize: 20, fontFamily: FONTS.bebas },
   priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
+  declineBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  declineText: { fontSize: 13, fontFamily: FONTS.sansMedium },
   acceptBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderRadius: 12,

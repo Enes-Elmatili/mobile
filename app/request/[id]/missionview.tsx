@@ -55,6 +55,11 @@ interface MissionParams {
   expiresAt?: string;
   lat?: string;
   lng?: string;
+  // Set to '1' when the request is scheduled for the future — changes the
+  // SEARCHING phase copy from active "searching now" to passive "scheduled, waiting".
+  isScheduled?: string;
+  isQuote?: string;
+  calloutFee?: string;
 }
 
 // ─── Utils ───────────────────────────────────────────────────────────────────
@@ -497,6 +502,8 @@ export default function MissionView() {
   const expiresAt = params.expiresAt;
   const lat = params.lat;
   const lng = params.lng;
+  const isScheduledMission = params.isScheduled === '1';
+  const isQuoteMission = params.isQuote === '1';
   const { socket, joinRoom, leaveRoom } = useSocket();
 
   // Guard: id is required
@@ -559,16 +566,16 @@ export default function MissionView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Elapsed (searching) ─────────────────────────────────────────────────
+  // ─── Elapsed (searching) — only for now-requests, not scheduled missions ───
   useEffect(() => {
-    if (phase !== 'SEARCHING') return;
+    if (phase !== 'SEARCHING' || isScheduledMission) return;
     const iv = setInterval(() => setElapsed(p => p + 1), 1000);
     return () => clearInterval(iv);
-  }, [phase]);
+  }, [phase, isScheduledMission]);
 
-  // ─── Drift carte (SEARCHING) — mouvement lent autour de la position client ─
+  // ─── Drift carte (SEARCHING) — only for urgent now-requests, static for scheduled
   useEffect(() => {
-    if (phase !== 'SEARCHING' || !mapRef.current) return;
+    if (phase !== 'SEARCHING' || isScheduledMission || !mapRef.current) return;
     const radius = 0.004;
     let angle = 0;
     const iv = setInterval(() => {
@@ -581,7 +588,7 @@ export default function MissionView() {
       }, 3000);
     }, 3000);
     return () => clearInterval(iv);
-  }, [phase, clientLocation.latitude, clientLocation.longitude]);
+  }, [phase, isScheduledMission, clientLocation.latitude, clientLocation.longitude]);
 
   // ─── Fetch PIN (silencieux — le 404 NO_PIN est un état normal) ───────────
   const fetchPin = useCallback(async (requestId: string) => {
@@ -591,7 +598,7 @@ export default function MissionView() {
       const res = await fetch(`${baseUrl}/requests/${requestId}/pin`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'ngrok-skip-browser-warning': 'true',
+          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
         },
       });
       if (!res.ok) return; // 404 NO_PIN = normal, pas encore généré
@@ -692,7 +699,7 @@ export default function MissionView() {
       } catch (e) { devError('[MissionView] poll:', e); }
     };
     poll();
-    pollingRef.current = setInterval(poll, 5000);
+    pollingRef.current = setInterval(poll, 15000);
     return () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, phase]);
@@ -704,7 +711,7 @@ export default function MissionView() {
     if (phase !== 'TRACKING' || pinCode || pinVerified) return;
 
     fetchPin(id);
-    pinPollRef.current = setInterval(() => fetchPin(id), 5000);
+    pinPollRef.current = setInterval(() => fetchPin(id), 10000);
 
     return () => {
       if (pinPollRef.current) { clearInterval(pinPollRef.current); pinPollRef.current = null; }
@@ -1022,14 +1029,40 @@ export default function MissionView() {
           <SafeAreaView style={s.safe} pointerEvents="box-none">
             <Animated.View style={[s.searchingContent, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
 
-              {/* Radar */}
+              {/* Radar (now-requests) or calendar icon (scheduled) */}
               <View style={s.radarZone}>
-                <RadarWaves />
-                <CenterLogo />
+                {isScheduledMission ? (
+                  <View style={{
+                    width: 120, height: 120, borderRadius: 60,
+                    backgroundColor: theme.surface,
+                    alignItems: 'center', justifyContent: 'center',
+                    borderWidth: 1, borderColor: theme.border,
+                  }}>
+                    <Ionicons name="calendar-outline" size={56} color={theme.text} />
+                  </View>
+                ) : (
+                  <>
+                    <RadarWaves />
+                    <CenterLogo />
+                  </>
+                )}
               </View>
 
-              {/* Messages */}
-              <DynamicMessage elapsed={elapsed} />
+              {/* Messages — static for scheduled missions, dynamic for now-requests */}
+              {isScheduledMission ? (
+                <View style={dm.wrap}>
+                  <Text style={[dm.title, { color: theme.text }]}>
+                    {isQuoteMission ? 'DEVIS PLANIFIÉ' : 'MISSION PLANIFIÉE'}
+                  </Text>
+                  <Text style={[dm.sub, { color: theme.textSub }]}>
+                    {scheduledLabel
+                      ? `Prévue ${scheduledLabel}. Vous serez notifié dès qu'un prestataire accepte votre demande.`
+                      : "Un prestataire acceptera votre demande bientôt. Vous recevrez une notification."}
+                  </Text>
+                </View>
+              ) : (
+                <DynamicMessage elapsed={elapsed} />
+              )}
 
               <View style={{ flex: 1 }} />
 

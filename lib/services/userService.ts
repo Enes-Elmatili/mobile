@@ -80,7 +80,7 @@ export const userService = {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'ngrok-skip-browser-warning': 'true',
+          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
           // Content-Type absent : fetch génère le boundary multipart automatiquement
         },
         body: formData,

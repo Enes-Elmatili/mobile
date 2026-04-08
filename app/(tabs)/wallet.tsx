@@ -236,10 +236,35 @@ export default function WalletTab() {
     setStripeLoading(true);
     try {
       const res: any = await api.connect.dashboard();
-      if (res?.url) await WebBrowser.openBrowserAsync(res.url);
-      else showSocketToast("Impossible d'ouvrir le dashboard Stripe.", 'error');
+      if (res?.needsOnboarding && res?.url) {
+        // Compte reset (mode mismatch) → relancer l'onboarding
+        await WebBrowser.openBrowserAsync(res.url);
+      } else if (res?.needsOnboarding || res?.code === 'STRIPE_MODE_MISMATCH') {
+        // Pas d'URL → rediriger vers la page d'onboarding
+        const { Linking } = await import('expo-linking');
+        const returnUrl = Linking.createURL('connect/success');
+        const refreshUrl = Linking.createURL('connect/reauth');
+        const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
+        if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
+        else showSocketToast("Impossible de lancer la configuration Stripe.", 'error');
+      } else if (res?.url) {
+        await WebBrowser.openBrowserAsync(res.url);
+      } else {
+        showSocketToast("Impossible d'ouvrir le dashboard Stripe.", 'error');
+      }
     } catch (e: any) {
-      showSocketToast(e?.message || 'Erreur Stripe', 'error');
+      // Backend returns 400 with needsOnboarding on mode mismatch
+      if (e?.code === 'STRIPE_MODE_MISMATCH' || e?.needsOnboarding) {
+        try {
+          const { Linking } = await import('expo-linking');
+          const returnUrl = Linking.createURL('connect/success');
+          const refreshUrl = Linking.createURL('connect/reauth');
+          const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
+          if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
+        } catch { /* silent */ }
+      } else {
+        showSocketToast(e?.message || 'Erreur Stripe', 'error');
+      }
     } finally {
       setStripeLoading(false);
     }

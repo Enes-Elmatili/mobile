@@ -52,7 +52,7 @@ const MAP_STYLE_DARK = [
 // ── Utils ────────────────────────────────────────────────────────────────────
 
 const formatEuros = (amount: number): string =>
-  amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20AC';
+  amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371;
@@ -508,7 +508,13 @@ export default function RequestTracking() {
         <View style={s.missionDetails}>
           <Text style={s.missionTitle}>{request?.serviceType}</Text>
           <Text style={s.missionAddress}>{request?.address}</Text>
-          <Text style={s.missionPrice}>{formatEuros(request?.price || 0)}</Text>
+          <Text style={s.missionPrice}>
+            {request?.price && request.price > 0
+              ? formatEuros(request.price)
+              : (request?.pricingMode === 'estimate' || request?.pricingMode === 'diagnostic')
+                ? 'Devis à définir'
+                : formatEuros(0)}
+          </Text>
         </View>
 
         {/* PIN Card — visible dès que le provider accepte */}

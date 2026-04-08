@@ -25,6 +25,25 @@ import { useFonts } from 'expo-font';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://1bf1a0242d483a309a3dafbe00d22e59@o4511135218532352.ingest.de.sentry.io/4511135226396752',
+
+  // Disable PII collection (IP, cookies, user data) for GDPR compliance
+  sendDefaultPii: false,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 if (!STRIPE_PUBLISHABLE_KEY) {
@@ -192,7 +211,7 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
   const [fontsLoaded] = useFonts({
     BebasNeue_400Regular,
     DMSans_300Light,
@@ -235,7 +254,7 @@ export default function RootLayout() {
       </GestureHandlerRootView>
     </AppErrorBoundary>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

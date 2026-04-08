@@ -13,6 +13,7 @@ import {
   Vibration,
   StatusBar,
   Platform,
+  Alert,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,11 +26,10 @@ import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import { PulseDot } from '@/components/ui/PulseDot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { devWarn } from '@/lib/logger';
+import { devWarn, devLog } from '@/lib/logger';
 
-const TIMER_DURATION = 15;
+const TIMER_DURATION = 60;
 
 // -- Map style "Light Mono" --
 const LIGHT_MAP_STYLE = [
@@ -116,60 +116,36 @@ interface IncomingRequest {
   longitude?: number;
   isQuote?: boolean;
   pricingMode?: string;
+  calloutFee?: number;
 }
 
 // ============================================================================
 // AVATAR MARKER
 // ============================================================================
 
+// Marker GPS provider — exactement le même style que le marker d'adresse dans
+// NewRequestStepper côté client : halo vert translucide + dot vert bordure blanche.
+// Statique, pas d'animation.
 function AvatarMarker(_props: { heading?: number }) {
-  const theme = useAppTheme();
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 0,    useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
-  const pulseScale   = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.8] });
-  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.35, 0.1, 0] });
-
   return (
     <View style={av.wrap}>
-      <Animated.View style={[av.pulse, { backgroundColor: theme.accent, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
-      <View style={[av.accuracyRing, { borderColor: theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(26,26,26,0.2)', backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(26,26,26,0.06)' }]} />
-      <View style={[av.core, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
-        <View style={[av.dot, { backgroundColor: theme.accentText }]} />
-      </View>
+      <View style={av.halo} />
+      <View style={av.dot} />
     </View>
   );
 }
 
 const av = StyleSheet.create({
-  wrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  pulse: {
-    position: 'absolute',
-    width: 28, height: 28, borderRadius: 14,
-  },
-  accuracyRing: {
-    position: 'absolute',
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1.5,
-  },
-  core: {
+  wrap: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  halo: {
     width: 20, height: 20, borderRadius: 10,
-    borderWidth: 2.5,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
+    backgroundColor: 'rgba(52,199,89,0.2)',
   },
   dot: {
-    width: 6, height: 6, borderRadius: 3,
     position: 'absolute',
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: '#34C759',
+    borderWidth: 2, borderColor: '#FFFFFF',
   },
 });
 
@@ -186,127 +162,187 @@ function IncomingJobCard({
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const slideUp   = useRef(new Animated.Value(400)).current;
-  const timerAnim = useRef(new Animated.Value(1)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const arrowAnim = useRef(new Animated.Value(0)).current;
+  const slideUp    = useRef(new Animated.Value(400)).current;
+  const arrowAnim  = useRef(new Animated.Value(0)).current;
+  const badgePulse = useRef(new Animated.Value(1)).current;
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 12, useNativeDriver: true }).start();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.03, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ])
-    ).start();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(arrowAnim, { toValue: 4, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(arrowAnim, { toValue: 0, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
+    Animated.spring(slideUp, { toValue: 0, tension: 55, friction: 11, useNativeDriver: true }).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(arrowAnim, { toValue: 5, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(arrowAnim, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ])).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(badgePulse, { toValue: 0.3, duration: 750, useNativeDriver: true }),
+      Animated.timing(badgePulse, { toValue: 1, duration: 750, useNativeDriver: true }),
+    ])).start();
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const iv = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) { clearInterval(interval); onDecline(); return 0; }
+        if (prev <= 1) { clearInterval(iv); return 0; }
         return prev - 1;
       });
     }, 1000);
-    Animated.timing(timerAnim, { toValue: 0, duration: TIMER_DURATION * 1000, useNativeDriver: false }).start();
-    return () => clearInterval(interval);
+    return () => clearInterval(iv);
   }, []);
 
-  const netPrice = Math.round(request.price * 0.85);
-  const isQuote = request.isQuote;
-  const etaMin = request.distance !== undefined ? Math.round(request.distance * 3) : null;
+  // When countdown reaches 0, switch to "last chance" mode instead of dismissing
+  useEffect(() => {
+    if (timeLeft === 0) setExpired(true);
+  }, [timeLeft]);
 
-  // Timer ring progress (0→1 = full→empty)
+  const isQuote = request.isQuote || request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
+  const netPrice = Math.round(request.price * 0.80);
+  const etaMin = request.distance != null ? Math.round(request.distance * 3) : null;
+
   const progress = timeLeft / TIMER_DURATION;
-  const circumference = 2 * Math.PI * 21; // r=21
-  const strokeDashoffset = circumference * (1 - progress);
-  const timerColor = timeLeft <= 5 ? COLORS.red : COLORS.amber;
+  const timerColor = timeLeft <= 10 ? '#E85030' : COLORS.amber;
+  const timerRotation = `${-90 + 360 * (1 - progress)}deg`;
+
+  // Theme-aware palette
+  const sheetBg   = theme.isDark ? '#0E0E0E' : '#F2F0EB';
+  const borderCol = theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+  const iconBg    = theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
+  const labelCol  = theme.isDark ? '#444' : '#999';
+  const valueCol  = theme.isDark ? '#B0B0B0' : '#666';
+  const boldCol   = theme.isDark ? '#F4F4F2' : '#1A1A18';
+  const passCol   = theme.isDark ? '#333' : '#BBB';
+  const ctaBg     = theme.isDark ? '#F4F4F2' : '#1A1A18';
+  const ctaText   = theme.isDark ? '#0A0A0A' : '#F4F4F2';
+
+  // Address split: bold first part, muted rest
+  const addrParts = request.address.split(',');
+  const addrBold  = addrParts[0] || '';
+  const addrRest  = addrParts.length > 1 ? `, ${addrParts.slice(1).join(',').trim()}` : '';
 
   return (
-    <Animated.View style={[jc.wrap, { bottom: insets.bottom + 20, backgroundColor: theme.bg, shadowOpacity: theme.shadowOpacity > 0.1 ? theme.shadowOpacity : 0.18 }, { transform: [{ translateY: slideUp }] }]}>
-      <View style={jc.content}>
-        {/* Handle */}
-        <View style={[jc.handle, { backgroundColor: theme.borderLight }]} />
+    <Animated.View style={[jc.wrap, { bottom: insets.bottom }, { transform: [{ translateY: slideUp }] }]}>
+      {/* Gradient map → sheet */}
+      <LinearGradient
+        colors={['transparent', `${sheetBg}99`, sheetBg]}
+        locations={[0, 0.4, 1]}
+        style={jc.topFade}
+        pointerEvents="none"
+      />
 
-        {/* Top row: service name + timer ring */}
-        <View style={jc.topRow}>
-          <Text style={[jc.title, { color: theme.text }]} numberOfLines={2}>{request.title}</Text>
-          <View style={jc.timerRing}>
-            <View style={jc.timerSvgWrap}>
-              {/* Background circle */}
-              <View style={[jc.timerCircleBg, { borderColor: theme.border }]} />
-              {/* Progress circle (approximated with border) */}
-              <View style={[jc.timerCircleProgress, { borderColor: timerColor, borderTopColor: 'transparent', transform: [{ rotate: `${360 * progress}deg` }] }]} />
-            </View>
-            <Text style={[jc.timerText, { color: timerColor }]}>{timeLeft}</Text>
-          </View>
-        </View>
+      <View style={[jc.sheet, { backgroundColor: sheetBg }]}>
+        <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
 
-        {/* Mode badge */}
-        <View style={[jc.modeBadge, isQuote
-          ? { backgroundColor: 'rgba(232,168,56,0.12)', borderColor: 'rgba(232,168,56,0.15)' }
-          : { backgroundColor: 'rgba(61,139,61,0.10)', borderColor: 'rgba(61,139,61,0.15)' }
-        ]}>
-          <View style={[jc.modeDot, { backgroundColor: isQuote ? COLORS.amber : '#3D8B3D' }]} />
-          <Text style={[jc.modeLabel, { color: isQuote ? COLORS.amber : '#3D8B3D' }]}>
-            {isQuote ? 'DEVIS — DIAGNOSTIC SUR PLACE' : 'PRIX FIXE'}
+        {/* Timer row: "NOUVELLE MISSION" / "DERNIÈRE CHANCE" + ring */}
+        <View style={jc.timerRow}>
+          <Text style={[jc.newLabel, { color: expired ? '#E85030' : COLORS.amber }]}>
+            {expired ? 'DERNIÈRE CHANCE' : 'NOUVELLE MISSION'}
           </Text>
-        </View>
-
-        {/* Price (only for fixed price) */}
-        {!isQuote && request.price > 0 && (
-          <View style={jc.priceBlock}>
-            <Text style={[jc.priceAmount, { color: theme.text }]}>{netPrice},00 €</Text>
-            <Text style={[jc.priceSuffix, { color: theme.textMuted }]}>net estimé</Text>
-          </View>
-        )}
-
-        {/* Info rows */}
-        <View style={jc.infoGrid}>
-          <View style={jc.infoRow}>
-            <View style={[jc.infoIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Ionicons name="location-outline" size={14} color={theme.textMuted} />
-            </View>
-            <Text style={[jc.infoText, { color: theme.textSub }]} numberOfLines={1}>{request.address}</Text>
-          </View>
-          {etaMin !== null && (
-            <View style={jc.infoRow}>
-              <View style={[jc.infoIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Ionicons name="time-outline" size={14} color={theme.textMuted} />
-              </View>
-              <Text style={[jc.infoText, { color: theme.textSub }]}>~{etaMin} min · {request.distance!.toFixed(1)} km</Text>
+          {!expired && (
+            <View style={jc.timerWrap}>
+              <View style={[jc.timerBg, { borderColor: 'rgba(232,160,48,0.12)' }]} />
+              <View style={[jc.timerProgress, { borderColor: timerColor, borderTopColor: 'transparent', borderRightColor: 'transparent', transform: [{ rotate: timerRotation }] }]} />
+              <Text style={[jc.timerNum, { color: timerColor }]}>{timeLeft}</Text>
             </View>
           )}
-          <View style={jc.infoRow}>
-            <View style={[jc.infoIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Ionicons name="person-outline" size={14} color={theme.textMuted} />
-            </View>
-            <Text style={[jc.infoText, { color: theme.textSub }]}>{request.client.name}</Text>
+        </View>
+
+        {/* Title — Bebas 30px */}
+        <Text style={[jc.title, { color: boldCol }]} numberOfLines={2}>{request.title.toUpperCase()}</Text>
+
+        {/* Badge */}
+        <View style={jc.badgeRow}>
+          <View style={[jc.badge, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.2)' }]}>
+            <Animated.View style={[jc.badgeDot, { opacity: badgePulse }]} />
+            <Text style={jc.badgeText}>
+              {isQuote ? 'DEVIS — DIAGNOSTIC SUR PLACE' : 'PRIX FIXE'}
+            </Text>
           </View>
         </View>
 
-        {/* CTA Accept */}
-        <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: theme.accent }]} onPress={onAccept} activeOpacity={0.88}>
-          <Text style={[jc.acceptText, { color: theme.accentText }]}>ACCEPTER</Text>
-          <Animated.View style={{ transform: [{ translateX: arrowAnim }] }}>
-            <Ionicons name="arrow-forward" size={18} color={theme.accentText as string} />
-          </Animated.View>
-        </TouchableOpacity>
+        {/* Divider */}
+        <View style={[jc.divider, { backgroundColor: borderCol }]} />
 
-        {/* Pass */}
-        <TouchableOpacity style={jc.declineBtn} onPress={onDecline} activeOpacity={0.7}>
-          <Text style={[jc.declineText, { color: theme.textMuted }]}>Passer</Text>
-        </TouchableOpacity>
+        {/* Info rows */}
+        <View style={jc.infoList}>
+          {/* Address */}
+          <View style={[jc.infoRow, { borderBottomColor: borderCol }]}>
+            <View style={[jc.infoIcon, { backgroundColor: iconBg, borderColor: borderCol }]}>
+              <Ionicons name="location-outline" size={15} color="#888" />
+            </View>
+            <View style={jc.infoContent}>
+              <Text style={[jc.infoLabel, { color: labelCol }]}>ADRESSE</Text>
+              <Text style={[jc.infoValue, { color: valueCol }]} numberOfLines={1}>
+                <Text style={{ color: boldCol, fontWeight: '500' }}>{addrBold}</Text>
+                {addrRest}
+              </Text>
+            </View>
+            {etaMin != null && (
+              <View style={jc.etaChip}>
+                <Ionicons name="time-outline" size={12} color="#555" />
+                <Text style={jc.etaChipText}>{etaMin} min</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Client */}
+          <View style={[jc.infoRow, { borderBottomColor: borderCol }]}>
+            <View style={[jc.infoIcon, { backgroundColor: iconBg, borderColor: borderCol }]}>
+              <Ionicons name="person-outline" size={15} color="#888" />
+            </View>
+            <View style={jc.infoContent}>
+              <Text style={[jc.infoLabel, { color: labelCol }]}>CLIENT</Text>
+              <Text style={[jc.infoValue, { color: boldCol, fontWeight: '500' }]}>{request.client.name}</Text>
+            </View>
+          </View>
+
+          {/* Fee / Price — last row, no border */}
+          {isQuote ? (
+            <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
+              <View style={[jc.infoIcon, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.15)' }]}>
+                <Ionicons name="wallet-outline" size={15} color={COLORS.amber} />
+              </View>
+              <View style={jc.infoContent}>
+                <Text style={[jc.infoLabel, { color: labelCol }]}>FRAIS DE DÉPLACEMENT</Text>
+                <Text style={[jc.infoValue, { color: COLORS.amber, fontWeight: '500' }]}>Garanti à réception</Text>
+              </View>
+              {request.calloutFee != null && request.calloutFee > 0 && (
+                <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
+                  <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{Math.round(request.calloutFee / 100)} €</Text>
+                </View>
+              )}
+            </View>
+          ) : request.price > 0 ? (
+            <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
+              <View style={[jc.infoIcon, { backgroundColor: 'rgba(61,139,61,0.10)', borderColor: 'rgba(61,139,61,0.15)' }]}>
+                <Ionicons name="card-outline" size={15} color="#3D8B3D" />
+              </View>
+              <View style={jc.infoContent}>
+                <Text style={[jc.infoLabel, { color: labelCol }]}>GAINS ESTIMÉS</Text>
+                <Text style={[jc.infoValue, { color: '#3D8B3D', fontWeight: '500' }]}>Net après commission</Text>
+              </View>
+              <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
+                <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{netPrice} €</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        {/* CTA */}
+        <View style={jc.ctaArea}>
+          <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: ctaBg }]} onPress={onAccept} activeOpacity={0.85}>
+            <Text style={[jc.acceptText, { color: ctaText }]}>ACCEPTER</Text>
+            <Animated.View style={{ transform: [{ translateX: arrowAnim }] }}>
+              <Ionicons name="arrow-forward" size={18} color={ctaText} />
+            </Animated.View>
+          </TouchableOpacity>
+          <TouchableOpacity style={jc.passBtn} onPress={onDecline} activeOpacity={0.4}>
+            <Text style={[jc.passText, { color: expired ? '#E85030' : passCol }]}>
+              {expired ? 'REFUSER' : 'Passer'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Animated.View>
   );
@@ -314,61 +350,60 @@ function IncomingJobCard({
 
 const jc = StyleSheet.create({
   wrap: {
-    position: 'absolute',
-    left: 0, right: 0,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    overflow: 'hidden',
-    shadowColor: '#000', shadowRadius: 32,
-    shadowOffset: { width: 0, height: -8 },
-    elevation: 24,
+    position: 'absolute', left: 0, right: 0,
+    shadowColor: '#000', shadowRadius: 40, shadowOffset: { width: 0, height: -12 }, shadowOpacity: 0.3,
+    elevation: 28,
   },
-  content: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
-  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  topFade: { height: 56 },
+  sheet: { paddingBottom: 56 },
+  handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
 
-  // Top row
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
-  title: { fontSize: 18, fontFamily: FONTS.sansMedium, lineHeight: 24, flex: 1 },
+  // Timer row
+  timerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 20 },
+  newLabel: { fontFamily: FONTS.bebas, fontSize: 11, letterSpacing: 2.5, opacity: 0.7 },
+  timerWrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  timerBg: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 3 },
+  timerProgress: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 3 },
+  timerNum: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 1 },
 
-  // Timer ring
-  timerRing: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  timerSvgWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  timerCircleBg: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
-  timerCircleProgress: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
-  timerText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 1 },
+  // Title
+  title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, lineHeight: 33, paddingHorizontal: 24, paddingTop: 12 },
 
-  // Mode badge
-  modeBadge: {
+  // Badge
+  badgeRow: { paddingHorizontal: 24, paddingTop: 14 },
+  badge: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
-    gap: 6, paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 100, borderWidth: 1, marginBottom: 20,
+    gap: 7, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 100, borderWidth: 1,
   },
-  modeDot: { width: 8, height: 8, borderRadius: 4 },
-  modeLabel: { fontSize: 11, fontFamily: FONTS.sansMedium, letterSpacing: 1.5, textTransform: 'uppercase' },
+  badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.amber },
+  badgeText: { fontFamily: FONTS.sansMedium, fontSize: 10.5, letterSpacing: 1.8, color: COLORS.amber },
 
-  // Price block
-  priceBlock: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 20 },
-  priceAmount: { fontFamily: FONTS.bebas, fontSize: 40, lineHeight: 44 },
-  priceSuffix: { fontFamily: FONTS.sans, fontSize: 14 },
+  // Divider
+  divider: { height: 1, marginHorizontal: 24, marginVertical: 18 },
 
-  // Info grid
-  infoGrid: { gap: 10, marginBottom: 24 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  infoIcon: {
-    width: 32, height: 32, borderRadius: 8, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  infoText: { fontFamily: FONTS.sans, fontSize: 14, flex: 1 },
+  // Info
+  infoList: { paddingHorizontal: 24 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 11, borderBottomWidth: 1 },
+  infoIcon: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  infoContent: { flex: 1 },
+  infoLabel: { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 1, marginBottom: 2 },
+  infoValue: { fontFamily: FONTS.sans, fontSize: 13.5 },
+
+  etaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  etaChipText: { fontFamily: FONTS.sans, fontSize: 12, color: '#888' },
+
+  feeBadge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
+  feeBadgeNum: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 0.5 },
 
   // CTA
+  ctaArea: { paddingHorizontal: 24, paddingTop: 20, gap: 10 },
   acceptBtn: {
-    height: 56, borderRadius: 16, flexDirection: 'row',
+    height: 58, borderRadius: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 10,
-    marginBottom: 12,
   },
-  acceptText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 },
-
-  declineBtn: { alignItems: 'center', paddingVertical: 8 },
-  declineText: { fontSize: 14, fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
+  acceptText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3 },
+  passBtn: { alignItems: 'center', height: 40, justifyContent: 'center' },
+  passText: { fontFamily: FONTS.sans, fontSize: 13, letterSpacing: 0.3 },
 });
 
 // ============================================================================
@@ -563,6 +598,7 @@ export default function ProviderDashboard() {
   const mapRef   = useRef<MapView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+
   const [location,      setLocation]      = useState<{ latitude: number; longitude: number } | null>(null);
   const [heading,       setHeading]        = useState(0);
   const [, setLocationError] = useState(false);
@@ -573,7 +609,6 @@ export default function ProviderDashboard() {
   const [loading,       setLoading]        = useState(true);
   const [isOnline,      setIsOnline]       = useState(false);
   const isOnlineRef = useRef(false);
-  const [activeMission, setActiveMission]  = useState<any>(null);
   const declinedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -635,14 +670,6 @@ export default function ProviderDashboard() {
     const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
     const monthEarnings = dashData?.stats?.monthEarnings?.total || 0;
 
-    // Active mission (ACCEPTED or ONGOING)
-    const activeReqs = dashData?.activeRequests || [];
-    if (activeReqs.length > 0) {
-      setActiveMission(activeReqs[0]);
-    } else {
-      setActiveMission(null);
-    }
-
     if (results[0].status === 'fulfilled') {
       const w = results[0].value as any;
       setWallet({
@@ -673,43 +700,76 @@ export default function ProviderDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Load pending opportunities via REST (complements socket new_request)
-  useEffect(() => {
+  // Load current incoming queue via REST — hydrates the card list on dashboard open
+  // so the provider sees existing "now" + devis requests without waiting for the next
+  // socket rebroadcast tick. Scheduled-for-future requests live in the missions tab.
+  // Extracted as a stable callback so we can re-invoke on socket (re)connect.
+  const fetchIncomingQueue = useCallback(async () => {
     if (!user?.id) return;
-    (async () => {
-      try {
-        const res: any = await api.get('/requests/opportunities');
-        const opps = res?.data || res || [];
-        if (Array.isArray(opps) && opps.length > 0) {
-          const mapped: IncomingRequest[] = opps.map((r: any) => ({
-            requestId: String(r.id),
-            title: r.serviceType || r.category?.name || 'Mission',
-            description: r.description || '',
-            price: r.price || 0,
-            address: r.address || '',
-            latitude: r.lat,
-            longitude: r.lng,
-            urgent: r.urgent || false,
-            pricingMode: r.pricingMode,
-            client: { name: r.client?.name || 'Client' },
-          }));
-          setIncomingRequests(prev => {
-            const existingIds = new Set(prev.map(r => r.requestId));
-            const newOnes = mapped.filter((r: any) => !existingIds.has(r.requestId));
-            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
-          });
-        }
-      } catch {}
-    })();
+    try {
+      const res: any = await api.get('/requests/incoming');
+      const items = res?.data || res || [];
+      if (Array.isArray(items) && items.length > 0) {
+        const mapped: IncomingRequest[] = items.map((r: any) => ({
+          requestId: String(r.id),
+          title: r.serviceType || r.category?.name || 'Mission',
+          description: r.description || '',
+          price: r.price || 0,
+          address: r.address || '',
+          latitude: r.lat,
+          longitude: r.lng,
+          urgent: r.urgent || false,
+          pricingMode: r.pricingMode,
+          isQuote: r.status === 'QUOTE_PENDING',
+          calloutFee: r.calloutFee ?? undefined,
+          client: { name: r.client?.name || 'Client' },
+        }));
+        setIncomingRequests(prev => {
+          const existingIds = new Set(prev.map(r => r.requestId));
+          const newOnes = mapped.filter((r: any) =>
+            !existingIds.has(r.requestId) && !declinedIdsRef.current.has(r.requestId)
+          );
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+        });
+      }
+    } catch {}
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchIncomingQueue();
+  }, [fetchIncomingQueue]);
+
+  // Polling safety net : rafraîchit /requests/incoming toutes les 8s tant que
+  // le provider est online. Garantit l'apparition des cards même si le socket
+  // rate un event (cas : register pas encore enregistré sur le backend quand
+  // le new_request est émis, latence réseau, buffering, etc.).
+  useEffect(() => {
+    if (!user?.id || !isOnline) return;
+    const iv = setInterval(() => {
+      fetchIncomingQueue();
+    }, 20000);
+    return () => clearInterval(iv);
+  }, [user?.id, isOnline, fetchIncomingQueue]);
 
   // Socket
   useEffect(() => {
     if (!socket || !user?.id) return;
-    if (socket.connected) {
+
+    // Helper: register + refresh incoming queue. Called on mount (if already connected)
+    // AND on every (re)connect, so a brief network blip doesn't leave the provider in a
+    // zombie state where the server doesn't know their socket and they miss new_request
+    // events. Without this, the provider could wait up to 45s (next rebroadcast tick)
+    // before seeing an incoming card.
+    const registerAndRefresh = () => {
       socket.emit('provider:register', { providerId: user.id });
       isOnlineRef.current = true;
       setIsOnline(true);
+      // Re-hydrate in case we missed a broadcast while disconnected.
+      fetchIncomingQueue();
+    };
+
+    if (socket.connected) {
+      registerAndRefresh();
     }
 
     const handleNewRequest = (data: any) => {
@@ -732,6 +792,7 @@ export default function ProviderDashboard() {
         longitude:   lng,
         isQuote:     data.isQuote || false,
         pricingMode: data.pricingMode || null,
+        calloutFee:  data.calloutFee ?? undefined,
       };
       setIncomingRequests(prev => prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]);
       if (lat && lng) {
@@ -753,18 +814,20 @@ export default function ProviderDashboard() {
       }
     };
 
-    socket.on('new_request',           handleNewRequest);
-    socket.on('request:claimed',       removeRequest);
-    socket.on('request:expired',       removeRequest);
+    socket.on('connect',                registerAndRefresh);
+    socket.on('new_request',            handleNewRequest);
+    socket.on('request:claimed',        removeRequest);
+    socket.on('request:expired',        removeRequest);
     socket.on('provider:status_update', handleStatusUpdate);
 
     return () => {
-      socket.off('new_request',           handleNewRequest);
-      socket.off('request:claimed',       removeRequest);
-      socket.off('request:expired',       removeRequest);
+      socket.off('connect',                registerAndRefresh);
+      socket.off('new_request',            handleNewRequest);
+      socket.off('request:claimed',        removeRequest);
+      socket.off('request:expired',        removeRequest);
       socket.off('provider:status_update', handleStatusUpdate);
     };
-  }, [socket, user?.id]);
+  }, [socket, user?.id, fetchIncomingQueue]);
 
   // Toggle online
   const handleToggleOnline = useCallback(() => {
@@ -780,36 +843,28 @@ export default function ProviderDashboard() {
     }
   }, [isOnline, socket, user?.id, location]);
 
-  // Accept / Decline
+  // Accept — REST call (reliable) + socket notification (real-time bonus)
   const handleAccept = useCallback(async (request: IncomingRequest) => {
-    if (!user?.id || !socket) return;
+    if (!user?.id) return;
 
-    // Wait for backend confirmation before navigating
-    const onSuccess = (data: any) => {
-      socket.off('provider:accept_success', onSuccess);
-      socket.off('error', onError);
-      Vibration.vibrate(100);
-      setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
-      router.push(`/request/${request.requestId}/ongoing`);
-    };
-    const onError = (err: any) => {
-      socket.off('provider:accept_success', onSuccess);
-      socket.off('error', onError);
+    try {
+      const res: any = await api.post(`/requests/${request.requestId}/accept`);
+      if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
+        Vibration.vibrate(100);
+        setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
+        router.replace(`/request/${request.requestId}/ongoing`);
+      } else {
+        throw new Error(res?.message || 'Erreur inconnue');
+      }
+    } catch (err: any) {
+      const msg = err?.message || err?.data?.message || 'La mission n\u2019est plus disponible ou une erreur est survenue.';
+      Alert.alert('Impossible d\u2019accepter', msg);
       declinedIdsRef.current.add(request.requestId);
       setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
-    };
+    }
+  }, [user?.id, router]);
 
-    socket.on('provider:accept_success', onSuccess);
-    socket.on('error', onError);
-    socket.emit('provider:accept', { requestId: request.requestId, providerId: user.id, clientId: request.clientId });
-
-    // Timeout fallback — if no response in 8s, clean up
-    setTimeout(() => {
-      socket.off('provider:accept_success', onSuccess);
-      socket.off('error', onError);
-    }, 8000);
-  }, [socket, user?.id, router]);
-
+  // Explicit decline ("Passer") — refuse backend + never show again
   const handleDecline = useCallback(async (requestId: string) => {
     declinedIdsRef.current.add(requestId);
     try { await api.post(`/requests/${requestId}/refuse`); } catch { /* silent */ }
@@ -929,26 +984,6 @@ export default function ProviderDashboard() {
 
           {/* Separateur */}
           <View style={[s.tiSep, { backgroundColor: theme.border }]} />
-
-          {/* Mission active */}
-          {activeMission && (
-            <TouchableOpacity
-              style={[s.activeBanner, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: theme.border }]}
-              activeOpacity={0.85}
-              onPress={() => router.push(`/request/${activeMission.id}/ongoing`)}
-            >
-              <PulseDot size={8} color={activeMission.status === 'ONGOING' ? COLORS.green : COLORS.amber} />
-              <View style={{ flex: 1 }}>
-                <Text style={[s.activeBannerTitle, { color: theme.text }]} numberOfLines={1}>
-                  {activeMission.category?.name || activeMission.serviceType || t('missions.mission')}
-                </Text>
-                <Text style={[s.activeBannerSub, { color: theme.textMuted }]} numberOfLines={1}>
-                  {activeMission.status === 'ONGOING' ? t('provider.mission_ongoing') : t('provider.mission_accepted')} · {activeMission.client?.name || t('provider.client')}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-            </TouchableOpacity>
-          )}
 
           {/* Ligne 2 -- Gains hero */}
           <View style={s.earningsLeft}>
@@ -1070,6 +1105,14 @@ const s = StyleSheet.create({
   },
   activeBannerTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   activeBannerSub: { fontSize: 11, fontFamily: FONTS.sans, marginTop: 1 },
+  activePulseWrap: {
+    width: 18, height: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  activePulseRing: {
+    position: 'absolute',
+    width: 8, height: 8, borderRadius: 4,
+  },
 
   // Mission marker
   missionMarker: {

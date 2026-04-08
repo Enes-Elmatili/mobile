@@ -23,7 +23,7 @@ import * as Haptics from 'expo-haptics';
 
 
 const { width } = Dimensions.get('window');
-const NET_RATE = 0.85;
+const NET_RATE = 0.80;
 
 // --- Grayscale map style ---
 const LIGHT_MAP_STYLE = [
@@ -496,6 +496,7 @@ const mc = StyleSheet.create({
   timeCol:       { width: 56, alignItems: 'center', paddingTop: 16, paddingBottom: 12, gap: 4 },
   timeText:      { fontSize: 12, fontFamily: FONTS.mono },
   timeLine:      { flex: 1, width: 2, borderRadius: 1 },
+  timeDot:       { width: 8, height: 8, borderRadius: 4 },
 
   body:   { flex: 1, paddingRight: 14, paddingTop: 14, paddingBottom: 12 },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
@@ -625,10 +626,12 @@ const es = StyleSheet.create({
 // ============================================================================
 
 function OpportunityCard({
-  item, theme, onAccept, accepting,
+  item, theme, onAccept, onDecline, accepting,
 }: {
   item: Opportunity; theme: ReturnType<typeof useAppTheme>;
-  onAccept: (id: number) => void; accepting: number | null;
+  onAccept: (id: number) => void;
+  onDecline: (id: number) => void;
+  accepting: number | null;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const { day, time, relative } = formatScheduledDate(item.preferredTimeStart);
@@ -641,6 +644,11 @@ function OpportunityCard({
     ]).start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onAccept(item.id);
+  };
+
+  const handleDecline = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onDecline(item.id);
   };
 
   return (
@@ -687,21 +695,33 @@ function OpportunityCard({
           ) : (
             <View />
           )}
-          <TouchableOpacity
-            style={[opp.acceptBtn, { backgroundColor: theme.accent }]}
-            onPress={handlePress}
-            disabled={accepting !== null}
-            activeOpacity={0.8}
-          >
-            {accepting === item.id ? (
-              <ActivityIndicator size="small" color={theme.accentText} />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
-                <Text style={[opp.acceptText, { color: theme.accentText }]}>Accepter</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={opp.actionsRow}>
+            <TouchableOpacity
+              style={[opp.declineBtn, { borderColor: theme.border }]}
+              onPress={handleDecline}
+              disabled={accepting !== null}
+              activeOpacity={0.7}
+              accessibilityLabel="Refuser"
+            >
+              <Ionicons name="close" size={18} color={theme.textSub} />
+              <Text style={[opp.declineText, { color: theme.textSub }]}>Refuser</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[opp.acceptBtn, { backgroundColor: theme.accent }]}
+              onPress={handlePress}
+              disabled={accepting !== null}
+              activeOpacity={0.8}
+            >
+              {accepting === item.id ? (
+                <ActivityIndicator size="small" color={theme.accentText} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
+                  <Text style={[opp.acceptText, { color: theme.accentText }]}>Accepter</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Animated.View>
@@ -727,6 +747,13 @@ const opp = StyleSheet.create({
   cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   priceNet: { fontSize: 20, fontFamily: FONTS.bebas },
   priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  declineBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  declineText: { fontSize: 14, fontFamily: FONTS.sansMedium },
   acceptBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderRadius: 12,
@@ -1207,16 +1234,38 @@ export default function Missions() {
     }
   }, [loadMissions]);
 
-  // Real-time socket listener for new opportunities + quote status updates
+  const handleDeclineOpp = useCallback(async (requestId: number) => {
+    // Remove immediately from local list (optimistic), then call backend to persist
+    // the decline so the rebroadcast loop skips this provider for this request.
+    setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await api.post(`/requests/${requestId}/refuse`);
+    } catch (e: any) {
+      // Non-fatal: local state already updated. Just log for debugging.
+      const msg = e?.response?.data?.message || e?.message || 'Erreur';
+      Alert.alert('Refus enregistré localement', msg);
+    }
+  }, []);
+
+  // Real-time socket listener for new opportunities + quote status updates + claims
   useEffect(() => {
     if (!socket) return;
     const handleOpp = () => { fetchOpportunities(); };
     const handleStatus = () => { loadMissions(); };
+    // When any provider accepts a request, remove it locally from the opportunities list
+    // so it disappears instantly for all other providers without waiting for a refresh.
+    const handleClaimed = (requestId: number | string) => {
+      const idNum = typeof requestId === 'string' ? Number(requestId) : requestId;
+      setOpportunities((prev) => prev.filter((o) => o.id !== idNum));
+    };
     socket.on('new_opportunity', handleOpp);
     socket.on('request:statusUpdated', handleStatus);
+    socket.on('request:claimed', handleClaimed);
     return () => {
       socket.off('new_opportunity', handleOpp);
       socket.off('request:statusUpdated', handleStatus);
+      socket.off('request:claimed', handleClaimed);
     };
   }, [socket, fetchOpportunities, loadMissions]);
 
@@ -1224,26 +1273,33 @@ export default function Missions() {
   const onRefresh = () => { setRefreshing(true); loadMissions(); fetchOpportunities(); };
 
   // -- Auto-redirect quand l'heure planifiee d'une mission ACCEPTED arrive --
+  // On ne redirige QUE les missions dont le scheduledAt est strictement dans le futur
+  // au moment du montage de l'effet. Cela evite de rediriger immediatement apres
+  // l'acceptation d'une opportunite urgente (scheduledAt = maintenant ou passe).
   const redirectedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const accepted = missions.filter(m => m.status === 'ACCEPTED' && m.scheduledAt);
-    if (accepted.length === 0) return;
+    const initialNow = Date.now();
+    const pending = missions.filter(m => {
+      if (m.status !== 'ACCEPTED' || !m.scheduledAt) return false;
+      const scheduled = new Date(m.scheduledAt).getTime();
+      return scheduled > initialNow;
+    });
+    if (pending.length === 0) return;
 
     const check = () => {
       const now = Date.now();
-      for (const m of accepted) {
+      for (const m of pending) {
         if (redirectedRef.current.has(m.id)) continue;
         const scheduled = new Date(m.scheduledAt!).getTime();
         if (now >= scheduled) {
           redirectedRef.current.add(m.id);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.push({ pathname: '/request/[id]/ongoing', params: { id: m.id } });
+          router.replace({ pathname: '/request/[id]/ongoing', params: { id: m.id } });
           return;
         }
       }
     };
 
-    check();
     const interval = setInterval(check, 30_000);
     return () => clearInterval(interval);
   }, [missions, router]);
@@ -1374,7 +1430,7 @@ export default function Missions() {
         mission={item}
         onPress={() => {
           if (isActive) {
-            router.push({ pathname: '/request/[id]/ongoing', params: { id: item.id } });
+            router.replace({ pathname: '/request/[id]/ongoing', params: { id: item.id } });
           } else {
             handleMissionPress(item.id);
           }
@@ -1461,7 +1517,7 @@ export default function Missions() {
             data={opportunities}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} accepting={acceptingOpp} />
+              <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} onDecline={handleDeclineOpp} accepting={acceptingOpp} />
             )}
             contentContainerStyle={s.list}
             showsVerticalScrollIndicator={false}
@@ -1530,10 +1586,8 @@ export default function Missions() {
               const st = selectedMission.status?.toUpperCase();
               if (st === 'QUOTE_PENDING') {
                 router.push({ pathname: '/request/[id]/send-quote', params: { id: selectedMission.id } });
-              } else if (st === 'QUOTE_ACCEPTED') {
-                router.push({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
               } else {
-                router.push({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
+                router.replace({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
               }
             }}
           />

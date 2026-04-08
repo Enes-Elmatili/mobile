@@ -17,7 +17,7 @@ import type { Invoice } from '@/hooks/useInvoice';
 const fmtEur = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fmtEurCents = (cents: number) => (cents / 100).toFixed(2);
 
-type Tab = 'factures' | 'devis';
+type Tab = 'factures' | 'devis' | 'planifiees';
 type Filter = 'all' | 'paid' | 'pending';
 
 interface QuoteRequest {
@@ -27,6 +27,21 @@ interface QuoteRequest {
   status: string;
   calloutFee?: number;
   category?: { name: string };
+  subcategory?: { name: string };
+  createdAt: string;
+}
+
+interface ScheduledRequest {
+  id: string;
+  title?: string;
+  serviceType?: string;
+  status: string;
+  address?: string;
+  price?: number;
+  pricingMode?: string | null;
+  calloutFee?: number;
+  preferredTimeStart: string;
+  category?: { name: string; icon?: string };
   subcategory?: { name: string };
   createdAt: string;
 }
@@ -139,6 +154,7 @@ export default function Documents() {
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
+  const [scheduledRequests, setScheduledRequests] = useState<ScheduledRequest[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,6 +163,7 @@ export default function Documents() {
   const [activeTab, setActiveTab] = useState<Tab>('factures');
 
   const QUOTE_STATUSES = ['QUOTE_SENT', 'QUOTE_ACCEPTED', 'QUOTE_PENDING'];
+  const SCHEDULED_HIDDEN_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
 
   const load = useCallback(async () => {
     try {
@@ -166,6 +183,21 @@ export default function Documents() {
           if (st === 'QUOTE_PENDING' && !(r.calloutFee > 0)) return false;
           return true;
         })
+      );
+
+      // Demandes planifiées : preferredTimeStart dans le futur, pas annulées/terminées
+      const now = Date.now();
+      setScheduledRequests(
+        reqData
+          .filter((r: any) => {
+            const st = r.status?.toUpperCase();
+            if (SCHEDULED_HIDDEN_STATUSES.includes(st)) return false;
+            if (!r.preferredTimeStart) return false;
+            return new Date(r.preferredTimeStart).getTime() > now;
+          })
+          .sort((a: any, b: any) =>
+            new Date(a.preferredTimeStart).getTime() - new Date(b.preferredTimeStart).getTime()
+          )
       );
     } catch (e) {
       devError('Documents load error:', e);
@@ -221,7 +253,9 @@ export default function Documents() {
         <View>
           <Text style={[s.headerTitle, { color: theme.text }]}>DOCUMENTS</Text>
           <Text style={[s.headerSub, { color: theme.textMuted }]}>
-            {activeTab === 'factures' ? 'Factures et reçus' : 'Devis et estimations'}
+            {activeTab === 'factures' ? 'Factures et reçus'
+              : activeTab === 'devis' ? 'Devis et estimations'
+              : 'Demandes planifiées'}
           </Text>
         </View>
         <TouchableOpacity
@@ -235,10 +269,14 @@ export default function Documents() {
 
       {/* Main tabs */}
       <View style={[s.mainTabBar, { borderBottomColor: theme.borderLight }]}>
-        {(['factures', 'devis'] as Tab[]).map(tab => {
+        {(['factures', 'devis', 'planifiees'] as Tab[]).map(tab => {
           const isActive = activeTab === tab;
-          const label = tab === 'factures' ? 'FACTURES' : 'DEVIS';
-          const count = tab === 'factures' ? invoices.length : quoteRequests.length;
+          const label = tab === 'factures' ? 'FACTURES'
+            : tab === 'devis' ? 'DEVIS'
+            : 'PLANIFIÉES';
+          const count = tab === 'factures' ? invoices.length
+            : tab === 'devis' ? quoteRequests.length
+            : scheduledRequests.length;
           return (
             <TouchableOpacity
               key={tab}
@@ -398,6 +436,70 @@ export default function Documents() {
                         )}
                         <View style={[iv.pill, { backgroundColor: pillBg }]}>
                           <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+
+        {/* ── PLANIFIÉES TAB ── demandes avec preferredTimeStart futur */}
+        {activeTab === 'planifiees' && (
+          <>
+            {scheduledRequests.length === 0 ? (
+              <View style={[s.empty, { borderColor: theme.borderLight }]}>
+                <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="calendar-outline" size={22} color={theme.textDisabled} />
+                </View>
+                <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune demande planifiée</Text>
+                <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
+                  Vos missions à venir apparaîtront ici. Vous serez notifié dès qu'un prestataire accepte.
+                </Text>
+              </View>
+            ) : (
+              <View style={s.invoiceList}>
+                {scheduledRequests.map(req => {
+                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
+                  const isQuote = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
+                  const scheduledDate = new Date(req.preferredTimeStart);
+                  const dayLabel = scheduledDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+                  const timeLabel = scheduledDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                  const priceLabel = req.price && req.price > 0
+                    ? `${req.price} €`
+                    : isQuote ? 'Devis' : '—';
+                  const pillBg = isQuote ? 'rgba(232,120,58,0.1)' : 'rgba(245,158,11,0.12)';
+                  const pillColor = isQuote ? '#E8783A' : '#b45309';
+                  const barColor = isQuote ? '#E8783A' : '#f59e0b';
+
+                  return (
+                    <TouchableOpacity
+                      key={req.id}
+                      style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+                      onPress={() => router.push({
+                        pathname: '/request/[id]/scheduled',
+                        params: { id: req.id, mode: 'recap' },
+                      })}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[iv.bar, { backgroundColor: barColor }]} />
+                      <View style={[iv.icon, { backgroundColor: pillBg }]}>
+                        <Ionicons name="calendar-outline" size={16} color={pillColor} />
+                      </View>
+                      <View style={iv.body}>
+                        <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
+                        <Text style={[iv.meta, { color: theme.textMuted }]} numberOfLines={1}>
+                          {dayLabel} · {timeLabel}
+                        </Text>
+                      </View>
+                      <View style={iv.right}>
+                        <Text style={[iv.amount, { color: theme.text }]}>{priceLabel}</Text>
+                        <View style={[iv.pill, { backgroundColor: pillBg }]}>
+                          <Text style={[iv.pillText, { color: pillColor }]}>
+                            {isQuote ? 'Devis' : 'Planifiée'}
+                          </Text>
                         </View>
                       </View>
                     </TouchableOpacity>

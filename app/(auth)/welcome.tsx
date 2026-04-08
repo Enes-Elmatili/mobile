@@ -17,6 +17,7 @@ import Svg, { Line } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const LOGO_WHITE = require("../../assets/logo-variants/logo-transparent-white.png");
@@ -202,6 +203,7 @@ function TrustBadge() {
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Welcome() {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<"splash" | "main">("splash");
 
   // Splash anims
@@ -352,7 +354,7 @@ export default function Welcome() {
       {phase === "main" && (
         <View style={s.mainContainer}>
           {/* Header */}
-          <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+          <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
             <View style={s.logoLockup}>
               <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>Services à domicile</Text>
               <Text style={[s.logoWordmark, { color: theme.text }]}>FIXED</Text>
@@ -379,7 +381,7 @@ export default function Welcome() {
           </Animated.View>
 
           {/* Actions */}
-          <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+          <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
             <TrustBadge />
 
             {/* Primary CTA */}
@@ -533,7 +535,7 @@ const s = StyleSheet.create({
 
   // ── Header ──
   header: {
-    paddingTop: Platform.OS === "ios" ? 60 : 44,
+    paddingTop: 44, // fallback; overridden inline with insets.top + 12
     paddingHorizontal: 32,
   },
   logoLockup: {
@@ -637,7 +639,7 @@ const s = StyleSheet.create({
   // ── Actions ──
   actions: {
     paddingHorizontal: 28,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
     gap: 12,
   },
 

@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -56,6 +57,7 @@ function GridLines() {
 export default function ForgotPassword() {
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -149,7 +151,7 @@ export default function ForgotPassword() {
           bounces={false}
         >
           {/* Header */}
-          <Animated.View style={[s.header, { opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
+          <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
             <TouchableOpacity
               style={[s.backBtn, { borderColor: theme.borderLight }]}
               onPress={() => {
@@ -238,7 +240,7 @@ export default function ForgotPassword() {
           </Animated.View>
 
           {/* Actions */}
-          <Animated.View style={[s.actions, { opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
+          <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
             {sent ? (
               <TouchableOpacity
                 style={[s.btnPrimary, { backgroundColor: theme.accent }]}
@@ -296,7 +298,7 @@ const s = StyleSheet.create({
   glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
 
   header: {
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
+    paddingTop: 50, // fallback; overridden inline with insets.top + 12
     paddingHorizontal: 28,
     zIndex: 2,
   },
@@ -375,7 +377,7 @@ const s = StyleSheet.create({
 
   actions: {
     paddingHorizontal: 28,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
     gap: 14, zIndex: 2,
   },
   btnPrimary: {
