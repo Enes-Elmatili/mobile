@@ -6,7 +6,7 @@ import {
   Animated, Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useStripe } from "@stripe/stripe-react-native";
 import * as Haptics from "expo-haptics";
@@ -160,9 +160,9 @@ export default function QuoteReview() {
     return (
       <View style={[s.root, s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
-        <Ionicons name="document-text-outline" size={48} color={theme.textMuted} />
+        <Feather name="file-text" size={48} color={theme.textMuted} />
         <Text style={[s.emptyText, { color: theme.textSub }]}>Aucun devis reçu pour le moment</Text>
-        <TouchableOpacity style={s.emptyBack} onPress={() => router.back()}>
+        <TouchableOpacity style={s.emptyBack} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
           <Text style={[s.emptyBackText, { color: theme.text }]}>Retour</Text>
         </TouchableOpacity>
       </View>
@@ -181,10 +181,10 @@ export default function QuoteReview() {
         <View style={s.header}>
           <TouchableOpacity
             style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            onPress={() => router.back()}
+            onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
             activeOpacity={0.75}
           >
-            <Ionicons name="chevron-back" size={18} color={theme.text} />
+            <Feather name="chevron-left" size={18} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.headerTitle, { color: theme.text }]}>DEVIS</Text>
           <View style={{ width: 36 }} />
@@ -269,7 +269,7 @@ export default function QuoteReview() {
 
           {/* Expiry */}
           <View style={s.expiryRow}>
-            <Ionicons name="time-outline" size={13} color={theme.textMuted} />
+            <Feather name="clock" size={13} color={theme.textMuted} />
             <Text style={[s.expiryText, { color: theme.textMuted }]}>
               {"Valable jusqu'au "}{new Date(quote.validUntil).toLocaleDateString("fr-FR", {
                 day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
@@ -306,7 +306,7 @@ export default function QuoteReview() {
                   activeOpacity={0.75}
                 >
                   {refusing ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <ActivityIndicator size="small" color={COLORS.alwaysWhite} />
                   ) : (
                     <Text style={s.refuseConfirmText}>Confirmer le refus</Text>
                   )}
@@ -442,7 +442,7 @@ const s = StyleSheet.create({
     flex: 1, height: 44, borderRadius: 12, backgroundColor: COLORS.red,
     alignItems: "center", justifyContent: "center",
   },
-  refuseConfirmText: { fontFamily: FONTS.sansMedium, fontSize: 14, color: "#FFF" },
+  refuseConfirmText: { fontFamily: FONTS.sansMedium, fontSize: 14, color: COLORS.alwaysWhite },
 
   footer: { paddingHorizontal: 24, paddingTop: 16 },
   footerRow: { flexDirection: "row", gap: 12 },

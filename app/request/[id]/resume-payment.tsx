@@ -5,7 +5,7 @@ import {
   View, Text, StyleSheet, StatusBar, Platform,
   TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStripe } from '@stripe/stripe-react-native';
 import * as Haptics from 'expo-haptics';
@@ -13,20 +13,21 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
 import { Dimensions } from 'react-native';
 import { api } from '@/lib/api';
-import { FONTS } from '@/hooks/use-app-theme';
+import { FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const GRID_SIZE = 40;
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: '#0A0A0A',
-  white: '#FAFAFA',
-  grey: '#888888',
+  bg:     darkTokens.bg,
+  white:  darkTokens.text,
+  grey:   darkTokens.textMuted,
   border: 'rgba(255,255,255,0.08)',
-  cardBg: '#141414',
-  amber: '#E8783A',
+  cardBg: darkTokens.cardBg,
+  amber:  COLORS.orangeBrand,
 };
 
 function GridLines() {
@@ -124,7 +125,8 @@ export default function ResumePayment() {
       } catch (e: any) {
         devError('ResumePayment init error:', e);
         Alert.alert('Erreur', 'Impossible de charger la page de paiement. Veuillez réessayer.');
-        router.back();
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/dashboard');
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -200,10 +202,10 @@ export default function ResumePayment() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.6)" />
+          <Feather name="chevron-left" size={20} color="rgba(255,255,255,0.6)" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>PAIEMENT</Text>
         <View style={{ width: 20 }} />
@@ -217,7 +219,7 @@ export default function ResumePayment() {
         <View style={s.content}>
           {/* Icon */}
           <View style={s.iconCircle}>
-            <Ionicons name="card-outline" size={40} color={C.white} />
+            <Feather name="credit-card" size={40} color={C.white} />
           </View>
 
           {/* Title */}
@@ -233,20 +235,20 @@ export default function ResumePayment() {
           {/* Request info card */}
           <View style={s.card}>
             <View style={s.cardRow}>
-              <Ionicons name="construct-outline" size={15} color={C.grey} />
+              <Feather name="tool" size={15} color={C.grey} />
               <Text style={s.cardLabel}>Service</Text>
               <Text style={s.cardValue} numberOfLines={1}>{serviceName}</Text>
             </View>
             {request?.address && (
               <View style={s.cardRow}>
-                <Ionicons name="location-outline" size={15} color={C.grey} />
+                <Feather name="map-pin" size={15} color={C.grey} />
                 <Text style={s.cardLabel}>Adresse</Text>
                 <Text style={s.cardValue} numberOfLines={1}>{request.address}</Text>
               </View>
             )}
             {price && (
               <View style={[s.cardRow, s.priceRow]}>
-                <Ionicons name="cash-outline" size={15} color={C.white} />
+                <Feather name="dollar-sign" size={15} color={C.white} />
                 <Text style={[s.cardLabel, { color: C.white }]}>Montant</Text>
                 <Text style={s.priceValue}>{price}</Text>
               </View>
@@ -255,7 +257,7 @@ export default function ResumePayment() {
 
           {/* Info */}
           <View style={s.infoCard}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={C.grey} style={{ marginTop: 1 }} />
+            <Feather name="shield" size={16} color={C.grey} style={{ marginTop: 1 }} />
             <Text style={s.infoText}>
               Paiement sécurisé via Stripe. Votre prestataire sera notifié immédiatement après confirmation.
             </Text>
@@ -283,7 +285,7 @@ export default function ResumePayment() {
               <>
                 <Text style={s.btnPrimaryText}>PAYER MAINTENANT</Text>
                 <View style={s.arrowPill}>
-                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                  <Feather name="arrow-right" size={14} color={C.white} />
                 </View>
               </>
             )}

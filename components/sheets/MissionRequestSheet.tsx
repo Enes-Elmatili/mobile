@@ -18,6 +18,7 @@ import {
   Dimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
@@ -41,17 +42,18 @@ interface Props {
   onDecline: () => void;
 }
 
-// ─── Icônes par service ───────────────────────────────────────────────────────
-const SERVICE_ICONS: Record<string, string> = {
-  plomberie:    '🔧',
-  ménage:       '🧹',
-  bricolage:    '🔨',
-  électricité:  '⚡',
-  jardinage:    '🌿',
-  default:      '⚡',
+// ─── Icônes par service (Feather — charter: no emoji) ─────────────
+type FeatherName = React.ComponentProps<typeof Feather>['name'];
+const SERVICE_ICONS: Record<string, FeatherName> = {
+  plomberie:    'droplet',
+  ménage:       'home',
+  bricolage:    'tool',
+  électricité:  'zap',
+  jardinage:    'feather',
+  default:      'tool',
 };
 
-function getServiceIcon(service?: string): string {
+function getServiceIcon(service?: string): FeatherName {
   if (!service) return SERVICE_ICONS.default;
   return SERVICE_ICONS[service.toLowerCase()] ?? SERVICE_ICONS.default;
 }
@@ -136,8 +138,8 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
     Animated.parallel([
       Animated.timing(translateY, {
         toValue:  0,
-        duration: 440,
-        easing:   Easing.out(Easing.back(1.5)),
+        duration: 320,
+        easing:   Easing.out(Easing.back(1.1)),
         useNativeDriver: true,
       }),
       Animated.timing(backdropAnim, {
@@ -181,6 +183,15 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isVisible]);
+
+  // ── Global cleanup on unmount ─────────────────────────────────────────────
+  // Stops any in-flight animations and intervals so callbacks can't fire
+  // after the sheet (or its parent) is torn down.
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    progressTimer.current?.stop();
+    pulseLoop.current?.stop();
+  }, []);
 
   // ── Réactivité prop request ───────────────────────────────────────────────
   useEffect(() => {
@@ -238,7 +249,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <View style={[styles.iconBadge, { backgroundColor: theme.surfaceAlt }]}>
-            <Text style={styles.iconEmoji}>{icon}</Text>
+            <Feather name={icon} size={22} color={theme.text} />
           </View>
           <View style={styles.headerText}>
             <Text style={[styles.overline, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.new_mission')}</Text>
@@ -257,10 +268,10 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
         {/* Détails mission */}
         <View style={styles.details}>
-          {request?.address    && <DetailRow emoji="📍" value={request.address} textColor={theme.textSub} />}
-          {request?.distance   && <DetailRow emoji="🛣"  value={`${request.distance} ${t('mission_sheet.from_you')}`} textColor={theme.textSub} />}
-          {request?.scheduledAt && <DetailRow emoji="🕐" value={request.scheduledAt} textColor={theme.textSub} />}
-          {request?.clientName && <DetailRow emoji="👤" value={request.clientName} textColor={theme.textSub} />}
+          {request?.address    && <DetailRow icon="map-pin"     value={request.address} textColor={theme.textSub} />}
+          {request?.distance   && <DetailRow icon="navigation"  value={`${request.distance} ${t('mission_sheet.from_you')}`} textColor={theme.textSub} />}
+          {request?.scheduledAt && <DetailRow icon="clock"       value={request.scheduledAt} textColor={theme.textSub} />}
+          {request?.clientName && <DetailRow icon="user"         value={request.clientName} textColor={theme.textSub} />}
         </View>
 
         {/* Prix estimé */}
@@ -290,10 +301,10 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 }
 
 // ─── Detail Row helper ────────────────────────────────────────────────────────
-function DetailRow({ emoji, value, textColor }: { emoji: string; value: string; textColor: string }) {
+function DetailRow({ icon, value, textColor }: { icon: FeatherName; value: string; textColor: string }) {
   return (
     <View style={styles.detailRow}>
-      <Text style={styles.detailEmoji}>{emoji}</Text>
+      <Feather name={icon} size={14} color={textColor} style={styles.detailIcon} />
       <Text style={[styles.detailValue, { color: textColor, fontFamily: FONTS.sans }]} numberOfLines={1}>{value}</Text>
     </View>
   );
@@ -346,7 +357,6 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
   },
-  iconEmoji:  { fontSize: 24 },
   headerText: { flex: 1 },
   overline: {
     fontSize:      10,
@@ -397,7 +407,7 @@ const styles = StyleSheet.create({
     alignItems:    'center',
     gap: 10,
   },
-  detailEmoji: { fontSize: 14, width: 22, textAlign: 'center' },
+  detailIcon: { width: 22, textAlign: 'center' },
   detailValue: {
     fontSize:   14,
     flex: 1,

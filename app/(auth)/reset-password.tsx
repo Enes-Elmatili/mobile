@@ -7,25 +7,26 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  inputBg: "#111111",
-  green: "#3D8B3D",
-  red: "#E53935",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
+  inputBg:     darkTokens.cardBg,
+  green:       COLORS.greenBrand,
+  red:         COLORS.red,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -159,7 +160,7 @@ export default function ResetPassword() {
   // Title / subtitle / icon based on state
   let title = "NOUVEAU\nMOT DE PASSE.";
   let subtitle = "Choisissez un nouveau mot de passe pour votre compte.";
-  let iconName: keyof typeof Ionicons.glyphMap = "key-outline";
+  let iconName: keyof typeof Feather.glyphMap = "key";
   let iconColor = theme.text;
 
   if (validating) {
@@ -168,12 +169,12 @@ export default function ResetPassword() {
   } else if (!token || !tokenValid) {
     title = "LIEN\nINVALIDE.";
     subtitle = "Ce lien de réinitialisation est expiré ou invalide. Demandez un nouveau lien.";
-    iconName = "close-circle";
+    iconName = "x-circle";
     iconColor = C.red;
   } else if (done) {
     title = "MOT DE PASSE\nMODIFIÉ !";
     subtitle = "Votre mot de passe a été réinitialisé avec succès. Connectez-vous avec votre nouveau mot de passe.";
-    iconName = "checkmark-circle";
+    iconName = "check-circle";
     iconColor = C.green;
   }
 
@@ -213,7 +214,7 @@ export default function ResetPassword() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
+              <Feather name="chevron-left" size={16} color={theme.textMuted} />
             </TouchableOpacity>
 
             <View style={s.iconRow}>
@@ -225,7 +226,7 @@ export default function ResetPassword() {
               ]}>
                 {validating
                   ? <ActivityIndicator size="small" color={theme.text} />
-                  : <Ionicons name={iconName} size={34} color={iconColor} />
+                  : <Feather name={iconName} size={34} color={iconColor} />
                 }
               </View>
             </View>
@@ -249,7 +250,7 @@ export default function ResetPassword() {
                   <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Nouveau mot de passe</Text>
                   <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "password" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                     <View style={s.inputIcon}>
-                      <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
+                      <Feather name="lock" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
                     </View>
                     <TextInput
                       style={[s.input, { color: theme.text }]}
@@ -265,7 +266,7 @@ export default function ResetPassword() {
                       onSubmitEditing={() => confirmRef.current?.focus()}
                     />
                     <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                      <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color={theme.textMuted} />
+                      <Feather name={showPwd ? "eye-off" : "eye"} size={17} color={theme.textMuted} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -274,7 +275,7 @@ export default function ResetPassword() {
                   <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Confirmer</Text>
                   <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "confirm" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                     <View style={s.inputIcon}>
-                      <Ionicons name="lock-closed-outline" size={14} color={focused === "confirm" ? theme.textSub : theme.textMuted} />
+                      <Feather name="lock" size={14} color={focused === "confirm" ? theme.textSub : theme.textMuted} />
                     </View>
                     <TextInput
                       ref={confirmRef}
@@ -294,7 +295,7 @@ export default function ResetPassword() {
 
                 {error && (
                   <View style={s.errorRow}>
-                    <Ionicons name="alert-circle" size={14} color={C.red} />
+                    <Feather name="alert-circle" size={14} color={C.red} />
                     <Text style={s.errorText}>{error}</Text>
                   </View>
                 )}
@@ -315,7 +316,7 @@ export default function ResetPassword() {
               >
                 <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>SE CONNECTER</Text>
                 <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                  <Ionicons name="arrow-forward" size={14} color={theme.text} />
+                  <Feather name="arrow-right" size={14} color={theme.text} />
                 </View>
               </TouchableOpacity>
             ) : !tokenValid ? (
@@ -329,7 +330,7 @@ export default function ResetPassword() {
               >
                 <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>DEMANDER UN NOUVEAU LIEN</Text>
                 <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                  <Ionicons name="arrow-forward" size={14} color={theme.text} />
+                  <Feather name="arrow-right" size={14} color={theme.text} />
                 </View>
               </TouchableOpacity>
             ) : (
@@ -344,7 +345,7 @@ export default function ResetPassword() {
                   : <>
                       <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RÉINITIALISER</Text>
                       <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                        <Ionicons name="arrow-forward" size={14} color={theme.text} />
+                        <Feather name="arrow-right" size={14} color={theme.text} />
                       </View>
                     </>
                 }
@@ -413,7 +414,7 @@ const s = StyleSheet.create({
   },
   inputFocused: {
     borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "#161616",
+    backgroundColor: darkTokens.surface,
   },
   inputIcon: { position: "absolute", left: 16, zIndex: 1 },
   input: {

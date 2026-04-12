@@ -1,7 +1,7 @@
 // components/support/ResolutionView.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
@@ -50,9 +50,9 @@ function openWhatsApp() {
 }
 
 const SEVERITY_CONFIG: Record<Severity, { icon: string; btnLabel: string; btnIcon: string }> = {
-  low: { icon: 'checkmark-circle-outline', btnLabel: "C'est résolu", btnIcon: 'checkmark' },
-  medium: { icon: 'chatbubble-outline', btnLabel: 'Contacter le support', btnIcon: 'logo-whatsapp' },
-  high: { icon: 'alert-circle-outline', btnLabel: 'Escalade urgente', btnIcon: 'alert-circle' },
+  low: { icon: 'check-circle', btnLabel: "C'est résolu", btnIcon: 'check' },
+  medium: { icon: 'message-circle', btnLabel: 'Contacter le support', btnIcon: 'message-circle' },
+  high: { icon: 'alert-circle', btnLabel: 'Escalade urgente', btnIcon: 'alert-circle' },
 };
 
 export default function ResolutionView({ problem, mission, userName, userId, onBack, onDone }: ResolutionViewProps) {
@@ -94,7 +94,7 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
   return (
     <View style={s.root}>
       <TouchableOpacity style={s.backRow} onPress={onBack} activeOpacity={0.7}>
-        <Ionicons name="arrow-back" size={18} color={theme.textMuted} />
+        <Feather name="arrow-left" size={18} color={theme.textMuted} />
         <Text style={[s.backText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Retour</Text>
       </TouchableOpacity>
 
@@ -111,7 +111,7 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
             ? (theme.isDark ? `${COLORS.red}22` : `${COLORS.red}14`)
             : theme.surface,
         }]}>
-          <Ionicons
+          <Feather
             name={config.icon as any}
             size={28}
             color={problem.severity === 'high' ? COLORS.red : theme.textSub}
@@ -144,7 +144,7 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
           <ActivityIndicator color={problem.severity === 'high' ? '#FFF' : theme.accentText} />
         ) : (
           <>
-            <Ionicons
+            <Feather
               name={config.btnIcon as any}
               size={18}
               color={problem.severity === 'high' ? '#FFF' : theme.accentText}
@@ -169,7 +169,7 @@ export default function ResolutionView({ problem, mission, userName, userId, onB
           onPress={() => openWhatsApp()}
           activeOpacity={0.7}
         >
-          <Ionicons name="logo-whatsapp" size={16} color={theme.textSub} />
+          <Feather name="message-circle" size={16} color={theme.textSub} />
           <Text style={[s.secondaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
             Contacter aussi par WhatsApp
           </Text>

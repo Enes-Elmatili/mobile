@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -15,21 +15,22 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 const ROLE_INTENT_KEY = "@fixed:signup:role";
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  inputBg: "#111111",
-  green: "#3D8B3D",
-  amber: "#F59E0B",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
+  inputBg:     darkTokens.cardBg,
+  green:       COLORS.greenBrand,
+  amber:       COLORS.amber,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -218,8 +219,8 @@ export default function VerifyEmail() {
         {/* Icon */}
         <View style={s.iconRow}>
           <View style={[s.iconWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }, verified && s.iconWrapVerified]}>
-            <Ionicons
-              name={verified ? "checkmark-circle" : "mail-outline"}
+            <Feather
+              name={verified ? "check-circle" : "mail"}
               size={34}
               color={verified ? C.green : theme.text}
             />
@@ -257,7 +258,7 @@ export default function VerifyEmail() {
           <>
             {/* Info card */}
             <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-              <Ionicons name="information-circle-outline" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
+              <Feather name="info" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
               <Text style={[s.infoText, { color: theme.textSub }]}>
                 Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 48 heures.
               </Text>
@@ -272,9 +273,14 @@ export default function VerifyEmail() {
             >
               {resending
                 ? <ActivityIndicator size="small" color={theme.text} />
-                : <Text style={[s.resendText, { color: theme.text }, resent && { color: theme.textMuted }]}>
-                    {resent ? "\u2713  Email renvoyé" : "Renvoyer le lien"}
-                  </Text>
+                : resent
+                  ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Feather name="check" size={14} color={theme.textMuted} />
+                      <Text style={[s.resendText, { color: theme.textMuted }]}>Email renvoyé</Text>
+                    </View>
+                  )
+                  : <Text style={[s.resendText, { color: theme.text }]}>Renvoyer le lien</Text>
               }
             </TouchableOpacity>
           </>
@@ -291,7 +297,7 @@ export default function VerifyEmail() {
         >
           <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>CONTINUER</Text>
           <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-            <Ionicons name="arrow-forward" size={14} color={theme.text} />
+            <Feather name="arrow-right" size={14} color={theme.text} />
           </View>
         </TouchableOpacity>
 
@@ -304,7 +310,7 @@ export default function VerifyEmail() {
           activeOpacity={0.6}
           style={s.logoutLink}
         >
-          <Ionicons name="log-out-outline" size={14} color={theme.textMuted} />
+          <Feather name="log-out" size={14} color={theme.textMuted} />
           <Text style={[s.logoutText, { color: theme.textSub }]}>Se déconnecter</Text>
         </TouchableOpacity>
       </Animated.View>

@@ -3,31 +3,31 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { Feather } from '@expo/vector-icons';
+import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 
 const NET_RATE = 0.85;
 const TIMER_DURATION = 15;
 
-// Category slug → Ionicon name
+// Category slug → Feather icon name
 const CATEGORY_ICONS: Record<string, string> = {
-  serrurerie:             'lock-closed-outline',
-  plomberie:              'water-outline',
-  'entretien-chaudiere':  'flame-outline',
-  electricite:            'flash-outline',
-  bricolage:              'hammer-outline',
-  peinture:               'brush-outline',
-  menage:                 'home-outline',
-  'depannage-informatique': 'laptop-outline',
-  vitrier:                'grid-outline',
-  'pet-sitting':          'paw-outline',
+  serrurerie:             'lock',
+  plomberie:              'droplet',
+  'entretien-chaudiere':  'thermometer',
+  electricite:            'zap',
+  bricolage:              'tool',
+  peinture:               'edit-2',
+  menage:                 'home',
+  'depannage-informatique': 'monitor',
+  vitrier:                'grid',
+  'pet-sitting':          'heart',
 };
 
 function getCategoryIcon(name?: string): string {
-  if (!name) return 'construct-outline';
+  if (!name) return 'tool';
   const key = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
   const match = Object.keys(CATEGORY_ICONS).find(k => key.includes(k));
-  return match ? CATEGORY_ICONS[match] : 'construct-outline';
+  return match ? CATEGORY_ICONS[match] : 'tool';
 }
 
 export interface MissionData {
@@ -65,15 +65,23 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
     Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 12, useNativeDriver: true }).start();
   }, []);
 
+  // Keep onDecline in a ref so the timer effect can stay mounted for the full
+  // TIMER_DURATION window without stale-closure issues from parent re-renders.
+  const onDeclineRef = useRef(onDecline);
+  useEffect(() => { onDeclineRef.current = onDecline; }, [onDecline]);
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) { clearInterval(interval); onDecline(); return 0; }
+        if (prev <= 1) { clearInterval(interval); onDeclineRef.current(); return 0; }
         return prev - 1;
       });
     }, 1000);
-    Animated.timing(timerAnim, { toValue: 0, duration: TIMER_DURATION * 1000, useNativeDriver: false }).start();
-    return () => clearInterval(interval);
+    const timerAnimation = Animated.timing(timerAnim, { toValue: 0, duration: TIMER_DURATION * 1000, useNativeDriver: false });
+    timerAnimation.start();
+    return () => {
+      clearInterval(interval);
+      timerAnimation.stop();
+    };
   }, []);
 
   const netPrice = Math.round(mission.price * NET_RATE);
@@ -105,7 +113,7 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
         <View style={s.topRow}>
           <View style={s.titleWrap}>
             <View style={[s.catBadge, { backgroundColor: theme.surface }]}>
-              <Ionicons name={categoryIcon as any} size={14} color={theme.text} />
+              <Feather name={categoryIcon as any} size={14} color={theme.text} />
               <Text style={[s.catText, { color: theme.text }]}>{categoryName}</Text>
             </View>
             <Text style={[s.title, { color: theme.textAlt }]} numberOfLines={2}>
@@ -114,13 +122,13 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
             <View style={s.pillRow}>
               {mission.urgent && (
                 <View style={[s.pill, { backgroundColor: COLORS.red }]}>
-                  <Ionicons name="flash" size={10} color="#FFF" />
+                  <Feather name="zap" size={10} color="#FFF" />
                   <Text style={s.pillTextWhite}>Urgent</Text>
                 </View>
               )}
               {pricingMode && (
                 <View style={[s.pill, { backgroundColor: pricingMode === 'diagnostic' ? theme.surface : theme.surface }]}>
-                  <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'pricetag-outline'} size={10} color={theme.textSub} />
+                  <Feather name={pricingMode === 'diagnostic' ? 'search' : 'tag'} size={10} color={theme.textSub} />
                   <Text style={[s.pillText, { color: theme.textSub }]}>
                     {pricingMode === 'diagnostic' ? 'Diagnostic' : 'Forfait'}
                   </Text>
@@ -128,7 +136,7 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
               )}
               {duration != null && (
                 <View style={[s.pill, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="time-outline" size={10} color={theme.textSub} />
+                  <Feather name="clock" size={10} color={theme.textSub} />
                   <Text style={[s.pillText, { color: theme.textSub }]}>
                     {duration >= 60 ? `${Math.floor(duration / 60)}h${duration % 60 ? String(duration % 60).padStart(2, '0') : ''}` : `${duration}min`}
                   </Text>
@@ -151,18 +159,18 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
         {/* Metas */}
         <View style={s.metas}>
           <View style={s.meta}>
-            <Ionicons name="location-outline" size={14} color={theme.textMuted} />
+            <Feather name="map-pin" size={14} color={theme.textMuted} />
             <Text style={[s.metaText, { color: theme.textSub }]} numberOfLines={1}>{mission.address}</Text>
           </View>
           {mission.distance != null && (
             <View style={s.meta}>
-              <Ionicons name="navigate-outline" size={14} color={theme.textMuted} />
+              <Feather name="navigation" size={14} color={theme.textMuted} />
               <Text style={[s.metaText, { color: theme.textSub }]}>~{Math.round(mission.distance * 3)} min · {mission.distance.toFixed(1)} km</Text>
             </View>
           )}
           {mission.client?.name && (
             <View style={s.meta}>
-              <Ionicons name="person-outline" size={14} color={theme.textMuted} />
+              <Feather name="user" size={14} color={theme.textMuted} />
               <Text style={[s.metaText, { color: theme.textSub }]}>{mission.client.name}</Text>
             </View>
           )}
@@ -171,7 +179,7 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
         {/* Accept CTA */}
         <TouchableOpacity style={[s.acceptBtn, { backgroundColor: theme.accent }]} onPress={onAccept} activeOpacity={0.88}>
           <Text style={[s.acceptText, { color: theme.accentText }]}>Accepter</Text>
-          <Ionicons name="arrow-forward" size={18} color={theme.accentText} />
+          <Feather name="arrow-right" size={18} color={theme.accentText} />
         </TouchableOpacity>
 
         {/* Decline */}
@@ -226,7 +234,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
   },
   pillText:      { fontSize: 10, fontFamily: FONTS.sansMedium },
-  pillTextWhite: { fontSize: 10, fontFamily: FONTS.sansMedium, color: '#FFF', letterSpacing: 0.5 },
+  pillTextWhite: { fontSize: 10, fontFamily: FONTS.sansMedium, color: darkTokens.text, letterSpacing: 0.5 },
   countdownWrap:  { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
   countdown:      { fontSize: 40, fontFamily: FONTS.bebas, letterSpacing: -2, lineHeight: 44 },
   countdownUnit:  { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 2 },

@@ -5,11 +5,11 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   SafeAreaView, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
@@ -51,17 +51,17 @@ function SummaryCard({ icon, value, label, dark, theme }: {
   icon: string; value: string; label: string; dark?: boolean;
   theme: ReturnType<typeof useAppTheme>;
 }) {
-  const bg = dark ? '#0A0A0A' : theme.cardBg;
+  const bg = dark ? darkTokens.bg : theme.cardBg;
   const border = dark ? 'transparent' : theme.borderLight;
   const iconBg = dark ? 'rgba(255,255,255,0.08)' : theme.surface;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : theme.textSub;
-  const valColor = dark ? '#FFFFFF' : theme.text;
+  const valColor = dark ? darkTokens.text : theme.text;
   const labelColor = dark ? 'rgba(255,255,255,0.3)' : theme.textMuted;
 
   return (
     <View style={[sc.card, { backgroundColor: bg, borderColor: border }]}>
       <View style={[sc.icon, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={13} color={iconColor} />
+        <Feather name={icon as any} size={13} color={iconColor} />
       </View>
       <Text style={[sc.value, { color: valColor }]}>{value}</Text>
       <Text style={[sc.label, { color: labelColor }]}>{label}</Text>
@@ -92,13 +92,13 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const status = invoice.status?.toUpperCase();
   const isPaid = status === 'PAID';
   const isRefunded = status === 'REFUNDED';
-  const barColor = isPaid ? '#3D8B3D' : isRefunded ? '#888' : '#E8783A';
+  const barColor = isPaid ? COLORS.greenBrand : isRefunded ? '#888' : COLORS.orangeBrand;
   const iconBg = isPaid ? 'rgba(61,139,61,0.08)' : isRefunded ? 'rgba(0,0,0,0.04)' : 'rgba(232,120,58,0.08)';
-  const iconColor = isPaid ? '#3D8B3D' : isRefunded ? '#999' : '#E8783A';
+  const iconColor = isPaid ? COLORS.greenBrand : isRefunded ? '#999' : COLORS.orangeBrand;
   const pillBg = isPaid ? 'rgba(61,139,61,0.1)' : isRefunded ? theme.surface : 'rgba(232,120,58,0.1)';
-  const pillColor = isPaid ? '#3D8B3D' : isRefunded ? theme.textMuted : '#E8783A';
+  const pillColor = isPaid ? COLORS.greenBrand : isRefunded ? theme.textMuted : COLORS.orangeBrand;
   const pillLabel = isPaid ? 'Réglée' : isRefunded ? 'Remboursé' : 'En attente';
-  const iconName = isPaid ? 'checkmark-circle-outline' : isRefunded ? 'refresh-outline' : 'time-outline';
+  const iconName = isPaid ? 'check-circle' : isRefunded ? 'refresh-cw' : 'clock';
 
   const number = invoice.number ? `#${invoice.number}` : `#INV-${String(invoice.id).slice(-4).toUpperCase()}`;
   const date = new Date(invoice.issuedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
@@ -108,7 +108,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
     <TouchableOpacity style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress} activeOpacity={0.85}>
       <View style={[iv.bar, { backgroundColor: barColor }]} />
       <View style={[iv.icon, { backgroundColor: iconBg }]}>
-        <Ionicons name={iconName as any} size={16} color={iconColor} />
+        <Feather name={iconName as any} size={16} color={iconColor} />
       </View>
       <View style={iv.body}>
         <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{service}</Text>
@@ -263,7 +263,7 @@ export default function Documents() {
           onPress={() => router.push('/settings/help')}
           activeOpacity={0.7}
         >
-          <Ionicons name="help-circle-outline" size={16} color={theme.text} />
+          <Feather name="help-circle" size={16} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -306,9 +306,9 @@ export default function Documents() {
           <>
             {/* Summary strip */}
             <View style={s.summaryRow}>
-              <SummaryCard dark icon="document-text-outline" value={String(totalCount)} label="Factures" theme={theme} />
-              <SummaryCard icon="cash-outline" value={String(Math.round(totalEur))} label="EUR total" theme={theme} />
-              <SummaryCard icon="checkmark-outline" value={String(paidCount)} label="Réglées" theme={theme} />
+              <SummaryCard dark icon="file-text" value={String(totalCount)} label="Factures" theme={theme} />
+              <SummaryCard icon="dollar-sign" value={String(Math.round(totalEur))} label="EUR total" theme={theme} />
+              <SummaryCard icon="check" value={String(paidCount)} label="Réglées" theme={theme} />
             </View>
 
             {/* Filter tabs */}
@@ -335,7 +335,7 @@ export default function Documents() {
             {filtered.length === 0 ? (
               <View style={[s.empty, { borderColor: theme.borderLight }]}>
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="document-text-outline" size={22} color={theme.textDisabled} />
+                  <Feather name="file-text" size={22} color={theme.textDisabled} />
                 </View>
                 <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune facture</Text>
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
@@ -359,14 +359,14 @@ export default function Documents() {
             <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>ASSISTANCE</Text>
             <TouchableOpacity style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
               <View style={s.assistIcon}>
-                <Ionicons name="chatbubble-outline" size={18} color="rgba(255,255,255,0.7)" />
+                <Feather name="message-circle" size={18} color="rgba(255,255,255,0.7)" />
               </View>
               <View style={s.assistBody}>
                 <Text style={s.assistTitle}>Un problème avec une facture ?</Text>
                 <Text style={s.assistSub}>Ouvrir un ticket · Support client</Text>
               </View>
               <View style={s.assistArrow}>
-                <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.6)" />
+                <Feather name="arrow-right" size={13} color="rgba(255,255,255,0.6)" />
               </View>
             </TouchableOpacity>
           </>
@@ -378,7 +378,7 @@ export default function Documents() {
             {quoteRequests.length === 0 ? (
               <View style={[s.empty, { borderColor: theme.borderLight }]}>
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="document-outline" size={22} color={theme.textDisabled} />
+                  <Feather name="file-text" size={22} color={theme.textDisabled} />
                 </View>
                 <Text style={[s.emptyTitle, { color: theme.text }]}>Aucun devis</Text>
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
@@ -394,9 +394,9 @@ export default function Documents() {
                   const isAccepted = statusUp === 'QUOTE_ACCEPTED';
                   const isPending = statusUp === 'QUOTE_PENDING';
                   const pillBg = isSent ? 'rgba(232,120,58,0.1)' : isAccepted ? 'rgba(61,139,61,0.1)' : 'rgba(150,150,150,0.1)';
-                  const pillColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : theme.textMuted as string;
+                  const pillColor = isSent ? COLORS.orangeBrand : isAccepted ? COLORS.greenBrand : theme.textMuted as string;
                   const pillLabel = isSent ? 'À examiner' : isAccepted ? 'Accepté' : 'En cours';
-                  const barColor = isSent ? '#E8783A' : isAccepted ? '#3D8B3D' : '#888';
+                  const barColor = isSent ? COLORS.orangeBrand : isAccepted ? COLORS.greenBrand : '#888';
 
                   const handlePress = () => {
                     if (isPending) {
@@ -415,14 +415,14 @@ export default function Documents() {
                     >
                       <View style={[iv.bar, { backgroundColor: barColor }]} />
                       <View style={[iv.icon, { backgroundColor: pillBg }]}>
-                        <Ionicons name="document-text-outline" size={16} color={pillColor} />
+                        <Feather name="file-text" size={16} color={pillColor} />
                       </View>
                       <View style={iv.body}>
                         <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
                           {req.calloutFee != null && req.calloutFee > 0 && (
                             <View style={{ backgroundColor: 'rgba(61,139,61,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: '#3D8B3D' }}>PAYÉ</Text>
+                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: COLORS.greenBrand }}>PAYÉ</Text>
                             </View>
                           )}
                           <Text style={[iv.meta, { color: theme.textMuted }]}>
@@ -452,7 +452,7 @@ export default function Documents() {
             {scheduledRequests.length === 0 ? (
               <View style={[s.empty, { borderColor: theme.borderLight }]}>
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="calendar-outline" size={22} color={theme.textDisabled} />
+                  <Feather name="calendar" size={22} color={theme.textDisabled} />
                 </View>
                 <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune demande planifiée</Text>
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
@@ -471,8 +471,8 @@ export default function Documents() {
                     ? `${req.price} €`
                     : isQuote ? 'Devis' : '—';
                   const pillBg = isQuote ? 'rgba(232,120,58,0.1)' : 'rgba(245,158,11,0.12)';
-                  const pillColor = isQuote ? '#E8783A' : '#b45309';
-                  const barColor = isQuote ? '#E8783A' : '#f59e0b';
+                  const pillColor = isQuote ? COLORS.orangeBrand : theme.badgePendingText;
+                  const barColor = isQuote ? COLORS.orangeBrand : COLORS.amber;
 
                   return (
                     <TouchableOpacity
@@ -486,7 +486,7 @@ export default function Documents() {
                     >
                       <View style={[iv.bar, { backgroundColor: barColor }]} />
                       <View style={[iv.icon, { backgroundColor: pillBg }]}>
-                        <Ionicons name="calendar-outline" size={16} color={pillColor} />
+                        <Feather name="calendar" size={16} color={pillColor} />
                       </View>
                       <View style={iv.body}>
                         <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
@@ -565,7 +565,7 @@ const s = StyleSheet.create({
     letterSpacing: 1.5, textTransform: 'uppercase',
   },
   sectionAction: {
-    fontFamily: FONTS.sansMedium, fontSize: 10, color: '#BBBBBB', letterSpacing: 0.4,
+    fontFamily: FONTS.sansMedium, fontSize: 10, color: darkTokens.textSub, letterSpacing: 0.4,
   },
 
   // Main tab bar
@@ -607,7 +607,7 @@ const s = StyleSheet.create({
 
   // Assistance dark card
   assistCard: {
-    backgroundColor: '#0A0A0A', borderRadius: 18, padding: 18,
+    backgroundColor: darkTokens.bg, borderRadius: 18, padding: 18,
     flexDirection: 'row', alignItems: 'center', gap: 14,
     marginBottom: 26, overflow: 'hidden',
   },
@@ -618,7 +618,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   assistBody: { flex: 1 },
-  assistTitle: { fontFamily: FONTS.sansMedium, fontSize: 13, color: '#FFFFFF', marginBottom: 3 },
+  assistTitle: { fontFamily: FONTS.sansMedium, fontSize: 13, color: darkTokens.text, marginBottom: 3 },
   assistSub: { fontFamily: FONTS.sans, fontSize: 11, color: 'rgba(255,255,255,0.35)' },
   assistArrow: {
     width: 32, height: 32, borderRadius: 16,

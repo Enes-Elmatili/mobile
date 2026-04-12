@@ -143,3 +143,145 @@ export function toIoniconName(
 
   return fallback;
 }
+
+// ============================================================================
+// Feather support (design charter — Feather icons only)
+// ============================================================================
+
+// Emoji → Feather (miroir de EMOJI_TO_IONICONS)
+const EMOJI_TO_FEATHER: Record<string, string> = {
+  '🔧': 'tool', '🔨': 'tool', '⚙️': 'settings', '🛠️': 'tool',
+  '🔩': 'settings', '🪛': 'tool',
+  '🧹': 'star', '🧺': 'shopping-bag', '🧽': 'droplet', '🪣': 'droplet', '🧴': 'droplet',
+  '🚨': 'alert-circle', '⚠️': 'alert-triangle', '🆘': 'help-circle', '🔴': 'radio',
+  '🏠': 'home', '🏡': 'home', '🚪': 'log-in', '🪟': 'grid', '🛋️': 'home', '🛁': 'droplet',
+  '💡': 'zap', '⚡': 'zap', '🔌': 'cpu', '💧': 'droplet', '🚿': 'droplet',
+  '🌿': 'feather', '🌳': 'feather', '🌱': 'feather', '✂️': 'scissors',
+  '📦': 'package', '🚚': 'truck', '🏋️': 'activity',
+  '🎨': 'edit-2', '🖌️': 'edit-2',
+  '💻': 'monitor', '📱': 'smartphone', '🖥️': 'monitor', '📷': 'camera',
+  '🐾': 'heart', '🐕': 'heart', '🍽️': 'coffee', '👶': 'users',
+  '🧑‍⚕️': 'plus-square', '💊': 'plus-square',
+};
+
+// Nom de catégorie → Feather (miroir de CATEGORY_NAME_TO_IONICONS)
+const CATEGORY_NAME_TO_FEATHER: Record<string, string> = {
+  plomberie:    'droplet',   plumber:    'droplet',
+  electricite:  'zap',       electricité:'zap',       electric:'zap',
+  nettoyage:    'star',      cleaning:   'star',
+  jardinage:    'feather',   garden:     'feather',
+  demenagement: 'package',   déménagement:'package',  moving:  'package',
+  peinture:     'edit-2',    painting:   'edit-2',
+  informatique: 'monitor',   tech:       'monitor',
+  serrurerie:   'key',       locksmith:  'key',
+  chauffage:    'thermometer', heating:  'thermometer',
+  urgence:      'alert-circle', emergency:'alert-circle',
+  maconnerie:   'tool',      maçonnerie: 'tool',
+  menuiserie:   'tool',
+  toiture:      'home',      roof:       'home',
+  garde:        'users',     enfant:     'users',
+  animaux:      'heart',     pets:       'heart',
+};
+
+// Nom Ionicons → Feather (basé sur mapping table établi en migration Pilot B)
+const IONICON_TO_FEATHER: Record<string, string> = {
+  'construct': 'tool', 'hammer': 'tool', 'build': 'tool',
+  'settings': 'settings', 'cog': 'settings',
+  'sparkles': 'star',
+  'basket': 'shopping-bag',
+  'water': 'droplet', 'flask': 'droplet',
+  'alert-circle': 'alert-circle', 'warning': 'alert-triangle', 'alert': 'alert-triangle',
+  'help-circle': 'help-circle', 'information-circle': 'info', 'info': 'info',
+  'home': 'home',
+  'bulb': 'zap', 'flash': 'zap', 'bolt': 'zap',
+  'hardware-chip': 'cpu',
+  'leaf': 'feather',
+  'cut': 'scissors',
+  'cube': 'package',
+  'car': 'truck',
+  'barbell': 'activity',
+  'color-palette': 'edit-2', 'brush': 'edit-2', 'pencil': 'edit-2', 'create': 'edit-2',
+  'laptop': 'monitor', 'desktop': 'monitor',
+  'phone-portrait': 'smartphone',
+  'camera': 'camera',
+  'paw': 'heart',
+  'restaurant': 'coffee',
+  'people': 'users', 'person': 'user', 'person-circle': 'user',
+  'medkit': 'plus-square',
+  'key': 'key',
+  'thermometer': 'thermometer',
+  'briefcase': 'briefcase', 'business': 'briefcase', 'storefront': 'briefcase',
+  'time': 'clock', 'hourglass': 'clock', 'stopwatch': 'clock',
+  'calendar': 'calendar',
+  'checkmark-circle': 'check-circle', 'checkmark': 'check', 'shield-checkmark': 'check-circle',
+  'close': 'x', 'close-circle': 'x-circle',
+  'location': 'map-pin', 'pin': 'map-pin',
+  'enter': 'log-in', 'exit': 'log-out',
+  'apps': 'grid', 'grid': 'grid',
+  'bed': 'home',
+  'chevron-forward': 'chevron-right', 'chevron-back': 'chevron-left',
+  'arrow-forward': 'arrow-right', 'arrow-back': 'arrow-left',
+  'mail': 'mail', 'call': 'phone', 'phone': 'phone',
+  'card': 'credit-card', 'wallet': 'credit-card',
+  'cash': 'dollar-sign', 'pricetag': 'tag',
+  'document-text': 'file-text', 'document': 'file-text', 'receipt': 'file-text',
+  'notifications': 'bell',
+  'refresh': 'refresh-cw', 'sync': 'refresh-cw',
+  'lock-closed': 'lock', 'lock': 'lock', 'lock-open': 'unlock',
+  'eye': 'eye', 'eye-off': 'eye-off',
+  'star': 'star', 'heart': 'heart',
+  'bookmark': 'bookmark', 'flag': 'flag',
+  'share': 'share-2', 'share-social': 'share-2',
+  'trash': 'trash-2',
+  'download': 'download', 'upload': 'upload', 'cloud-upload': 'upload',
+  'send': 'send', 'paper-plane': 'send',
+  'chatbubble': 'message-circle', 'chatbubbles': 'message-circle', 'chatbox': 'message-square',
+  'log-in': 'log-in', 'log-out': 'log-out',
+  'menu': 'menu', 'search': 'search', 'filter': 'filter', 'funnel': 'filter', 'options': 'filter',
+  'shield': 'shield',
+  'trending-up': 'trending-up', 'trending-down': 'trending-down',
+  'stats-chart': 'bar-chart-2', 'analytics': 'bar-chart-2', 'bar-chart': 'bar-chart',
+  'pie-chart': 'pie-chart',
+  'radio-button-on': 'radio',
+  'ellipsis-horizontal': 'more-horizontal', 'ellipsis-vertical': 'more-vertical',
+  'add': 'plus', 'add-circle': 'plus-circle',
+  'remove': 'minus', 'remove-circle': 'minus-circle',
+  'navigate': 'navigation', 'compass': 'compass',
+  'globe': 'globe', 'language': 'globe',
+  'moon': 'moon', 'sunny': 'sun',
+};
+
+/**
+ * Retourne un nom d'icône **Feather** valide à partir de n'importe quelle input
+ * (emoji, nom de catégorie, nom Ionicons legacy, ou nom Feather déjà valide).
+ * Utilisé principalement pour mapper les champs `icon` venus du backend (taxonomie)
+ * vers la charte Feather-only imposée côté mobile.
+ */
+export function toFeatherName(
+  input: string | undefined | null,
+  fallback = 'briefcase'
+): string {
+  if (!input) return fallback;
+
+  // 1. Emoji exact
+  if (EMOJI_TO_FEATHER[input]) return EMOJI_TO_FEATHER[input];
+
+  // 2. Contient un emoji (ex: "🔧 Plomberie")
+  for (const [emoji, icon] of Object.entries(EMOJI_TO_FEATHER)) {
+    if (input.includes(emoji)) return icon;
+  }
+
+  // 3. Nom de catégorie connu (match exact puis partial)
+  const normalized = input.toLowerCase().trim();
+  if (CATEGORY_NAME_TO_FEATHER[normalized]) return CATEGORY_NAME_TO_FEATHER[normalized];
+  for (const [key, icon] of Object.entries(CATEGORY_NAME_TO_FEATHER)) {
+    if (normalized.includes(key) || key.includes(normalized)) return icon;
+  }
+
+  // 4. Nom Ionicons legacy → Feather (strip `-outline` suffix)
+  const stripped = input.replace(/-outline$/, '');
+  if (IONICON_TO_FEATHER[stripped]) return IONICON_TO_FEATHER[stripped];
+  if (IONICON_TO_FEATHER[input]) return IONICON_TO_FEATHER[input];
+
+  return fallback;
+}

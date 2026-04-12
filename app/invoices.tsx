@@ -5,7 +5,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   FlatList, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { api } from '../lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -73,8 +73,8 @@ export default function InvoicesScreen() {
         activeOpacity={0.75}
       >
         <View style={[s.iconWrap, { backgroundColor: theme.surface }]}>
-          <Ionicons
-            name={isPaid ? 'receipt' : 'receipt-outline'}
+          <Feather
+            name="file-text"
             size={20}
             color={theme.textSub}
           />
@@ -112,17 +112,17 @@ export default function InvoicesScreen() {
 
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={s.backBtn} activeOpacity={0.7}>
+          <Feather name="chevron-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Mes factures</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, letterSpacing: 0.5 }]}>Mes factures</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Monthly summary */}
       <View style={[s.summaryCard, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
         <View style={[s.summaryIconWrap, { backgroundColor: theme.surface }]}>
-          <Ionicons name="receipt-outline" size={22} color={theme.textSub} />
+          <Feather name="file-text" size={22} color={theme.textSub} />
         </View>
         <View style={s.summaryContent}>
           <Text style={[s.summaryLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
@@ -148,7 +148,7 @@ export default function InvoicesScreen() {
       ) : invoices.length === 0 ? (
         <View style={s.center}>
           <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-            <Ionicons name="receipt-outline" size={28} color={theme.textMuted} />
+            <Feather name="file-text" size={28} color={theme.textMuted} />
           </View>
           <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucune facture</Text>
           <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -72,15 +72,22 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
       </View>
       <View style={pc.info}>
         <Text style={[pc.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{provider.name || 'Prestataire'}</Text>
-        <Text style={[pc.sub, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
-          {cat ?? provider.city ?? ''}
-          {provider.avgRating ? `  ★ ${provider.avgRating.toFixed(1)}` : ''}
-        </Text>
+        <View style={pc.subRow}>
+          <Text style={[pc.sub, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
+            {cat ?? provider.city ?? ''}
+          </Text>
+          {provider.avgRating ? (
+            <>
+              <Feather name="star" size={11} color={COLORS.amber} style={{ marginLeft: 6 }} />
+              <Text style={[pc.sub, { color: theme.textMuted, fontFamily: FONTS.mono, marginLeft: 2 }]}>{provider.avgRating.toFixed(1)}</Text>
+            </>
+          ) : null}
+        </View>
       </View>
       {provider.distance !== undefined && (
         <Text style={[pc.dist, { color: theme.textSub, fontFamily: FONTS.mono }]}>{distanceLabel(provider.distance)}</Text>
       )}
-      <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
+      <Feather name="chevron-right" size={14} color={theme.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -104,6 +111,7 @@ const pc = StyleSheet.create({
   },
   info:  { flex: 1, gap: 2 },
   name:  { fontSize: 14 },
+  subRow:{ flexDirection: 'row', alignItems: 'center' },
   sub:   { fontSize: 12 },
   dist:  { fontSize: 12, marginRight: 4 },
 });
@@ -169,10 +177,10 @@ export default function ExploreScreen() {
     return (
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
-        <Ionicons name="location-outline" size={52} color={theme.textDisabled} />
+        <Feather name="map-pin" size={52} color={theme.textDisabled} />
         <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Localisation requise</Text>
         <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Autorisez l'accès à votre position pour voir les prestataires proches.</Text>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Retour</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -187,10 +195,10 @@ export default function ExploreScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('explore.title')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('explore.title')}</Text>
         <View style={s.headerCount}>
           {!loading && (
             <Text style={[s.headerCountText, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{providers.length} disponibles</Text>
@@ -282,7 +290,7 @@ export default function ExploreScreen() {
           </View>
           <View style={[s.calloutCTA, { backgroundColor: theme.surface }]}>
             <Text style={[s.calloutCTAText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>Voir le profil</Text>
-            <Ionicons name="arrow-forward" size={12} color={theme.heroText} />
+            <Feather name="arrow-right" size={12} color={theme.heroText} />
           </View>
         </TouchableOpacity>
       )}
@@ -308,7 +316,7 @@ export default function ExploreScreen() {
           ListEmptyComponent={
             !loading ? (
               <View style={s.empty}>
-                <Ionicons name="people-outline" size={36} color={theme.textDisabled} />
+                <Feather name="users" size={36} color={theme.textDisabled} />
                 <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('explore.no_providers')}</Text>
               </View>
             ) : null

@@ -14,7 +14,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   Animated, Easing, TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import * as Haptics from 'expo-haptics';
@@ -193,7 +193,7 @@ export default function ScheduledConfirmation() {
         {/* Calendar icon (animated in confirmation mode, static in recap) */}
         <Animated.View style={[st.iconWrap, { transform: [{ scale: scaleAnim }] }]}>
           <View style={[st.iconCircle, { backgroundColor: theme.surface }]}>
-            <Ionicons name="calendar-outline" size={48} color={theme.text} />
+            <Feather name="calendar" size={48} color={theme.text} />
           </View>
         </Animated.View>
 
@@ -214,24 +214,24 @@ export default function ScheduledConfirmation() {
           {/* Recap card */}
           <View style={[st.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={st.row}>
-              <Ionicons name="construct-outline" size={16} color={theme.textSub} />
+              <Feather name="tool" size={16} color={theme.textSub} />
               <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{serviceName}</Text>
             </View>
             <View style={[st.sep, { backgroundColor: theme.border }]} />
             <View style={st.row}>
-              <Ionicons name="calendar-outline" size={16} color={theme.textSub} />
+              <Feather name="calendar" size={16} color={theme.textSub} />
               <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{scheduledLabel}</Text>
             </View>
             <View style={[st.sep, { backgroundColor: theme.border }]} />
             <View style={st.row}>
-              <Ionicons name="location-outline" size={16} color={theme.textSub} />
+              <Feather name="map-pin" size={16} color={theme.textSub} />
               <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sans }]} numberOfLines={1}>{address}</Text>
             </View>
             {isQuoteFlow ? (
               <>
                 <View style={[st.sep, { backgroundColor: theme.border }]} />
                 <View style={st.row}>
-                  <Ionicons name="document-text-outline" size={16} color={theme.textSub} />
+                  <Feather name="file-text" size={16} color={theme.textSub} />
                   <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sans }]}>
                     {calloutFee ? `Frais de déplacement payés : ${calloutFee} €` : 'Prix à définir dans le devis'}
                   </Text>
@@ -241,7 +241,7 @@ export default function ScheduledConfirmation() {
               <>
                 <View style={[st.sep, { backgroundColor: theme.border }]} />
                 <View style={st.row}>
-                  <Ionicons name="card-outline" size={16} color={theme.textSub} />
+                  <Feather name="credit-card" size={16} color={theme.textSub} />
                   <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.monoMedium }]}>{price} €</Text>
                 </View>
               </>
@@ -250,8 +250,8 @@ export default function ScheduledConfirmation() {
 
           {isAccepted ? (
             <View style={[st.infoBadge, { backgroundColor: 'rgba(61,139,61,0.08)', borderWidth: 1, borderColor: 'rgba(61,139,61,0.2)' }]}>
-              <Ionicons name="checkmark-circle" size={16} color="#3D8B3D" />
-              <Text style={[st.infoText, { color: '#3D8B3D', fontFamily: FONTS.sansMedium }]}>
+              <Feather name="check-circle" size={16} color={COLORS.greenBrand} />
+              <Text style={[st.infoText, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>
                 {providerName
                   ? `Confirmé par ${providerName}. Il interviendra à la date prévue.`
                   : 'Confirmé par un prestataire. Il interviendra à la date prévue.'}
@@ -259,7 +259,7 @@ export default function ScheduledConfirmation() {
             </View>
           ) : (
             <View style={[st.infoBadge, { backgroundColor: theme.surface }]}>
-              <Ionicons name="information-circle-outline" size={16} color={theme.textSub} />
+              <Feather name="info" size={16} color={theme.textSub} />
               <Text style={[st.infoText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
                 {isRecapMode
                   ? 'Vous serez notifié dès qu\'un prestataire accepte. La mission démarre à la date prévue.'

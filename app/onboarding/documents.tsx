@@ -1,7 +1,7 @@
 // app/onboarding/documents.tsx — Upload documents KYC (dark design)
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,9 +10,10 @@ import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { DocumentUploadCard } from "../../components/onboarding/DocumentUploadCard";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
 import { getRequiredDocuments, type DocumentRequirement, type DocumentType } from "../../constants/kycRequirements";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 
-const C = { white: "#FAFAFA", grey: "#888888" };
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
+const C = { white: darkTokens.text, grey: darkTokens.textMuted };
 
 function toSlug(name: string): string {
   return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
@@ -115,7 +116,7 @@ export default function OnboardingDocuments() {
       ))}
 
       <View style={s.securityNote}>
-        <Ionicons name="lock-closed-outline" size={12} color="rgba(255,255,255,0.2)" />
+        <Feather name="lock" size={12} color="rgba(255,255,255,0.2)" />
         <Text style={s.securityText}>Documents chiffrés et stockés de façon sécurisée. Jamais partagés avec les clients.</Text>
       </View>
     </OnboardingLayout>

@@ -7,20 +7,21 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -132,7 +133,7 @@ export function OnboardingLayout({
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+              <Feather name="chevron-left" size={16} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 36 }} />
@@ -177,14 +178,14 @@ export function OnboardingLayout({
                 cta.onPress();
               }}
               disabled={cta.disabled || cta.loading}
-              activeOpacity={0.9}
+              activeOpacity={0.82}
             >
               <Text style={s.btnPrimaryText}>
                 {cta.loading ? "CHARGEMENT..." : cta.label.toUpperCase()}
               </Text>
               {!cta.loading && !cta.disabled && (
                 <View style={s.arrowPill}>
-                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                  <Feather name="arrow-right" size={14} color={C.white} />
                 </View>
               )}
             </TouchableOpacity>

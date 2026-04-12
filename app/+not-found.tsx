@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Link } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 export default function NotFoundScreen() {
@@ -8,7 +8,7 @@ export default function NotFoundScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <Ionicons name="alert-circle-outline" size={80} color="#EF4444" />
+      <Feather name="alert-circle" size={80} color={COLORS.red} />
       <Text style={[styles.title, { color: theme.text }]}>Page introuvable</Text>
       <Text style={[styles.subtitle, { color: theme.textSub }]}>Cette page n&apos;existe pas</Text>
       <Link href="/(tabs)/dashboard" asChild>
@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: FONTS.bebas,
     marginTop: 16,
   },
   subtitle: {
@@ -44,6 +44,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FONTS.sansMedium,
   },
 });

@@ -14,11 +14,11 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 const LOGO_WHITE = require("../../assets/logo-variants/logo-transparent-white.png");
 
@@ -55,29 +55,29 @@ function GridLines() {
 }
 
 // ── Service ticker data ─────────────────────────────────────────────────────
-const SERVICES: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
-  { icon: "water-outline", label: "Plomberie" },
-  { icon: "flash-outline", label: "Électricité" },
-  { icon: "home-outline", label: "Ménage" },
-  { icon: "lock-closed-outline", label: "Serrurerie" },
-  { icon: "brush-outline", label: "Peinture" },
-  { icon: "hammer-outline", label: "Bricolage" },
-  { icon: "flame-outline", label: "Chaudière" },
+const SERVICES: { icon: keyof typeof Feather.glyphMap; label: string }[] = [
+  { icon: "droplet", label: "Plomberie" },
+  { icon: "zap", label: "Électricité" },
+  { icon: "home", label: "Ménage" },
+  { icon: "lock", label: "Serrurerie" },
+  { icon: "edit-3", label: "Peinture" },
+  { icon: "tool", label: "Bricolage" },
+  { icon: "thermometer", label: "Chaudière" },
 ];
 
 const TICKER_ITEM_H = 28;
 
-// ── Colors (dark-only welcome) ──────────────────────────────────────────────
+// ── Colors (dark-only welcome) — sourced from theme tokens so charter updates propagate ────
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  greyFaint: "rgba(255,255,255,0.2)",
-  border: "rgba(255,255,255,0.08)",
-  green: "#3D8B3D",
-  pill: "rgba(255,255,255,0.07)",
-  pillBorder: "rgba(255,255,255,0.1)",
-  pillText: "rgba(255,255,255,0.6)",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  greyFaint:   "rgba(255,255,255,0.2)",
+  border:      "rgba(255,255,255,0.08)",
+  green:       COLORS.greenBrand,
+  pill:        "rgba(255,255,255,0.07)",
+  pillBorder:  "rgba(255,255,255,0.1)",
+  pillText:    "rgba(255,255,255,0.6)",
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -121,7 +121,7 @@ function ServiceTicker() {
           {items.map((svc, i) => (
             <View key={i} style={s.tickerItem}>
               <View style={s.tickerBadge}>
-                <Ionicons name={svc.icon} size={12} color={C.pillText} />
+                <Feather name={svc.icon} size={12} color={C.pillText} />
                 <Text style={s.tickerBadgeText}>{svc.label}</Text>
               </View>
             </View>
@@ -395,7 +395,7 @@ export default function Welcome() {
             >
               <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>CRÉER UN COMPTE</Text>
               <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                <Ionicons name="arrow-forward" size={14} color={theme.text} />
+                <Feather name="arrow-right" size={14} color={theme.text} />
               </View>
             </TouchableOpacity>
 
@@ -415,7 +415,7 @@ export default function Welcome() {
                 router.push("/(auth)/login");
               }}
             >
-              <Ionicons name="log-in-outline" size={16} color={theme.textMuted} />
+              <Feather name="log-in" size={16} color={theme.textMuted} />
               <Text style={[s.btnSecondaryText, { color: theme.text }]}>Se connecter</Text>
             </TouchableOpacity>
           </Animated.View>

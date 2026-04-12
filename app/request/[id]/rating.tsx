@@ -18,7 +18,7 @@ import {
   BackHandler,
   KeyboardAvoidingView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -32,14 +32,14 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 // ============================================================================
 
 const getCompliments = (t: (key: string) => string) => [
-  { id: 'quality', icon: '✨', label: t('rating.compliment_quality') },
-  { id: 'polite', icon: '😊', label: t('rating.compliment_polite') },
-  { id: 'fast', icon: '⚡', label: t('rating.compliment_fast') },
-  { id: 'material', icon: '🔧', label: t('rating.compliment_material') },
-  { id: 'punctual', icon: '⏰', label: t('rating.compliment_punctual') },
-  { id: 'clean', icon: '🧹', label: t('rating.compliment_clean') },
-  { id: 'pro', icon: '🎯', label: t('rating.compliment_pro') },
-  { id: 'recommend', icon: '💬', label: t('rating.compliment_recommend') },
+  { id: 'quality',   icon: 'star',           label: t('rating.compliment_quality') },
+  { id: 'polite',    icon: 'smile',          label: t('rating.compliment_polite') },
+  { id: 'fast',      icon: 'zap',            label: t('rating.compliment_fast') },
+  { id: 'material',  icon: 'tool',           label: t('rating.compliment_material') },
+  { id: 'punctual',  icon: 'clock',          label: t('rating.compliment_punctual') },
+  { id: 'clean',     icon: 'check-circle',   label: t('rating.compliment_clean') },
+  { id: 'pro',       icon: 'target',         label: t('rating.compliment_pro') },
+  { id: 'recommend', icon: 'message-circle', label: t('rating.compliment_recommend') },
 ];
 
 const getRatingLabels = (t: (key: string) => string): Record<number, string> => ({
@@ -68,10 +68,10 @@ function Star({ filled, onPress, accessibilityLabel, textMuted }: { filled: bool
   return (
     <TouchableOpacity onPress={handlePress} activeOpacity={1} accessibilityLabel={accessibilityLabel} accessibilityRole="button">
       <Animated.View style={{ transform: [{ scale }] }}>
-        <Ionicons
-          name={filled ? 'star' : 'star-outline'}
+        <Feather
+          name="star"
           size={44}
-          color={filled ? '#FFB800' : textMuted}
+          color={filled ? COLORS.amber : textMuted}
         />
       </Animated.View>
     </TouchableOpacity>
@@ -116,9 +116,13 @@ function ComplimentChip({
         accessibilityLabel={chip.label}
         accessibilityRole="button"
       >
-        <Text style={cc.emoji}>{chip.icon}</Text>
+        <Feather
+          name={chip.icon as any}
+          size={14}
+          color={selected ? theme.accentText : theme.textSub as string}
+        />
         <Text style={[cc.label, { color: theme.textSub, fontFamily: FONTS.sansMedium }, selected && { color: theme.accentText }]}>{chip.label}</Text>
-        {selected && <Ionicons name="checkmark-circle" size={14} color={theme.accentText} />}
+        {selected && <Feather name="check-circle" size={14} color={theme.accentText} />}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -131,7 +135,6 @@ const cc = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
   },
-  emoji: { fontSize: 15 },
   label: { fontSize: 13 },
 });
 
@@ -262,7 +265,7 @@ export default function RatingScreen() {
         {/* Pas de bouton retour : on bloque la race condition layout/socket */}
         <View style={s.header}>
           <View style={[s.closeBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Ionicons name="close" size={20} color={theme.textDisabled} />
+            <Feather name="x" size={20} color={theme.textDisabled} />
           </View>
           <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={s.skipBtn} accessibilityRole="button">
             <Text style={[s.skipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('rating.skip')}</Text>
@@ -321,10 +324,10 @@ export default function RatingScreen() {
             <Text style={[s.sectionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('rating.what_went_wrong')}</Text>
             <View style={s.chipsWrap}>
               {[
-                { id: 'late', icon: '⏰', label: t('rating.negative_late') },
-                { id: 'quality', icon: '⚠️', label: t('rating.negative_quality') },
-                { id: 'rude', icon: '😞', label: t('rating.negative_rude') },
-                { id: 'messy', icon: '🗑️', label: t('rating.negative_messy') },
+                { id: 'late',    icon: 'clock',           label: t('rating.negative_late') },
+                { id: 'quality', icon: 'alert-triangle',  label: t('rating.negative_quality') },
+                { id: 'rude',    icon: 'frown',           label: t('rating.negative_rude') },
+                { id: 'messy',   icon: 'trash-2',         label: t('rating.negative_messy') },
               ].map(chip => (
                 <ComplimentChip
                   key={chip.id}
@@ -347,7 +350,7 @@ export default function RatingScreen() {
               activeOpacity={0.7}
               accessibilityRole="button"
             >
-              <Ionicons name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub} />
+              <Feather name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub} />
               <Text style={[s.noteToggleText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('rating.add_comment')}</Text>
             </TouchableOpacity>
             {noteOpen && (
@@ -388,7 +391,7 @@ export default function RatingScreen() {
               <Text style={[s.submitBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>
                 {rating === 0 ? t('rating.rate_first') : t('rating.submit_review')}
               </Text>
-              {rating > 0 && <Ionicons name="arrow-forward" size={18} color={theme.accentText} />}
+              {rating > 0 && <Feather name="arrow-right" size={18} color={theme.accentText} />}
             </>
           )}
         </TouchableOpacity>

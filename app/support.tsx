@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   TouchableOpacity, Animated, Easing,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { api } from '@/lib/api';
@@ -70,15 +70,18 @@ export default function SupportScreen() {
       try {
         const res = await api.requests.list();
         const all = (res.data || res || []) as Mission[];
-        // Take 3 most recent
-        const recent = all
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 3);
+        // Take 3 most recent for display
+        const sorted = all
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const recent = sorted.slice(0, 3);
         setMissions(recent);
 
-        // If missionId passed as param, auto-select it
+        // If missionId passed as param (e.g. from push notification), look it
+        // up across the FULL list, not just the 3 most recent. A deep-link to
+        // an older mission should still auto-select it.
         if (params.missionId) {
-          const match = recent.find(m => m.id === Number(params.missionId));
+          const target = Number(params.missionId);
+          const match = sorted.find(m => m.id === target) ?? recent.find(m => m.id === target);
           if (match) {
             setSelectedMission(match);
             setMissionStatus(match.status);
@@ -124,7 +127,8 @@ export default function SupportScreen() {
   };
 
   const handleDone = () => {
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/dashboard');
   };
 
   // ─── Level labels for progress ───────────────────────────────────────────────
@@ -141,10 +145,10 @@ export default function SupportScreen() {
       <View style={[s.header, { backgroundColor: theme.bg }]}>
         <TouchableOpacity
           style={s.backBtn}
-          onPress={() => router.back()}
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
+          <Feather name="arrow-left" size={22} color={theme.text} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>Support</Text>
         <View style={{ width: 38 }} />
@@ -167,7 +171,7 @@ export default function SupportScreen() {
                   isActive && { backgroundColor: theme.accent },
                 ]}>
                   {isDone ? (
-                    <Ionicons name="checkmark" size={10} color={theme.accentText} />
+                    <Feather name="check" size={10} color={theme.accentText} />
                   ) : (
                     <Text style={[s.progressDotText, {
                       fontFamily: FONTS.sansMedium,

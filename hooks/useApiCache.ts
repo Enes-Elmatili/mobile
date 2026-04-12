@@ -63,6 +63,12 @@ export function useApiCache<T>(
   const [fromCache, setFromCache] = useState(!!data);
   const mountedRef = useRef(true);
 
+  // Keep the latest fetcher in a ref so inline arrow callers don't cause
+  // doFetch / the effect below to be re-created on every render — which
+  // would produce an infinite fetch loop.
+  const fetcherRef = useRef(fetcher);
+  useEffect(() => { fetcherRef.current = fetcher; });
+
   const doFetch = useCallback(async (force = false) => {
     if (!key) return;
 
@@ -81,7 +87,7 @@ export function useApiCache<T>(
 
     if (mountedRef.current) setLoading(true);
     try {
-      const result = await fetcher();
+      const result = await fetcherRef.current();
       cache.set(key, { data: result, ts: Date.now() });
       if (mountedRef.current) {
         setData(result);
@@ -99,7 +105,7 @@ export function useApiCache<T>(
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [key, fetcher, ttl]);
+  }, [key, ttl]);
 
   useEffect(() => {
     mountedRef.current = true;

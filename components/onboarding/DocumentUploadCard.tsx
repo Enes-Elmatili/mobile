@@ -3,17 +3,18 @@ import React from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { FONTS } from "@/hooks/use-app-theme";
+import { Feather } from "@expo/vector-icons";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import type { DocumentRequirement, DocumentType } from "../../constants/kycRequirements";
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
+  white:   darkTokens.text,
+  grey:    darkTokens.textMuted,
+  border:  "rgba(255,255,255,0.08)",
+  cardBg:  darkTokens.cardBg,
   surface: "rgba(255,255,255,0.04)",
-  green: "#3D8B3D",
+  green:   COLORS.greenBrand,
 };
 
 interface DocumentUploadCardProps {
@@ -34,8 +35,8 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
       activeOpacity={0.7}
     >
       <View style={styles.docCardLeft}>
-        <Ionicons
-          name={isUploaded ? "checkmark-circle" : requirement.required ? "document-outline" : "document-attach-outline"}
+        <Feather
+          name={isUploaded ? "check-circle" : "file-text"}
           size={24}
           color={isUploaded ? C.green : C.white}
         />
@@ -61,8 +62,8 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
       {uploading ? (
         <ActivityIndicator size="small" color={C.grey} />
       ) : (
-        <Ionicons
-          name={isUploaded ? "checkmark" : "cloud-upload-outline"}
+        <Feather
+          name={isUploaded ? "check" : "upload"}
           size={20}
           color={isUploaded ? C.green : C.grey}
         />

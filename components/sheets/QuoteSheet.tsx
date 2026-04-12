@@ -7,7 +7,7 @@ import {
   Platform, ActivityIndicator, Image, Dimensions,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -113,7 +113,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
           {/* Service block */}
           <View style={[qs.serviceBlock, { backgroundColor: surfaceBg }]}>
             <View style={[qs.serviceIconWrap, { backgroundColor: theme.surface }]}>
-              <Ionicons name="document-text-outline" size={20} color={textSecondary} />
+              <Feather name="file-text" size={20} color={textSecondary} />
             </View>
             <View style={qs.serviceInfo}>
               <Text style={[qs.serviceTitle, { color: textPrimary, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
@@ -135,7 +135,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
             <>
               {/* Breakdown */}
               <View style={qs.sectionHeader}>
-                <Ionicons name="receipt-outline" size={13} color={textMuted} />
+                <Feather name="file-text" size={13} color={textMuted} />
                 <Text style={[qs.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>DÉTAIL</Text>
               </View>
 
@@ -182,7 +182,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
                 <>
                   <View style={[qs.divider, { backgroundColor: borderColor }]} />
                   <View style={qs.sectionHeader}>
-                    <Ionicons name="chatbubble-outline" size={13} color={textMuted} />
+                    <Feather name="message-circle" size={13} color={textMuted} />
                     <Text style={[qs.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>NOTES DU PRESTATAIRE</Text>
                   </View>
                   <Text style={[qs.notes, { color: textSecondary, fontFamily: FONTS.sansLight }]}>{quote.notes}</Text>
@@ -192,12 +192,12 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               {/* Status badge */}
               <View style={qs.statusRow}>
                 <View style={[qs.statusBadge, { backgroundColor: isAccepted ? 'rgba(61,139,61,0.12)' : isSent ? 'rgba(232,120,58,0.12)' : 'rgba(136,136,136,0.12)' }]}>
-                  <Ionicons
-                    name={isAccepted ? 'checkmark-circle' : 'time-outline'}
+                  <Feather
+                    name={isAccepted ? 'check-circle' : 'clock'}
                     size={14}
-                    color={isAccepted ? COLORS.green : isSent ? '#E8783A' : textMuted}
+                    color={isAccepted ? COLORS.green : isSent ? COLORS.orangeBrand : textMuted}
                   />
-                  <Text style={[qs.statusText, { color: isAccepted ? COLORS.green : isSent ? '#E8783A' : textMuted, fontFamily: FONTS.sansMedium }]}>
+                  <Text style={[qs.statusText, { color: isAccepted ? COLORS.green : isSent ? COLORS.orangeBrand : textMuted, fontFamily: FONTS.sansMedium }]}>
                     {isAccepted ? 'Accepté' : isSent ? 'En attente de réponse' : 'Traitement en cours'}
                   </Text>
                 </View>
@@ -220,7 +220,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
                 }}
                 activeOpacity={0.78}
               >
-                <Ionicons name="checkmark-circle-outline" size={18} color={accentText} />
+                <Feather name="check-circle" size={18} color={accentText} />
                 <Text style={[qs.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
                   Voir et répondre au devis
                 </Text>

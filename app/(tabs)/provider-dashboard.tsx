@@ -10,22 +10,23 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Vibration,
   StatusBar,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devWarn, devLog } from '@/lib/logger';
 
@@ -144,8 +145,8 @@ const av = StyleSheet.create({
   dot: {
     position: 'absolute',
     width: 10, height: 10, borderRadius: 5,
-    backgroundColor: '#34C759',
-    borderWidth: 2, borderColor: '#FFFFFF',
+    backgroundColor: COLORS.green,
+    borderWidth: 2, borderColor: darkTokens.bg,
   },
 });
 
@@ -202,19 +203,19 @@ function IncomingJobCard({
   const etaMin = request.distance != null ? Math.round(request.distance * 3) : null;
 
   const progress = timeLeft / TIMER_DURATION;
-  const timerColor = timeLeft <= 10 ? '#E85030' : COLORS.amber;
+  const timerColor = timeLeft <= 10 ? COLORS.red : COLORS.amber;
   const timerRotation = `${-90 + 360 * (1 - progress)}deg`;
 
-  // Theme-aware palette
-  const sheetBg   = theme.isDark ? '#0E0E0E' : '#F2F0EB';
+  // Theme-aware palette — sourced from tokens
+  const sheetBg   = theme.bg;
   const borderCol = theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
   const iconBg    = theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
-  const labelCol  = theme.isDark ? '#444' : '#999';
-  const valueCol  = theme.isDark ? '#B0B0B0' : '#666';
-  const boldCol   = theme.isDark ? '#F4F4F2' : '#1A1A18';
-  const passCol   = theme.isDark ? '#333' : '#BBB';
-  const ctaBg     = theme.isDark ? '#F4F4F2' : '#1A1A18';
-  const ctaText   = theme.isDark ? '#0A0A0A' : '#F4F4F2';
+  const labelCol  = theme.textDisabled;
+  const valueCol  = theme.textSub;
+  const boldCol   = theme.accent;
+  const passCol   = theme.textVeryMuted;
+  const ctaBg     = theme.accent;
+  const ctaText   = theme.accentText;
 
   // Address split: bold first part, muted rest
   const addrParts = request.address.split(',');
@@ -236,7 +237,7 @@ function IncomingJobCard({
 
         {/* Timer row: "NOUVELLE MISSION" / "DERNIÈRE CHANCE" + ring */}
         <View style={jc.timerRow}>
-          <Text style={[jc.newLabel, { color: expired ? '#E85030' : COLORS.amber }]}>
+          <Text style={[jc.newLabel, { color: expired ? COLORS.red : COLORS.amber }]}>
             {expired ? 'DERNIÈRE CHANCE' : 'NOUVELLE MISSION'}
           </Text>
           {!expired && (
@@ -269,18 +270,18 @@ function IncomingJobCard({
           {/* Address */}
           <View style={[jc.infoRow, { borderBottomColor: borderCol }]}>
             <View style={[jc.infoIcon, { backgroundColor: iconBg, borderColor: borderCol }]}>
-              <Ionicons name="location-outline" size={15} color="#888" />
+              <Feather name="map-pin" size={15} color={theme.textMuted} />
             </View>
             <View style={jc.infoContent}>
               <Text style={[jc.infoLabel, { color: labelCol }]}>ADRESSE</Text>
               <Text style={[jc.infoValue, { color: valueCol }]} numberOfLines={1}>
-                <Text style={{ color: boldCol, fontWeight: '500' }}>{addrBold}</Text>
+                <Text style={{ color: boldCol, fontFamily: FONTS.sansMedium }}>{addrBold}</Text>
                 {addrRest}
               </Text>
             </View>
             {etaMin != null && (
               <View style={jc.etaChip}>
-                <Ionicons name="time-outline" size={12} color="#555" />
+                <Feather name="clock" size={12} color={theme.textMuted} />
                 <Text style={jc.etaChipText}>{etaMin} min</Text>
               </View>
             )}
@@ -289,11 +290,11 @@ function IncomingJobCard({
           {/* Client */}
           <View style={[jc.infoRow, { borderBottomColor: borderCol }]}>
             <View style={[jc.infoIcon, { backgroundColor: iconBg, borderColor: borderCol }]}>
-              <Ionicons name="person-outline" size={15} color="#888" />
+              <Feather name="user" size={15} color={theme.textMuted} />
             </View>
             <View style={jc.infoContent}>
               <Text style={[jc.infoLabel, { color: labelCol }]}>CLIENT</Text>
-              <Text style={[jc.infoValue, { color: boldCol, fontWeight: '500' }]}>{request.client.name}</Text>
+              <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]}>{request.client.name}</Text>
             </View>
           </View>
 
@@ -301,11 +302,11 @@ function IncomingJobCard({
           {isQuote ? (
             <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
               <View style={[jc.infoIcon, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.15)' }]}>
-                <Ionicons name="wallet-outline" size={15} color={COLORS.amber} />
+                <Feather name="credit-card" size={15} color={COLORS.amber} />
               </View>
               <View style={jc.infoContent}>
                 <Text style={[jc.infoLabel, { color: labelCol }]}>FRAIS DE DÉPLACEMENT</Text>
-                <Text style={[jc.infoValue, { color: COLORS.amber, fontWeight: '500' }]}>Garanti à réception</Text>
+                <Text style={[jc.infoValue, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>Garanti à réception</Text>
               </View>
               {request.calloutFee != null && request.calloutFee > 0 && (
                 <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
@@ -316,11 +317,11 @@ function IncomingJobCard({
           ) : request.price > 0 ? (
             <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
               <View style={[jc.infoIcon, { backgroundColor: 'rgba(61,139,61,0.10)', borderColor: 'rgba(61,139,61,0.15)' }]}>
-                <Ionicons name="card-outline" size={15} color="#3D8B3D" />
+                <Feather name="credit-card" size={15} color={COLORS.greenBrand} />
               </View>
               <View style={jc.infoContent}>
                 <Text style={[jc.infoLabel, { color: labelCol }]}>GAINS ESTIMÉS</Text>
-                <Text style={[jc.infoValue, { color: '#3D8B3D', fontWeight: '500' }]}>Net après commission</Text>
+                <Text style={[jc.infoValue, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>Net après commission</Text>
               </View>
               <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
                 <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{netPrice} €</Text>
@@ -334,11 +335,11 @@ function IncomingJobCard({
           <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: ctaBg }]} onPress={onAccept} activeOpacity={0.85}>
             <Text style={[jc.acceptText, { color: ctaText }]}>ACCEPTER</Text>
             <Animated.View style={{ transform: [{ translateX: arrowAnim }] }}>
-              <Ionicons name="arrow-forward" size={18} color={ctaText} />
+              <Feather name="arrow-right" size={18} color={ctaText} />
             </Animated.View>
           </TouchableOpacity>
-          <TouchableOpacity style={jc.passBtn} onPress={onDecline} activeOpacity={0.4}>
-            <Text style={[jc.passText, { color: expired ? '#E85030' : passCol }]}>
+          <TouchableOpacity style={jc.passBtn} onPress={onDecline} activeOpacity={0.7}>
+            <Text style={[jc.passText, { color: expired ? COLORS.red : passCol }]}>
               {expired ? 'REFUSER' : 'Passer'}
             </Text>
           </TouchableOpacity>
@@ -390,7 +391,7 @@ const jc = StyleSheet.create({
   infoValue: { fontFamily: FONTS.sans, fontSize: 13.5 },
 
   etaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  etaChipText: { fontFamily: FONTS.sans, fontSize: 12, color: '#888' },
+  etaChipText: { fontFamily: FONTS.sans, fontSize: 12 },
 
   feeBadge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   feeBadgeNum: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 0.5 },
@@ -496,7 +497,7 @@ function CockpitIsland({
 
       {/* Wallet */}
       <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletBtn} accessibilityLabel={t('provider.balance_label')} accessibilityRole="button">
-        <Ionicons name="wallet" size={16} color={theme.text} />
+        <Feather name="credit-card" size={16} color={theme.text} />
         <Text style={[ci.walletAmount, { color: theme.text }]}>{formatEuros(wallet?.balance || 0)}</Text>
       </TouchableOpacity>
 
@@ -644,7 +645,7 @@ export default function ProviderDashboard() {
           setLocation(c);
           if (l.coords.heading != null) setHeading(l.coords.heading);
           const now = Date.now();
-          if (now - dashLastEmitRef.current >= 15_000 && socket && isOnline && networkOnline && user?.id) {
+          if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnline && user?.id) {
             dashLastEmitRef.current = now;
             socket.emit('provider:location_update', { providerId: user.id, ...c });
           }
@@ -775,7 +776,7 @@ export default function ProviderDashboard() {
     const handleNewRequest = (data: any) => {
       const rid = String(data.requestId ?? data.id);
       if (declinedIdsRef.current.has(rid)) return; // already declined, ignore rebroadcast
-      Vibration.vibrate([0, 200, 100, 200]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
       const lat = data.latitude ?? data.lat;
       const lng = data.longitude ?? data.lng;
       const req: IncomingRequest = {
@@ -835,7 +836,7 @@ export default function ProviderDashboard() {
     const next = !isOnline;
     isOnlineRef.current = next;
     setIsOnline(next);
-    Vibration.vibrate(next ? [0, 60, 30, 60] : 40);
+    Haptics.impactAsync(next ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (socket) socket.emit('provider:set_status', { providerId: user.id, status: next ? 'READY' : 'OFFLINE' });
     if (!next) setIncomingRequests([]);
     if (next && location) {
@@ -850,7 +851,7 @@ export default function ProviderDashboard() {
     try {
       const res: any = await api.post(`/requests/${request.requestId}/accept`);
       if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
-        Vibration.vibrate(100);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
         router.replace(`/request/${request.requestId}/ongoing`);
       } else {
@@ -878,7 +879,8 @@ export default function ProviderDashboard() {
     return (
       <View style={[s.loadingScreen, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
-        <Ionicons name="navigate-circle" size={52} color={theme.isDark ? 'rgba(255,255,255,0.25)' : 'rgba(26,26,26,0.25)'} />
+        <Feather name="navigation" size={52} color={theme.isDark ? 'rgba(255,255,255,0.25)' : 'rgba(26,26,26,0.25)'} />
+        <ActivityIndicator size="small" color={theme.textMuted} style={{ marginTop: 16 }} />
       </View>
     );
   }
@@ -928,7 +930,7 @@ export default function ProviderDashboard() {
               tracksViewChanges={false}
             >
               <View style={[s.missionMarker, { backgroundColor: COLORS.red, shadowColor: COLORS.red, borderColor: theme.cardBg }]}>
-                <Ionicons name="flash" size={14} color="#FFF" />
+                <Feather name="zap" size={14} color={darkTokens.heroText} />
               </View>
             </Marker>
           ) : null
@@ -963,7 +965,7 @@ export default function ProviderDashboard() {
               accessibilityLabel="Recenter"
               accessibilityRole="button"
             >
-              <Ionicons name="locate" size={20} color={theme.text} />
+              <Feather name="crosshair" size={20} color={theme.text} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -973,7 +975,7 @@ export default function ProviderDashboard() {
               accessibilityLabel={t('common.notifications')}
               accessibilityRole="button"
             >
-              <Ionicons name="notifications-outline" size={20} color={theme.text} />
+              <Feather name="bell" size={20} color={theme.text} />
               {unreadCount > 0 && (
                 <View style={[s.notifBadge, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
                   <Text style={[s.notifBadgeText, { color: theme.accentText }]}>{unreadCount > 9 ? '9+' : unreadCount}</Text>

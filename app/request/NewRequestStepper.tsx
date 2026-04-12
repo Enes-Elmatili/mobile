@@ -19,7 +19,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
@@ -84,12 +84,63 @@ const MAP_STYLE_DARK = [
   { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
 ];
 
+// Local Ionicons→Feather icon name bridge. Used to translate legacy category
+// icon names returned by toIoniconName() into Feather glyphs without touching
+// the shared mapper. Keys here are Ionicons names; values are Feather names.
+const IONICON_TO_FEATHER: Record<string, string> = {
+  'construct-outline':       'tool',
+  'hammer-outline':          'tool',
+  'settings-outline':        'settings',
+  'build-outline':           'tool',
+  'sparkles-outline':        'star',
+  'basket-outline':          'shopping-basket',
+  'water-outline':           'droplet',
+  'flask-outline':           'droplet',
+  'alert-circle-outline':    'alert-circle',
+  'warning-outline':         'alert-triangle',
+  'help-circle-outline':     'help-circle',
+  'radio-button-on-outline': 'radio',
+  'home-outline':            'home',
+  'enter-outline':           'log-in',
+  'apps-outline':            'grid',
+  'bed-outline':             'home',
+  'bulb-outline':            'zap',
+  'flash-outline':           'zap',
+  'hardware-chip-outline':   'cpu',
+  'leaf-outline':            'feather',
+  'cut-outline':             'scissors',
+  'cube-outline':            'package',
+  'car-outline':             'truck',
+  'barbell-outline':         'activity',
+  'color-palette-outline':   'edit-2',
+  'brush-outline':           'edit-2',
+  'laptop-outline':          'monitor',
+  'phone-portrait-outline':  'smartphone',
+  'desktop-outline':         'monitor',
+  'camera-outline':          'camera',
+  'paw-outline':             'github',
+  'restaurant-outline':      'coffee',
+  'people-outline':          'users',
+  'medkit-outline':          'plus-square',
+  'key-outline':             'key',
+  'thermometer-outline':     'thermometer',
+  'time-outline':             'clock',
+  'checkmark-circle-outline': 'check-circle',
+  'location-outline':         'map-pin',
+  'checkmark':                'check',
+};
+
+const toFeatherName = (name: string | undefined | null, fallback = 'tool'): string => {
+  if (!name) return fallback;
+  return IONICON_TO_FEATHER[name] || fallback;
+};
+
 // Config des étapes
 const getStepConfig = (t: any) => [
-  { label: t('stepper.step1_label'), sublabel: t('stepper.step1_sub'), icon: 'location-outline'          as const },
-  { label: t('stepper.step2_label'), sublabel: t('stepper.step2_sub'), icon: 'construct-outline'         as const },
-  { label: t('stepper.step3_label'), sublabel: t('stepper.step3_sub'), icon: 'time-outline'              as const },
-  { label: t('stepper.step4_label'), sublabel: t('stepper.step4_sub'), icon: 'checkmark-circle-outline'  as const },
+  { label: t('stepper.step1_label'), sublabel: t('stepper.step1_sub'), icon: 'map-pin'     as const },
+  { label: t('stepper.step2_label'), sublabel: t('stepper.step2_sub'), icon: 'tool'        as const },
+  { label: t('stepper.step3_label'), sublabel: t('stepper.step3_sub'), icon: 'clock'       as const },
+  { label: t('stepper.step4_label'), sublabel: t('stepper.step4_sub'), icon: 'check-circle' as const },
 ];
 
 function extractArrayPayload(response: any): any[] {
@@ -109,7 +160,7 @@ function useTheme() {
     bg:              t.bg,
     surface:         t.surface,
     surfaceAlt:      t.surfaceAlt,
-    surfaceBorder:   t.isDark ? '#2C2C2C' : '#F2F2F2',
+    surfaceBorder:   t.border,
     card:            t.cardBg,
     cardBorder:      t.border,
     sep:             t.borderLight,
@@ -118,7 +169,7 @@ function useTheme() {
     textMuted:       t.textMuted,
     textPlaceholder: t.textMuted,
     iconBtnBg:       t.surface,
-    progressTrack:   t.isDark ? '#2A2A2A' : '#E8E8E8',
+    progressTrack:   t.isDark ? t.border : t.surface,
     ctaBg:           t.bg,
     ctaBorder:       t.borderLight,
     modeCardBg:      t.surface,
@@ -127,12 +178,12 @@ function useTheme() {
     noteInputBorder: t.border,
     searchBoxBg:     t.isDark ? 'rgba(20,20,20,0.92)' : 'rgba(255,255,255,0.92)',
     addrConfirmBg:   t.cardBg,
-    addrClearBg:     t.isDark ? '#2A2A2A' : '#E9E7E1',
+    addrClearBg:     t.isDark ? t.border : t.surface,
     dropdownBg:      t.isDark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.95)',
     dropdownRow:     t.isDark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.95)',
     dropdownSep:     t.borderLight,
     chipBg:          t.surface,
-    v4CardBg:        t.isDark ? '#1A1A1A' : '#FFFFFF',
+    v4CardBg:        t.isDark ? t.surface : t.cardBg,
     v4Sep:           t.border,
     gradientBg:      t.isDark ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.9)',
     // Expose full theme for direct access
@@ -144,8 +195,8 @@ function useTheme() {
 }
 
 // ─── Step Indicator animé ──────────────────────────────────────────────────────
-const STEP_ICONS: ('location-outline' | 'construct-outline' | 'time-outline' | 'checkmark')[] = [
-  'location-outline', 'construct-outline', 'time-outline', 'checkmark',
+const STEP_ICONS: ('map-pin' | 'tool' | 'clock' | 'check')[] = [
+  'map-pin', 'tool', 'clock', 'check',
 ];
 
 function StepIndicator({ step }: { step: number }) {
@@ -178,8 +229,8 @@ function StepIndicator({ step }: { step: number }) {
           <React.Fragment key={i}>
             <View style={[si.dot, { backgroundColor: dotBg }]}>
               {isCompleted
-                ? <Ionicons name="checkmark" size={14} color={iconColor} />
-                : <Ionicons name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
+                ? <Feather name="check" size={14} color={iconColor} />
+                : <Feather name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
               }
             </View>
             {i < TOTAL_STEPS - 1 && (
@@ -224,7 +275,7 @@ function LiveSummary({ location, serviceName, scheduledLabel }: {
     <View style={ls.wrap}>
       {parts.map((p, i) => (
         <View key={i} style={ls.row}>
-          <Ionicons name="checkmark-circle" size={12} color={t.textMuted as string} />
+          <Feather name="check-circle" size={12} color={t.textMuted as string} />
           <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{p}</Text>
         </View>
       ))}
@@ -271,8 +322,8 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
         accessibilityRole="button"
       >
         <View style={[cc.iconWrap, { backgroundColor: t.surface }, selected && [cc.iconWrapSelected, { backgroundColor: t.accent }]]}>
-          <Ionicons
-            name={toIoniconName(cat.icon, 'construct-outline') as any}
+          <Feather
+            name={toFeatherName(toIoniconName(cat.icon, 'construct-outline'), 'tool') as any}
             size={18}
             color={selected ? t.accentText as string : t.textSub as string}
           />
@@ -282,7 +333,7 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
         </Text>
         {selected
           ? <View style={[cc.selectedDot, { backgroundColor: t.text }]} />
-          : <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
+          : <Feather name="chevron-right" size={14} color={t.textMuted} />
         }
       </TouchableOpacity>
     </Animated.View>
@@ -343,13 +394,13 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
         accessibilityLabel={label}
         accessibilityRole="button"
       >
-        <View style={[sc.dot, { backgroundColor: isQuote ? '#C8820A' : '#3D8B3D' }, selected && { backgroundColor: t.text }]} />
-        <Text style={[sc.text, { color: t.textSub }, selected && { fontWeight: '700', color: t.text }]}>{label}</Text>
+        <View style={[sc.dot, { backgroundColor: isQuote ? COLORS.amber : COLORS.greenBrand }, selected && { backgroundColor: t.text }]} />
+        <Text style={[sc.text, { color: t.textSub }, selected && { fontFamily: FONTS.sansMedium, color: t.text }]}>{label}</Text>
         <View style={sc.right}>
           <View style={[sc.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)' }]}>
-            <Text style={[sc.pillText, { color: isQuote ? '#C8820A' : '#3D8B3D' }]}>{isQuote ? 'Sur devis' : 'Prix fixe'}</Text>
+            <Text style={[sc.pillText, { color: isQuote ? COLORS.amber : COLORS.greenBrand }]}>{isQuote ? 'Sur devis' : 'Prix fixe'}</Text>
           </View>
-          {selected && <Ionicons name="checkmark" size={16} color={t.text as string} />}
+          {selected && <Feather name="check" size={16} color={t.text as string} />}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -497,7 +548,7 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
                   <Text style={[cta.priceText, { color: t.accentText }]}>{price} €</Text>
                 </View>
               ) : (
-                <Ionicons name="arrow-forward" size={20} color={disabled ? t.textMuted as string : t.accentText as string} />
+                <Feather name="arrow-right" size={20} color={disabled ? t.textMuted as string : t.accentText as string} />
               )}
             </View>
           )}
@@ -565,7 +616,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
             <View style={dim.header}>
               <View style={dim.titleRow}>
                 <View style={dim.iconWrap}>
-                  <Ionicons name={pricingMode === 'diagnostic' ? 'search-outline' : 'document-text-outline'} size={20} color="#C8820A" />
+                  <Feather name={pricingMode === 'diagnostic' ? 'search' : 'file-text'} size={20} color={COLORS.amber} />
                 </View>
                 <Text style={[dim.title, { color: theme.text }]}>
                   {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
@@ -588,13 +639,13 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
                       backgroundColor: i === 0 ? 'rgba(200,130,10,0.2)' : theme.surface,
                       borderColor:     i === 0 ? 'rgba(200,130,10,0.5)' : theme.sep,
                     }]}>
-                      <Text style={[dim.numText, { color: i === 0 ? '#C8820A' : theme.textSub }]}>{item.num}</Text>
+                      <Text style={[dim.numText, { color: i === 0 ? COLORS.amber : theme.textSub }]}>{item.num}</Text>
                     </View>
                     {i < steps.length - 1 && <View style={[dim.connector, { backgroundColor: theme.sep }]} />}
                   </View>
                   {/* Contenu */}
                   <View style={[dim.stepContent, i < steps.length - 1 && { paddingBottom: 24 }]}>
-                    <Text style={[dim.stepTitle, { color: i === 0 ? '#F0A830' : theme.text }]}>{item.title}</Text>
+                    <Text style={[dim.stepTitle, { color: i === 0 ? COLORS.amber : theme.text }]}>{item.title}</Text>
                     <Text style={[dim.stepSub, { color: theme.textMuted as string }]}>{item.sub}</Text>
                   </View>
                 </View>
@@ -769,8 +820,12 @@ export default function NewRequestStepper() {
   const goNext = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); animateStep(() => setStep((p) => Math.min(p + 1, TOTAL_STEPS))); };
   const goBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (step === 1) router.back();
-    else animateStep(() => setStep((p) => p - 1));
+    if (step === 1) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/dashboard');
+    } else {
+      animateStep(() => setStep((p) => p - 1));
+    }
   };
 
   // Étape 4 — paiement
@@ -1050,7 +1105,7 @@ export default function NewRequestStepper() {
       <View style={s.header}>
         <View style={s.headerSide}>
           <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.back')} accessibilityRole="button">
-            <Ionicons name="arrow-back" size={22} color={theme.text as string} />
+            <Feather name="arrow-left" size={22} color={theme.text as string} />
           </TouchableOpacity>
         </View>
 
@@ -1094,7 +1149,7 @@ export default function NewRequestStepper() {
                 <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} anchor={{ x: 0.5, y: 0.5 }}>
                   <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(52,199,89,0.2)' }} />
-                    <View style={{ position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: '#34C759', borderWidth: 2, borderColor: '#FFFFFF' }} />
+                    <View style={{ position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.green, borderWidth: 2, borderColor: '#FFFFFF' }} />
                   </View>
                 </Marker>
               )}
@@ -1103,7 +1158,7 @@ export default function NewRequestStepper() {
             {/* Barre de recherche flottante */}
             <View style={s.searchFloat}>
               <View style={[s.searchBox, { backgroundColor: theme.searchBoxBg }]}>
-                <Ionicons name="search" size={18} color={theme.textSub as string} />
+                <Feather name="search" size={18} color={theme.textSub as string} />
                 <GooglePlacesAutocomplete
                   placeholder={t('stepper.enter_address')}
                   fetchDetails
@@ -1163,22 +1218,22 @@ export default function NewRequestStepper() {
                   <View style={[s.addrDot, { backgroundColor: theme.text as string }]} />
                   <Text style={[s.addrText, { color: theme.text }]} numberOfLines={1}>{location.address}</Text>
                   <TouchableOpacity onPress={() => { setLocation(null); setLocationAllowed(true); }} style={[s.addrClear, { backgroundColor: theme.addrClearBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.clear')} accessibilityRole="button">
-                    <Ionicons name="close" size={18} color={theme.textSub as string} />
+                    <Feather name="x" size={18} color={theme.textSub as string} />
                   </TouchableOpacity>
                 </View>
               )}
               {location && !locationAllowed && (
                 <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
-                  <Ionicons name="warning-outline" size={16} color="#E8783A" />
-                  <Text style={[s.addrText, { color: '#E8783A', flex: 1 }]} numberOfLines={2}>
+                  <Feather name="alert-triangle" size={16} color={COLORS.orangeBrand} />
+                  <Text style={[s.addrText, { color: COLORS.orangeBrand, flex: 1 }]} numberOfLines={2}>
                     {'Zone test : Ixelles, Saint-Gilles et Uccle uniquement'}
                   </Text>
                 </View>
               )}
               {location && addressMissingNumber && (
                 <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#E8783A" />
-                  <Text style={[s.addrText, { color: '#E8783A', flex: 1 }]} numberOfLines={2}>
+                  <Feather name="alert-circle" size={16} color={COLORS.orangeBrand} />
+                  <Text style={[s.addrText, { color: COLORS.orangeBrand, flex: 1 }]} numberOfLines={2}>
                     {'Veuillez préciser le numéro d\'immeuble'}
                   </Text>
                 </View>
@@ -1262,7 +1317,7 @@ export default function NewRequestStepper() {
               )}
 
               <TouchableOpacity style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} activeOpacity={0.7} accessibilityRole="button">
-                <Ionicons name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
+                <Feather name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
                 <Text style={[s.noteToggleText, { color: theme.textSub }]}>{t('stepper.add_note')}</Text>
               </TouchableOpacity>
 
@@ -1307,7 +1362,7 @@ export default function NewRequestStepper() {
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="flash-outline" size={28} color={scheduleMode === 'now' ? theme.accentText as string : theme.text as string} />
+                  <Feather name="zap" size={28} color={scheduleMode === 'now' ? theme.accentText as string : theme.text as string} />
                   <Text style={[s.modeCardLabel, { color: theme.text }, scheduleMode === 'now' && { color: theme.accentText }]}>{t('stepper.now')}</Text>
                   <Text style={[s.modeCardSub, { color: theme.textSub }, scheduleMode === 'now' && { color: `${theme.accentText}99` }]}>{t('stepper.quick_intervention')}</Text>
                 </TouchableOpacity>
@@ -1319,7 +1374,7 @@ export default function NewRequestStepper() {
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="calendar-outline" size={28} color={scheduleMode === 'later' ? theme.accentText as string : theme.text as string} />
+                  <Feather name="calendar" size={28} color={scheduleMode === 'later' ? theme.accentText as string : theme.text as string} />
                   <Text style={[s.modeCardLabel, { color: theme.text }, scheduleMode === 'later' && { color: theme.accentText }]}>{t('stepper.schedule')}</Text>
                   <Text style={[s.modeCardSub, { color: theme.textSub }, scheduleMode === 'later' && { color: `${theme.accentText}99` }]}>{t('stepper.choose_slot')}</Text>
                 </TouchableOpacity>
@@ -1386,8 +1441,8 @@ export default function NewRequestStepper() {
             {/* Fond premium */}
             <LinearGradient
               colors={theme.isDark
-                ? ['#0A0A0A', '#161616', '#1A1A1A']
-                : ['#F4F4F2', '#EAEAE8', '#E2E2E0']}
+                ? [theme.bg, theme.card, theme.surface]
+                : [theme.bg, theme.surface, theme.surfaceBorder]}
               locations={[0, 0.6, 1]}
               style={StyleSheet.absoluteFill}
               start={{ x: 0.5, y: 0 }}
@@ -1407,18 +1462,18 @@ export default function NewRequestStepper() {
               <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>RÉCAPITULATIF</Text>
               <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
                 <View style={s.v4Row}>
-                  <Ionicons name="location-outline" size={16} color={theme.textSub as string} />
+                  <Feather name="map-pin" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]} numberOfLines={1}>{location?.address?.split(',')[0]}</Text>
                   <Text style={[s.v4Sub, { color: theme.textSub }]} numberOfLines={1}>{location?.address?.split(',').slice(1).join(',').trim()}</Text>
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
                 <View style={s.v4Row}>
-                  <Ionicons name={toIoniconName(selectedCategory?.icon, 'construct-outline') as any} size={16} color={theme.textSub as string} />
+                  <Feather name={toFeatherName(toIoniconName(selectedCategory?.icon, 'construct-outline'), 'tool') as any} size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{serviceName}</Text>
                 </View>
                 <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
                 <View style={s.v4Row}>
-                  <Ionicons name="time-outline" size={16} color={theme.textSub as string} />
+                  <Feather name="clock" size={16} color={theme.textSub as string} />
                   <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
                 </View>
                 {!isFreeService && (
@@ -1441,11 +1496,11 @@ export default function NewRequestStepper() {
                         })));
                       }}
                     >
-                      <Ionicons name="card-outline" size={16} color={theme.textSub as string} />
+                      <Feather name="credit-card" size={16} color={theme.textSub as string} />
                       <Text style={[s.v4Val, { color: theme.text }]}>
                         {paymentMethod === 'card' ? 'Carte bancaire' : paymentMethod === 'apple_pay' ? 'Apple Pay' : 'Google Pay'}
                       </Text>
-                      <Ionicons name="chevron-down" size={14} color={theme.textMuted as string} />
+                      <Feather name="chevron-down" size={14} color={theme.textMuted as string} />
                     </TouchableOpacity>
                   </>
                 )}
@@ -1455,7 +1510,7 @@ export default function NewRequestStepper() {
               {/* ── MONTANT ── */}
               {isFreeService ? (
                 <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder, marginTop: 16 }]}>
-                  <Ionicons name="gift-outline" size={18} color={theme.text as string} />
+                  <Feather name="gift" size={18} color={theme.text as string} />
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>Service gratuit</Text>
                     <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>Aucun paiement requis.</Text>
@@ -1475,7 +1530,7 @@ export default function NewRequestStepper() {
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textMuted as string }}>À régler maintenant</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                        <Ionicons name="checkmark" size={8} color={COLORS.green} />
+                        <Feather name="check" size={8} color={COLORS.green} />
                         <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: COLORS.green }}>Déduit si devis accepté</Text>
                       </View>
                     </View>
@@ -1489,9 +1544,9 @@ export default function NewRequestStepper() {
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
                     onPress={() => setDevisModalVisible(true)} activeOpacity={0.7}
                   >
-                    <Ionicons name="document-text-outline" size={14} color={COLORS.amber} />
+                    <Feather name="file-text" size={14} color={COLORS.amber} />
                     <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>Comment fonctionne le devis ?</Text>
-                    <Ionicons name="chevron-forward" size={13} color={theme.textMuted as string} />
+                    <Feather name="chevron-right" size={13} color={theme.textMuted as string} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1502,7 +1557,7 @@ export default function NewRequestStepper() {
                     <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1, color: theme.text as string }}>{displayPrice.totalTVAC} €</Text>
                   </View>
                   <View style={[s.v4SecureRow, { marginTop: 8 }]}>
-                    <Ionicons name="lock-closed-outline" size={13} color={theme.textMuted as string} />
+                    <Feather name="lock" size={13} color={theme.textMuted as string} />
                     <Text style={[s.v4Secure, { color: theme.textMuted }]}>{t('stepper.charge_after_validation')}</Text>
                   </View>
                 </View>

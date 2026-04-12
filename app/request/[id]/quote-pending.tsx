@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
@@ -140,7 +140,7 @@ export default function QuotePending() {
   const isDiagnostic = pricingMode === "diagnostic";
 
   // Theme-adaptive colors
-  const cardBg = theme.isDark ? "#141414" : theme.cardBg;
+  const cardBg = theme.cardBg;
   const cardBorder = theme.border;
   const glowColor = theme.isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.03)";
 
@@ -162,8 +162,8 @@ export default function QuotePending() {
         <View style={s.content}>
           {/* Icon */}
           <View style={[s.iconCircle, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <Ionicons
-              name={isDiagnostic ? "search-outline" : "document-text-outline"}
+            <Feather
+              name={isDiagnostic ? "search" : "file-text"}
               size={40}
               color={theme.text}
             />
@@ -196,7 +196,7 @@ export default function QuotePending() {
                   { borderColor: theme.borderLight, backgroundColor: theme.surface },
                   step.done && { backgroundColor: theme.accent, borderColor: theme.accent },
                 ]}>
-                  {step.done && <Ionicons name="checkmark" size={10} color={theme.accentText} />}
+                  {step.done && <Feather name="check" size={10} color={theme.accentText} />}
                 </View>
                 <Text style={[
                   s.stepLabel,
@@ -211,7 +211,7 @@ export default function QuotePending() {
 
           {/* Info card */}
           <View style={[s.infoCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <Ionicons name="information-circle-outline" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
+            <Feather name="info" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
             <Text style={[s.infoText, { color: theme.textMuted }]}>
               Vous recevrez une notification dès que le devis sera prêt. Vous pourrez l'accepter ou le refuser.
               {calloutFee ? ` Les ${calloutFee}€ seront déduits du total si vous acceptez.` : ""}
@@ -223,13 +223,13 @@ export default function QuotePending() {
             <View style={[s.recapCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
               {serviceName ? (
                 <View style={s.recapRow}>
-                  <Ionicons name="construct-outline" size={14} color={theme.textMuted} />
+                  <Feather name="tool" size={14} color={theme.textMuted} />
                   <Text style={[s.recapText, { color: theme.textSub }]}>{serviceName}</Text>
                 </View>
               ) : null}
               {address ? (
                 <View style={s.recapRow}>
-                  <Ionicons name="location-outline" size={14} color={theme.textMuted} />
+                  <Feather name="map-pin" size={14} color={theme.textMuted} />
                   <Text style={[s.recapText, { color: theme.textSub }]} numberOfLines={1}>{address}</Text>
                 </View>
               ) : null}
@@ -257,7 +257,7 @@ export default function QuotePending() {
           >
             <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RETOUR À L'ACCUEIL</Text>
             <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-              <Ionicons name="arrow-forward" size={14} color={theme.text} />
+              <Feather name="arrow-right" size={14} color={theme.text} />
             </View>
           </TouchableOpacity>
           <TouchableOpacity

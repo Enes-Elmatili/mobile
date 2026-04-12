@@ -10,7 +10,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -47,13 +47,13 @@ export default function ProvidersListScreen() {
       }}
     >
       <View style={[styles.avatar, { backgroundColor: theme.surface }]}>
-        <Ionicons name="person" size={32} color={theme.textAlt} />
+        <Feather name="user" size={32} color={theme.textAlt} />
       </View>
       <View style={styles.info}>
         <Text style={[styles.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{item.name || item.email}</Text>
         <Text style={[styles.email, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{item.email}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={24} color={theme.textMuted} />
+      <Feather name="chevron-right" size={24} color={theme.textMuted} />
     </TouchableOpacity>
   );
 
@@ -70,10 +70,10 @@ export default function ProvidersListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+          <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Providers</Text>
+        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Providers</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -84,7 +84,7 @@ export default function ProvidersListScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="people-outline" size={64} color={theme.textDisabled} />
+            <Feather name="users" size={64} color={theme.textDisabled} />
             <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucun prestataire disponible</Text>
           </View>
         }

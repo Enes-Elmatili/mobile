@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { useCall } from '@/lib/webrtc/CallContext';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
@@ -46,16 +46,16 @@ const formatEuros = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const STATUS_CFG: Record<string, { label: string; icon: string; done?: boolean; active?: boolean }> = {
-  PENDING_PAYMENT: { label: 'Paiement en attente', icon: 'card-outline' },
-  PUBLISHED:       { label: 'Recherche en cours',  icon: 'radio-outline',            active: true },
-  ACCEPTED:        { label: 'Confirmé',             icon: 'checkmark-circle-outline', active: true },
-  ONGOING:         { label: 'En cours',             icon: 'flash-outline',            active: true },
-  DONE:            { label: 'Terminé',              icon: 'checkmark-done-outline',   done: true },
-  CANCELLED:       { label: 'Annulé',               icon: 'close-circle-outline' },
+  PENDING_PAYMENT: { label: 'Paiement en attente', icon: 'credit-card' },
+  PUBLISHED:       { label: 'Recherche en cours',  icon: 'radio',              active: true },
+  ACCEPTED:        { label: 'Confirmé',             icon: 'check-circle',      active: true },
+  ONGOING:         { label: 'En cours',             icon: 'zap',               active: true },
+  DONE:            { label: 'Terminé',              icon: 'check-circle',      done: true },
+  CANCELLED:       { label: 'Annulé',               icon: 'x-circle' },
 };
 
 const getStatus = (s?: string) =>
-  STATUS_CFG[s ?? ''] ?? { label: s ?? '—', icon: 'ellipse-outline' };
+  STATUS_CFG[s ?? ''] ?? { label: s ?? '—', icon: 'circle' };
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -98,8 +98,8 @@ function StarRow({ rating, onRate, starColor, emptyColor }: { rating: number; on
           disabled={!onRate}
           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
         >
-          <Ionicons
-            name={i <= Math.round(rating) ? 'star' : 'star-outline'}
+          <Feather
+            name="star"
             size={22}
             color={i <= Math.round(rating) ? starColor : emptyColor}
           />
@@ -269,7 +269,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   }) => (
     <View style={sd.infoRow}>
       <View style={[sd.infoIconWrap, { backgroundColor: iconBg || theme.surfaceAlt }]}>
-        <Ionicons name={icon as any} size={15} color={theme.textSub} />
+        <Feather name={icon as any} size={15} color={theme.textSub} />
       </View>
       <View style={sd.infoContent}>
         <Text style={[sd.infoLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{label}</Text>
@@ -324,7 +324,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
 
     return (
       <TouchableOpacity style={[sd.abBase, btnStyle]} onPress={onPress} activeOpacity={0.78}>
-        <Ionicons name={icon as any} size={18} color={iconColor} />
+        <Feather name={icon as any} size={18} color={iconColor} />
         <Text style={[sd.abBaseText, textStyle, { fontFamily: FONTS.sansMedium }]}>{label}</Text>
       </TouchableOpacity>
     );
@@ -358,12 +358,12 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           <View style={{ gap: 6, alignItems: 'flex-end' }}>
             {/* Statut badge */}
             <View style={[sd.statusBadge, { backgroundColor: badgeBg }]}>
-              <Ionicons name={cfg.icon as any} size={11} color={badgeColor} />
+              <Feather name={cfg.icon as any} size={11} color={badgeColor} />
               <Text style={[sd.statusBadgeText, { color: badgeColor, fontFamily: FONTS.sansMedium }]}>{cfg.label}</Text>
             </View>
             {/* Aide */}
             <TouchableOpacity onPress={handleSupport} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="help-circle-outline" size={22} color={theme.textMuted} />
+              <Feather name="help-circle" size={22} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -371,7 +371,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         {/* Badge urgent */}
         {!!ticket.urgent && (
           <View style={[sd.urgentBadge, { backgroundColor: theme.surfaceAlt, borderLeftColor: theme.text }]}>
-            <Ionicons name="alert-circle-outline" size={14} color={theme.text} />
+            <Feather name="alert-circle" size={14} color={theme.text} />
             <Text style={[sd.urgentText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Demande urgente</Text>
           </View>
         )}
@@ -406,14 +406,14 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
             {/* Adresse badge en bas */}
             <View style={sd.mapAddrOverlay}>
               <View style={[sd.mapAddrBadge, { backgroundColor: theme.isDark ? 'rgba(30,30,30,0.94)' : 'rgba(255,255,255,0.94)' }]}>
-                <Ionicons name="location-outline" size={11} color={theme.textSub} />
+                <Feather name="map-pin" size={11} color={theme.textSub} />
                 <Text style={[sd.mapAddrText, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{address}</Text>
               </View>
             </View>
           </View>
         ) : address ? (
           <View style={[sd.noMapAddr, { backgroundColor: theme.surfaceAlt }]}>
-            <Ionicons name="location-outline" size={16} color={theme.textMuted} />
+            <Feather name="map-pin" size={16} color={theme.textMuted} />
             <Text style={[sd.noMapAddrText, { color: theme.textSub, fontFamily: FONTS.sans }]} numberOfLines={2}>{address}</Text>
           </View>
         ) : null}
@@ -430,7 +430,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                   <Text style={[sd.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{providerName}</Text>
                   {ticket.provider.avgRating != null && (
                     <View style={sd.providerRatingRow}>
-                      <Ionicons name="star" size={12} color={theme.text} />
+                      <Feather name="star" size={12} color={theme.text} />
                       <Text style={[sd.providerRatingText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                         {Number(ticket.provider.avgRating).toFixed(1)}
                       </Text>
@@ -448,12 +448,12 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 <View style={sd.providerActions}>
                   {ticket.provider.userId && (
                     <TouchableOpacity style={[sd.comBtn, { backgroundColor: theme.accent }]} onPress={handleMessage} activeOpacity={0.75}>
-                      <Ionicons name="chatbubble" size={16} color={theme.accentText} />
+                      <Feather name="message-circle" size={16} color={theme.accentText} />
                     </TouchableOpacity>
                   )}
                   {ticket.provider.phone && (
                     <TouchableOpacity style={[sd.comBtn, { backgroundColor: theme.accent }]} onPress={handleContact} activeOpacity={0.75}>
-                      <Ionicons name="call" size={16} color={theme.accentText} />
+                      <Feather name="phone" size={16} color={theme.accentText} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -467,7 +467,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {ticket.price != null && (
             <>
               <View style={sd.sectionHeader}>
-                <Ionicons name="receipt-outline" size={13} color={theme.textMuted} />
+                <Feather name="file-text" size={13} color={theme.textMuted} />
                 <Text style={[sd.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Détail du paiement</Text>
               </View>
 
@@ -477,13 +477,13 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
               <View style={sd.paymentMeta}>
                 {ticket.paymentMethod && (
                   <View style={[sd.paymentPill, { backgroundColor: theme.surfaceAlt }]}>
-                    <Ionicons name="card-outline" size={12} color={theme.textMuted} />
+                    <Feather name="credit-card" size={12} color={theme.textMuted} />
                     <Text style={[sd.paymentPillText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{ticket.paymentMethod}</Text>
                   </View>
                 )}
                 {isDone && (
                   <TouchableOpacity style={[sd.invoicePill, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={handleInvoice} activeOpacity={0.75}>
-                    <Ionicons name="download-outline" size={12} color={theme.text} />
+                    <Feather name="download" size={12} color={theme.text} />
                     <Text style={[sd.invoicePillText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Télécharger la facture</Text>
                   </TouchableOpacity>
                 )}
@@ -518,7 +518,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {ratingSubmitted && (
             <>
               <View style={sd.ratingDone}>
-                <Ionicons name="checkmark-circle" size={18} color={COLORS.green} />
+                <Feather name="check-circle" size={18} color={COLORS.green} />
                 <Text style={[sd.ratingDoneText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>Merci pour votre évaluation !</Text>
               </View>
               <DividerLine />
@@ -528,7 +528,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {hasRating && (
             <>
               <View style={sd.sectionHeader}>
-                <Ionicons name="star-outline" size={13} color={theme.textMuted} />
+                <Feather name="star" size={13} color={theme.textMuted} />
                 <Text style={[sd.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Votre évaluation</Text>
               </View>
               <StarRow rating={ticket.clientRating} starColor={theme.text} emptyColor={theme.borderLight} />
@@ -540,26 +540,26 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {(ticket.createdAt || ticket.preferredTimeStart) && (
             <>
               <View style={sd.sectionHeader}>
-                <Ionicons name="time-outline" size={13} color={theme.textMuted} />
+                <Feather name="clock" size={13} color={theme.textMuted} />
                 <Text style={[sd.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Chronologie</Text>
               </View>
 
               {ticket.createdAt && (
                 <InfoRow
-                  icon="ellipse"
+                  icon="circle"
                   label="Demande créée"
                   value={`${fmtDate(ticket.createdAt)} · ${fmtTime(ticket.createdAt)}`}
                 />
               )}
               {ticket.preferredTimeStart && (
                 <InfoRow
-                  icon="calendar-outline"
+                  icon="calendar"
                   label="Date souhaitée"
                   value={`${fmtDateLong(ticket.preferredTimeStart)} · ${fmtTime(ticket.preferredTimeStart)}`}
                 />
               )}
               {isDone && (
-                <InfoRow icon="checkmark-circle-outline" label="Terminée" value="Mission complétée" iconBg={theme.isDark ? 'rgba(34,197,94,0.15)' : '#ECFDF5'} />
+                <InfoRow icon="check-circle" label="Terminée" value="Mission complétée" iconBg={theme.isDark ? 'rgba(34,197,94,0.15)' : 'rgba(61,139,61,0.08)'} />
               )}
 
               <DividerLine />
@@ -570,28 +570,28 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {(ticket.description || ticket.category || ticket.subcategory || address) && (
             <>
               <View style={sd.sectionHeader}>
-                <Ionicons name="document-text-outline" size={13} color={theme.textMuted} />
+                <Feather name="file-text" size={13} color={theme.textMuted} />
                 <Text style={[sd.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Détails</Text>
               </View>
 
               {(ticket.category || ticket.subcategory) && (
                 <InfoRow
-                  icon="layers-outline"
+                  icon="layers"
                   label="Catégorie"
                   value={[ticket.category?.name, ticket.subcategory?.name].filter(Boolean).join(' › ')}
                 />
               )}
               {ticket.description && (
-                <InfoRow icon="chatbox-outline" label="Description" value={ticket.description} />
+                <InfoRow icon="message-square" label="Description" value={ticket.description} />
               )}
               {address && (
-                <InfoRow icon="location-outline" label="Adresse" value={address} />
+                <InfoRow icon="map-pin" label="Adresse" value={address} />
               )}
               {ticket.urgent && (
-                <InfoRow icon="flash-outline" label="Priorité" value="Urgente" />
+                <InfoRow icon="zap" label="Priorité" value="Urgente" />
               )}
               {ticket.paymentMethod && (
-                <InfoRow icon="card-outline" label="Paiement" value={ticket.paymentMethod} />
+                <InfoRow icon="credit-card" label="Paiement" value={ticket.paymentMethod} />
               )}
 
               <DividerLine />
@@ -600,12 +600,12 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
 
           {/* 6. REFERENCE */}
           <View style={sd.sectionHeader}>
-            <Ionicons name="information-circle-outline" size={13} color={theme.textMuted} />
+            <Feather name="info" size={13} color={theme.textMuted} />
             <Text style={[sd.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Informations</Text>
           </View>
-          <InfoRow icon="barcode-outline" label="Référence" value={`#${ref}`} />
+          <InfoRow icon="hash" label="Référence" value={`#${ref}`} />
           {ticket.createdAt && (
-            <InfoRow icon="calendar-outline" label="Créée le" value={fmtDateLong(ticket.createdAt)} />
+            <InfoRow icon="calendar" label="Créée le" value={fmtDateLong(ticket.createdAt)} />
           )}
 
           {/* 7. ACTIONS CONTEXTUELLES */}
@@ -616,7 +616,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 {onNavigateToOngoing && (
                   <ActionBtn
                     label={ticket.status === 'ONGOING' ? 'Suivre la mission en cours' : 'Voir le prestataire en route'}
-                    icon={ticket.status === 'ONGOING' ? 'navigate-outline' : 'locate-outline'}
+                    icon={ticket.status === 'ONGOING' ? 'navigation' : 'crosshair'}
                     onPress={() => {
                       onClose();
                       onNavigateToOngoing(String(ticket.id));
@@ -627,7 +627,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 {ticket.provider?.userId && (
                   <ActionBtn
                     label="Envoyer un message"
-                    icon="chatbubble-outline"
+                    icon="message-circle"
                     onPress={handleMessage}
                     variant="ghost"
                   />
@@ -635,7 +635,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 {ticket.provider?.phone && (
                   <ActionBtn
                     label="Contacter le prestataire"
-                    icon="call-outline"
+                    icon="phone"
                     onPress={handleContact}
                     variant="ghost"
                   />
@@ -674,13 +674,13 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
               <>
                 <ActionBtn
                   label="Télécharger la facture"
-                  icon="receipt-outline"
+                  icon="file-text"
                   onPress={handleInvoice}
                   variant="primary"
                 />
                 <ActionBtn
                   label="Commander à nouveau"
-                  icon="refresh-outline"
+                  icon="refresh-cw"
                   onPress={handleReorder}
                   variant="ghost"
                 />
@@ -690,7 +690,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
             {hasCoords && (
               <ActionBtn
                 label="Ouvrir dans Maps"
-                icon="navigate-outline"
+                icon="navigation"
                 onPress={openMap}
                 variant="ghost"
               />
@@ -698,7 +698,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
 
             <ActionBtn
               label="Un problème avec cette mission ?"
-              icon="help-circle-outline"
+              icon="help-circle"
               onPress={handleSupport}
               variant="danger"
             />

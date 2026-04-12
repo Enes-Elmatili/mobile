@@ -173,6 +173,9 @@ class ApiClient {
           devLog('Token refresh failed, clearing session...');
           await tokenStorage.removeToken();
           Alert.alert('Session expirée', 'Veuillez vous reconnecter.');
+          const sessionErr: any = new Error('Session expirée');
+          sessionErr.status = 401;
+          throw sessionErr;
         }
       }
 

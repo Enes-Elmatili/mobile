@@ -7,20 +7,21 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, darkTokens } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -121,7 +122,7 @@ export default function AuthChoice() {
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
+          <Feather name="chevron-left" size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
         <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>Bienvenue</Text>
@@ -142,13 +143,13 @@ export default function AuthChoice() {
           }}
         >
           <View style={s.cardIconWrap}>
-            <Ionicons name="log-in-outline" size={20} color={theme.text} />
+            <Feather name="log-in" size={20} color={theme.text} />
           </View>
           <View style={s.cardContent}>
             <Text style={[s.cardTitle, { color: theme.text }]}>Se connecter</Text>
             <Text style={[s.cardSub, { color: theme.textSub }]}>J'ai déjà un compte</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+          <Feather name="chevron-right" size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -160,13 +161,13 @@ export default function AuthChoice() {
           }}
         >
           <View style={s.cardIconWrap}>
-            <Ionicons name="person-add-outline" size={20} color={theme.text} />
+            <Feather name="user-plus" size={20} color={theme.text} />
           </View>
           <View style={s.cardContent}>
             <Text style={[s.cardTitle, { color: theme.text }]}>Créer un compte</Text>
             <Text style={[s.cardSub, { color: theme.textSub }]}>Nouveau sur FIXED</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+          <Feather name="chevron-right" size={16} color={theme.textMuted} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -182,7 +183,7 @@ export default function AuthChoice() {
         >
           <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>COMMENCER</Text>
           <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-            <Ionicons name="arrow-forward" size={14} color={theme.text} />
+            <Feather name="arrow-right" size={14} color={theme.text} />
           </View>
         </TouchableOpacity>
       </Animated.View>

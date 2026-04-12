@@ -1,7 +1,7 @@
 // components/discovery/ProviderCard.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import type { DiscoveredProvider } from '../../hooks/useProviderDiscovery';
@@ -53,7 +53,7 @@ export function ProviderCard({ provider, onPress }: Props) {
         </Text>
 
         <View style={styles.metaRow}>
-          <Ionicons name="star" size={12} color={theme.text} />
+          <Feather name="star" size={12} color={theme.text} />
           <Text style={[styles.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             {provider.avgRating.toFixed(1)} · {provider.jobsCompleted}{' '}
             {t('providers.missions')}

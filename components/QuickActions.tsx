@@ -7,18 +7,18 @@
 
 import React, { useRef, useCallback } from 'react';
 import { View, Text, Animated, Pressable, FlatList, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 const QUICK_ACTIONS = [
-  { icon: 'hammer-outline',   label: 'Bricol.',   category: 'bricolage'    },
-  { icon: 'leaf-outline',     label: 'Jardin',    category: 'jardinage'    },
-  { icon: 'sparkles-outline', label: 'Ménage',    category: 'menage'       },
-  { icon: 'car-outline',      label: 'Déménag.',  category: 'demenagement' },
-  { icon: 'brush-outline',    label: 'Peinture',  category: 'peinture'     },
-  { icon: 'grid-outline',     label: 'Tout voir', category: ''             },
+  { icon: 'tool',          label: 'Bricol.',   category: 'bricolage'    },
+  { icon: 'feather',       label: 'Jardin',    category: 'jardinage'    },
+  { icon: 'home',          label: 'Ménage',    category: 'menage'       },
+  { icon: 'truck',         label: 'Déménag.',  category: 'demenagement' },
+  { icon: 'edit-2',        label: 'Peinture',  category: 'peinture'     },
+  { icon: 'grid',          label: 'Tout voir', category: ''             },
 ] as const;
 
 // ── Item animé — effet squish individuel par icône ──
@@ -52,7 +52,7 @@ function ActionItem({ item, isLast }: { item: typeof QUICK_ACTIONS[number]; isLa
         style={qa.item}
       >
         <View style={[qa.circle, { backgroundColor: theme.surface, borderColor: theme.borderLight }, isLast && { backgroundColor: theme.accent, borderColor: theme.accent }]}>
-          <Ionicons name={item.icon as any} size={18} color={isLast ? theme.accentText : theme.text} />
+          <Feather name={item.icon as any} size={18} color={isLast ? theme.accentText : theme.text} />
         </View>
         <Text style={[qa.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{item.label}</Text>
       </Pressable>
@@ -82,7 +82,7 @@ export function QuickActions() {
 
 const qa = StyleSheet.create({
   wrap:  { marginBottom: 18 },
-  title: { fontSize: 14, fontWeight: '800', marginBottom: 10, paddingHorizontal: 2 },
+  title: { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 10, paddingHorizontal: 2 },
   list:  { gap: 6, paddingBottom: 2 },
   item:  { alignItems: 'center', gap: 6, width: 62 },
   circle: {
@@ -90,5 +90,5 @@ const qa = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
-  label: { fontSize: 10, fontWeight: '600', textAlign: 'center', width: 62 },
+  label: { fontSize: 10, fontFamily: FONTS.sansMedium, textAlign: 'center', width: 62 },
 });

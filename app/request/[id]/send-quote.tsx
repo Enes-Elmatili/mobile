@@ -6,7 +6,7 @@ import {
   KeyboardAvoidingView, Animated, Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
@@ -75,7 +75,7 @@ export default function SendQuote() {
       Alert.alert(
         "Devis envoyé",
         "Le client va examiner votre devis. Vous serez notifié de sa réponse.",
-        [{ text: "OK", onPress: () => router.back() }],
+        [{ text: "OK", onPress: () => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); } }],
       );
     } catch (e: any) {
       devError("Send quote error:", e);
@@ -94,10 +94,10 @@ export default function SendQuote() {
         <View style={s.header}>
           <TouchableOpacity
             style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            onPress={() => router.back()}
+            onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
             activeOpacity={0.75}
           >
-            <Ionicons name="chevron-back" size={18} color={theme.text} />
+            <Feather name="chevron-left" size={18} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.headerTitle, { color: theme.text }]}>ENVOYER UN DEVIS</Text>
           <View style={{ width: 36 }} />

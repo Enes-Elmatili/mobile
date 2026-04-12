@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 interface InfoRowProps {
@@ -16,7 +16,7 @@ export default function InfoRow({ icon, label, value, highlight }: InfoRowProps)
   return (
     <View style={[styles.container, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
       <View style={styles.header}>
-        <Ionicons name={icon as any} size={20} color={theme.textSub} />
+        <Feather name={icon as any} size={20} color={theme.textSub} />
         <Text style={[styles.label, { color: theme.textSub }]}>{label}</Text>
       </View>
       <Text style={[styles.value, { color: theme.text }, highlight && styles.valueHighlight]}>{value}</Text>
@@ -41,17 +41,18 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: FONTS.sansMedium,
     marginLeft: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   value: {
     fontSize: 16,
+    fontFamily: FONTS.sans,
     lineHeight: 24,
   },
   valueHighlight: {
     fontSize: 32,
-    fontWeight: '700',
+    fontFamily: FONTS.bebas,
   },
 });

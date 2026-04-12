@@ -1,7 +1,7 @@
 // components/support/MissionSelector.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import StatusBadge from '@/components/ui/StatusBadge';
 
@@ -80,7 +80,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
             </View>
             <View style={s.cardBottom}>
               <StatusBadge status={mission.status as any} />
-              <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+              <Feather name="chevron-right" size={16} color={theme.textMuted} />
             </View>
           </TouchableOpacity>
         ))}
@@ -101,12 +101,12 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
         activeOpacity={0.7}
       >
         <View style={[s.otherIcon, { backgroundColor: theme.cardBg }]}>
-          <Ionicons name="help-circle-outline" size={20} color={theme.textSub} />
+          <Feather name="help-circle" size={20} color={theme.textSub} />
         </View>
         <Text style={[s.otherText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
           Autre problème
         </Text>
-        <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+        <Feather name="chevron-right" size={16} color={theme.textMuted} />
       </TouchableOpacity>
     </View>
   );

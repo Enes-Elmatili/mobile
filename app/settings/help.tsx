@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, Linking, Platform, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -60,7 +60,7 @@ function FAQItem({ item }: { item: typeof FAQ[0] }) {
         activeOpacity={0.7}
       >
         <Text style={[fi.q, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{item.q}</Text>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
       </TouchableOpacity>
       {open && <Text style={[fi.a, { color: theme.textSub, fontFamily: FONTS.sans }]}>{item.a}</Text>}
     </View>
@@ -94,8 +94,8 @@ export default function HelpScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.help')}</Text>
         <View style={{ width: 38 }} />
@@ -110,13 +110,13 @@ export default function HelpScreen() {
           activeOpacity={0.7}
         >
           <View style={[s.contactIcon, { backgroundColor: theme.surface }]}>
-            <Ionicons name="chatbubbles-outline" size={22} color={theme.textSub} />
+            <Feather name="message-circle" size={22} color={theme.textSub} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[s.supportTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Un problème avec une mission ?</Text>
             <Text style={[s.supportSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Obtenez de l'aide en quelques clics</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+          <Feather name="chevron-right" size={18} color={theme.textMuted} />
         </TouchableOpacity>
 
         {/* FAQ */}
@@ -130,29 +130,30 @@ export default function HelpScreen() {
         <View style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
           <TouchableOpacity style={s.contactRow} onPress={openEmail} activeOpacity={0.7}>
             <View style={[s.contactIcon, { backgroundColor: theme.surface }]}>
-              <Ionicons name="mail-outline" size={20} color={theme.textSub} />
+              <Feather name="mail" size={20} color={theme.textSub} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>E-mail support</Text>
               <Text style={[s.contactValue, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>support@fixed.app</Text>
             </View>
-            <Ionicons name="open-outline" size={16} color={theme.textMuted} />
+            <Feather name="external-link" size={16} color={theme.textMuted} />
           </TouchableOpacity>
           <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
           <TouchableOpacity style={s.contactRow} onPress={openWhatsApp} activeOpacity={0.7}>
             <View style={[s.contactIcon, { backgroundColor: 'rgba(37,211,102,0.1)' }]}>
+              {/* WhatsApp brand glyph — Ionicons retained for brand recognition */}
               <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>WhatsApp</Text>
               <Text style={[s.contactValue, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Contacter le support</Text>
             </View>
-            <Ionicons name="open-outline" size={16} color={theme.textMuted} />
+            <Feather name="external-link" size={16} color={theme.textMuted} />
           </TouchableOpacity>
           <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
           <View style={s.contactRow}>
             <View style={[s.contactIcon, { backgroundColor: theme.surface }]}>
-              <Ionicons name="time-outline" size={20} color={theme.textSub} />
+              <Feather name="clock" size={20} color={theme.textSub} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.contactLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Horaires du support</Text>
@@ -161,7 +162,7 @@ export default function HelpScreen() {
           </View>
         </View>
 
-        <Text style={[s.version, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>Fixed v1.0.0 · Made with ♥</Text>
+        <Text style={[s.version, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>Fixed v1.0.0 · Made in Brussels</Text>
 
       </ScrollView>
     </SafeAreaView>

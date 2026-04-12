@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView, Platform, Alert, RefreshControl,
   StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
 import { devError } from '@/lib/logger';
@@ -196,9 +196,9 @@ function TxRow({ item }: { item: any }) {
   return (
     <View style={[tx.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
       {/* Icône */}
-      <View style={[tx.iconWrap, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : '#ECFDF5' } : { backgroundColor: theme.surface }]}>
-        <Ionicons
-          name={isCredit ? 'arrow-down-outline' : 'arrow-up-outline'}
+      <View style={[tx.iconWrap, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : 'rgba(61,139,61,0.08)' } : { backgroundColor: theme.surface }]}>
+        <Feather
+          name={isCredit ? 'arrow-down' : 'arrow-up'}
           size={17}
           color={isCredit ? COLORS.green : theme.textAlt}
         />
@@ -218,7 +218,7 @@ function TxRow({ item }: { item: any }) {
         <Text style={[tx.amount, { fontFamily: FONTS.monoMedium }, isCredit ? { color: COLORS.green } : { color: theme.textAlt }]}>
           {isCredit ? '+' : '-'}{fmtEur(fromCents(Math.abs(item.amount)))}
         </Text>
-        <View style={[tx.badge, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : '#ECFDF5' } : { backgroundColor: theme.surface }]}>
+        <View style={[tx.badge, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : 'rgba(61,139,61,0.08)' } : { backgroundColor: theme.surface }]}>
           <Text style={[tx.badgeText, { fontFamily: FONTS.sansMedium }, isCredit ? { color: COLORS.green } : { color: theme.textMuted }]}>
             {isCredit ? 'Reçu' : 'Débité'}
           </Text>
@@ -305,12 +305,12 @@ export default function Wallet() {
 
       {/* ── Header ── */}
       <View style={[s.header, { backgroundColor: theme.bg }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Feather name="chevron-left" size={22} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Portefeuille</Text>
         <TouchableOpacity onPress={onRefresh} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="refresh-outline" size={20} color={theme.textAlt} />
+          <Feather name="refresh-cw" size={20} color={theme.textAlt} />
         </TouchableOpacity>
       </View>
 
@@ -326,7 +326,7 @@ export default function Wallet() {
           disabled={fromCents(balance) <= 0}
           activeOpacity={0.85}
         >
-          <Ionicons name="arrow-up-circle-outline" size={18} color={theme.textAlt} />
+          <Feather name="upload" size={18} color={theme.textAlt} />
           <Text style={[s.withdrawBtnText, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Retirer les fonds</Text>
         </TouchableOpacity>
       </View>
@@ -348,7 +348,7 @@ export default function Wallet() {
         }
         ListEmptyComponent={
           <View style={s.empty}>
-            <Ionicons name="wallet-outline" size={52} color={theme.textDisabled} />
+            <Feather name="credit-card" size={52} color={theme.textDisabled} />
             <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Aucune transaction</Text>
             <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Vos gains apparaitront ici une fois vos missions terminées.</Text>
           </View>

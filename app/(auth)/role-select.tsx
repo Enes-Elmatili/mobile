@@ -6,33 +6,33 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '@/lib/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, darkTokens } from '@/hooks/use-app-theme';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const GRID_SIZE = 40;
 const ROLE_INTENT_KEY = '@fixed:signup:role';
 
-// ── Colors (dark-only) ──────────────────────────────────────────────────────
+// ── Colors (dark-only) — sourced from theme tokens so charter updates propagate ────────────
 const C = {
-  bg: '#0A0A0A',
-  white: '#FAFAFA',
-  grey: '#888888',
-  border: 'rgba(255,255,255,0.08)',
-  cardBg: '#141414',
-  iconBg: 'rgba(255,255,255,0.06)',
-  iconBorder: 'rgba(255,255,255,0.08)',
+  bg:             darkTokens.bg,
+  white:          darkTokens.text,
+  grey:           darkTokens.textMuted,
+  border:         'rgba(255,255,255,0.08)',
+  cardBg:         darkTokens.cardBg,
+  iconBg:         'rgba(255,255,255,0.06)',
+  iconBorder:     'rgba(255,255,255,0.08)',
   selectedCardBg: 'rgba(255,255,255,0.04)',
-  outlineText: 'rgba(255,255,255,0.3)',
-  radioBorder: 'rgba(255,255,255,0.2)',
-  loginMuted: 'rgba(255,255,255,0.3)',
-  loginText: 'rgba(255,255,255,0.7)',
+  outlineText:    'rgba(255,255,255,0.3)',
+  radioBorder:    'rgba(255,255,255,0.2)',
+  loginMuted:     'rgba(255,255,255,0.3)',
+  loginText:      'rgba(255,255,255,0.7)',
 };
 
 // ── Grid background ─────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ function GridLines() {
 function RoleCard({
   icon, title, subtitle, isSelected, onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: keyof typeof Feather.glyphMap;
   title: string;
   subtitle: string;
   isSelected: boolean;
@@ -103,7 +103,7 @@ function RoleCard({
       >
         {/* Icon */}
         <View style={[s.cardIcon, isSelected && s.cardIconSelected]}>
-          <Ionicons name={icon} size={20} color={isSelected ? C.bg : C.white} />
+          <Feather name={icon} size={20} color={isSelected ? C.bg : C.white} />
         </View>
 
         {/* Text */}
@@ -236,7 +236,7 @@ export default function RoleSelect() {
               onPress={() => { Haptics.selectionAsync(); router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'); }}
               hitSlop={12}
             >
-              <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
+              <Feather name="chevron-left" size={16} color={theme.textMuted} />
             </Pressable>
           ) : (
             <View style={{ width: 36 }} />
@@ -260,14 +260,14 @@ export default function RoleSelect() {
       <View style={{ flex: 1, justifyContent: 'flex-start' }}>
         <Animated.View style={[s.cards, { opacity: cardsOp, transform: [{ translateY: cardsTy }] }]}>
           <RoleCard
-            icon="person-outline"
+            icon="user"
             title="CLIENT"
             subtitle={'Je cherche un prestataire\npour mon domicile'}
             isSelected={selected === 'CLIENT'}
             onPress={() => select('CLIENT')}
           />
           <RoleCard
-            icon="construct-outline"
+            icon="tool"
             title="PRESTATAIRE"
             subtitle={'Je propose mes services\net gère mes missions'}
             isSelected={selected === 'PROVIDER'}
@@ -287,7 +287,7 @@ export default function RoleSelect() {
           <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>{submitting ? 'CHARGEMENT...' : 'CONTINUER'}</Text>
           {selected && (
             <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-              <Ionicons name="arrow-forward" size={14} color={theme.text} />
+              <Feather name="arrow-right" size={14} color={theme.text} />
             </View>
           )}
         </TouchableOpacity>

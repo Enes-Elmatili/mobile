@@ -3,7 +3,7 @@
 // Design : monochrome strict (blanc client / sombre provider)
 // TVA 21% belge, montants tabular-nums alignés à droite
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetBackdrop,
 } from '@gorhom/bottom-sheet';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -215,6 +215,14 @@ export default function InvoiceSheet({
   const [downloading, setDownloading] = useState(false);
   const downloadingRef = useRef(false);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cancel the safety timer on unmount to avoid setDownloading running after
+  // the sheet closes mid-download.
+  useEffect(() => () => {
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+  }, []);
 
   const handleDownloadPDF = useCallback(async () => {
     if (!invoice?.id || downloadingRef.current) return;
@@ -300,8 +308,8 @@ export default function InvoiceSheet({
           },
         ]}
       >
-        <Ionicons
-          name={isPaid ? 'checkmark-circle' : 'time-outline'}
+        <Feather
+          name={isPaid ? 'check-circle' : 'clock'}
           size={14}
           color={isPaid ? COLORS.green : COLORS.amber}
         />
@@ -310,8 +318,8 @@ export default function InvoiceSheet({
         </Text>
       </View>
       <View style={[s.paymentMethodPill, { backgroundColor: surfaceBg }]}>
-        <Ionicons
-          name={paymentMethod === 'card' ? 'card-outline' : 'cash-outline'}
+        <Feather
+          name={paymentMethod === 'card' ? 'credit-card' : 'dollar-sign'}
           size={12}
           color={textMuted}
         />
@@ -358,7 +366,7 @@ export default function InvoiceSheet({
         {/* Net Earnings block */}
         <View style={[s.netBlock, { backgroundColor: surfaceBg }]}>
           <View style={s.netHeader}>
-            <Ionicons name="wallet-outline" size={15} color={textMuted} />
+            <Feather name="credit-card" size={15} color={textMuted} />
             <Text style={[s.netLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
               MONTANT NET REÇU
             </Text>
@@ -375,7 +383,7 @@ export default function InvoiceSheet({
           </View>
           {payoutDate && (
             <View style={[s.payoutBadge, { backgroundColor: theme.surface }]}>
-              <Ionicons name="time-outline" size={12} color={textMuted} />
+              <Feather name="clock" size={12} color={textMuted} />
               <Text style={[s.payoutText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
                 Virement prévu le {payoutDate}
               </Text>
@@ -399,7 +407,7 @@ export default function InvoiceSheet({
             {downloading ? (
               <ActivityIndicator size="small" color={textSecondary} />
             ) : (
-              <Ionicons name="download-outline" size={18} color={textSecondary} />
+              <Feather name="download" size={18} color={textSecondary} />
             )}
             <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
               {downloading ? 'Téléchargement...' : 'Télécharger PDF'}
@@ -444,7 +452,7 @@ export default function InvoiceSheet({
         {/* Service Block */}
         <View style={[s.serviceBlock, { backgroundColor: surfaceBg }]}>
           <View style={[s.serviceIconWrap, { backgroundColor: theme.surface }]}>
-            <Ionicons name="construct-outline" size={20} color={textSecondary} />
+            <Feather name="tool" size={20} color={textSecondary} />
           </View>
           <View style={s.serviceInfo}>
             <Text style={[s.serviceTitle, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
@@ -475,7 +483,7 @@ export default function InvoiceSheet({
 
         {/* Line Items */}
         <View style={s.sectionHeader}>
-          <Ionicons name="receipt-outline" size={13} color={textMuted} />
+          <Feather name="file-text" size={13} color={textMuted} />
           <Text style={[s.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>DÉTAIL</Text>
         </View>
 
@@ -532,7 +540,7 @@ export default function InvoiceSheet({
             {downloading ? (
               <ActivityIndicator size="small" color={accentText} />
             ) : (
-              <Ionicons name="download-outline" size={18} color={accentText} />
+              <Feather name="download" size={18} color={accentText} />
             )}
             <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
               {downloading ? 'Téléchargement...' : 'Télécharger PDF'}

@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
 import * as Haptics from 'expo-haptics';
@@ -27,6 +27,7 @@ export default function IncomingCallOverlay() {
   }, []);
 
   // Animate in/out
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   useEffect(() => {
     if (incoming) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -34,19 +35,24 @@ export default function IncomingCallOverlay() {
         toValue: 0, useNativeDriver: true,
         tension: 60, friction: 10,
       }).start();
-      // Pulse animation for call icon
-      Animated.loop(
+      // Pulse animation for call icon — store ref so we can stop it later.
+      pulseLoopRef.current?.stop();
+      pulseLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.2, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
         ])
-      ).start();
+      );
+      pulseLoopRef.current.start();
     } else {
       Animated.timing(slideAnim, {
         toValue: -200, duration: 250, useNativeDriver: true,
       }).start();
+      pulseLoopRef.current?.stop();
+      pulseLoopRef.current = null;
       pulseAnim.setValue(1);
     }
+    return () => { pulseLoopRef.current?.stop(); };
   }, [incoming]);
 
   if (!incoming) return null;
@@ -80,10 +86,10 @@ export default function IncomingCallOverlay() {
         {/* Actions */}
         <View style={s.actions}>
           <TouchableOpacity style={s.rejectBtn} onPress={rejectCall} activeOpacity={0.8}>
-            <Ionicons name="close" size={22} color={COLORS.red} />
+            <Feather name="x" size={22} color={COLORS.red} />
           </TouchableOpacity>
           <TouchableOpacity style={s.acceptBtn} onPress={acceptCall} activeOpacity={0.8}>
-            <Ionicons name="call" size={22} color="#FFF" />
+            <Feather name="phone" size={22} color="#FFF" />
           </TouchableOpacity>
         </View>
       </View>
@@ -114,16 +120,16 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 18, fontWeight: '800',
+    fontSize: 18, fontFamily: FONTS.bebas, letterSpacing: 0.5,
   },
   info: {
     flex: 1,
   },
   name: {
-    fontSize: 16, fontWeight: '800',
+    fontSize: 16, fontFamily: FONTS.sansMedium,
   },
   label: {
-    fontSize: 12, fontWeight: '500', marginTop: 2,
+    fontSize: 12, fontFamily: FONTS.sans, marginTop: 2,
   },
   actions: {
     flexDirection: 'row', gap: 10,

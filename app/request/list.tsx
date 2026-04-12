@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { devError } from '@/lib/logger';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
@@ -78,10 +78,10 @@ export default function RequestsListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+          <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Toutes les requêtes</Text>
+        <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Toutes les requêtes</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -92,7 +92,7 @@ export default function RequestsListScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="document-outline" size={64} color={theme.textDisabled} />
+            <Feather name="file-text" size={64} color={theme.textDisabled} />
             <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucune requête</Text>
           </View>
         }

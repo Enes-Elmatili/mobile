@@ -15,7 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
@@ -163,7 +163,7 @@ export default function RequestTracking() {
     } catch (error) {
       devError('[TRACKING] Error loading request:', error);
       Alert.alert('Erreur', 'Impossible de charger les détails de la mission', [
-        { text: 'Retour', onPress: () => router.back() },
+        { text: 'Retour', onPress: () => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); } },
       ]);
     } finally {
       setLoading(false);
@@ -263,12 +263,14 @@ export default function RequestTracking() {
   // ── Animations ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.2, duration: 1000, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1,   duration: 1000, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    loop.start();
+    return () => loop.stop();
   }, []);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
@@ -377,7 +379,7 @@ export default function RequestTracking() {
 
     // Cancel
     cancelButton: {
-      backgroundColor: t.isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2',
+      backgroundColor: t.isDark ? 'rgba(220,38,38,0.15)' : 'rgba(220,38,38,0.08)',
       paddingVertical: 16, borderRadius: 16, alignItems: 'center' as const,
     },
     cancelButtonText: { fontSize: 16, fontWeight: '700' as const, color: t.danger, fontFamily: FONTS.sansMedium },
@@ -409,7 +411,7 @@ export default function RequestTracking() {
     // Verified banner
     verifiedBanner: {
       flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-      backgroundColor: t.isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4',
+      backgroundColor: t.isDark ? 'rgba(34,197,94,0.12)' : 'rgba(61,139,61,0.08)',
       borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
     },
     verifiedBannerText: { fontSize: 13, fontWeight: '600' as const, color: COLORS.green, flex: 1, fontFamily: FONTS.sansMedium },
@@ -462,15 +464,15 @@ export default function RequestTracking() {
         {providerLocation && (
           <Marker coordinate={providerLocation} title={request?.provider?.name || 'Prestataire'}>
             <Animated.View style={[s.providerMarker, { transform: [{ scale: pulseAnim }] }]}>
-              <Ionicons name="car" size={24} color={t.accentText} />
+              <Feather name="truck" size={24} color={t.accentText} />
             </Animated.View>
           </Marker>
         )}
       </MapView>
 
       {/* Back button */}
-      <TouchableOpacity style={s.backButton} onPress={() => router.back()} activeOpacity={0.7}>
-        <Ionicons name="arrow-back" size={24} color={t.text} />
+      <TouchableOpacity style={s.backButton} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+        <Feather name="arrow-left" size={24} color={t.text} />
       </TouchableOpacity>
 
       {/* Info card */}
@@ -490,7 +492,7 @@ export default function RequestTracking() {
         {request?.provider && (
           <View style={s.providerDetails}>
             <View style={s.providerAvatar}>
-              <Ionicons name="person" size={28} color={t.textSub} />
+              <Feather name="user" size={28} color={t.textSub} />
             </View>
             <View style={s.providerInfo}>
               <Text style={s.providerName}>{request.provider.name}</Text>
@@ -499,7 +501,7 @@ export default function RequestTracking() {
               </Text>
             </View>
             <TouchableOpacity style={s.callButton} onPress={handleCallProvider} activeOpacity={0.7}>
-              <Ionicons name="call" size={24} color={t.accentText} />
+              <Feather name="phone" size={24} color={t.accentText} />
             </TouchableOpacity>
           </View>
         )}
@@ -521,7 +523,7 @@ export default function RequestTracking() {
         {(status === 'ACCEPTED' || status === 'ONGOING') && pinCode && !pinVerified && (
           <View style={s.pinCard}>
             <View style={s.pinCardHeader}>
-              <Ionicons name="key" size={20} color={t.text} />
+              <Feather name="key" size={20} color={t.text} />
               <Text style={s.pinCardTitle}>Code PIN de vérification</Text>
             </View>
             <Text style={s.pinCardSubtitle}>Communiquez ce code à votre prestataire</Text>
@@ -538,7 +540,7 @@ export default function RequestTracking() {
         {/* PIN verified */}
         {(status === 'ACCEPTED' || status === 'ONGOING') && pinVerified && (
           <View style={s.verifiedBanner}>
-            <Ionicons name="checkmark-circle" size={18} color={COLORS.green} />
+            <Feather name="check-circle" size={18} color={COLORS.green} />
             <Text style={s.verifiedBannerText}>Code PIN vérifié — la mission va démarrer</Text>
           </View>
         )}
@@ -553,7 +555,7 @@ export default function RequestTracking() {
         {/* Ongoing banner */}
         {status === 'ONGOING' && (
           <View style={s.ongoingBanner}>
-            <Ionicons name="checkmark-circle" size={16} color={t.text} />
+            <Feather name="check-circle" size={16} color={t.text} />
             <Text style={s.ongoingBannerText}>Mission en cours — le prestataire est sur place</Text>
           </View>
         )}

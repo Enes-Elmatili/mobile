@@ -25,7 +25,7 @@ import {
   ActivityIndicator, Platform, Image, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
@@ -238,8 +238,8 @@ export default function DocumentUploader({
           ) : hasDoc ? (
             <View style={s.doneRow}>
               <View style={[s.statusBadge, { backgroundColor: stBg }]}>
-                <Ionicons
-                  name={uploaded?.status === 'APPROVED' ? 'checkmark-circle' : uploaded?.status === 'REJECTED' ? 'close-circle' : 'time-outline'}
+                <Feather
+                  name={uploaded?.status === 'APPROVED' ? 'check-circle' : uploaded?.status === 'REJECTED' ? 'x-circle' : 'clock'}
                   size={13}
                   color={stText}
                 />
@@ -248,13 +248,13 @@ export default function DocumentUploader({
                 </Text>
               </View>
               <TouchableOpacity onPress={pickAndUpload} style={s.replaceBtn}>
-                <Ionicons name="refresh" size={13} color={theme.textMuted} />
+                <Feather name="refresh-cw" size={13} color={theme.textMuted} />
                 <Text style={[s.replaceBtnText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Remplacer</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={[s.uploadBtn, { borderColor: theme.borderLight, backgroundColor: theme.surface }]} onPress={pickAndUpload} activeOpacity={0.75}>
-              <Ionicons name="cloud-upload-outline" size={18} color={theme.text} />
+              <Feather name="upload" size={18} color={theme.text} />
               <Text style={[s.uploadBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Ajouter le document</Text>
             </TouchableOpacity>
           )}
@@ -280,15 +280,15 @@ const s = StyleSheet.create({
 
   header: { gap: 3 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  label: { fontSize: 14, fontWeight: '600', flex: 1 },
+  label: { fontSize: 14, fontFamily: FONTS.sansMedium, flex: 1 },
 
   mandatoryBadge: {
     borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  mandatoryText: { fontSize: 10, fontWeight: '700' },
+  mandatoryText: { fontSize: 10, fontFamily: FONTS.sansMedium },
 
-  accepts: { fontSize: 12, fontWeight: '500' },
+  accepts: { fontSize: 12, fontFamily: FONTS.sans },
 
   body: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
@@ -308,18 +308,18 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8,
   },
-  statusText: { fontSize: 12, fontWeight: '600' },
+  statusText: { fontSize: 12, fontFamily: FONTS.sansMedium },
 
   replaceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 5,
   },
-  replaceBtnText: { fontSize: 12, fontWeight: '500' },
+  replaceBtnText: { fontSize: 12, fontFamily: FONTS.sans },
 
   uploadBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1.5, borderStyle: 'dashed',
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
   },
-  uploadBtnText: { fontSize: 14, fontWeight: '600' },
+  uploadBtnText: { fontSize: 14, fontFamily: FONTS.sansMedium },
 });

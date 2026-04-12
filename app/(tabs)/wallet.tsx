@@ -6,7 +6,7 @@ import {
   FlatList, ActivityIndicator,
   Platform, RefreshControl, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
@@ -119,10 +119,10 @@ function consolidateTxs(raw: any[]): ConsolidatedTx[] {
 // --- Ligne transaction ---
 function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
   const cfg = {
-    released: { icon: 'checkmark-circle-outline' as const, iconColor: COLORS.green, badge: 'Libéré', badgeColor: COLORS.green, sign: '+' },
-    credit:   { icon: 'arrow-down-outline' as const,       iconColor: COLORS.green, badge: 'Reçu',   badgeColor: COLORS.green, sign: '+' },
-    pending:  { icon: 'time-outline' as const,             iconColor: COLORS.amber, badge: 'En validation', badgeColor: COLORS.amber, sign: '' },
-    debit:    { icon: 'arrow-up-outline' as const,         iconColor: COLORS.red, badge: 'Débité', badgeColor: COLORS.red, sign: '−' },
+    released: { icon: 'check-circle' as const, iconColor: COLORS.green, badge: 'Libéré', badgeColor: COLORS.green, sign: '+' },
+    credit:   { icon: 'arrow-down' as const,   iconColor: COLORS.green, badge: 'Reçu',   badgeColor: COLORS.green, sign: '+' },
+    pending:  { icon: 'clock' as const,        iconColor: COLORS.amber, badge: 'En validation', badgeColor: COLORS.amber, sign: '' },
+    debit:    { icon: 'arrow-up' as const,     iconColor: COLORS.red, badge: 'Débité', badgeColor: COLORS.red, sign: '−' },
   }[item.status];
 
   const isGain = item.status === 'released' || item.status === 'credit';
@@ -130,7 +130,7 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
   return (
     <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
-        <Ionicons name={cfg.icon} size={18} color={cfg.iconColor} />
+        <Feather name={cfg.icon} size={18} color={cfg.iconColor} />
       </View>
       <View style={styles.txInfo}>
         <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{item.label}</Text>
@@ -154,10 +154,10 @@ function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
   return (
     <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
-        <Ionicons name="wallet-outline" size={18} color={st.color} />
+        <Feather name="credit-card" size={18} color={st.color} />
       </View>
       <View style={styles.txInfo}>
-        <Text style={[styles.txLabel, { color: t.text }]}>Retrait</Text>
+        <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>Retrait</Text>
         <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.createdAt)}</Text>
         {item.destination ? <Text style={[styles.txDate, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
       </View>
@@ -241,7 +241,7 @@ export default function WalletTab() {
         await WebBrowser.openBrowserAsync(res.url);
       } else if (res?.needsOnboarding || res?.code === 'STRIPE_MODE_MISMATCH') {
         // Pas d'URL → rediriger vers la page d'onboarding
-        const { Linking } = await import('expo-linking');
+        const Linking = await import('expo-linking');
         const returnUrl = Linking.createURL('connect/success');
         const refreshUrl = Linking.createURL('connect/reauth');
         const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
@@ -256,7 +256,7 @@ export default function WalletTab() {
       // Backend returns 400 with needsOnboarding on mode mismatch
       if (e?.code === 'STRIPE_MODE_MISMATCH' || e?.needsOnboarding) {
         try {
-          const { Linking } = await import('expo-linking');
+          const Linking = await import('expo-linking');
           const returnUrl = Linking.createURL('connect/success');
           const refreshUrl = Linking.createURL('connect/reauth');
           const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
@@ -341,7 +341,7 @@ export default function WalletTab() {
     if (item.type === 'empty') {
       return (
         <View style={styles.empty}>
-          <Ionicons name="wallet-outline" size={48} color={t.textDisabled} />
+          <Feather name="credit-card" size={48} color={t.textDisabled} />
           <Text style={[styles.emptyTitle, { color: t.textSub }]}>Aucune transaction</Text>
           <Text style={[styles.emptySubtitle, { color: t.textMuted }]}>
             Vos gains apparaitront ici apres vos missions.
@@ -371,7 +371,7 @@ export default function WalletTab() {
       <View style={[styles.header, { backgroundColor: t.bg }]}>
         <Text style={[styles.headerTitle, { color: t.text }]}>Gains</Text>
         <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="refresh-outline" size={20} color={t.accent} />
+          <Feather name="refresh-cw" size={20} color={t.accent} />
         </TouchableOpacity>
       </View>
 
@@ -384,13 +384,13 @@ export default function WalletTab() {
         <View style={styles.heroStats}>
           {escrowAmount > 0 && (
             <View style={styles.heroStatItem}>
-              <Ionicons name="time-outline" size={13} color={t.heroSub} />
+              <Feather name="clock" size={13} color={t.heroSub} />
               <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(escrowAmount))} en validation</Text>
             </View>
           )}
           {pendingWithdrawTotal > 0 && (
             <View style={styles.heroStatItem}>
-              <Ionicons name="arrow-up-outline" size={13} color={t.heroSub} />
+              <Feather name="arrow-up" size={13} color={t.heroSub} />
               <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(pendingWithdrawTotal))} en retrait</Text>
             </View>
           )}
@@ -404,7 +404,7 @@ export default function WalletTab() {
 
         {!stripeReady && (
           <View style={styles.payoutNotice}>
-            <Ionicons name="information-circle-outline" size={14} color={t.heroSub} />
+            <Feather name="info" size={14} color={t.heroSub} />
             <Text style={[styles.payoutNoticeText, { color: t.heroSubFaint }]}>Configurez Stripe pour recevoir vos virements.</Text>
           </View>
         )}
@@ -420,11 +420,11 @@ export default function WalletTab() {
         {stripeLoading
           ? <ActivityIndicator size="small" color={t.accent} />
           : <>
-              <Ionicons name="card-outline" size={15} color={t.accent} />
+              <Feather name="credit-card" size={15} color={t.accent} />
               <Text style={[styles.stripeLinkText, { color: t.text }]}>
                 {stripeReady ? 'Gérer mes paiements' : 'Configurer Stripe'}
               </Text>
-              <Ionicons name="chevron-forward" size={13} color={t.textVeryMuted} />
+              <Feather name="chevron-right" size={13} color={t.textVeryMuted} />
             </>
         }
       </TouchableOpacity>

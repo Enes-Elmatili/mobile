@@ -6,6 +6,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   SafeAreaView,
   ScrollView,
@@ -16,9 +17,10 @@ import {
   Animated,
   StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
@@ -32,6 +34,12 @@ import { PulseDot } from '@/components/ui/PulseDot';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
+
+// ─── Press feel constants (tier-1 haptic + opacity) ─────────────────────────
+const PRESS_PRIMARY   = 0.85;  // CTAs, cards, mission island
+const PRESS_SECONDARY = 0.7;   // Text links, icon buttons, list items
+const hapticLight  = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+const hapticMedium = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
 // ============================================================================
 // TYPES
@@ -74,20 +82,20 @@ const isScheduledFuture = (r: { preferredTimeStart?: string | null }): boolean =
 const getStatusInfo = (status: string, t: (key: string) => string) => {
   const s = (status || 'PENDING').toUpperCase();
   const map: Record<string, { label: string; icon: string; ledColor: string }> = {
-    DONE:            { label: t('dashboard.status_done'),      icon: 'checkmark-circle-outline', ledColor: COLORS.green },
-    CANCELLED:       { label: t('dashboard.status_cancelled'), icon: 'close-circle-outline',     ledColor: COLORS.red },
-    ONGOING:         { label: t('dashboard.status_ongoing'),   icon: 'time-outline',             ledColor: COLORS.green },
-    PUBLISHED:       { label: t('dashboard.status_published'), icon: 'radio-outline',            ledColor: COLORS.amber },
-    ACCEPTED:        { label: t('dashboard.status_accepted'),  icon: 'hand-left-outline',        ledColor: COLORS.green },
-    PENDING_PAYMENT: { label: t('dashboard.status_payment'),   icon: 'card-outline',             ledColor: COLORS.amber },
-    QUOTE_PENDING:   { label: 'Devis en cours',                icon: 'document-text-outline',    ledColor: COLORS.amber },
-    QUOTE_SENT:      { label: 'Devis reçu',                   icon: 'document-text-outline',    ledColor: COLORS.green },
-    QUOTE_ACCEPTED:  { label: 'Devis accepté',                icon: 'checkmark-circle-outline', ledColor: COLORS.green },
-    QUOTE_REFUSED:   { label: 'Devis refusé',                 icon: 'close-circle-outline',     ledColor: COLORS.red },
-    QUOTE_EXPIRED:   { label: 'Devis expiré — remboursé',     icon: 'time-outline',             ledColor: COLORS.red },
-    EXPIRED:         { label: t('dashboard.status_expired'),   icon: 'time-outline',             ledColor: COLORS.red },
+    DONE:            { label: t('dashboard.status_done'),      icon: 'check-circle', ledColor: COLORS.green },
+    CANCELLED:       { label: t('dashboard.status_cancelled'), icon: 'x-circle',     ledColor: COLORS.red },
+    ONGOING:         { label: t('dashboard.status_ongoing'),   icon: 'clock',        ledColor: COLORS.green },
+    PUBLISHED:       { label: t('dashboard.status_published'), icon: 'radio',        ledColor: COLORS.amber },
+    ACCEPTED:        { label: t('dashboard.status_accepted'),  icon: 'check',        ledColor: COLORS.green },
+    PENDING_PAYMENT: { label: t('dashboard.status_payment'),   icon: 'credit-card',  ledColor: COLORS.amber },
+    QUOTE_PENDING:   { label: 'Devis en cours',                icon: 'file-text',    ledColor: COLORS.amber },
+    QUOTE_SENT:      { label: 'Devis reçu',                   icon: 'file-text',    ledColor: COLORS.green },
+    QUOTE_ACCEPTED:  { label: 'Devis accepté',                icon: 'check-circle', ledColor: COLORS.green },
+    QUOTE_REFUSED:   { label: 'Devis refusé',                 icon: 'x-circle',     ledColor: COLORS.red },
+    QUOTE_EXPIRED:   { label: 'Devis expiré — remboursé',     icon: 'clock',        ledColor: COLORS.red },
+    EXPIRED:         { label: t('dashboard.status_expired'),   icon: 'clock',        ledColor: COLORS.red },
   };
-  return map[s] || { label: s, icon: 'help-circle-outline', ledColor: COLORS.amber };
+  return map[s] || { label: s, icon: 'help-circle', ledColor: COLORS.amber };
 };
 
 const getGreeting = (t: (key: string) => string) => {
@@ -98,20 +106,20 @@ const getGreeting = (t: (key: string) => string) => {
 };
 
 const getServiceIcon = (label?: string): string => {
-  if (!label) return 'construct-outline';
+  if (!label) return 'tool';
   const t = label.toLowerCase();
-  if (t.includes('bricol'))                             return 'hammer-outline';
-  if (t.includes('jardin') || t.includes('pelouse'))    return 'leaf-outline';
-  if (t.includes('ménage') || t.includes('nettoyage'))  return 'sparkles-outline';
-  if (t.includes('démén') || t.includes('demen'))       return 'cube-outline';
-  if (t.includes('peint'))                              return 'color-palette-outline';
-  if (t.includes('plomb'))                              return 'water-outline';
-  if (t.includes('électr') || t.includes('electr'))     return 'flash-outline';
-  if (t.includes('chauff'))                             return 'flame-outline';
-  if (t.includes('serrur'))                             return 'key-outline';
-  if (t.includes('urgence'))                            return 'build-outline';
-  if (t.includes('rénov') || t.includes('renov'))       return 'construct-outline';
-  return 'construct-outline';
+  if (t.includes('bricol'))                             return 'tool';
+  if (t.includes('jardin') || t.includes('pelouse'))    return 'feather';
+  if (t.includes('ménage') || t.includes('nettoyage'))  return 'star';
+  if (t.includes('démén') || t.includes('demen'))       return 'package';
+  if (t.includes('peint'))                              return 'edit-2';
+  if (t.includes('plomb'))                              return 'droplet';
+  if (t.includes('électr') || t.includes('electr'))     return 'zap';
+  if (t.includes('chauff'))                             return 'zap';
+  if (t.includes('serrur'))                             return 'key';
+  if (t.includes('urgence'))                            return 'tool';
+  if (t.includes('rénov') || t.includes('renov'))       return 'tool';
+  return 'tool';
 };
 
 // ============================================================================
@@ -127,19 +135,18 @@ const CARD_HEIGHT = 138;
 const CARD_GAP = 10;
 
 const SERVICE_CARDS = [
-  { key: 'plomberie',   label: 'Plomberie',   icon: 'water-outline',          theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
-  { key: 'electricite', label: 'Électricité',  icon: 'flash-outline',          theme: 'light' as const, led: COLORS.green,  category: 'electricite', providers: 5  },
-  { key: 'serrurerie',  label: 'Serrurerie',   icon: 'key-outline',            theme: 'light' as const, led: COLORS.amber,  category: 'serrurerie',  providers: 2  },
-  { key: 'chauffage',   label: 'Chauffage',    icon: 'flame-outline',          theme: 'light' as const, led: COLORS.green,  category: 'chauffage',   providers: 6  },
-  { key: 'bricolage',   label: 'Bricolage',    icon: 'hammer-outline',         theme: 'light' as const, led: COLORS.amber,  category: 'bricolage',   providers: 3  },
-  { key: 'peinture',    label: 'Peinture',     icon: 'color-palette-outline',  theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
+  { key: 'plomberie',   label: 'Plomberie',   icon: 'droplet',  theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
+  { key: 'electricite', label: 'Électricité',  icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'electricite', providers: 5  },
+  { key: 'serrurerie',  label: 'Serrurerie',   icon: 'key',      theme: 'light' as const, led: COLORS.amber,  category: 'serrurerie',  providers: 2  },
+  { key: 'chauffage',   label: 'Chauffage',    icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'chauffage',   providers: 6  },
+  { key: 'bricolage',   label: 'Bricolage',    icon: 'tool',     theme: 'light' as const, led: COLORS.amber,  category: 'bricolage',   providers: 3  },
+  { key: 'peinture',    label: 'Peinture',     icon: 'edit-2',   theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
 ];
 
 // Phase test : uniquement Plomberie et Serrurerie
 const LAUNCH_CARDS = SERVICE_CARDS.filter(c => c.key === 'plomberie' || c.key === 'serrurerie');
 
 function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => void; theme: AppTheme }) {
-  const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -154,7 +161,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
       <View style={runway.header}>
         <Text style={[runway.headerTitle, { color: theme.textMuted }]}>SERVICES DISPONIBLES</Text>
         <View style={runway.headerHint}>
-          <Ionicons name="chevron-forward" size={9} color={theme.textMuted} />
+          <Feather name="chevron-right" size={9} color={theme.textMuted} />
           <Text style={[runway.headerHintText, { color: theme.textMuted }]}>glisser</Text>
         </View>
       </View>
@@ -191,7 +198,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
               key={card.key}
               style={[runway.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
               onPress={() => onPress(card.category)}
-              activeOpacity={0.85}
+              activeOpacity={PRESS_PRIMARY}
             >
               {/* Ghost number */}
               <Text style={[runway.ghostNum, {
@@ -204,7 +211,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
                 {/* Top row: icon + LED + count */}
                 <View style={runway.cardTop}>
                   <View style={[runway.iconBox, { backgroundColor: iconBg }]}>
-                    <Ionicons name={card.icon as any} size={14} color={textColor} />
+                    <Feather name={card.icon as any} size={14} color={textColor} />
                   </View>
                   <View style={runway.ledRow}>
                     <PulseDot size={6} color={card.led} />
@@ -221,7 +228,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
                 <View style={runway.cardBottom}>
                   <View style={{ flex: 1 }} />
                   <View style={[runway.cardArrow, { backgroundColor: arrowBg }]}>
-                    <Ionicons name="arrow-forward" size={8} color={textColor} />
+                    <Feather name="arrow-right" size={8} color={textColor} />
                   </View>
                 </View>
               </View>
@@ -295,21 +302,17 @@ function MissionIsland({
   activeMission,
   searchingMission,
   quoteMission,
-  latestRequest,
   onActiveMissionPress,
   onSearchingPress,
   onQuotePress,
-  onLatestPress,
   theme,
 }: {
   activeMission: DashboardData['requests'][0] | null;
   searchingMission: DashboardData['requests'][0] | null;
   quoteMission?: DashboardData['requests'][0] | null;
-  latestRequest: DashboardData['requests'][0] | null;
   onActiveMissionPress: () => void;
   onSearchingPress: () => void;
   onQuotePress?: () => void;
-  onLatestPress: () => void;
   theme: AppTheme;
 }) {
   const { t } = useTranslation();
@@ -404,7 +407,7 @@ function MissionIsland({
         <TouchableOpacity
           style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
           onPress={onActiveMissionPress}
-          activeOpacity={0.85}
+          activeOpacity={PRESS_PRIMARY}
         >
           <View style={islandStyles.pulseWrap}>
             <Animated.View style={[islandStyles.pulseRing, {
@@ -418,11 +421,11 @@ function MissionIsland({
             <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
               {isOngoing ? 'EN COURS' : `EN ROUTE · ${etaLabel}`}
             </Text>
-            <Text style={[islandStyles.mission, { color: theme.heroText }]}>{activeMission.serviceType || activeMission.title}</Text>
-            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>{isOngoing ? t('dashboard.mission_ongoing') : t('dashboard.provider_on_way')}</Text>
+            <Text style={[islandStyles.mission, { color: theme.heroText }]} numberOfLines={1}>{activeMission.serviceType || activeMission.title}</Text>
+            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]} numberOfLines={1}>{isOngoing ? t('dashboard.mission_ongoing') : t('dashboard.provider_on_way')}</Text>
           </View>
           <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
-            <Ionicons name="arrow-forward" size={12} color={theme.heroSub} />
+            <Feather name="arrow-right" size={12} color={theme.heroSub} />
           </View>
         </TouchableOpacity>
       </View>
@@ -436,7 +439,7 @@ function MissionIsland({
         <TouchableOpacity
           style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
           onPress={onSearchingPress}
-          activeOpacity={0.85}
+          activeOpacity={PRESS_PRIMARY}
         >
           <View style={islandStyles.pulseWrap}>
             <Animated.View style={[islandStyles.pulseRing, {
@@ -448,13 +451,13 @@ function MissionIsland({
           </View>
           <View style={islandStyles.textWrap}>
             <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>{t('dashboard.search_in_progress').toUpperCase()}</Text>
-            <Text style={[islandStyles.mission, { color: theme.heroText }]}>{searchingMission.serviceType || searchingMission.title}</Text>
+            <Text style={[islandStyles.mission, { color: theme.heroText }]} numberOfLines={1}>{searchingMission.serviceType || searchingMission.title}</Text>
             {secondsLeft !== null && (
               <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>{fmt(secondsLeft)}</Text>
             )}
           </View>
           <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
-            <Ionicons name="arrow-forward" size={12} color={theme.heroSub} />
+            <Feather name="arrow-right" size={12} color={theme.heroSub} />
           </View>
         </TouchableOpacity>
       </View>
@@ -469,7 +472,7 @@ function MissionIsland({
         <TouchableOpacity
           style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
           onPress={onQuotePress}
-          activeOpacity={0.85}
+          activeOpacity={PRESS_PRIMARY}
         >
           <View style={islandStyles.pulseWrap}>
             <Animated.View style={[islandStyles.pulseRing, {
@@ -483,13 +486,13 @@ function MissionIsland({
             <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
               {isQuoteSent ? 'DEVIS REÇU' : 'DEVIS EN COURS'}
             </Text>
-            <Text style={[islandStyles.mission, { color: theme.heroText }]}>{quoteMission.serviceType || quoteMission.title}</Text>
-            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>
+            <Text style={[islandStyles.mission, { color: theme.heroText }]} numberOfLines={1}>{quoteMission.serviceType || quoteMission.title}</Text>
+            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]} numberOfLines={1}>
               {isQuoteSent ? 'Consultez et répondez au devis' : 'En attente du prestataire'}
             </Text>
           </View>
           <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
-            <Ionicons name={isQuoteSent ? 'document-text' : 'time-outline'} size={12} color={theme.heroSub} />
+            <Feather name={isQuoteSent ? 'file-text' : 'clock'} size={12} color={theme.heroSub} />
           </View>
         </TouchableOpacity>
       </View>
@@ -501,7 +504,7 @@ function MissionIsland({
     <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
       <View style={[islandStyles.empty, { borderColor: theme.borderLight }]}>
         <View style={[islandStyles.emptyIconBox, { borderColor: theme.borderLight }]}>
-          <Ionicons name="time-outline" size={13} color={theme.textMuted} />
+          <Feather name="clock" size={13} color={theme.textMuted} />
         </View>
         <Text style={[islandStyles.emptyText, { color: theme.textMuted }]}>
           Les statuts de vos services s'afficheront ici.
@@ -519,7 +522,6 @@ const islandStyles = StyleSheet.create({
   },
   pulseWrap: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   pulseRing: { position: 'absolute', width: 10, height: 10, borderRadius: 5 },
-  pulseDot: { width: 10, height: 10, borderRadius: 5 },
   textWrap: { flex: 1 },
   label: {
     fontFamily: FONTS.mono, fontSize: 11,
@@ -585,10 +587,10 @@ function ActivityItem({
     <TouchableOpacity
       style={[actStyles.row, !isLast && { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
       onPress={onPress}
-      activeOpacity={0.65}
+      activeOpacity={PRESS_SECONDARY}
     >
       <View style={[actStyles.iconBox, { backgroundColor: theme.surface }]}>
-        <Ionicons name={icon as any} size={16} color={theme.text} />
+        <Feather name={icon as any} size={16} color={theme.text} />
       </View>
       <View style={actStyles.center}>
         <Text style={[actStyles.name, { color: theme.text }]} numberOfLines={1}>
@@ -602,7 +604,7 @@ function ActivityItem({
         <View style={[actStyles.badge, { backgroundColor: badgeBg }]}>
           <Text style={[actStyles.badgeText, { color: badgeTextColor }]}>{status.label}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+        <Feather name="chevron-right" size={13} color={theme.textMuted} />
       </View>
     </TouchableOpacity>
   );
@@ -689,7 +691,7 @@ function UpcomingIslandCard({
     : '';
 
   // Progress bar color: green if accepted, warm accent if waiting
-  const barColor = isAccepted ? '#3D8B3D' : (theme.isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)');
+  const barColor = isAccepted ? COLORS.greenBrand : (theme.isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)');
   const barTrack = theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
 
   return (
@@ -699,7 +701,7 @@ function UpcomingIslandCard({
         borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
       }]}
       onPress={onPress}
-      activeOpacity={0.82}
+      activeOpacity={PRESS_PRIMARY}
     >
       {/* Top row: service name + countdown */}
       <View style={uc.topRow}>
@@ -731,15 +733,15 @@ function UpcomingIslandCard({
       {/* Bottom row: date + status */}
       <View style={uc.bottomRow}>
         <View style={uc.dateRow}>
-          <Ionicons name="calendar-outline" size={13} color={theme.textMuted} />
+          <Feather name="calendar" size={13} color={theme.textMuted} />
           <Text style={[uc.dateText, { color: theme.textSub }]}>
             {dayLabel}{timeLabel ? ` · ${timeLabel}` : ''}
           </Text>
         </View>
         {isAccepted ? (
           <View style={uc.statusBadge}>
-            <View style={[uc.statusDot, { backgroundColor: '#3D8B3D' }]} />
-            <Text style={[uc.statusText, { color: '#3D8B3D' }]}>
+            <View style={[uc.statusDot, { backgroundColor: COLORS.greenBrand }]} />
+            <Text style={[uc.statusText, { color: COLORS.greenBrand }]}>
               {request.provider?.name ? `${request.provider.name}` : 'Confirmé'}
             </Text>
           </View>
@@ -785,6 +787,91 @@ const uc = StyleSheet.create({
 });
 
 // ============================================================================
+// SKELETON — shown during cold load instead of a blank spinner
+// Mirrors the shell of the real dashboard (topbar, runway, CTA, island, list)
+// with a subtle pulse so the layout doesn't reflow when data arrives.
+// ============================================================================
+
+function DashboardSkeleton({ theme }: { theme: AppTheme }) {
+  const pulse = useRef(new Animated.Value(0.55)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.55, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  const Block = ({ w, h, style }: { w: number | `${number}%`; h: number; style?: object }) => (
+    <Animated.View
+      style={[
+        { width: w, height: h, borderRadius: 8, backgroundColor: theme.surface, opacity: pulse },
+        style,
+      ]}
+    />
+  );
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      <View style={{ paddingBottom: 32 }}>
+        {/* Topbar */}
+        <View style={s.topbar}>
+          <View>
+            <Block w={90} h={10} style={{ marginBottom: 8 }} />
+            <Block w={180} h={26} />
+          </View>
+          <View style={s.topbarActions}>
+            <Block w={40} h={40} style={{ borderRadius: 20 }} />
+            <Block w={40} h={40} style={{ borderRadius: 20 }} />
+          </View>
+        </View>
+
+        {/* Runway header */}
+        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8 }}>
+          <Block w={160} h={12} />
+        </View>
+
+        {/* Runway cards */}
+        <View style={{ flexDirection: 'row', paddingHorizontal: 24, gap: CARD_GAP }}>
+          <Block w={CARD_WIDTH} h={CARD_HEIGHT} style={{ borderRadius: 20 }} />
+          <Block w={CARD_WIDTH} h={CARD_HEIGHT} style={{ borderRadius: 20 }} />
+        </View>
+
+        {/* CTA */}
+        <View style={s.ctaWrap}>
+          <Block w="100%" h={58} style={{ borderRadius: 18 }} />
+        </View>
+
+        {/* Mission island header */}
+        <View style={[s.sectionHead, { paddingTop: 22 }]}>
+          <Block w={160} h={12} />
+        </View>
+        <View style={{ paddingHorizontal: 24, paddingTop: 8 }}>
+          <Block w="100%" h={70} style={{ borderRadius: 12 }} />
+        </View>
+
+        {/* Activity header */}
+        <View style={[s.sectionHead, { paddingTop: 22 }]}>
+          <Block w={170} h={12} />
+        </View>
+        {/* Activity rows */}
+        <View style={{ paddingHorizontal: 24, paddingTop: 10, gap: 14 }}>
+          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
+          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
+          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
+          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -794,7 +881,7 @@ export default function Dashboard() {
   const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
-  const { socket, unreadCount, joinRoom, leaveRoom } = useSocket();
+  const { socket, unreadCount } = useSocket();
   const theme = useAppTheme();
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -806,6 +893,9 @@ export default function Dashboard() {
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
+
+  // CTA squeezy scale animation (tier-1 feel)
+  const ctaScale = useRef(new Animated.Value(1)).current;
 
   const bottomSheetRef = useRef<BottomSheet>(null);
 
@@ -826,6 +916,10 @@ export default function Dashboard() {
   }, []);
 
   const lastFetchRef = useRef(0);
+  // Persist accepted-request deduplication across socket re-registrations so
+  // we don't double-navigate on reconnect. Module-local would bleed across
+  // users, so it's scoped per Dashboard mount via useRef.
+  const acceptedIdsRef = useRef<Set<string>>(new Set());
   useFocusEffect(useCallback(() => {
     const now = Date.now();
     if (now - lastFetchRef.current > 60_000) { // 60s cache — socket handles real-time updates
@@ -878,12 +972,11 @@ export default function Dashboard() {
       });
     };
 
-    const acceptedIds = new Set<string>();
     const handleAccepted = (d: any) => {
       const reqId = String(d.id || d.requestId);
-      if (acceptedIds.has(reqId)) return;
+      if (acceptedIdsRef.current.has(reqId)) return;
       if (d.clientId && d.clientId !== user?.id) return;
-      acceptedIds.add(reqId);
+      acceptedIdsRef.current.add(reqId);
       updateRequestStatus(reqId, 'ACCEPTED');
       if (reqId) {
         api.get(`/requests/${reqId}`)
@@ -1009,23 +1102,8 @@ export default function Dashboard() {
     [data, activeMission, searchingMission]
   );
 
-  const ACTIVE_STATUSES = ['PENDING', 'PENDING_PAYMENT', 'PUBLISHED', 'ACCEPTED', 'ONGOING', 'QUOTE_PENDING', 'QUOTE_SENT'];
-  const latestRequest = useMemo(
-    () => (activeMission || searchingMission)
-      ? null
-      : (data?.requests?.find(r =>
-          ACTIVE_STATUSES.includes(r.status?.toUpperCase()) && !isScheduledFuture(r)
-        ) || null),
-    [data, activeMission, searchingMission]
-  );
-
   const HIDDEN_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED'];
   const DOCUMENT_STATUSES = ['QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
-
-  const quoteDocuments = useMemo(
-    () => (data?.requests || []).filter(r => DOCUMENT_STATUSES.includes(r.status?.toUpperCase())),
-    [data]
-  );
 
   // Activités récentes : exclut les HIDDEN, les devis (→ tab Documents), et les scheduled futurs (→ section À venir)
   const activityRequests = useMemo(
@@ -1058,12 +1136,9 @@ export default function Dashboard() {
   // ── Guards ──
   if (user?.roles?.includes('PROVIDER')) return <ProviderDashboard />;
 
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
-        <ActivityIndicator size="large" color={theme.accent} />
-      </SafeAreaView>
-    );
+  // Skeleton shell during cold load — prevents layout reflow when data lands
+  if (loading && !refreshing && !data) {
+    return <DashboardSkeleton theme={theme} />;
   }
 
   const name = data?.me?.name || user?.email?.split('@')[0] || '';
@@ -1084,14 +1159,22 @@ export default function Dashboard() {
             <Text style={[s.name, { color: theme.text }]}>{name.toUpperCase()}</Text>
           </View>
           <View style={s.topbarActions}>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={() => router.push('/notifications')}>
-              <Ionicons name="notifications-outline" size={18} color={theme.text} />
+            <TouchableOpacity
+              style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+              onPress={() => { hapticLight(); router.push('/notifications'); }}
+              activeOpacity={PRESS_SECONDARY}
+            >
+              <Feather name="bell" size={18} color={theme.text} />
               {unreadCount > 0 && (
                 <View style={[s.notifDot, { borderColor: theme.bg }]} />
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-outline" size={18} color={theme.text} />
+            <TouchableOpacity
+              style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+              onPress={() => { hapticLight(); router.push('/(tabs)/profile'); }}
+              activeOpacity={PRESS_SECONDARY}
+            >
+              <Feather name="user" size={18} color={theme.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1099,26 +1182,36 @@ export default function Dashboard() {
         {/* ── RUNWAY CAROUSEL ── */}
         <RunwayCarousel
           theme={theme}
-          onPress={(category) =>
+          onPress={(category) => {
+            hapticMedium();
             router.push(category
               ? `/request/NewRequestStepper?selectedCategory=${category}`
               : '/request/NewRequestStepper'
-            )
-          }
+            );
+          }}
         />
 
-        {/* ── CTA BUTTON — accessible au pouce ── */}
+        {/* ── CTA BUTTON — squeezy press animation + haptic Medium ── */}
         <View style={s.ctaWrap}>
-          <TouchableOpacity
-            style={[s.ctaBtn, { backgroundColor: theme.accent }]}
-            onPress={() => router.push('/request/NewRequestStepper')}
-            activeOpacity={0.85}
+          <Pressable
+            onPressIn={() => {
+              Animated.spring(ctaScale, { toValue: 0.96, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+            }}
+            onPressOut={() => {
+              Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
+            }}
+            onPress={() => {
+              hapticMedium();
+              router.push('/request/NewRequestStepper');
+            }}
           >
-            <Text style={[s.ctaText, { color: theme.accentText }]}>{t('dashboard.order_service').toUpperCase()}</Text>
-            <View style={[s.ctaCircle, { borderColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)' }]}>
-              <Ionicons name="arrow-forward" size={11} color={theme.accentText} />
-            </View>
-          </TouchableOpacity>
+            <Animated.View style={[s.ctaBtn, { backgroundColor: theme.accent, transform: [{ scale: ctaScale }] }]}>
+              <Text style={[s.ctaText, { color: theme.accentText }]}>{t('dashboard.order_service').toUpperCase()}</Text>
+              <View style={[s.ctaCircle, { borderColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)' }]}>
+                <Feather name="arrow-right" size={11} color={theme.accentText} />
+              </View>
+            </Animated.View>
+          </Pressable>
         </View>
 
         {/* ── MISSION ISLAND ── */}
@@ -1130,11 +1223,19 @@ export default function Dashboard() {
           activeMission={activeMission}
           searchingMission={searchingMission}
           quoteMission={quoteMission}
-          latestRequest={latestRequest}
-          onActiveMissionPress={() => activeMission && navigateToMissionView(activeMission)}
-          onSearchingPress={() => searchingMission && navigateToSearching(searchingMission)}
+          onActiveMissionPress={() => {
+            if (!activeMission) return;
+            hapticLight();
+            navigateToMissionView(activeMission);
+          }}
+          onSearchingPress={() => {
+            if (!searchingMission) return;
+            hapticLight();
+            navigateToSearching(searchingMission);
+          }}
           onQuotePress={() => {
             if (!quoteMission) return;
+            hapticLight();
             const st = quoteMission.status?.toUpperCase();
             if (st === 'QUOTE_SENT') {
               router.push({ pathname: '/request/[id]/quote-review', params: { id: String(quoteMission.id) } });
@@ -1142,7 +1243,6 @@ export default function Dashboard() {
               router.push({ pathname: '/request/[id]/quote-pending', params: { id: String(quoteMission.id) } });
             }
           }}
-          onLatestPress={() => latestRequest && handleRequestPress(latestRequest.id)}
           theme={theme}
         />
 
@@ -1159,10 +1259,13 @@ export default function Dashboard() {
                   key={req.id}
                   request={req}
                   theme={theme}
-                  onPress={() => router.push({
-                    pathname: '/request/[id]/scheduled',
-                    params: { id: String(req.id), mode: 'recap' },
-                  })}
+                  onPress={() => {
+                    hapticLight();
+                    router.push({
+                      pathname: '/request/[id]/scheduled',
+                      params: { id: String(req.id), mode: 'recap' },
+                    });
+                  }}
                 />
               ))}
             </View>
@@ -1174,10 +1277,11 @@ export default function Dashboard() {
           <Text style={[s.sectionTitle, { color: theme.textMuted }]}>{t('dashboard.recent_activity').toUpperCase()}</Text>
           <TouchableOpacity
             style={s.sectionAction}
-            onPress={onRefresh}
+            onPress={() => { hapticLight(); onRefresh(); }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={PRESS_SECONDARY}
           >
-            <Ionicons name="refresh-outline" size={13} color={theme.textMuted} />
+            <Feather name="refresh-cw" size={13} color={theme.textMuted} />
             <Text style={[s.sectionActionText, { color: theme.textMuted }]}>{totalCount || ''}</Text>
           </TouchableOpacity>
         </View>
@@ -1186,7 +1290,7 @@ export default function Dashboard() {
           {!data?.requests?.length ? (
             <View style={s.emptyActivity}>
               <View style={[s.emptyActivityIcon, { backgroundColor: theme.surface }]}>
-                <Text style={[s.emptyX, { color: theme.textDisabled }]}>✕</Text>
+                <Feather name="file-text" size={22} color={theme.textDisabled} />
               </View>
               <Text style={[s.emptyTitle, { color: theme.text }]}>{t('dashboard.no_missions')}</Text>
               <Text style={[s.emptySub, { color: theme.textMuted }]}>{t('dashboard.missions_appear_here')}</Text>
@@ -1197,7 +1301,7 @@ export default function Dashboard() {
                 <ActivityItem
                   key={req.id}
                   request={req}
-                  onPress={() => handleRequestPress(req.id)}
+                  onPress={() => { hapticLight(); handleRequestPress(req.id); }}
                   isLast={i === displayedRequests.length - 1 && (!hasMore || showAllRequests)}
                   theme={theme}
                 />
@@ -1208,11 +1312,15 @@ export default function Dashboard() {
 
         {/* See all button */}
         {hasMore && (
-          <TouchableOpacity style={s.seeAllBtn} onPress={() => setShowAllRequests(v => !v)} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={s.seeAllBtn}
+            onPress={() => { hapticLight(); setShowAllRequests(v => !v); }}
+            activeOpacity={PRESS_SECONDARY}
+          >
             <Text style={[s.seeAllText, { color: theme.textMuted }]}>
               {showAllRequests ? t('dashboard.collapse') : 'Voir tout'}
             </Text>
-            <Ionicons name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={11} color={theme.textMuted} />
+            <Feather name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={11} color={theme.textMuted} />
           </TouchableOpacity>
         )}
 
@@ -1242,13 +1350,13 @@ export default function Dashboard() {
               </View>
 
               {[
-                { icon: 'document-text-outline', val: selectedRequest.description || t('dashboard.no_description') },
-                selectedRequest.address && { icon: 'location-outline', val: selectedRequest.address },
-                selectedRequest.price    && { icon: 'cash-outline',    val: `${selectedRequest.price} €` },
+                { icon: 'file-text', val: selectedRequest.description || t('dashboard.no_description') },
+                selectedRequest.address && { icon: 'map-pin', val: selectedRequest.address },
+                selectedRequest.price    && { icon: 'dollar-sign', val: `${selectedRequest.price} €` },
               ].filter(Boolean).map((row: any, i) => (
                 <View key={i} style={s.sheetRow}>
                   <View style={[s.sheetRowIcon, { backgroundColor: theme.surface }]}>
-                    <Ionicons name={row.icon} size={14} color={theme.textSub} />
+                    <Feather name={row.icon} size={14} color={theme.textSub} />
                   </View>
                   <Text style={[s.sheetVal, { color: theme.textSub }]}>{row.val}</Text>
                 </View>
@@ -1259,7 +1367,7 @@ export default function Dashboard() {
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>
                     {selectedRequest.status === 'ACCEPTED' ? t('dashboard.track_provider') : t('dashboard.track_mission')}
                   </Text>
-                  <Ionicons name="navigate" size={17} color={theme.accentText} />
+                  <Feather name="navigation" size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}
 
@@ -1273,7 +1381,7 @@ export default function Dashboard() {
                     }}
                   >
                     <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.track_search')}</Text>
-                    <Ionicons name="radio-outline" size={17} color={theme.accentText} />
+                    <Feather name="radio" size={17} color={theme.accentText} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.resendBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
@@ -1281,7 +1389,7 @@ export default function Dashboard() {
                       try { await api.post(`/requests/${selectedRequest.id}/notify`); } catch {}
                     }}
                   >
-                    <Ionicons name="refresh-outline" size={15} color={theme.textSub} />
+                    <Feather name="refresh-cw" size={15} color={theme.textSub} />
                     <Text style={[s.resendText, { color: theme.textSub }]}>{t('dashboard.resend_providers')}</Text>
                   </TouchableOpacity>
                 </>
@@ -1290,7 +1398,7 @@ export default function Dashboard() {
               {selectedRequest.status?.toUpperCase() === 'DONE' && (
                 <>
                   <View style={[s.doneCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                    <Ionicons name="checkmark-circle" size={20} color={COLORS.green} />
+                    <Feather name="check-circle" size={20} color={COLORS.green} />
                     <Text style={[s.doneText, { color: theme.text }]}>{t('dashboard.mission_success')}</Text>
                   </View>
                   {invoice && (
@@ -1300,9 +1408,9 @@ export default function Dashboard() {
                         bottomSheetRef.current?.close();
                         setTimeout(() => setInvoiceVisible(true), 300);
                       }}
-                      activeOpacity={0.78}
+                      activeOpacity={PRESS_PRIMARY}
                     >
-                      <Ionicons name="receipt-outline" size={17} color={theme.accentText} />
+                      <Feather name="file-text" size={17} color={theme.accentText} />
                       <Text style={[s.actionBtnText, { color: theme.accentText }]}>Voir la facture</Text>
                     </TouchableOpacity>
                   )}
@@ -1321,7 +1429,7 @@ export default function Dashboard() {
                   }}
                 >
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>Reprendre le paiement</Text>
-                  <Ionicons name="card-outline" size={17} color={theme.accentText} />
+                  <Feather name="credit-card" size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}
 
@@ -1342,7 +1450,7 @@ export default function Dashboard() {
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>
                     {selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'Voir le devis' : 'Suivre la demande'}
                   </Text>
-                  <Ionicons name={selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'document-text-outline' : 'time-outline'} size={17} color={theme.accentText} />
+                  <Feather name={selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'file-text' : 'clock'} size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}
 
@@ -1352,14 +1460,14 @@ export default function Dashboard() {
                   onPress={() => handleNavigateToMission(selectedRequest)}
                 >
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>Suivre l'intervention</Text>
-                  <Ionicons name="navigate" size={17} color={theme.accentText} />
+                  <Feather name="navigation" size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}
 
               {selectedRequest.status?.toUpperCase() === 'EXPIRED' && (
                 <>
                   <View style={[s.expiredCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
-                    <Ionicons name="time-outline" size={20} color={theme.textSub} />
+                    <Feather name="clock" size={20} color={theme.textSub} />
                     <View style={{ flex: 1 }}>
                       <Text style={[s.expiredTitle, { color: theme.text }]}>{t('dashboard.no_provider_found')}</Text>
                       <Text style={[s.expiredSub, { color: theme.textMuted }]}>{t('dashboard.restart_search_sub')}</Text>
@@ -1367,7 +1475,7 @@ export default function Dashboard() {
                   </View>
                   <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }}>
                     <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.restart_search')}</Text>
-                    <Ionicons name="refresh" size={17} color={theme.accentText} />
+                    <Feather name="refresh-cw" size={17} color={theme.accentText} />
                   </TouchableOpacity>
                 </>
               )}
@@ -1452,7 +1560,6 @@ const s = StyleSheet.create({
     width: 56, height: 56, borderRadius: 28,
     alignItems: 'center', justifyContent: 'center',
   },
-  emptyX: { fontSize: 22, fontWeight: '900' },
   emptyTitle: { fontFamily: FONTS.sansMedium, fontSize: 15 },
   emptySub: { fontFamily: FONTS.sans, fontSize: 13, textAlign: 'center' },
 

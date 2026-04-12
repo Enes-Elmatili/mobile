@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Animated, Easing, StyleSheet } from "react-native";
+import { darkTokens } from "@/hooks/use-app-theme";
 
 interface XSpinnerProps {
   size?: number;
@@ -7,7 +8,7 @@ interface XSpinnerProps {
   speed?: number; // ms per rotation
 }
 
-export function XSpinner({ size = 32, color = "#FFFFFF", speed = 700 }: XSpinnerProps) {
+export function XSpinner({ size = 32, color = darkTokens.text, speed = 700 }: XSpinnerProps) {
   const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function XSpinner({ size = 32, color = "#FFFFFF", speed = 700 }: XSpinner
 }
 
 // Full-screen loading overlay
-export function XSpinnerOverlay({ color = "#FFFFFF" }: { color?: string }) {
+export function XSpinnerOverlay({ color = darkTokens.text }: { color?: string }) {
   return (
     <View style={overlay.container}>
       <XSpinner size={48} color={color} />
@@ -59,7 +60,7 @@ export function XSpinnerOverlay({ color = "#FFFFFF" }: { color?: string }) {
 const overlay = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: darkTokens.bg,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 999,

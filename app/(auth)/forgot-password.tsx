@@ -7,24 +7,25 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  inputBg: "#111111",
-  green: "#3D8B3D",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
+  inputBg:     darkTokens.cardBg,
+  green:       COLORS.greenBrand,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -156,18 +157,19 @@ export default function ForgotPassword() {
               style={[s.backBtn, { borderColor: theme.borderLight }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.back();
+                if (router.canGoBack()) router.back();
+                else router.replace('/(auth)/welcome');
               }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
+              <Feather name="chevron-left" size={16} color={theme.textMuted} />
             </TouchableOpacity>
 
             <View style={s.iconRow}>
               <View style={[s.iconWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }, sent && s.iconWrapSent]}>
-                <Ionicons
-                  name={sent ? "checkmark-circle" : "lock-open-outline"}
+                <Feather
+                  name={sent ? "check-circle" : "unlock"}
                   size={34}
                   color={sent ? C.green : theme.text}
                 />
@@ -192,7 +194,7 @@ export default function ForgotPassword() {
                 </Text>
 
                 <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-                  <Ionicons name="information-circle-outline" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
+                  <Feather name="info" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
                   <Text style={[s.infoText, { color: theme.textSub }]}>
                     Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 48 heures.
                   </Text>
@@ -209,7 +211,7 @@ export default function ForgotPassword() {
                     <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Email</Text>
                     <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                       <View style={s.inputIcon}>
-                        <Ionicons name="mail-outline" size={15} color={focused ? theme.textSub : theme.textMuted} />
+                        <Feather name="mail" size={15} color={focused ? theme.textSub : theme.textMuted} />
                       </View>
                       <TextInput
                         style={[s.input, { color: theme.text }]}
@@ -230,7 +232,7 @@ export default function ForgotPassword() {
 
                   {error && (
                     <View style={s.errorRow}>
-                      <Ionicons name="alert-circle" size={14} color="#E53935" />
+                      <Feather name="alert-circle" size={14} color={COLORS.red} />
                       <Text style={s.errorText}>{error}</Text>
                     </View>
                   )}
@@ -246,13 +248,14 @@ export default function ForgotPassword() {
                 style={[s.btnPrimary, { backgroundColor: theme.accent }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.back();
+                  if (router.canGoBack()) router.back();
+                  else router.replace('/(auth)/welcome');
                 }}
                 activeOpacity={0.9}
               >
                 <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RETOUR À LA CONNEXION</Text>
                 <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                  <Ionicons name="arrow-back" size={14} color={theme.text} />
+                  <Feather name="arrow-left" size={14} color={theme.text} />
                 </View>
               </TouchableOpacity>
             ) : (
@@ -267,7 +270,7 @@ export default function ForgotPassword() {
                   : <>
                       <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>ENVOYER LE LIEN</Text>
                       <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                        <Ionicons name="arrow-forward" size={14} color={theme.text} />
+                        <Feather name="arrow-right" size={14} color={theme.text} />
                       </View>
                     </>
                 }
@@ -275,7 +278,7 @@ export default function ForgotPassword() {
             )}
 
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => { router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'); }}
               activeOpacity={0.7}
               style={s.secondaryLink}
             >
@@ -360,7 +363,7 @@ const s = StyleSheet.create({
   },
   inputFocused: {
     borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "#161616",
+    backgroundColor: darkTokens.surface,
   },
   inputIcon: { position: "absolute", left: 16, zIndex: 1 },
   input: {
@@ -372,7 +375,7 @@ const s = StyleSheet.create({
     paddingLeft: 2,
   },
   errorText: {
-    fontFamily: FONTS.sans, fontSize: 12, color: "#E53935",
+    fontFamily: FONTS.sans, fontSize: 12, color: COLORS.red,
   },
 
   actions: {

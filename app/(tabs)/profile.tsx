@@ -18,7 +18,7 @@ import {
   InteractionManager,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { showSocketToast } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
@@ -26,6 +26,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { toFeatherName } from '@/lib/iconMapper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tokenStorage } from '../../lib/storage';
 import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
@@ -76,7 +77,7 @@ function ProviderAvatar({
         activeOpacity={0.8}
         onPress={onPickPhoto}
       >
-        <Ionicons name="camera" size={11} color={theme.accentText} />
+        <Feather name="camera" size={11} color={theme.accentText} />
       </TouchableOpacity>
     </View>
   );
@@ -107,7 +108,7 @@ function StatBadge({
   return (
     <View style={sb.wrap}>
       <View style={[sb.iconBox, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={16} color={iconColor} />
+        <Feather name={icon as any} size={16} color={iconColor} />
       </View>
       <Text style={[sb.value, { color: t.textAlt }]}>{value}</Text>
       <Text style={[sb.label, { color: t.textMuted }]}>{label}</Text>
@@ -149,13 +150,13 @@ function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
           <React.Fragment key={i}>
             <TouchableOpacity style={ms.row} onPress={item.onPress} activeOpacity={0.7}>
               <View style={[ms.iconBox, { backgroundColor: t.surface }]}>
-                <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
+                <Feather name={item.icon as any} size={18} color={item.iconColor} />
               </View>
               <View style={ms.content}>
                 <Text style={[ms.label, item.danger ? ms.labelDanger : { color: t.textAlt }]}>{item.label}</Text>
                 {item.sublabel ? <Text style={[ms.sublabel, { color: t.textMuted }]}>{item.sublabel}</Text> : null}
               </View>
-              <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
+              <Feather name="chevron-right" size={16} color={t.textMuted} />
             </TouchableOpacity>
             {i < items.length - 1 && <View style={[ms.divider, { backgroundColor: t.border }]} />}
           </React.Fragment>
@@ -174,7 +175,7 @@ const ms = StyleSheet.create({
   },
   card: {
     borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: '#E4E4E2',
+    borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.08)',
   },
   row: {
     flexDirection: 'row', alignItems: 'center',
@@ -496,7 +497,7 @@ export default function Profile() {
 
   const accountItems: MenuItem[] = [
     {
-      icon: 'person-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      icon: 'user', iconColor: theme.textSub, iconBg: theme.surface,
       label: t('profile.personal_info'), sublabel: t('profile.personal_info_sub'),
       onPress: openEditInfo,
     },
@@ -504,12 +505,12 @@ export default function Profile() {
     ...(!isClientOnly
       ? [
           {
-            icon: 'chatbubbles-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
+            icon: 'message-circle' as string, iconColor: theme.textSub, iconBg: theme.surface,
             label: t('profile.messages'), sublabel: t('profile.messages_sub'),
             onPress: () => router.push('/messages'),
           },
           {
-            icon: 'wallet-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
+            icon: 'credit-card' as string, iconColor: theme.textSub, iconBg: theme.surface,
             label: t('profile.subscription'), sublabel: t('profile.subscription_sub'),
             onPress: () => router.push('/subscription'),
           },
@@ -517,7 +518,7 @@ export default function Profile() {
       : []),
     ...(isClientOnly
       ? [{
-          icon: 'briefcase-outline' as string, iconColor: theme.textSub, iconBg: theme.surface,
+          icon: 'briefcase' as string, iconColor: theme.textSub, iconBg: theme.surface,
           label: t('profile.become_provider'), sublabel: t('profile.become_provider_sub'),
           onPress: () => router.push('/onboarding'),
         }]
@@ -526,12 +527,12 @@ export default function Profile() {
 
   const prefItems: MenuItem[] = [
     {
-      icon: 'notifications-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      icon: 'bell', iconColor: theme.textSub, iconBg: theme.surface,
       label: t('profile.notifications'), sublabel: t('profile.notifications_sub'),
       onPress: () => router.push('/settings/notifications'),
     },
     {
-      icon: 'lock-closed-outline', iconColor: theme.textMuted, iconBg: theme.surface,
+      icon: 'lock', iconColor: theme.textMuted, iconBg: theme.surface,
       label: t('profile.privacy'),
       onPress: () => router.push('/settings/privacy'),
     },
@@ -539,12 +540,12 @@ export default function Profile() {
 
   const supportItems: MenuItem[] = [
     {
-      icon: 'help-circle-outline', iconColor: theme.textSub, iconBg: theme.surface,
+      icon: 'help-circle', iconColor: theme.textSub, iconBg: theme.surface,
       label: t('profile.help'),
       onPress: () => router.push('/settings/help'),
     },
     {
-      icon: 'document-text-outline', iconColor: theme.textMuted, iconBg: theme.surface,
+      icon: 'file-text', iconColor: theme.textMuted, iconBg: theme.surface,
       label: t('profile.terms'),
       onPress: () => router.push('/settings/cgu'),
     },
@@ -552,7 +553,7 @@ export default function Profile() {
 
   const dangerItems: MenuItem[] = [
     {
-      icon: 'log-out-outline', iconColor: COLORS.danger, iconBg: theme.surface,
+      icon: 'log-out', iconColor: COLORS.danger, iconBg: theme.surface,
       label: t('auth.logout'),
       danger: true,
       onPress: handleLogout,
@@ -560,10 +561,10 @@ export default function Profile() {
   ];
 
   const sheetItems = [
-    { icon: 'person-outline', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.personal_info'), onPress: openEditInfo },
-    { icon: 'notifications-outline', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.notifications'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/notifications'); } },
-    { icon: 'lock-closed-outline', iconColor: theme.textMuted, iconBg: theme.surface, label: t('profile.privacy'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/privacy'); } },
-    { icon: 'help-circle-outline', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.help'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/help'); } },
+    { icon: 'user', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.personal_info'), onPress: openEditInfo },
+    { icon: 'bell', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.notifications'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/notifications'); } },
+    { icon: 'lock', iconColor: theme.textMuted, iconBg: theme.surface, label: t('profile.privacy'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/privacy'); } },
+    { icon: 'help-circle', iconColor: theme.textSub, iconBg: theme.surface, label: t('profile.help'), onPress: () => { bottomSheetRef.current?.close(); router.push('/settings/help'); } },
   ];
 
   return (
@@ -577,7 +578,7 @@ export default function Profile() {
           onPress={() => bottomSheetRef.current?.expand()}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={16} color={theme.text} />
+          <Feather name="settings" size={16} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -592,12 +593,12 @@ export default function Profile() {
               <Text style={s.heroEmail}>{email}</Text>
               <View style={s.heroBadges}>
                 <View style={s.roleBadge}>
-                  <Ionicons name="briefcase-outline" size={9} color="rgba(255,255,255,0.4)" />
+                  <Feather name="briefcase" size={9} color="rgba(255,255,255,0.4)" />
                   <Text style={s.roleBadgeText}>{roles}</Text>
                 </View>
                 {isVerified && (
                   <View style={s.verifiedBadge}>
-                    <Ionicons name="checkmark" size={9} color="#5DC45D" />
+                    <Feather name="check" size={9} color={COLORS.greenBrand} />
                     <Text style={s.verifiedBadgeText}>Vérifié</Text>
                   </View>
                 )}
@@ -608,22 +609,22 @@ export default function Profile() {
           {/* Stats strip */}
           <View style={s.heroStrip}>
             <View style={s.stripItem}>
-              <View style={s.stripIcon}><Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.4)" /></View>
+              <View style={s.stripIcon}><Feather name="calendar" size={13} color="rgba(255,255,255,0.4)" /></View>
               <Text style={s.stripValue}>{new Date((user as any)?.createdAt || Date.now()).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}</Text>
               <Text style={s.stripLabel}>Membre</Text>
             </View>
             <View style={s.stripItem}>
-              <View style={s.stripIcon}><Ionicons name="card-outline" size={13} color="rgba(255,255,255,0.4)" /></View>
+              <View style={s.stripIcon}><Feather name="credit-card" size={13} color="rgba(255,255,255,0.4)" /></View>
               <Text style={s.stripValue}>•••• 4242</Text>
               <Text style={s.stripLabel}>Paiement</Text>
             </View>
             <View style={s.stripItem}>
-              <View style={s.stripIcon}><Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.4)" /></View>
+              <View style={s.stripIcon}><Feather name="map-pin" size={13} color="rgba(255,255,255,0.4)" /></View>
               <Text style={s.stripValue}>{(user as any)?.city || 'Bruxelles'}</Text>
               <Text style={s.stripLabel}>Adresse</Text>
             </View>
             <View style={s.stripItem}>
-              <View style={[s.stripIcon, s.stripIconGreen]}><Ionicons name="shield-outline" size={13} color={COLORS.green} /></View>
+              <View style={[s.stripIcon, s.stripIconGreen]}><Feather name="shield" size={13} color={COLORS.green} /></View>
               <Text style={[s.stripValue, { color: COLORS.green }]}>Actif</Text>
               <Text style={s.stripLabel}>Statut</Text>
             </View>
@@ -668,13 +669,13 @@ export default function Profile() {
                       <View style={[pillStyle, ticket.status === 'CLOSED' && { backgroundColor: theme.surface }]}>
                         <Text style={[tk.pillText, { color: ticket.status === 'CLOSED' ? theme.textMuted : COLORS.amber }]}>{statusLabel}</Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={12} color={theme.textDisabled} />
+                      <Feather name="chevron-right" size={12} color={theme.textDisabled} />
                     </TouchableOpacity>
                   );
                 })}
                 <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/support')} activeOpacity={0.6}>
                   <Text style={[tk.viewAllText, { color: theme.textMuted }]}>Voir tous les tickets</Text>
-                  <Ionicons name="chevron-forward" size={11} color={theme.textMuted} />
+                  <Feather name="chevron-right" size={11} color={theme.textMuted} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -684,10 +685,10 @@ export default function Profile() {
                 activeOpacity={0.7}
               >
                 <View style={[tk.emptyIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="add" size={16} color={theme.textSub} />
+                  <Feather name="plus" size={16} color={theme.textSub} />
                 </View>
                 <Text style={[tk.emptyText, { color: theme.textSub }]}>Créer un ticket</Text>
-                <Ionicons name="chevron-forward" size={14} color={theme.textDisabled} />
+                <Feather name="chevron-right" size={14} color={theme.textDisabled} />
               </TouchableOpacity>
             )}
           </View>
@@ -710,7 +711,7 @@ export default function Profile() {
               disabled={saving}
               hitSlop={8}
             >
-              <Ionicons name="close" size={18} color={theme.textAlt} />
+              <Feather name="x" size={18} color={theme.textAlt} />
             </TouchableOpacity>
             <Text style={[em.headerTitle, { color: theme.textAlt }]}>Mon compte</Text>
             <View style={{ width: 36 }} />
@@ -745,13 +746,13 @@ export default function Profile() {
               {/* Email — read-only */}
               <View style={em.fieldRow}>
                 <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="mail-outline" size={16} color={theme.textSub} />
+                  <Feather name="mail" size={16} color={theme.textSub} />
                 </View>
                 <View style={em.fieldBody}>
                   <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Email</Text>
                   <Text style={[em.fieldValueStatic, { color: theme.textMuted }]} numberOfLines={1}>{email}</Text>
                 </View>
-                <Ionicons name="lock-closed" size={12} color={theme.textVeryMuted} />
+                <Feather name="lock" size={12} color={theme.textVeryMuted} />
               </View>
 
               <View style={[em.fieldDivider, { backgroundColor: theme.border }]} />
@@ -759,7 +760,7 @@ export default function Profile() {
               {/* Name */}
               <View style={em.fieldRow}>
                 <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="person-outline" size={16} color={theme.textSub} />
+                  <Feather name="user" size={16} color={theme.textSub} />
                 </View>
                 <View style={em.fieldBody}>
                   <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Nom complet</Text>
@@ -780,7 +781,7 @@ export default function Profile() {
               {/* Phone */}
               <View style={em.fieldRow}>
                 <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="call-outline" size={16} color={theme.textSub} />
+                  <Feather name="phone" size={16} color={theme.textSub} />
                 </View>
                 <View style={em.fieldBody}>
                   <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Téléphone</Text>
@@ -801,7 +802,7 @@ export default function Profile() {
               {/* City */}
               <View style={em.fieldRow}>
                 <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="location-outline" size={16} color={theme.textSub} />
+                  <Feather name="map-pin" size={16} color={theme.textSub} />
                 </View>
                 <View style={em.fieldBody}>
                   <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Ville</Text>
@@ -844,8 +845,8 @@ export default function Profile() {
                               activeOpacity={0.7}
                               disabled={saving}
                             >
-                              <Ionicons
-                                name={(cat.icon || 'briefcase-outline') as any}
+                              <Feather
+                                name={toFeatherName(cat.icon, 'briefcase') as any}
                                 size={14}
                                 color={sel ? theme.accentText : theme.textMuted}
                               />
@@ -892,7 +893,7 @@ export default function Profile() {
                 <View style={[em.card, { backgroundColor: theme.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 2 } }) }]}>
                   <View style={em.fieldRow}>
                     <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                      <Ionicons name="key-outline" size={16} color={theme.textSub} />
+                      <Feather name="key" size={16} color={theme.textSub} />
                     </View>
                     <View style={em.fieldBody}>
                       <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Mot de passe actuel</Text>
@@ -912,7 +913,7 @@ export default function Profile() {
 
                   <View style={em.fieldRow}>
                     <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                      <Ionicons name="lock-closed-outline" size={16} color={theme.textSub} />
+                      <Feather name="lock" size={16} color={theme.textSub} />
                     </View>
                     <View style={em.fieldBody}>
                       <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Nouveau mot de passe</Text>
@@ -932,7 +933,7 @@ export default function Profile() {
 
                   <View style={em.fieldRow}>
                     <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                      <Ionicons name="shield-checkmark-outline" size={16} color={theme.textSub} />
+                      <Feather name="shield" size={16} color={theme.textSub} />
                     </View>
                     <View style={em.fieldBody}>
                       <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Confirmer</Text>
@@ -955,7 +956,7 @@ export default function Profile() {
                   disabled={pwdSaving || (!currentPwd && !newPwd)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="lock-closed" size={14} color={(!currentPwd && !newPwd) ? theme.textVeryMuted : theme.textAlt} />
+                  <Feather name="lock" size={14} color={(!currentPwd && !newPwd) ? theme.textVeryMuted : theme.textAlt} />
                   <Text style={[em.pwdBtnText, { color: (!currentPwd && !newPwd) ? theme.textVeryMuted : theme.textAlt }]}>
                     {pwdSaving ? 'Modification...' : 'Modifier le mot de passe'}
                   </Text>
@@ -982,7 +983,7 @@ export default function Profile() {
                         {(user as any)?.authProvider === 'apple' ? 'Apple ID' : 'Google'}
                       </Text>
                     </View>
-                    <Ionicons name="checkmark-circle" size={18} color={COLORS.green} />
+                    <Feather name="check-circle" size={18} color={COLORS.green} />
                   </View>
                 </View>
               </>
@@ -1013,10 +1014,10 @@ export default function Profile() {
               onPress={item.onPress}
             >
               <View style={[s.sheetIcon, { backgroundColor: theme.surface }]}>
-                <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
+                <Feather name={item.icon as any} size={18} color={item.iconColor} />
               </View>
               <Text style={[s.sheetLabel, { color: theme.textAlt }]}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+              <Feather name="chevron-right" size={16} color={theme.textMuted} />
             </TouchableOpacity>
           ))}
         </BottomSheetScrollView>

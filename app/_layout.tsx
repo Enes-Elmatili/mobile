@@ -25,6 +25,7 @@ import { useFonts } from 'expo-font';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
+import { darkTokens, lightTokens } from '@/hooks/use-app-theme';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
@@ -49,6 +50,8 @@ const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 if (!STRIPE_PUBLISHABLE_KEY) {
   throw new Error("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY environment variable is required");
 }
+
+
 
 // ✅ Routes qui ne doivent pas déclencher de redirection auth
 // Inclut les flows mission + les nouvelles routes de l'app
@@ -84,6 +87,7 @@ function RootLayoutNav() {
   // ── Thème système ─────────────────────────────────────────────────────────
   const colorScheme = useColorScheme();
   const isDark      = colorScheme === 'dark';
+  const t           = isDark ? darkTokens : lightTokens;
 
   // Primitives stables — évitent de relancer l'effet sur chaque re-render
   // `segments` est un nouveau tableau à chaque render (référence instable)
@@ -152,16 +156,16 @@ function RootLayoutNav() {
     return (
       <View style={[
         styles.loadingContainer,
-        { backgroundColor: isDark ? '#0A0A0A' : '#F4F4F2' },
+        { backgroundColor: t.bg },
       ]}>
         <StatusBar
-          barStyle={isDark ? 'light-content' : 'dark-content'}
+          barStyle={t.statusBar}
           backgroundColor="transparent"
           translucent
         />
         <ActivityIndicator
           size="large"
-          color={isDark ? '#F4F4F2' : '#1A1A18'}
+          color={t.text}
         />
       </View>
     );
@@ -170,7 +174,7 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
+        barStyle={t.statusBar}
         backgroundColor="transparent"
         translucent
       />
@@ -192,17 +196,18 @@ class AppErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       const dark = Appearance.getColorScheme() === 'dark';
+      const t = dark ? darkTokens : lightTokens;
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: dark ? '#080808' : '#F4F4F2' }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: dark ? '#F4F4F2' : '#1A1A18' }}>Une erreur est survenue</Text>
-          <Text style={{ fontSize: 14, color: dark ? '#999' : '#8A8880', textAlign: 'center', marginBottom: 24 }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: t.bg }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: t.text }}>Une erreur est survenue</Text>
+          <Text style={{ fontSize: 14, color: t.textSub, textAlign: 'center', marginBottom: 24 }}>
             L'application a rencontré un problème inattendu.
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
-            style={{ backgroundColor: dark ? '#F8F7F4' : '#1A1A18', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+            style={{ backgroundColor: t.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
-            <Text style={{ color: dark ? '#080808' : '#F4F4F2', fontWeight: '600' }}>Réessayer</Text>
+            <Text style={{ color: t.accentText, fontWeight: '600' }}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       );
@@ -223,9 +228,10 @@ export default Sentry.wrap(function RootLayout() {
 
   if (!fontsLoaded) {
     const dark = Appearance.getColorScheme() === 'dark';
+    const t = dark ? darkTokens : lightTokens;
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: dark ? '#0A0A0A' : '#F4F4F2' }]}>
-        <ActivityIndicator size="large" color={dark ? '#F4F4F2' : '#1A1A18'} />
+      <View style={[styles.loadingContainer, { backgroundColor: t.bg }]}>
+        <ActivityIndicator size="large" color={t.text} />
       </View>
     );
   }

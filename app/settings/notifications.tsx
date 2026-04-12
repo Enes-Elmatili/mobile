@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   Switch, Platform, TouchableOpacity, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -46,7 +46,7 @@ function ToggleRow({
   return (
     <View style={[tr.row, { borderBottomColor: theme.borderLight }]}>
       <View style={[tr.iconBox, { backgroundColor: theme.surface }]}>
-        <Ionicons name={icon as any} size={18} color={theme.textSub} />
+        <Feather name={icon as any} size={18} color={theme.textSub} />
       </View>
       <View style={tr.content}>
         <Text style={[tr.label, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{label}</Text>
@@ -103,27 +103,27 @@ export default function NotificationsScreen() {
     label: string; sublabel: string;
   }[] = [
     {
-      key: 'newMissions', icon: 'briefcase-outline',
+      key: 'newMissions', icon: 'briefcase',
       label: t('settings.notif_new_missions'),
       sublabel: 'Quand une nouvelle mission est disponible',
     },
     {
-      key: 'messages', icon: 'chatbubbles-outline',
+      key: 'messages', icon: 'message-circle',
       label: t('settings.notif_messages'),
       sublabel: 'Nouveaux messages de clients',
     },
     {
-      key: 'payments', icon: 'card-outline',
+      key: 'payments', icon: 'credit-card',
       label: t('settings.notif_payments'),
       sublabel: 'Confirmations de paiement',
     },
     {
-      key: 'reminders', icon: 'time-outline',
+      key: 'reminders', icon: 'clock',
       label: t('settings.notif_reminders'),
       sublabel: 'Rappels avant une mission',
     },
     {
-      key: 'promotions', icon: 'pricetag-outline',
+      key: 'promotions', icon: 'tag',
       label: t('settings.notif_promotions'),
       sublabel: 'Offres et actualités Fixed',
     },
@@ -133,8 +133,8 @@ export default function NotificationsScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.notifications')}</Text>
         <View style={{ width: 38 }} />

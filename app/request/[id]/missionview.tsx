@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { devLog, devError } from '@/lib/logger';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
 
 const { width, height } = Dimensions.get('window');
@@ -102,8 +102,8 @@ function ToastProvider() {
     <View style={toast.stack} pointerEvents="none">
       {toasts.map(t => {
         const av = anim.current[t.id] || new Animated.Value(1);
-        const bg = t.type === 'success' ? '#059669' : theme.cardBg;
-        const icon = t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '●';
+        const bg = t.type === 'success' ? COLORS.greenBrand : theme.cardBg;
+        const iconName = t.type === 'success' ? 'check' : t.type === 'error' ? 'x' : 'circle';
         return (
           <Animated.View
             key={t.id}
@@ -114,7 +114,7 @@ function ToastProvider() {
               },
             ]}
           >
-            <Text style={toast.icon}>{icon}</Text>
+            <Feather name={iconName as any} size={14} color={darkTokens.text} />
             <Text style={toast.text}>{t.message}</Text>
           </Animated.View>
         );
@@ -127,8 +127,8 @@ const toast = StyleSheet.create({
   stack:  { position: 'absolute', top: Platform.OS === 'ios' ? 56 : 36, left: 20, right: 20, zIndex: 9999, gap: 8, pointerEvents: 'none' },
   pill:   { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, gap: 10,
     ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 12 } }) },
-  icon:   { fontSize: 13, color: '#FFF', fontWeight: '800' },
-  text:   { fontSize: 14, color: '#FFF', fontWeight: '600', flex: 1 },
+  icon:   { fontSize: 13, color: darkTokens.text, fontFamily: FONTS.sansMedium },
+  text:   { fontSize: 14, color: darkTokens.text, fontFamily: FONTS.sansMedium, flex: 1 },
 });
 
 // ─── ConfirmModal (remplace Alert.alert) ─────────────────────────────────────
@@ -203,7 +203,7 @@ const cm = StyleSheet.create({
   cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, alignItems: 'center' },
   cancelLabel: { fontSize: 15 },
   confirmBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
-  confirmLabel: { fontSize: 15, color: '#FFF' },
+  confirmLabel: { fontSize: 15, color: darkTokens.text },
 });
 
 
@@ -353,7 +353,7 @@ function GhostMarkers({ center }: { center: { latitude: number; longitude: numbe
               opacity: anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] }),
               transform: [{ scale: anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.05] }) }],
             }]}>
-              <Ionicons name="person" size={12} color={theme.accentText} />
+              <Feather name="user" size={12} color={theme.accentText} />
             </Animated.View>
           </Marker>
         );
@@ -385,7 +385,7 @@ function CenterLogo() {
 
   return (
     <Animated.View style={[cl.outer, { backgroundColor: theme.accent }, { transform: [{ scale: pulse }] }]}>
-      <Ionicons name="search" size={28} color={theme.accentText as string} />
+      <Feather name="search" size={28} color={theme.accentText as string} />
     </Animated.View>
   );
 }
@@ -465,7 +465,7 @@ function ProviderMarker() {
   return (
     <View style={pm.wrap}>
       <View style={[pm.pin, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-        <Ionicons name="navigate" size={14} color={theme.text} />
+        <Feather name="navigation" size={14} color={theme.text} />
       </View>
       <View style={[pm.stem, { backgroundColor: theme.cardBg }]} />
     </View>
@@ -756,6 +756,11 @@ export default function MissionView() {
     if (!socket || !id) return;
     joinRoom('request', id);
 
+    // Track deferred navigations so we can cancel them on unmount or effect
+    // re-run — otherwise a 1.8–2s setTimeout can fire router.replace() into
+    // an already-unmounted screen or after the user tapped something else.
+    const deferredNavTimers: ReturnType<typeof setTimeout>[] = [];
+
     let lastEtaFetch = 0;
     const onLocation = async (data: any) => {
       if (String(data.requestId) !== String(id)) return;
@@ -800,17 +805,17 @@ export default function MissionView() {
       if (String(data.requestId) === String(id)) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         showToast(t('mission_view.mission_completed'), 'success');
-        setTimeout(() => router.replace({
+        deferredNavTimers.push(setTimeout(() => router.replace({
           pathname: '/request/[id]/rating',
           params: { id: String(id) },
-        }), 2000);
+        }), 2000));
       }
     };
 
     const onCancelled = (data: any) => {
       if (String(data.requestId || data.id) === String(id)) {
         showToast(t('mission_view.mission_cancelled'), 'error');
-        setTimeout(() => router.replace('/(tabs)/dashboard'), 1800);
+        deferredNavTimers.push(setTimeout(() => router.replace('/(tabs)/dashboard'), 1800));
       }
     };
 
@@ -845,6 +850,7 @@ export default function MissionView() {
     socket.on('request:statusUpdated', onStatusUpdated);
     return () => {
       leaveRoom('request', id);
+      deferredNavTimers.forEach(clearTimeout);
       socket.off('provider:location_update', onLocation);
       socket.off('request:started', onStarted);
       socket.off('request:completed', onCompleted);
@@ -1038,7 +1044,7 @@ export default function MissionView() {
                     alignItems: 'center', justifyContent: 'center',
                     borderWidth: 1, borderColor: theme.border,
                   }}>
-                    <Ionicons name="calendar-outline" size={56} color={theme.text} />
+                    <Feather name="calendar" size={56} color={theme.text} />
                   </View>
                 ) : (
                   <>
@@ -1077,13 +1083,13 @@ export default function MissionView() {
                     <View style={s.metaRow}>
                       {address ? (
                         <>
-                          <Ionicons name="location-outline" size={12} color={theme.textMuted} />
+                          <Feather name="map-pin" size={12} color={theme.textMuted} />
                           <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>{address.split(',')[0]}</Text>
                         </>
                       ) : null}
                     </View>
                     <View style={s.metaRow}>
-                      <Ionicons name="time-outline" size={12} color={theme.textMuted} />
+                      <Feather name="clock" size={12} color={theme.textMuted} />
                       <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{scheduledLabel || 'Dès maintenant'}</Text>
                     </View>
                   </View>
@@ -1098,7 +1104,7 @@ export default function MissionView() {
                     activeOpacity={0.75}
                     accessibilityRole="button"
                   >
-                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.textSub as string} style={{ marginRight: 8 }} />
+                    <Feather name="message-circle" size={18} color={theme.textSub as string} style={{ marginRight: 8 }} />
                     <Text style={[s.cancelSearchText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
                       {t('mission_view.contact_support')}
                     </Text>
@@ -1112,8 +1118,8 @@ export default function MissionView() {
                     accessibilityLabel={t('mission_view.cancel_search')}
                     accessibilityRole="button"
                   >
-                    <Ionicons
-                      name="close-circle-outline"
+                    <Feather
+                      name="x-circle"
                       size={18}
                       color={cancelling ? theme.textMuted : COLORS.red}
                       style={{ marginRight: 8 }}
@@ -1134,8 +1140,8 @@ export default function MissionView() {
         <>
           {/* Bouton retour flottant */}
           <SafeAreaView style={s.floatingTopBar} pointerEvents="box-none">
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity, position: 'absolute', left: 0, bottom: -2 }]} onPress={() => router.back()} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
-              <Ionicons name="arrow-back" size={20} color={theme.text} />
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity, position: 'absolute', left: 0, bottom: -2 }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
+              <Feather name="arrow-left" size={20} color={theme.text} />
             </TouchableOpacity>
 
             {/* Badge statut */}
@@ -1153,7 +1159,7 @@ export default function MissionView() {
             onPress={() => mapRef.current?.animateToRegion({ ...clientLocation, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 600)}
             activeOpacity={0.8}
           >
-            <Ionicons name="locate" size={18} color={theme.text} />
+            <Feather name="crosshair" size={18} color={theme.text} />
           </TouchableOpacity>
 
           {/* Bottom sheet tracking */}
@@ -1185,7 +1191,7 @@ export default function MissionView() {
                 <View style={s.providerInfo}>
                   <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{request.provider.name || t('mission_view.provider')}</Text>
                   <View style={s.ratingRow}>
-                    <Ionicons name="star" size={12} color={COLORS.amber} />
+                    <Feather name="star" size={12} color={COLORS.amber} />
                     <Text style={[s.ratingText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                       {request.provider.avgRating?.toFixed(1) || '5.0'}
                     </Text>
@@ -1204,7 +1210,7 @@ export default function MissionView() {
                 <View style={s.comActions}>
                   {/* Appel */}
                   <TouchableOpacity style={[s.comBtn, { backgroundColor: theme.accent }]} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
-                    <Ionicons name="call" size={18} color={theme.accentText} />
+                    <Feather name="phone" size={18} color={theme.accentText} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1228,14 +1234,14 @@ export default function MissionView() {
               activeOpacity={0.75}
               accessibilityRole="button"
             >
-              <View style={s.btnIconWrap}><Ionicons name="chatbubble-outline" size={16} color={theme.accentText as string} /></View>
+              <View style={s.btnIconWrap}><Feather name="message-circle" size={16} color={theme.accentText as string} /></View>
               <Text style={[s.messageBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_view.message_provider')}</Text>
             </TouchableOpacity>
 
             {/* Contacter le support — ACCEPTED ou ONGOING */}
             {(status === 'ACCEPTED' || status === 'ONGOING') && (
               <TouchableOpacity style={[s.cancelTrackBtn, { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]} onPress={() => Linking.openURL('mailto:support@fixed.app')} activeOpacity={0.75} accessibilityRole="button">
-                <View style={[s.btnIconWrap, { marginRight: 16 }]}><Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.textSub as string} /></View>
+                <View style={[s.btnIconWrap, { marginRight: 16 }]}><Feather name="message-circle" size={16} color={theme.textSub as string} /></View>
                 <Text style={[s.cancelTrackText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('mission_view.contact_support')}</Text>
               </TouchableOpacity>
             )}

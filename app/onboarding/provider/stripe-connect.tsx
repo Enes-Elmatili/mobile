@@ -1,29 +1,30 @@
 // app/onboarding/provider/stripe-connect.tsx — Stripe Connect (dark design)
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { api } from "../../../lib/api";
 import { OnboardingLayout } from "../../../components/onboarding/OnboardingLayout";
 import { PROVIDER_FLOW } from "../../../constants/onboardingFlows";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  white: "#FAFAFA",
-  grey: "#888888",
+  white:  darkTokens.text,
+  grey:   darkTokens.textMuted,
   border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  stripe: "#635BFF",
+  cardBg: darkTokens.cardBg,
+  stripe: COLORS.stripe,
 };
 
-const BENEFITS = [
-  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés." },
-  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions sécurisées et conformité PCI DSS." },
-  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord pour gérer virements et factures." },
+const BENEFITS: { icon: keyof typeof Feather.glyphMap; title: string; desc: string }[] = [
+  { icon: "zap", title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés." },
+  { icon: "shield", title: "Protection Stripe", desc: "Transactions sécurisées et conformité PCI DSS." },
+  { icon: "bar-chart-2", title: "Suivi des paiements", desc: "Tableau de bord pour gérer virements et factures." },
 ];
 
 export default function ProviderStripeConnect() {
@@ -68,10 +69,10 @@ export default function ProviderStripeConnect() {
     >
       <View style={s.heroWrap}>
         <View style={s.heroCircle}>
-          <Ionicons name="card-outline" size={44} color={C.white} />
+          <Feather name="credit-card" size={44} color={C.white} />
         </View>
         <View style={s.stripeBadge}>
-          <Ionicons name="lock-closed" size={10} color={C.stripe} />
+          <Feather name="lock" size={10} color={C.stripe} />
           <Text style={s.stripeBadgeText}>Stripe</Text>
         </View>
       </View>
@@ -80,7 +81,7 @@ export default function ProviderStripeConnect() {
         {BENEFITS.map((b, i) => (
           <View key={i} style={s.benefitRow}>
             <View style={s.benefitIcon}>
-              <Ionicons name={b.icon} size={18} color={C.white} />
+              <Feather name={b.icon} size={18} color={C.white} />
             </View>
             <View style={s.benefitText}>
               <Text style={s.benefitTitle}>{b.title}</Text>

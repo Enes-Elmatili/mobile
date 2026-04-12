@@ -4,8 +4,8 @@ import {
   View, Text, TextInput, TextInputProps,
   StyleSheet, Platform, ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { Feather } from '@expo/vector-icons';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 export type InputState = 'idle' | 'active' | 'valid' | 'error';
@@ -20,7 +20,7 @@ export const MONO   = Platform.select({
 // ─── Component ────────────────────────────────────────────────────────────────
 export interface FixedInputProps extends Omit<TextInputProps, 'style'> {
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: keyof typeof Feather.glyphMap;
   state?: InputState;
   rightElement?: React.ReactNode;
   containerStyle?: ViewStyle;
@@ -69,14 +69,14 @@ export function FixedInput({
         {label}
       </Text>
       <View style={[fi.row, { borderColor, backgroundColor: bgColor }]}>
-        <Ionicons name={icon} size={16} color={iconColor} style={fi.leadIcon} />
+        <Feather name={icon} size={16} color={iconColor} style={fi.leadIcon} />
         <TextInput
           style={[fi.input, { color: theme.text }]}
           placeholderTextColor={isDark ? 'rgba(255,255,255,0.25)' : theme.textMuted}
           {...rest}
         />
         {state === 'valid' && !rightElement && (
-          <Ionicons name="checkmark-circle" size={16} color={theme.text} style={fi.trailIcon} />
+          <Feather name="check-circle" size={16} color={theme.text} style={fi.trailIcon} />
         )}
         {rightElement && <View style={fi.trailWrap}>{rightElement}</View>}
       </View>
@@ -90,7 +90,7 @@ const fi = StyleSheet.create({
 
   label: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: FONTS.sansMedium,
     letterSpacing: 0.5,
     marginBottom: 8,
   },

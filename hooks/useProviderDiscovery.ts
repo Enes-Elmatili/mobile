@@ -38,8 +38,10 @@ export function useProviderDiscovery() {
 
   // Obtenir la localisation de l'utilisateur
   useEffect(() => {
+    let mounted = true;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
+      if (!mounted) return;
       if (status !== 'granted') {
         setError('permission_denied');
         return;
@@ -47,11 +49,13 @@ export function useProviderDiscovery() {
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      if (!mounted) return;
       setUserLocation({
         lat: location.coords.latitude,
         lng: location.coords.longitude,
       });
     })();
+    return () => { mounted = false; };
   }, []);
 
   const fetchProviders = useCallback(

@@ -54,8 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     devLog('🚪 SIGNOUT');
     setUser(null);
     useOnboardingStore.getState().reset();
-    await tokenStorage.removeToken(); // Vide le token AVANT l'appel API
-    await api.auth.logout().catch(() => {}); // Ignore si session déjà expirée
+    // Call the logout endpoint WITH the token still in storage so the backend
+    // can identify the session to invalidate. api.auth.logout()'s finally
+    // block then removes the token from storage, which fires the subscription
+    // listener and sets token state to null.
+    await api.auth.logout().catch(() => {});
   }, []);
 
   // Ref pour éviter la dépendance cyclique refreshMe → signOut → refreshMe

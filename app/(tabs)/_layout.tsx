@@ -7,7 +7,7 @@
 // Prérequis : npx expo install expo-blur
 
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useCallback, useMemo } from 'react';
@@ -79,42 +79,42 @@ export default function TabLayout() {
 
   const dashboardOptions = useMemo(() => ({
     title: 'Accueil',
-    tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
-      <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />,
+    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
+      <Feather name="home" size={22} color={color} />,
   }), []);
 
   const opportunitiesOptions = useMemo(() => ({
     title: 'Opportunités',
     href: null as null,
-    tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
-      <Ionicons name={focused ? 'compass' : 'compass-outline'} size={22} color={color} />,
+    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
+      <Feather name="compass" size={22} color={color} />,
   }), []);
 
   const missionsOptions = useMemo(() => ({
     title: 'Missions',
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
-      <Ionicons name={focused ? 'flash' : 'flash-outline'} size={22} color={color} />,
+    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
+      <Feather name="zap" size={22} color={color} />,
   }), [isProvider]);
 
   const documentsOptions = useMemo(() => ({
     title: 'Documents',
     href: isProvider ? null : undefined,
-    tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
-      <Ionicons name={focused ? 'document-text' : 'document-text-outline'} size={22} color={color} />,
+    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
+      <Feather name="file-text" size={22} color={color} />,
   }), [isProvider]);
 
   const walletOptions = useMemo(() => ({
     title: 'Gains',
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
-      <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={22} color={color} />,
+    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
+      <Feather name="credit-card" size={22} color={color} />,
   }), [isProvider]);
 
   const profileOptions = useMemo(() => ({
     title: 'Profil',
-    tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) =>
-      <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />,
+    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
+      <Feather name="user" size={22} color={color} />,
   }), []);
 
   const hiddenOptions = useMemo(() => ({ href: null as null }), []);

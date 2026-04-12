@@ -7,7 +7,7 @@ import {
   TouchableOpacity, ActivityIndicator, RefreshControl,
   Platform, StatusBar, Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -25,12 +25,12 @@ function timeAgo(dateStr: string): string {
 }
 
 // ─── Icône selon le type ──────────────────────────────────────────────────────
-function notifIcon(type: string): keyof typeof Ionicons.glyphMap {
+function notifIcon(type: string): keyof typeof Feather.glyphMap {
   switch (type) {
-    case 'success': return 'checkmark-circle';
-    case 'warning': return 'warning';
-    case 'error':   return 'close-circle';
-    default:        return 'information-circle';
+    case 'success': return 'check-circle';
+    case 'warning': return 'alert-triangle';
+    case 'error':   return 'x-circle';
+    default:        return 'info';
   }
 }
 
@@ -79,7 +79,7 @@ function NotifRow({
 
       {/* Icône type */}
       <View style={[s.iconWrap, { backgroundColor: theme.surface }]}>
-        <Ionicons name={icon} size={20} color={theme.textSub} />
+        <Feather name={icon} size={20} color={theme.textSub} />
       </View>
 
       {/* Contenu */}
@@ -104,7 +104,7 @@ function NotifRow({
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         style={s.deleteBtn}
       >
-        <Ionicons name="close" size={16} color={theme.textMuted} />
+        <Feather name="x" size={16} color={theme.textMuted} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -179,11 +179,11 @@ export default function NotificationsScreen() {
       {/* ── Header ── */}
       <View style={[s.header, { backgroundColor: theme.bg }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           style={s.backBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={22} color={theme.textAlt} />
+          <Feather name="arrow-left" size={22} color={theme.textAlt} />
         </TouchableOpacity>
 
         <View style={s.headerCenter}>
@@ -220,7 +220,7 @@ export default function NotificationsScreen() {
         ListEmptyComponent={
           <View style={s.empty}>
             <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-              <Ionicons name="notifications-off-outline" size={36} color={theme.textMuted} />
+              <Feather name="bell-off" size={36} color={theme.textMuted} />
             </View>
             <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.bebas }]}>Aucune notification</Text>
             <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>

@@ -8,7 +8,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line, Path, G, Defs, ClipPath, Rect } from "react-native-svg";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuthRequest, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
@@ -17,23 +17,23 @@ import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
-// ── Colors (dark-only) ──────────────────────────────────────────────────────
+// ── Colors (dark-only) — sourced from theme tokens so charter updates propagate ────────────
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  greyFaint: "rgba(255,255,255,0.2)",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  inputBg: "#111111",
-  green: "#3D8B3D",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  greyFaint:   "rgba(255,255,255,0.2)",
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
+  inputBg:     darkTokens.cardBg,
+  green:       COLORS.greenBrand,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -106,11 +106,11 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
     }, 3200);
     return () => clearTimeout(t);
   }, []);
-  const icon = msg.type === "error" ? "close-circle" : msg.type === "success" ? "checkmark-circle" : "information-circle";
-  const color = msg.type === "error" ? "#E53935" : msg.type === "success" ? C.green : C.white;
+  const icon = msg.type === "error" ? "x-circle" : msg.type === "success" ? "check-circle" : "info";
+  const color = msg.type === "error" ? COLORS.red : msg.type === "success" ? C.green : C.white;
   return (
     <Animated.View style={[ts.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
-      <Ionicons name={icon as any} size={16} color={color} />
+      <Feather name={icon as any} size={16} color={color} />
       <Text style={ts.text}>{msg.message}</Text>
     </Animated.View>
   );
@@ -389,7 +389,7 @@ export default function Login() {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="chevron-back" size={16} color={theme.textMuted} />
+            <Feather name="chevron-left" size={16} color={theme.textMuted} />
           </TouchableOpacity>
 
           <Text style={[s.logoWordmark, { color: theme.text }]}>CONNEXION</Text>
@@ -444,7 +444,7 @@ export default function Login() {
               <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Email</Text>
               <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "email" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                 <View style={s.inputIcon}>
-                  <Ionicons name="mail-outline" size={15} color={focused === "email" ? theme.textSub : theme.textMuted} />
+                  <Feather name="mail" size={15} color={focused === "email" ? theme.textSub : theme.textMuted} />
                 </View>
                 <TextInput
                   style={[s.input, { color: theme.text }]}
@@ -467,7 +467,7 @@ export default function Login() {
               <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Mot de passe</Text>
               <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "password" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
                 <View style={s.inputIcon}>
-                  <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
+                  <Feather name="lock" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
                 </View>
                 <TextInput
                   ref={pwdRef}
@@ -483,7 +483,7 @@ export default function Login() {
                   onSubmitEditing={onSubmit}
                 />
                 <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                  <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color={theme.textMuted} />
+                  <Feather name={showPwd ? "eye-off" : "eye"} size={17} color={theme.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -514,7 +514,7 @@ export default function Login() {
               : <>
                   <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>SE CONNECTER</Text>
                   <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                    <Ionicons name="arrow-forward" size={14} color={theme.text} />
+                    <Feather name="arrow-right" size={14} color={theme.text} />
                   </View>
                 </>
             }
@@ -671,7 +671,7 @@ const s = StyleSheet.create({
   },
   inputFocused: {
     borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "#161616",
+    backgroundColor: darkTokens.surface,
   },
   inputIcon: {
     position: "absolute",

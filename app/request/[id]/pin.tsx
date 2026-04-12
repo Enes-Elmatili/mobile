@@ -7,7 +7,7 @@ import {
   Animated, Easing, Platform, StatusBar, BackHandler, Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSocket } from '@/lib/SocketContext';
@@ -184,7 +184,8 @@ export default function PinPage() {
     const timer = setTimeout(() => {
       if (hasNavigatedRef.current) return;
       hasNavigatedRef.current = true;
-      router.back();
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/dashboard');
     }, 2500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,8 +204,8 @@ export default function PinPage() {
   // RENDER
   // ═════════════════════════════════════════════════════════════════════════
   const gradColors = theme.isDark
-    ? ['#050508', '#0D0D12', '#14141B'] as const
-    : ['#F2F2F2', '#EBEBEB', '#E4E4E4'] as const;
+    ? [theme.bg, theme.cardBg, theme.surface] as const
+    : [theme.bg, theme.surface, theme.border] as const;
 
   const ring1Spin = ring1Rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const ring2Spin = ring2Rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
@@ -234,8 +235,8 @@ export default function PinPage() {
         <Animated.View style={[s.content, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
 
           {/* Header */}
-          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} onPress={() => router.back()} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8}>
+            <Feather name="arrow-left" size={20} color={theme.textAlt} />
           </TouchableOpacity>
 
           <View style={{ flex: 0.55 }} />
@@ -250,8 +251,8 @@ export default function PinPage() {
               backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
               transform: [{ scale: pinVerified ? 1 : iconBreath }],
             }]}>
-              <Ionicons
-                name={pinVerified ? 'checkmark-circle' : 'lock-closed'}
+              <Feather
+                name={pinVerified ? 'check-circle' : 'lock'}
                 size={36}
                 color={pinVerified ? COLORS.green : theme.textAlt}
               />
@@ -310,7 +311,7 @@ export default function PinPage() {
                 onPress={() => setPinHidden(h => !h)}
                 activeOpacity={0.7}
               >
-                <Ionicons name={pinHidden ? 'eye-outline' : 'eye-off-outline'} size={18} color={theme.textMuted} />
+                <Feather name={pinHidden ? 'eye' : 'eye-off'} size={18} color={theme.textMuted} />
                 <Text style={[s.toggleText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
                   {pinHidden ? 'Afficher le code' : 'Masquer le code'}
                 </Text>
@@ -321,15 +322,15 @@ export default function PinPage() {
           {/* Verified state */}
           {pinVerified && (
             <Animated.View style={[s.verifiedCard, {
-              backgroundColor: theme.isDark ? 'rgba(29,185,84,0.08)' : '#F0FDF4',
-              borderColor: theme.isDark ? 'rgba(29,185,84,0.15)' : '#BBF7D0',
+              backgroundColor: theme.isDark ? 'rgba(29,185,84,0.08)' : 'rgba(61,139,61,0.08)',
+              borderColor: theme.isDark ? 'rgba(29,185,84,0.15)' : 'rgba(61,139,61,0.2)',
               opacity: verifiedAnim,
               transform: [{
                 scale: verifiedAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
               }],
             }]}>
-              <Ionicons name="checkmark-circle" size={56} color={COLORS.green} />
-              <Text style={[s.verifiedText, { color: theme.isDark ? COLORS.green : '#15803D', fontFamily: FONTS.sansMedium }]}>Identité confirmée</Text>
+              <Feather name="check-circle" size={56} color={COLORS.green} />
+              <Text style={[s.verifiedText, { color: theme.badgeDoneText, fontFamily: FONTS.sansMedium }]}>Identité confirmée</Text>
               <Text style={[s.verifiedSub, { color: COLORS.green, fontFamily: FONTS.sans }]}>Retour au suivi en cours...</Text>
             </Animated.View>
           )}
@@ -351,7 +352,7 @@ export default function PinPage() {
             onPress={() => router.push('/support')}
             activeOpacity={0.75}
           >
-            <Ionicons name="chatbubbles-outline" size={18} color={theme.textMuted} />
+            <Feather name="message-circle" size={18} color={theme.textMuted} />
             <Text style={[s.supportText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Contacter le support</Text>
           </TouchableOpacity>
 

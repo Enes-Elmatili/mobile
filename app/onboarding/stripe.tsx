@@ -1,7 +1,7 @@
 // app/onboarding/stripe.tsx — Stripe Connect (dark design)
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
@@ -9,23 +9,24 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const BENEFITS = [
-  { icon: "flash-outline" as const, title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés sur votre compte bancaire." },
-  { icon: "shield-checkmark-outline" as const, title: "Protection Stripe", desc: "Transactions sécurisées, conformité PCI DSS et protection contre la fraude." },
-  { icon: "bar-chart-outline" as const, title: "Suivi des paiements", desc: "Tableau de bord dédié pour gérer virements, factures et historique." },
-  { icon: "globe-outline" as const, title: "Paiements partout", desc: "Carte bancaire, Apple Pay, Google Pay — tous les modes acceptés." },
+const BENEFITS: { icon: keyof typeof Feather.glyphMap; title: string; desc: string }[] = [
+  { icon: "zap", title: "Virements rapides", desc: "Recevez vos paiements sous 2 jours ouvrés sur votre compte bancaire." },
+  { icon: "shield", title: "Protection Stripe", desc: "Transactions sécurisées, conformité PCI DSS et protection contre la fraude." },
+  { icon: "bar-chart-2", title: "Suivi des paiements", desc: "Tableau de bord dédié pour gérer virements, factures et historique." },
+  { icon: "globe", title: "Paiements partout", desc: "Carte bancaire, Apple Pay, Google Pay — tous les modes acceptés." },
 ];
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  white: "#FAFAFA",
-  grey: "#888888",
+  white:  darkTokens.text,
+  grey:   darkTokens.textMuted,
   border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  stripe: "#635BFF",
+  cardBg: darkTokens.cardBg,
+  stripe: COLORS.stripe,
 };
 
 export default function OnboardingStripe() {
@@ -103,10 +104,10 @@ export default function OnboardingStripe() {
       {/* Hero icon */}
       <View style={s.heroWrap}>
         <View style={s.heroCircle}>
-          <Ionicons name="card-outline" size={44} color={C.white} />
+          <Feather name="credit-card" size={44} color={C.white} />
         </View>
         <View style={s.stripeBadge}>
-          <Ionicons name="lock-closed" size={10} color={C.stripe} />
+          <Feather name="lock" size={10} color={C.stripe} />
           <Text style={s.stripeBadgeText}>Stripe</Text>
         </View>
       </View>
@@ -116,7 +117,7 @@ export default function OnboardingStripe() {
         {BENEFITS.map((b, i) => (
           <View key={i} style={s.benefitRow}>
             <View style={s.benefitIcon}>
-              <Ionicons name={b.icon} size={18} color={C.white} />
+              <Feather name={b.icon} size={18} color={C.white} />
             </View>
             <View style={s.benefitText}>
               <Text style={s.benefitTitle}>{b.title}</Text>
@@ -128,7 +129,7 @@ export default function OnboardingStripe() {
 
       {/* Trust note */}
       <View style={s.trustNote}>
-        <Ionicons name="shield-checkmark-outline" size={14} color={C.grey} />
+        <Feather name="shield" size={14} color={C.grey} />
         <Text style={s.trustText}>Vos données bancaires sont gérées directement par Stripe et ne transitent jamais par FIXED.</Text>
       </View>
     </OnboardingLayout>

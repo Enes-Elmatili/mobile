@@ -113,13 +113,24 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [stopDurationTimer]);
 
   // ── End call with brief "ended" state ───────────────────────────────────
+  const endCallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    // Cancel any pending end-call cleanup on provider unmount to avoid
+    // setState-after-unmount when the user logs out during the "ended" window.
+    if (endCallTimerRef.current) {
+      clearTimeout(endCallTimerRef.current);
+      endCallTimerRef.current = null;
+    }
+  }, []);
   const endCall = useCallback(() => {
     setCallState('ended');
     stopDurationTimer();
     callServiceRef.current?.destroy();
     callServiceRef.current = null;
     // Auto-cleanup after brief display
-    setTimeout(() => {
+    if (endCallTimerRef.current) clearTimeout(endCallTimerRef.current);
+    endCallTimerRef.current = setTimeout(() => {
+      endCallTimerRef.current = null;
       setCallState('idle');
       setCallInfo(null);
       setIsMuted(false);

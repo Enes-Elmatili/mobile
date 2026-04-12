@@ -11,7 +11,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -47,14 +47,14 @@ export default function DiscoveryScreen() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.headerBg }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
           style={[styles.headerBack, { backgroundColor: theme.surface }]}
         >
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('discovery.title')}</Text>
+        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('discovery.title')}</Text>
         <TouchableOpacity
           style={[
             styles.filterButton,
@@ -67,8 +67,8 @@ export default function DiscoveryScreen() {
             count: activeFiltersCount,
           })}
         >
-          <Ionicons
-            name="options-outline"
+          <Feather
+            name="filter"
             size={18}
             color={activeFiltersCount > 0 ? theme.accentText : theme.textAlt}
           />
@@ -97,8 +97,8 @@ export default function DiscoveryScreen() {
         </View>
       ) : error === 'permission_denied' ? (
         <View style={styles.center}>
-          <Ionicons
-            name="location-outline"
+          <Feather
+            name="map-pin"
             size={48}
             color={theme.textDisabled}
           />
@@ -106,8 +106,8 @@ export default function DiscoveryScreen() {
         </View>
       ) : providers.length === 0 && !isLoading ? (
         <View style={styles.center}>
-          <Ionicons
-            name="search-outline"
+          <Feather
+            name="search"
             size={48}
             color={theme.textDisabled}
           />

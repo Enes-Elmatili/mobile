@@ -9,7 +9,7 @@ import {
   TextInput, ScrollView, Modal, Pressable, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { devLog, devWarn, devError } from '@/lib/logger';
@@ -153,36 +153,36 @@ const isSameDay = (a: Date, b: Date) =>
   a.getDate()     === b.getDate();
 
 const STATUS_CFG: Record<MissionStatus, { label: string; icon: string; active?: boolean; done?: boolean }> = {
-  PUBLISHED:       { label: 'Publie',            icon: 'radio-outline',            active: true },
-  ACCEPTED:        { label: 'Confirme',          icon: 'checkmark-circle-outline', active: true },
-  ONGOING:         { label: 'En cours',          icon: 'flash-outline',            active: true },
-  DONE:            { label: 'Terminé',           icon: 'checkmark-done-outline',   done: true },
-  CANCELLED:       { label: 'Annulé',            icon: 'close-circle-outline' },
-  PENDING_PAYMENT: { label: 'Paiement',          icon: 'card-outline' },
-  EXPIRED:         { label: 'Expiré',            icon: 'time-outline' },
-  QUOTE_PENDING:   { label: 'Devis à envoyer',   icon: 'document-text-outline',    active: true },
-  QUOTE_SENT:      { label: 'Devis envoyé',      icon: 'checkmark-circle-outline' },
-  QUOTE_ACCEPTED:  { label: 'Devis accepté',     icon: 'checkmark-done-outline',   active: true },
+  PUBLISHED:       { label: 'Publie',            icon: 'radio',                    active: true },
+  ACCEPTED:        { label: 'Confirme',          icon: 'check-circle',             active: true },
+  ONGOING:         { label: 'En cours',          icon: 'zap',                      active: true },
+  DONE:            { label: 'Terminé',           icon: 'check-circle',             done: true },
+  CANCELLED:       { label: 'Annulé',            icon: 'x-circle' },
+  PENDING_PAYMENT: { label: 'Paiement',          icon: 'credit-card' },
+  EXPIRED:         { label: 'Expiré',            icon: 'clock' },
+  QUOTE_PENDING:   { label: 'Devis à envoyer',   icon: 'file-text',                active: true },
+  QUOTE_SENT:      { label: 'Devis envoyé',      icon: 'check-circle' },
+  QUOTE_ACCEPTED:  { label: 'Devis accepté',     icon: 'check-circle',             active: true },
 };
 
 const SERVICE_ICONS: Record<string, string> = {
-  serrurerie: 'lock-closed-outline',
-  plomberie: 'water-outline',
-  'entretien chaudiere': 'flame-outline',
-  electricite: 'flash-outline',
-  bricolage: 'hammer-outline',
-  peinture: 'brush-outline',
-  menage: 'home-outline',
-  'depannage informatique': 'laptop-outline',
-  vitrier: 'grid-outline',
-  'pet sitting': 'paw-outline',
+  serrurerie: 'lock',
+  plomberie: 'droplet',
+  'entretien chaudiere': 'zap',
+  electricite: 'zap',
+  bricolage: 'tool',
+  peinture: 'edit-2',
+  menage: 'home',
+  'depannage informatique': 'monitor',
+  vitrier: 'grid',
+  'pet sitting': 'heart',
 };
 
 const getServiceIcon = (type?: string): string => {
-  if (!type) return 'construct-outline';
+  if (!type) return 'tool';
   const key = type.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const match = Object.keys(SERVICE_ICONS).find(k => key.includes(k));
-  return match ? SERVICE_ICONS[match] : 'construct-outline';
+  return match ? SERVICE_ICONS[match] : 'tool';
 };
 
 const UPCOMING_STATUSES: MissionStatus[] = ['PUBLISHED', 'ACCEPTED', 'ONGOING', 'PENDING_PAYMENT', 'QUOTE_PENDING', 'QUOTE_SENT'];
@@ -369,7 +369,7 @@ function EarningsBanner({ missions }: { missions: Mission[] }) {
   return (
     <View style={[eb.wrap, { backgroundColor: t.surface }]}>
       <View style={eb.left}>
-        <Ionicons name="flash-outline" size={14} color={t.textSub} />
+        <Feather name="zap" size={14} color={t.textSub} />
         <Text style={[eb.text, { color: t.textSub }]}>
           {todayMs.length > 0
             ? `${todayMs.length} mission${todayMs.length > 1 ? 's' : ''} aujourd'hui`
@@ -444,7 +444,7 @@ function MissionCard({
               <Text style={[mc.client, { color: t.textSub }]} numberOfLines={1}>{mission.client.name}</Text>
             )}
             <View style={mc.addrRow}>
-              <Ionicons name="location-outline" size={11} color={t.textMuted} />
+              <Feather name="map-pin" size={11} color={t.textMuted} />
               <Text style={[mc.addr, { color: t.textMuted }]} numberOfLines={1}>{address}</Text>
             </View>
           </View>
@@ -459,19 +459,19 @@ function MissionCard({
         {/* Footer : badge statut + actions rapides */}
         <View style={mc.footer}>
           <View style={[mc.badge, { backgroundColor: badgeBg }]}>
-            <Ionicons name={cfg.icon as any} size={10} color={badgeColor} />
+            <Feather name={cfg.icon as any} size={10} color={badgeColor} />
             <Text style={[mc.badgeText, { color: badgeColor }]}>{cfg.label}</Text>
           </View>
 
           <View style={mc.quickActions}>
             {canNavigate && (
               <TouchableOpacity style={[mc.quickBtn, { backgroundColor: t.surface }]} onPress={onNavigate} activeOpacity={0.8}>
-                <Ionicons name="navigate-outline" size={15} color={t.text} />
+                <Feather name="navigation" size={15} color={t.text} />
               </TouchableOpacity>
             )}
             {canComplete && (
               <TouchableOpacity style={[mc.quickBtn, { backgroundColor: t.surface }]} onPress={onComplete} activeOpacity={0.8}>
-                <Ionicons name="checkmark" size={15} color={t.text} />
+                <Feather name="check" size={15} color={t.text} />
               </TouchableOpacity>
             )}
           </View>
@@ -570,7 +570,7 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
   if (tab === 'history') {
     return (
       <View style={es.wrap}>
-        <Ionicons name="time-outline" size={40} color={t.textMuted} />
+        <Feather name="clock" size={40} color={t.textMuted} />
         <Text style={[es.title, { color: t.text }]}>Aucun historique</Text>
         <Text style={[es.sub, { color: t.textMuted }]}>Vos missions terminees apparaitront ici.</Text>
       </View>
@@ -581,7 +581,7 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
     return (
       <View style={es.wrap}>
         <View style={[es.checkCircle, { backgroundColor: t.accent }]}>
-          <Ionicons name="checkmark" size={32} color={t.accentText} />
+          <Feather name="check" size={32} color={t.accentText} />
         </View>
         <Text style={[es.heroAmount, { color: t.text }]}>+{formatEuros(dayEarnings)}</Text>
         <Text style={[es.title, { color: t.text }]}>Journee completee</Text>
@@ -593,14 +593,14 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
   return (
     <View style={es.wrap}>
       <View style={[es.iconWrap, { backgroundColor: t.surface }]}>
-        <Ionicons name="navigate-circle-outline" size={44} color={t.textMuted} />
+        <Feather name="navigation" size={44} color={t.textMuted} />
       </View>
       <Text style={[es.title, { color: t.text }]}>Aucune mission a venir</Text>
       <Text style={[es.sub, { color: t.textMuted }]}>Passez en ligne pour commencer a recevoir des missions.</Text>
       <TouchableOpacity style={[es.cta, { backgroundColor: t.accent }]} onPress={onGoOnline} activeOpacity={0.85}>
         <View style={[es.ctaDot, { backgroundColor: t.accentText }]} />
         <Text style={[es.ctaText, { color: t.accentText }]}>Passer en ligne</Text>
-        <Ionicons name="arrow-forward" size={16} color={t.accentText} />
+        <Feather name="arrow-right" size={16} color={t.accentText} />
       </TouchableOpacity>
     </View>
   );
@@ -656,7 +656,7 @@ function OpportunityCard({
       <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
         <View style={opp.cardHead}>
           <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
-            <Ionicons name={(item.category.icon || getServiceIcon(item.category.name)) as any} size={14} color={theme.text} />
+            <Feather name={getServiceIcon(item.category.name) as any} size={14} color={theme.text} />
             <Text style={[opp.catBadgeText, { color: theme.text }]}>{item.category.name}</Text>
           </View>
           <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
@@ -675,11 +675,11 @@ function OpportunityCard({
 
         <View style={opp.infoRow}>
           <View style={opp.infoItem}>
-            <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
+            <Feather name="calendar" size={14} color={theme.textMuted} />
             <Text style={[opp.infoText, { color: theme.textSub }]}>{day} a {time}</Text>
           </View>
           <View style={opp.infoItem}>
-            <Ionicons name="location-outline" size={14} color={theme.textMuted} />
+            <Feather name="map-pin" size={14} color={theme.textMuted} />
             <Text style={[opp.infoText, { color: theme.textSub }]} numberOfLines={1}>
               {item.address.split(',')[0]}
             </Text>
@@ -703,7 +703,7 @@ function OpportunityCard({
               activeOpacity={0.7}
               accessibilityLabel="Refuser"
             >
-              <Ionicons name="close" size={18} color={theme.textSub} />
+              <Feather name="x" size={18} color={theme.textSub} />
               <Text style={[opp.declineText, { color: theme.textSub }]}>Refuser</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -716,7 +716,7 @@ function OpportunityCard({
                 <ActivityIndicator size="small" color={theme.accentText} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
+                  <Feather name="check-circle" size={18} color={theme.accentText} />
                   <Text style={[opp.acceptText, { color: theme.accentText }]}>Accepter</Text>
                 </>
               )}
@@ -885,19 +885,19 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           </MapView>
           <View style={sd.mapOverlay}>
             <View style={[sd.mapAddrBadge, { backgroundColor: t.isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.94)' }]}>
-              <Ionicons name="location-outline" size={11} color={t.textSub} />
+              <Feather name="map-pin" size={11} color={t.textSub} />
               <Text style={[sd.mapAddrText, { color: t.text }]} numberOfLines={1}>{address}</Text>
             </View>
           </View>
           {/* Badge statut flottant */}
           <View style={[sd.mapStatusPill, { backgroundColor: badgeBg }]}>
-            <Ionicons name={cfg.icon as any} size={10} color={badgeColor} />
+            <Feather name={cfg.icon as any} size={10} color={badgeColor} />
             <Text style={[sd.mapStatusText, { color: badgeColor }]}>{cfg.label}</Text>
           </View>
         </View>
       ) : (
         <View style={[sd.mapFallback, { backgroundColor: t.surface }]}>
-          <Ionicons name="map-outline" size={24} color={t.textMuted} />
+          <Feather name="map" size={24} color={t.textMuted} />
           <Text style={[sd.mapFallbackText, { color: t.textMuted }]}>{address || 'Adresse non disponible'}</Text>
         </View>
       )}
@@ -944,7 +944,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Chronologie</Text>
             {createdAt && (
               <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
                   <Text style={[sd.infoValue, { color: t.text }]}>Commande passee · {fmtD(createdAt)} · {fmtT(createdAt)}</Text>
                 </View>
@@ -952,7 +952,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             )}
             {cfg.active && (
               <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.text} /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
                   <Text style={[sd.infoValue, { color: t.text }]}>Confirmée</Text>
                 </View>
@@ -960,14 +960,14 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             )}
             {scheduledAt && (
               <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
                   <Text style={[sd.infoValue, { color: t.text }]}>Depart prevu · {fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
                 </View>
               </View>
             )}
             <View style={sd.infoRow}>
-              <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="ellipse" size={10} color={t.textMuted} /></View>
+              <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.textMuted} /></View>
               <View style={sd.infoContent}>
                 <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminée</Text>
               </View>
@@ -982,7 +982,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Details mission</Text>
             {address ? (
               <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="location-outline" size={12} color={t.textMuted} /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="map-pin" size={12} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
                   <Text style={[sd.infoValue, { color: t.text }]}>{address}</Text>
                 </View>
@@ -990,7 +990,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             ) : null}
             {mission.description ? (
               <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Ionicons name="document-text-outline" size={12} color={t.textMuted} /></View>
+                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="file-text" size={12} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
                   <Text style={[sd.infoValue, { color: t.text }]}>{mission.description}</Text>
                 </View>
@@ -1024,7 +1024,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="chatbubble" size={16} color={t.text} />
+                  <Feather name="message-circle" size={16} color={t.text} />
                 </TouchableOpacity>
               )}
               {(mission.client.id || mission.client.phone) && (
@@ -1043,7 +1043,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="call" size={16} color={t.accentText} />
+                  <Feather name="phone" size={16} color={t.accentText} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1056,7 +1056,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {mission.status === 'QUOTE_PENDING' && (
           <View style={sd.actionsBlock}>
             <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
-              <Ionicons name="document-text-outline" size={18} color={t.accentText} />
+              <Feather name="file-text" size={18} color={t.accentText} />
               <Text style={[sd.navBtnText, { color: t.accentText }]}>Envoyer un devis</Text>
             </TouchableOpacity>
           </View>
@@ -1064,7 +1064,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {mission.status === 'QUOTE_SENT' && (
           <View style={[sd.actionsBlock, { opacity: 0.6 }]}>
             <View style={[sd.navBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]}>
-              <Ionicons name="time-outline" size={18} color={t.textMuted} />
+              <Feather name="clock" size={18} color={t.textMuted} />
               <Text style={[sd.navBtnText, { color: t.textMuted }]}>En attente de réponse du client</Text>
             </View>
           </View>
@@ -1072,7 +1072,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {mission.status === 'QUOTE_ACCEPTED' && (
           <View style={sd.actionsBlock}>
             <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
-              <Ionicons name="arrow-forward" size={18} color={t.accentText} />
+              <Feather name="arrow-right" size={18} color={t.accentText} />
               <Text style={[sd.navBtnText, { color: t.accentText }]}>Commencer la mission</Text>
             </TouchableOpacity>
           </View>
@@ -1081,7 +1081,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           <View style={sd.actionsBlock}>
             {cfg.active && (
               <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
-                <Ionicons name="arrow-forward" size={18} color={t.accentText} />
+                <Feather name="arrow-right" size={18} color={t.accentText} />
                 <Text style={[sd.navBtnText, { color: t.accentText }]}>Reprendre la mission</Text>
               </TouchableOpacity>
             )}
@@ -1469,14 +1469,14 @@ export default function Missions() {
               onPress={() => setSearchActive(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="search-outline" size={20} color={t.text} />
+              <Feather name="search" size={20} color={t.text} />
             </TouchableOpacity>
           )}
         </View>
 
         {searchActive && (
           <View style={[s.searchBar, { backgroundColor: t.surface }]}>
-            <Ionicons name="search-outline" size={15} color={t.textMuted} style={{ marginLeft: 12 }} />
+            <Feather name="search" size={15} color={t.textMuted} style={{ marginLeft: 12 }} />
             <TextInput
               style={[s.searchInput, { color: t.text }]}
               placeholder="Rechercher une mission..."
@@ -1488,7 +1488,7 @@ export default function Missions() {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} style={{ paddingHorizontal: 10 }}>
-                <Ionicons name="close-circle" size={16} color={t.textMuted} />
+                <Feather name="x-circle" size={16} color={t.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -1506,7 +1506,7 @@ export default function Missions() {
           </View>
         ) : opportunities.length === 0 ? (
           <View style={opp.emptyWrap}>
-            <Ionicons name="telescope-outline" size={48} color={t.textMuted} />
+            <Feather name="search" size={48} color={t.textMuted} />
             <Text style={[opp.emptyTitle, { color: t.text }]}>Aucune opportunite</Text>
             <Text style={[opp.emptySub, { color: t.textSub }]}>
               Les missions planifiees correspondant a vos competences apparaitront ici.
@@ -1546,7 +1546,7 @@ export default function Missions() {
       {/* -- Erreur -- */}
       {error && tab !== 'opportunities' && (
         <View style={[s.errorBanner, { backgroundColor: t.surface }]}>
-          <Ionicons name="alert-circle-outline" size={15} color={t.text} />
+          <Feather name="alert-circle" size={15} color={t.text} />
           <Text style={[s.errorText, { color: t.text }]}>{error}</Text>
           <TouchableOpacity onPress={loadMissions}>
             <Text style={[s.retryText, { color: t.text }]}>Réessayer</Text>

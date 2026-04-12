@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
@@ -20,7 +20,7 @@ function Article({ n, title, body }: { n: string; title: string; body: string })
           <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>Art. {n}</Text>
           <Text style={[s.articleTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{title}</Text>
         </View>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
       </TouchableOpacity>
       {open && (
         <Text style={[s.articleBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>{body}</Text>
@@ -106,8 +106,8 @@ export default function CGUScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Conditions d'utilisation</Text>
         <View style={{ width: 38 }} />

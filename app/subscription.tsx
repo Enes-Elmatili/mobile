@@ -12,7 +12,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
@@ -151,7 +151,7 @@ function PlanCard({
       <View style={pl.features}>
         {plan.features.map((f, i) => (
           <View key={i} style={pl.featureRow}>
-            <Ionicons name="checkmark-circle" size={14} color={plan.highlight ? theme.accentText : COLORS.green} />
+            <Feather name="check-circle" size={14} color={plan.highlight ? theme.accentText : COLORS.green} />
             <Text style={[pl.featureText, { color: plan.highlight ? theme.heroText : theme.textSub, fontFamily: FONTS.sans }]}>
               {f}
             </Text>
@@ -314,10 +314,10 @@ export default function SubscriptionScreen() {
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.surface }]}
-          onPress={() => router.back()}
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.subscription')}</Text>
         <View style={{ width: 38 }} />
@@ -347,7 +347,7 @@ export default function SubscriptionScreen() {
             </View>
             {subscription.status === 'ACTIVE' && (
               <TouchableOpacity
-                style={[s.cancelBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : '#FECACA' }]}
+                style={[s.cancelBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)' }]}
                 onPress={handleCancel}
                 disabled={cancelling}
                 activeOpacity={0.7}
@@ -361,7 +361,7 @@ export default function SubscriptionScreen() {
           </View>
         ) : (
           <View style={[s.noPlanCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-            <Ionicons name="wallet-outline" size={36} color={theme.textVeryMuted} />
+            <Feather name="credit-card" size={36} color={theme.textVeryMuted} />
             <Text style={[s.noPlanTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucun abonnement actif</Text>
             <Text style={[s.noPlanSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Choisissez un plan pour accéder aux clients premium.</Text>
           </View>

@@ -11,7 +11,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -36,9 +36,9 @@ function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map(i => (
-        <Ionicons
+        <Feather
           key={i}
-          name={i <= Math.round(rating) ? 'star' : 'star-outline'}
+          name="star"
           size={size}
           color={i <= Math.round(rating) ? COLORS.amber : theme.textDisabled}
         />
@@ -147,9 +147,9 @@ export default function ProviderDetailScreen() {
     return (
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
-        <Ionicons name="alert-circle-outline" size={56} color={theme.textMuted} />
+        <Feather name="alert-circle" size={56} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Prestataire introuvable</Text>
-        <TouchableOpacity style={[s.backBtnBottom, { backgroundColor: theme.accent }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[s.backBtnBottom, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnBottomText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -169,10 +169,10 @@ export default function ProviderDetailScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Prestataire</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Prestataire</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -191,7 +191,7 @@ export default function ProviderDetailScreen() {
           <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
           {provider.city ? (
             <View style={s.cityRow}>
-              <Ionicons name="location-outline" size={13} color={theme.textMuted} />
+              <Feather name="map-pin" size={13} color={theme.textMuted} />
               <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{provider.city}</Text>
             </View>
           ) : null}
@@ -254,7 +254,7 @@ export default function ProviderDetailScreen() {
 
           {reviews.length === 0 ? (
             <View style={s.emptyReviews}>
-              <Ionicons name="chatbubble-ellipses-outline" size={32} color={theme.textDisabled} />
+              <Feather name="message-circle" size={32} color={theme.textDisabled} />
               <Text style={[s.emptyReviewsText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('providers.no_reviews')}</Text>
             </View>
           ) : (
@@ -271,7 +271,7 @@ export default function ProviderDetailScreen() {
                   <Text style={[s.seeAllText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
                     {t('providers.see_all_reviews')} ({reviews.length - 3} de plus)
                   </Text>
-                  <Ionicons name="chevron-down" size={14} color={theme.textSub} />
+                  <Feather name="chevron-down" size={14} color={theme.textSub} />
                 </TouchableOpacity>
               )}
             </View>

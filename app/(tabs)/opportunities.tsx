@@ -7,7 +7,7 @@ import {
   RefreshControl, SafeAreaView, Animated, StatusBar,
   ActivityIndicator, Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -73,7 +73,7 @@ function OpportunityCard({
         {/* Header: categorie + date relative */}
         <View style={st.cardHead}>
           <View style={[st.catBadge, { backgroundColor: theme.surface }]}>
-            <Ionicons name="construct-outline" size={14} color={theme.text} />
+            <Feather name="tool" size={14} color={theme.text} />
             <Text style={[st.catBadgeText, { color: theme.text }]}>{item.category.name}</Text>
           </View>
           <View style={[st.relBadge, { backgroundColor: theme.surface }]}>
@@ -94,11 +94,11 @@ function OpportunityCard({
         {/* Infos row: date/heure + adresse */}
         <View style={st.infoRow}>
           <View style={st.infoItem}>
-            <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
+            <Feather name="calendar" size={14} color={theme.textMuted} />
             <Text style={[st.infoText, { color: theme.textSub }]}>{day} a {time}</Text>
           </View>
           <View style={st.infoItem}>
-            <Ionicons name="location-outline" size={14} color={theme.textMuted} />
+            <Feather name="map-pin" size={14} color={theme.textMuted} />
             <Text style={[st.infoText, { color: theme.textSub }]} numberOfLines={1}>
               {item.address.split(',')[0]}
             </Text>
@@ -122,7 +122,7 @@ function OpportunityCard({
               disabled={accepting !== null}
               activeOpacity={0.8}
             >
-              <Ionicons name="close-circle-outline" size={18} color={theme.textSub} />
+              <Feather name="x-circle" size={18} color={theme.textSub} />
               <Text style={[st.declineText, { color: theme.textSub }]}>Décliner</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -135,7 +135,7 @@ function OpportunityCard({
                 <ActivityIndicator size="small" color={theme.accentText} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={18} color={theme.accentText} />
+                  <Feather name="check-circle" size={18} color={theme.accentText} />
                   <Text style={[st.acceptText, { color: theme.accentText }]}>Accepter</Text>
                 </>
               )}
@@ -247,7 +247,7 @@ export default function OpportunitiesScreen() {
         </View>
       ) : opportunities.length === 0 ? (
         <View style={st.center}>
-          <Ionicons name="telescope-outline" size={48} color={theme.textMuted} />
+          <Feather name="search" size={48} color={theme.textMuted} />
           <Text style={[st.emptyTitle, { color: theme.text }]}>Aucune opportunite</Text>
           <Text style={[st.emptySub, { color: theme.textSub }]}>
             Les missions planifiees correspondant a vos competences apparaitront ici.

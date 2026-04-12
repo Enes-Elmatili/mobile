@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { api } from './api';
+import { tokenStorage } from './storage';
 import { devLog, devWarn } from './logger';
 
 // Afficher les notifications même quand l'app est au premier plan
@@ -146,7 +147,14 @@ async function syncTokenWithBackend(token: string, attempt = 1) {
   } catch (e: any) {
     devWarn(`[Push] Échec synchronisation token (tentative ${attempt}):`, e?.message);
     if (attempt < 3) {
-      setTimeout(() => syncTokenWithBackend(token, attempt + 1), attempt * 2000);
+      setTimeout(async () => {
+        // Bail if the user logged out between attempts — otherwise the retry
+        // will hit the backend with no auth and trigger the "Session expirée"
+        // alert from api.ts on what was intentional logout.
+        const stillAuthed = await tokenStorage.getToken();
+        if (!stillAuthed) return;
+        syncTokenWithBackend(token, attempt + 1);
+      }, attempt * 2000);
     }
   }
 }

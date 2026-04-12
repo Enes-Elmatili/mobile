@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 type Status = 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT';
@@ -10,12 +10,12 @@ interface StatusBadgeProps {
 }
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: string }> = {
-  DONE: { label: 'Terminé', color: COLORS.green, icon: 'checkmark-circle' },
-  CANCELLED: { label: 'Annulé', color: COLORS.red, icon: 'close-circle' },
-  ONGOING: { label: 'En cours', color: '#3B82F6', icon: 'time' },
+  DONE: { label: 'Terminé', color: COLORS.green, icon: 'check-circle' },
+  CANCELLED: { label: 'Annulé', color: COLORS.red, icon: 'x-circle' },
+  ONGOING: { label: 'En cours', color: COLORS.statusOngoing, icon: 'clock' },
   PUBLISHED: { label: 'Publié', color: COLORS.amber, icon: 'eye' },
-  ACCEPTED: { label: 'Accepté', color: '#8B5CF6', icon: 'hand-left' },
-  PENDING_PAYMENT: { label: 'Paiement', color: '#EC4899', icon: 'card' },
+  ACCEPTED: { label: 'Accepté', color: COLORS.statusAccepted, icon: 'check' },
+  PENDING_PAYMENT: { label: 'Paiement', color: COLORS.statusPending, icon: 'credit-card' },
 };
 
 export default function StatusBadge({ status }: StatusBadgeProps) {
@@ -29,7 +29,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
 
   return (
     <View style={[styles.badge, { backgroundColor: bgColor }]}>
-      <Ionicons name={config.icon as any} size={16} color={config.color} />
+      <Feather name={config.icon as any} size={16} color={config.color} />
       <Text style={[styles.text, { color: config.color, fontFamily: FONTS.sansMedium }]}>{config.label}</Text>
     </View>
   );

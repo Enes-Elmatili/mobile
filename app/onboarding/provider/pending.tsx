@@ -6,27 +6,28 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { useSocket } from "../../../lib/SocketContext";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { PulseDot } from '@/components/ui/PulseDot';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
+// Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  green: "#3D8B3D",
-  red: "#E53935",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
+  green:       COLORS.greenBrand,
+  red:         COLORS.red,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -87,14 +88,14 @@ export default function PendingValidation() {
         setStripeConnected(connected);
       }
 
-      if (validationRes.providerStatus === "ACTIVE") {
+      if (validationRes?.providerStatus === "ACTIVE") {
         setStatus("approved");
         setTimeout(() => router.replace("/(tabs)/provider-dashboard"), 1500);
         return true;
-      } else if (validationRes.providerStatus === "REJECTED") {
+      } else if (validationRes?.providerStatus === "REJECTED") {
         setStatus("rejected");
         return true;
-      } else if (validationRes.providerStatus === "SUSPENDED") {
+      } else if (validationRes?.providerStatus === "SUSPENDED") {
         setStatus("suspended");
         return true;
       }
@@ -160,7 +161,7 @@ export default function PendingValidation() {
     }
   }, [status]);
 
-  const iconName = status === "approved" ? "checkmark" : status === "rejected" ? "close" : status === "suspended" ? "ban-outline" : "time-outline";
+  const iconName = status === "approved" ? "check" : status === "rejected" ? "x" : status === "suspended" ? "slash" : "clock";
   const iconColor = status === "approved" ? C.green : status === "rejected" ? C.red : C.white;
 
   return (
@@ -180,7 +181,7 @@ export default function PendingValidation() {
       <View style={s.content}>
         {/* Icon */}
         <View style={[s.iconCircle, status === "approved" && { backgroundColor: "rgba(61,139,61,0.15)", borderColor: "rgba(61,139,61,0.3)" }]}>
-          <Ionicons name={iconName as any} size={40} color={iconColor} />
+          <Feather name={iconName as any} size={40} color={iconColor} />
         </View>
 
         {/* Title */}
@@ -204,7 +205,7 @@ export default function PendingValidation() {
               ].map((step, i) => (
                 <View key={i} style={s.stepRow}>
                   <View style={[s.stepDot, step.done && s.stepDotDone]}>
-                    {step.done && <Ionicons name="checkmark" size={10} color={C.bg} />}
+                    {step.done && <Feather name="check" size={10} color={C.bg} />}
                   </View>
                   <Text style={[s.stepLabel, step.done && s.stepLabelDone]}>{step.label}</Text>
                 </View>
@@ -217,8 +218,8 @@ export default function PendingValidation() {
                 <Text style={s.docsTitle}>Vos documents</Text>
                 {documents.map(doc => (
                   <View key={doc.id} style={s.docRow}>
-                    <Ionicons
-                      name={doc.status === "APPROVED" ? "checkmark-circle" : doc.status === "REJECTED" ? "close-circle" : "time-outline"}
+                    <Feather
+                      name={doc.status === "APPROVED" ? "check-circle" : doc.status === "REJECTED" ? "x-circle" : "clock"}
                       size={16}
                       color={doc.status === "APPROVED" ? C.green : doc.status === "REJECTED" ? C.red : C.grey}
                     />
@@ -276,7 +277,7 @@ export default function PendingValidation() {
             >
               <Text style={s.stripeCtaText}>CORRIGER MON DOSSIER</Text>
               <View style={s.arrowPill}>
-                <Ionicons name="arrow-forward" size={14} color={C.white} />
+                <Feather name="arrow-right" size={14} color={C.white} />
               </View>
             </TouchableOpacity>
           </>
@@ -302,7 +303,7 @@ export default function PendingValidation() {
             >
               <Text style={s.stripeCtaText}>CONTACTER LE SUPPORT</Text>
               <View style={s.arrowPill}>
-                <Ionicons name="arrow-forward" size={14} color={C.white} />
+                <Feather name="arrow-right" size={14} color={C.white} />
               </View>
             </TouchableOpacity>
           </>
@@ -322,7 +323,7 @@ export default function PendingValidation() {
           >
             <Text style={s.stripeCtaText}>CONFIGURER STRIPE</Text>
             <View style={s.arrowPill}>
-              <Ionicons name="arrow-forward" size={14} color={C.white} />
+              <Feather name="arrow-right" size={14} color={C.white} />
             </View>
           </TouchableOpacity>
         )}
@@ -335,7 +336,7 @@ export default function PendingValidation() {
           }}
           activeOpacity={0.6}
         >
-          <Ionicons name="log-out-outline" size={16} color={C.grey} />
+          <Feather name="log-out" size={16} color={C.grey} />
           <Text style={s.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
       </View>

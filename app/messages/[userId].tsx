@@ -4,7 +4,7 @@ import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
@@ -110,7 +110,13 @@ export default function ConversationScreen() {
     let mounted = true;
     const unsub = onIncomingMessage((msg) => {
       // Only show messages relevant to this conversation
-      if (msg.senderId !== userId && msg.senderId !== user?.id) return;
+      // Only show messages that belong to THIS conversation: either sent by
+      // the partner to us, or sent by us to the partner. Without the
+      // recipientId check, a `message:sent` socket echo for a message we sent
+      // to a different person would also show up here.
+      const isFromPartner = msg.senderId === userId && msg.recipientId === user?.id;
+      const isToPartner   = msg.senderId === user?.id && msg.recipientId === userId;
+      if (!isFromPartner && !isToPartner) return;
       if (messageIdsRef.current.has(msg.id)) return;
       messageIdsRef.current.add(msg.id);
       setMessages(prev => [...prev, msg]);
@@ -219,8 +225,8 @@ export default function ConversationScreen() {
     const color = msg.readAt ? COLORS.blue : (theme.textMuted as string);
     return (
       <View style={b.statusRow}>
-        <Ionicons
-          name={msg.readAt ? 'checkmark-done' : 'checkmark'}
+        <Feather
+          name="check"
           size={14}
           color={color}
         />
@@ -266,8 +272,8 @@ export default function ConversationScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={[s.backBtn, { backgroundColor: theme.surface }]}>
-          <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface }]}>
+          <Feather name="chevron-left" size={22} color={theme.textAlt} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={[s.headerTitle, { color: theme.textAlt }]} numberOfLines={1}>{headerName}</Text>
@@ -304,7 +310,7 @@ export default function ConversationScreen() {
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListEmptyComponent={
               <View style={s.emptyWrap}>
-                <Ionicons name="chatbubble-outline" size={44} color={theme.textMuted} />
+                <Feather name="message-circle" size={44} color={theme.textMuted} />
                 <Text style={[s.emptyText, { color: theme.textMuted }]}>Démarrez la conversation</Text>
               </View>
             }
@@ -339,7 +345,7 @@ export default function ConversationScreen() {
           >
             {sending
               ? <ActivityIndicator size="small" color={theme.accentText} />
-              : <Ionicons name="send" size={18} color={theme.accentText} />}
+              : <Feather name="send" size={18} color={theme.accentText} />}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

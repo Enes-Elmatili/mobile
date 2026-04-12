@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -45,7 +45,7 @@ export default function Wallet() {
   const renderTransaction = ({ item }: any) => (
     <View style={[styles.txCard, { backgroundColor: theme.cardBg }]}>
       <View style={[styles.txIcon, { backgroundColor: theme.surface }]}>
-        <Ionicons
+        <Feather
           name={item.type === 'CREDIT' ? 'arrow-down' : 'arrow-up'}
           size={20}
           color={item.type === 'CREDIT' ? COLORS.green : COLORS.red}
@@ -81,10 +81,10 @@ export default function Wallet() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+          <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Portefeuille</Text>
+        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Portefeuille</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -101,7 +101,7 @@ export default function Wallet() {
           keyExtractor={(item) => item.id}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="wallet-outline" size={64} color={theme.textDisabled} />
+              <Feather name="credit-card" size={64} color={theme.textDisabled} />
               <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucune transaction</Text>
             </View>
           }

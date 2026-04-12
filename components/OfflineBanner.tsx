@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, StyleSheet, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useNetwork } from '../lib/NetworkContext';
 import { useOfflineQueue } from '../lib/OfflineQueueContext';
 import { useTranslation } from 'react-i18next';
@@ -50,7 +50,7 @@ export function OfflineBanner() {
           accessibilityLiveRegion="polite"
           pointerEvents="none"
         >
-          <Ionicons name="cloud-offline-outline" size={16} color={theme.isDark ? theme.text : theme.accentText} />
+          <Feather name="wifi-off" size={16} color={theme.isDark ? theme.text : theme.accentText} />
           <Text style={[styles.bannerText, { color: theme.isDark ? theme.text : theme.accentText, fontFamily: FONTS.sansMedium }]}>
             {isProcessing
               ? t('offline.syncing', { count: pendingCount })

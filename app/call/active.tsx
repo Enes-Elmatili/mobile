@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar,
   Animated, Easing,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall } from '@/lib/webrtc/CallContext';
@@ -63,10 +63,20 @@ export default function ActiveCallScreen() {
     hangup, toggleMute, toggleSpeaker,
   } = useCall();
 
-  // Auto-dismiss when call ends
+  // Auto-dismiss when call ends.
+  // We must track whether a non-idle state was ever observed, otherwise the
+  // effect fires on initial mount (React always runs effects once on mount)
+  // and calls router.back() before any call has started — which produces an
+  // unhandled GO_BACK if the stack is empty.
+  const hasSeenActiveRef = useRef(false);
   useEffect(() => {
-    if (callState === 'idle') {
-      router.back();
+    if (callState !== 'idle') {
+      hasSeenActiveRef.current = true;
+      return;
+    }
+    if (hasSeenActiveRef.current) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/dashboard');
     }
   }, [callState]);
 
@@ -118,7 +128,7 @@ export default function ActiveCallScreen() {
             onPress={toggleMute}
             activeOpacity={0.7}
           >
-            <Ionicons
+            <Feather
               name={isMuted ? 'mic-off' : 'mic'}
               size={26}
               color={isMuted ? theme.heroBg : theme.heroText}
@@ -130,7 +140,7 @@ export default function ActiveCallScreen() {
 
           {/* Hangup */}
           <TouchableOpacity style={cs.hangupBtn} onPress={hangup} activeOpacity={0.8}>
-            <Ionicons name="call" size={32} color={theme.heroText} style={{ transform: [{ rotate: '135deg' }] }} />
+            <Feather name="phone-off" size={32} color={theme.heroText} />
           </TouchableOpacity>
 
           {/* Speaker */}
@@ -139,8 +149,8 @@ export default function ActiveCallScreen() {
             onPress={toggleSpeaker}
             activeOpacity={0.7}
           >
-            <Ionicons
-              name={isSpeaker ? 'volume-high' : 'volume-medium'}
+            <Feather
+              name={isSpeaker ? 'volume-2' : 'volume-1'}
               size={26}
               color={isSpeaker ? theme.heroBg : theme.heroText}
             />
@@ -153,7 +163,7 @@ export default function ActiveCallScreen() {
 
       {isEnded && (
         <View style={cs.endedSection}>
-          <Ionicons name="checkmark-circle" size={48} color={theme.heroSub} />
+          <Feather name="check-circle" size={48} color={theme.heroSub} />
         </View>
       )}
     </View>

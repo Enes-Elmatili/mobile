@@ -1,7 +1,7 @@
 // app/request/[id]/earnings.tsx
 // v2 — Palette Silver unifiée + navigation lock (no race condition)
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,13 +13,13 @@ import {
   BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useInvoice } from '@/hooks/useInvoice';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 
 export default function EarningsScreen() {
   const { id } = useLocalSearchParams();
@@ -83,7 +83,7 @@ export default function EarningsScreen() {
   useEffect(() => {
     if (loading || !request) return;
     const baseP = Number(request?.price) || 0;
-    const target = Math.round((baseP - baseP * 0.15) * 100) / 100;
+    const target = Math.round((baseP - baseP * 0.20) * 100) / 100;
     const duration = 1200;
     const steps = 40;
     const stepTime = duration / steps;
@@ -132,11 +132,11 @@ export default function EarningsScreen() {
       <View style={s.heroZone}>
         {/* Checkmark animé */}
         <Animated.View style={[s.checkCircle, {
-          backgroundColor: theme.isDark ? theme.surface : '#1A1A1A',
+          backgroundColor: darkTokens.surface,
           transform: [{ scale: checkAnim }],
           opacity: checkAnim,
         }]}>
-          <Ionicons name="checkmark" size={40} color={theme.heroText} />
+          <Feather name="check" size={40} color={theme.heroText} />
         </Animated.View>
 
         <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>Mission terminée</Text>
@@ -151,7 +151,7 @@ export default function EarningsScreen() {
           {displayedPrice.toFixed(2)} €
         </Animated.Text>
 
-        <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>disponible sous 24h après validation</Text>
+        <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>disponible sous 7 jours sur votre compte bancaire</Text>
       </View>
       </SafeAreaView>
 
@@ -176,12 +176,12 @@ export default function EarningsScreen() {
         {/* Détails mission compact */}
         <View style={[s.missionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {[
-            { icon: 'construct-outline', text: request?.serviceType },
-            { icon: 'location-outline', text: request?.address },
-            { icon: 'person-outline', text: request?.client?.name },
+            { icon: 'tool', text: request?.serviceType },
+            { icon: 'map-pin', text: request?.address },
+            { icon: 'user', text: request?.client?.name },
           ].filter(r => r.text).map((row, i) => (
             <View key={i} style={[s.missionRow, i < 2 && [s.missionRowBorder, { borderBottomColor: theme.border }]]}>
-              <Ionicons name={row.icon as any} size={15} color={theme.textMuted} />
+              <Feather name={row.icon as any} size={15} color={theme.textMuted} />
               <Text style={[s.missionText, { color: theme.textSub, fontFamily: FONTS.sans }]} numberOfLines={1}>{row.text}</Text>
             </View>
           ))}
@@ -194,7 +194,7 @@ export default function EarningsScreen() {
           activeOpacity={0.85}
         >
           <View style={s.monthCardLeft}>
-            <Ionicons name="trending-up" size={18} color={COLORS.green} />
+            <Feather name="trending-up" size={18} color={COLORS.green} />
             <View>
               <Text style={[s.monthCardLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Gains ce mois</Text>
               <Text style={[s.monthCardValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
@@ -202,7 +202,7 @@ export default function EarningsScreen() {
               </Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+          <Feather name="chevron-right" size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
         {/* ── Actions ── */}
@@ -212,7 +212,7 @@ export default function EarningsScreen() {
           activeOpacity={0.88}
         >
           <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Trouver ma prochaine mission</Text>
-          <Ionicons name="arrow-forward" size={18} color={theme.accentText} />
+          <Feather name="arrow-right" size={18} color={theme.accentText} />
         </TouchableOpacity>
 
         {invoice && (
@@ -221,7 +221,7 @@ export default function EarningsScreen() {
             onPress={() => setInvoiceVisible(true)}
             activeOpacity={0.85}
           >
-            <Ionicons name="receipt-outline" size={16} color={theme.textSub} />
+            <Feather name="file-text" size={16} color={theme.textSub} />
             <Text style={[s.invoiceBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Voir la facture</Text>
           </TouchableOpacity>
         )}
@@ -247,9 +247,6 @@ export default function EarningsScreen() {
     </View>
   );
 }
-
-// Fix: useRef n'est pas importé automatiquement
-import { useRef } from 'react';
 
 // ============================================================================
 // STYLES

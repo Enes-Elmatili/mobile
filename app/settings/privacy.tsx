@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, ActivityIndicator, Alert, Platform, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -62,8 +62,8 @@ export default function PrivacyScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.privacy')}</Text>
         <View style={{ width: 38 }} />
@@ -107,13 +107,13 @@ export default function PrivacyScreen() {
         </Section>
 
         {/* Danger zone */}
-        <View style={[s.dangerZone, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : '#FECACA', shadowOpacity: theme.shadowOpacity }]}>
+        <View style={[s.dangerZone, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)', shadowOpacity: theme.shadowOpacity }]}>
           <Text style={[s.dangerTitle, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>Zone dangereuse</Text>
           <Text style={[s.dangerSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             La suppression de votre compte est définitive et irréversible.
           </Text>
           <TouchableOpacity
-            style={[s.deleteBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : '#FECACA' }]}
+            style={[s.deleteBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)' }]}
             onPress={handleDeleteAccount}
             disabled={deleting}
             activeOpacity={0.7}
@@ -121,7 +121,7 @@ export default function PrivacyScreen() {
             {deleting
               ? <ActivityIndicator size="small" color={COLORS.danger} />
               : <>
-                  <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+                  <Feather name="trash-2" size={16} color={COLORS.danger} />
                   <Text style={[s.deleteBtnText, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>Supprimer mon compte</Text>
                 </>
             }

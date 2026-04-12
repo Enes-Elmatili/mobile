@@ -4,7 +4,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   SafeAreaView, RefreshControl, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
@@ -147,7 +147,8 @@ export default function MessagesInbox() {
   useEffect(() => {
     fetchInbox();
     clearUnreadMessages();
-  }, []);
+    // fetchInbox depends on user?.id; re-run when that identity is resolved.
+  }, [fetchInbox, clearUnreadMessages]);
 
   // Real-time: refresh inbox when a new message arrives
   useEffect(() => {
@@ -192,8 +193,8 @@ export default function MessagesInbox() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={[s.backBtn, { backgroundColor: theme.surface }]}>
-          <Ionicons name="chevron-back" size={22} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface }]}>
+          <Feather name="chevron-left" size={22} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt }]}>Messages</Text>
         <View style={{ width: 38 }} />
@@ -205,14 +206,18 @@ export default function MessagesInbox() {
         </View>
       ) : conversations.length === 0 ? (
         <View style={s.centered}>
+          <Feather name="message-circle" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
           <Text style={[s.emptyTitle, { color: theme.textAlt }]}>Aucun message.</Text>
+          <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
+            Vos échanges avec les prestataires apparaîtront ici.
+          </Text>
           <TouchableOpacity
             style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.replace('/(tabs)/dashboard')}
             activeOpacity={0.85}
           >
             <Text style={[s.emptyBtnText, { color: theme.accentText }]}>TROUVER UN PRO</Text>
-            <Ionicons name="arrow-forward" size={15} color={theme.accentText} />
+            <Feather name="arrow-right" size={15} color={theme.accentText} />
           </TouchableOpacity>
         </View>
       ) : (

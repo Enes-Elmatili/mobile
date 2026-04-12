@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
@@ -153,10 +153,10 @@ async function uploadMissionPhoto(
 type MissionStep = 1 | 2 | 3 | 4;
 
 const STEP_LABELS: Record<number, { title: string; icon: string }> = {
-  1: { title: 'Photo avant', icon: 'camera-outline' },
-  2: { title: 'Code PIN', icon: 'key-outline' },
-  3: { title: 'Envoyer le devis', icon: 'document-text-outline' },
-  4: { title: 'Photo après & Terminer', icon: 'checkmark-circle-outline' },
+  1: { title: 'Photo avant', icon: 'camera' },
+  2: { title: 'Code PIN', icon: 'key' },
+  3: { title: 'Envoyer le devis', icon: 'file-text' },
+  4: { title: 'Photo après & Terminer', icon: 'check-circle' },
 };
 
 function StepIndicator({ current, total, theme }: { current: number; total: number; theme: ReturnType<typeof useAppTheme> }) {
@@ -182,7 +182,7 @@ function StepIndicator({ current, total, theme }: { current: number; total: numb
               },
             ]}>
               {isDone ? (
-                <Ionicons name="checkmark" size={10} color="#FFF" />
+                <Feather name="check" size={10} color={theme.heroText} />
               ) : (
                 <Text style={[si.dotText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }, isActive && { color: theme.accentText }]}>{step}</Text>
               )}
@@ -231,7 +231,7 @@ function ActionCard({ icon, title, subtitle, children, theme }: {
     }]}>
       <View style={ac.header}>
         <View style={[ac.iconCircle, { backgroundColor: theme.surface }]}>
-          <Ionicons name={icon as any} size={22} color={theme.text} />
+          <Feather name={icon as any} size={22} color={theme.text} />
         </View>
         <View style={ac.headerText}>
           <Text style={[ac.title, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{title}</Text>
@@ -339,13 +339,16 @@ export default function MissionOngoing() {
         } catch { /* no quote yet */ }
       }
     } catch {
-      Alert.alert('Erreur', 'Impossible de charger la mission', [{ text: 'Retour', onPress: () => router.back() }]);
+      Alert.alert('Erreur', 'Impossible de charger la mission', [{ text: 'Retour', onPress: () => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); } }]);
     } finally {
       setLoading(false);
     }
   }, [id, router]);
 
-  useEffect(() => { BackHandler.addEventListener('hardwareBackPress', () => true); }, []);
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, []);
   useEffect(() => { loadRequest(); }, [loadRequest]);
 
   // Re-fetch les données quand l'écran regagne le focus (retour d'app switch)
@@ -607,7 +610,7 @@ export default function MissionOngoing() {
       >
         <Marker coordinate={clientLoc} anchor={{ x: 0.5, y: 0.5 }}>
           <View style={[s.clientPin, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
-            <Ionicons name="location" size={18} color={theme.accentText} />
+            <Feather name="map-pin" size={18} color={theme.accentText} />
           </View>
         </Marker>
         {routeCoords.length > 0 ? (
@@ -625,8 +628,8 @@ export default function MissionOngoing() {
             ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
             android: { elevation: 4 },
           }),
-        }]} onPress={() => router.back()} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8}>
+          <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
 
         {/* ETA pills */}
@@ -638,7 +641,7 @@ export default function MissionOngoing() {
               android: { elevation: 3 },
             }),
           }]}>
-            <Ionicons name="car-outline" size={14} color={theme.text} />
+            <Feather name="truck" size={14} color={theme.text} />
             <Text style={[s.etaPillText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{duration || '...'}</Text>
           </View>
           <View style={[s.etaPill, {
@@ -648,7 +651,7 @@ export default function MissionOngoing() {
               android: { elevation: 3 },
             }),
           }]}>
-            <Ionicons name="navigate-outline" size={14} color={theme.text} />
+            <Feather name="navigation" size={14} color={theme.text} />
             <Text style={[s.etaPillText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{distance || '...'}</Text>
           </View>
         </View>
@@ -677,7 +680,7 @@ export default function MissionOngoing() {
               <Text style={[s.address, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>{request.address}</Text>
             </View>
             <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={handleCall} activeOpacity={0.75}>
-              <Ionicons name="call" size={18} color={theme.accentText} />
+              <Feather name="phone" size={18} color={theme.accentText} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actionBtnOutline, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
@@ -687,10 +690,10 @@ export default function MissionOngoing() {
               }}
               activeOpacity={0.75}
             >
-              <Ionicons name="chatbubble-outline" size={18} color={theme.text} />
+              <Feather name="message-circle" size={18} color={theme.text} />
             </TouchableOpacity>
             <TouchableOpacity style={[s.actionBtnOutline, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={handleNavigate} activeOpacity={0.75}>
-              <Ionicons name="navigate" size={18} color={theme.text} />
+              <Feather name="navigation" size={18} color={theme.text} />
             </TouchableOpacity>
           </View>
 
@@ -718,7 +721,7 @@ export default function MissionOngoing() {
 
           {/* STEP 1: Before photo */}
           {currentStep === 1 && (
-            <ActionCard icon="camera-outline" title="Photo avant intervention" subtitle="Prenez une photo de l'état actuel avant de commencer" theme={theme}>
+            <ActionCard icon="camera" title="Photo avant intervention" subtitle="Prenez une photo de l'état actuel avant de commencer" theme={theme}>
               <TouchableOpacity
                 style={[s.primaryBtn, { backgroundColor: theme.accent }, actionLoading && s.btnDisabled]}
                 onPress={handleBeforePhoto}
@@ -727,7 +730,7 @@ export default function MissionOngoing() {
               >
                 {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
                   <>
-                    <Ionicons name="camera" size={20} color={theme.accentText} />
+                    <Feather name="camera" size={20} color={theme.accentText} />
                     <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Ouvrir la caméra</Text>
                   </>
                 )}
@@ -738,7 +741,7 @@ export default function MissionOngoing() {
           {/* STEP 2: PIN */}
           {currentStep === 2 && (
             <Pressable onPress={() => pinInputRef.current?.focus()}>
-              <ActionCard icon="key-outline" title="Code PIN du client" subtitle="Demandez le code à 4 chiffres au client" theme={theme}>
+              <ActionCard icon="key" title="Code PIN du client" subtitle="Demandez le code à 4 chiffres au client" theme={theme}>
                 <TextInput
                   ref={pinInputRef}
                   value={pin}
@@ -776,21 +779,21 @@ export default function MissionOngoing() {
 
           {/* STEP 3 (quote only): Send or wait for quote */}
           {currentStep === 3 && isQuoteMission && !hasQuote && (
-            <ActionCard icon="document-text-outline" title="Envoyer le devis" subtitle="Après votre diagnostic, envoyez le devis au client" theme={theme}>
+            <ActionCard icon="file-text" title="Envoyer le devis" subtitle="Après votre diagnostic, envoyez le devis au client" theme={theme}>
               <TouchableOpacity
                 style={[s.primaryBtn, { backgroundColor: theme.accent }]}
                 onPress={() => router.push({ pathname: '/request/[id]/send-quote', params: { id: String(id) } })}
                 activeOpacity={0.75}
               >
-                <Ionicons name="document-text-outline" size={20} color={theme.accentText} />
+                <Feather name="file-text" size={20} color={theme.accentText} />
                 <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Rédiger le devis</Text>
               </TouchableOpacity>
             </ActionCard>
           )}
           {currentStep === 3 && isQuoteMission && hasQuote && status === 'QUOTE_SENT' && (
-            <ActionCard icon="time-outline" title="Devis envoyé" subtitle="En attente de la réponse du client" theme={theme}>
+            <ActionCard icon="clock" title="Devis envoyé" subtitle="En attente de la réponse du client" theme={theme}>
               <View style={[s.primaryBtn, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.green} />
+                <Feather name="check-circle" size={20} color={COLORS.green} />
                 <Text style={[s.primaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>En attente de réponse</Text>
               </View>
             </ActionCard>
@@ -799,7 +802,7 @@ export default function MissionOngoing() {
           {/* STEP 3 (fixed) / STEP 4 (quote): After photo + Complete */}
           {((currentStep === 3 && !isQuoteMission) || currentStep === 4) && (
             <ActionCard
-              icon={afterPhotoUploaded ? 'checkmark-circle-outline' : 'camera-outline'}
+              icon={afterPhotoUploaded ? 'check-circle' : 'camera'}
               title={afterPhotoUploaded ? 'Terminer la mission' : 'Photo après intervention'}
               subtitle={afterPhotoUploaded ? 'Confirmez la fin de la prestation' : 'Prenez une photo du résultat final'}
               theme={theme}
@@ -818,7 +821,7 @@ export default function MissionOngoing() {
                 >
                   {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
                     <>
-                      <Ionicons name="camera" size={20} color={theme.accentText} />
+                      <Feather name="camera" size={20} color={theme.accentText} />
                       <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Ouvrir la caméra</Text>
                     </>
                   )}
@@ -832,7 +835,7 @@ export default function MissionOngoing() {
                 >
                   {actionLoading ? <ActivityIndicator color={theme.bg} /> : (
                     <>
-                      <Ionicons name="checkmark-circle" size={20} color={theme.bg} />
+                      <Feather name="check-circle" size={20} color={theme.bg} />
                       <Text style={[s.successBtnText, { fontFamily: FONTS.sansMedium, color: theme.bg }]}>Terminer la mission</Text>
                     </>
                   )}

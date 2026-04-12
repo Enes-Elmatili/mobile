@@ -8,7 +8,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line, Path, G, Defs, ClipPath, Rect } from "react-native-svg";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuthRequest, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
@@ -17,7 +17,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { toFeatherName } from "@/lib/iconMapper";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import Slider from "@react-native-community/slider";
 
@@ -26,18 +27,18 @@ WebBrowser.maybeCompleteAuthSession();
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
-// ── Colors (dark-only) ──────────────────────────────────────────────────────
+// ── Colors (dark-only) — sourced from theme tokens so charter updates propagate ────────────
 const C = {
-  bg: "#0A0A0A",
-  white: "#FAFAFA",
-  grey: "#888888",
-  greyFaint: "rgba(255,255,255,0.2)",
-  border: "rgba(255,255,255,0.08)",
-  cardBg: "#141414",
-  inputBg: "#111111",
-  green: "#3D8B3D",
-  red: "#E53935",
-  amber: "#F59E0B",
+  bg:          darkTokens.bg,
+  white:       darkTokens.text,
+  grey:        darkTokens.textMuted,
+  greyFaint:   "rgba(255,255,255,0.2)",
+  border:      "rgba(255,255,255,0.08)",
+  cardBg:      darkTokens.cardBg,
+  inputBg:     darkTokens.cardBg,
+  green:       COLORS.greenBrand,
+  red:         COLORS.red,
+  amber:       COLORS.amber,
   outlineText: "rgba(255,255,255,0.3)",
 };
 
@@ -110,11 +111,11 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
     }, 3200);
     return () => clearTimeout(t);
   }, []);
-  const icon = msg.type === "error" ? "close-circle" : msg.type === "success" ? "checkmark-circle" : "information-circle";
+  const icon = msg.type === "error" ? "x-circle" : msg.type === "success" ? "check-circle" : "info";
   const color = msg.type === "error" ? C.red : msg.type === "success" ? C.green : C.white;
   return (
     <Animated.View style={[ts.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
-      <Ionicons name={icon as any} size={16} color={color} />
+      <Feather name={icon as any} size={16} color={color} />
       <Text style={ts.text}>{msg.message}</Text>
     </Animated.View>
   );
@@ -507,7 +508,7 @@ export default function Signup() {
         <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
           <View style={s.navRow}>
             <TouchableOpacity style={s.backBtn} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.7}>
-              <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
+              <Feather name="chevron-left" size={16} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
 
             <View style={s.stepIndicator}>
@@ -583,7 +584,7 @@ export default function Signup() {
                     <Text style={s.fieldLabel}>Nom complet</Text>
                     <View style={[s.inputWrap, focused === "name" && s.inputFocused]}>
                       <View style={s.inputIcon}>
-                        <Ionicons name="person-outline" size={15} color={focused === "name" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                        <Feather name="user" size={15} color={focused === "name" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
                       </View>
                       <TextInput
                         ref={nameRef}
@@ -607,7 +608,7 @@ export default function Signup() {
                     <Text style={s.fieldLabel}>Adresse mail</Text>
                     <View style={[s.inputWrap, focused === "email" && s.inputFocused]}>
                       <View style={s.inputIcon}>
-                        <Ionicons name="mail-outline" size={15} color={focused === "email" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                        <Feather name="mail" size={15} color={focused === "email" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
                       </View>
                       <TextInput
                         ref={emailRef}
@@ -631,7 +632,7 @@ export default function Signup() {
                     <Text style={s.fieldLabel}>Mot de passe</Text>
                     <View style={[s.inputWrap, focused === "password" && s.inputFocused]}>
                       <View style={s.inputIcon}>
-                        <Ionicons name="lock-closed-outline" size={14} color={focused === "password" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
+                        <Feather name="lock" size={14} color={focused === "password" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
                       </View>
                       <TextInput
                         ref={pwdRef}
@@ -647,7 +648,7 @@ export default function Signup() {
                         onSubmitEditing={isProvider ? goToZone : createAccount}
                       />
                       <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                        <Ionicons name={showPwd ? "eye-off-outline" : "eye-outline"} size={17} color="rgba(255,255,255,0.4)" />
+                        <Feather name={showPwd ? "eye-off" : "eye"} size={17} color="rgba(255,255,255,0.4)" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -657,7 +658,7 @@ export default function Signup() {
 
                 {/* CGU */}
                 <View style={s.cguRow}>
-                  <Ionicons name="shield-checkmark-outline" size={13} color="rgba(255,255,255,0.2)" style={{ marginTop: 1 }} />
+                  <Feather name="shield" size={13} color="rgba(255,255,255,0.2)" style={{ marginTop: 1 }} />
                   <Text style={s.cguText}>
                     En continuant, vous acceptez nos{" "}
                     <Text style={s.cguLink}>CGU</Text> et notre{" "}
@@ -681,9 +682,9 @@ export default function Signup() {
                         onPress={() => { Haptics.selectionAsync(); setCity(opt.value); }}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="location-outline" size={15} color={city === opt.value ? C.bg : C.grey} />
+                        <Feather name="map-pin" size={15} color={city === opt.value ? C.bg : C.grey} />
                         <Text style={[s.cityOptionText, city === opt.value && s.cityOptionTextActive]}>{opt.label}</Text>
-                        {city === opt.value && <Ionicons name="checkmark-circle" size={18} color={C.bg} />}
+                        {city === opt.value && <Feather name="check-circle" size={18} color={C.bg} />}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -718,7 +719,7 @@ export default function Signup() {
                   <View style={s.centered}><ActivityIndicator size="large" color={C.grey} /></View>
                 ) : catsError && categories.length === 0 ? (
                   <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
-                    <Ionicons name="refresh-outline" size={24} color={C.grey} />
+                    <Feather name="refresh-cw" size={24} color={C.grey} />
                     <Text style={s.retryText}>Réessayer</Text>
                   </TouchableOpacity>
                 ) : (
@@ -732,7 +733,7 @@ export default function Signup() {
                           onPress={() => toggleCat(cat.id)}
                           activeOpacity={0.7}
                         >
-                          <Ionicons name={(cat.icon || "briefcase-outline") as any} size={15} color={sel ? C.bg : "rgba(255,255,255,0.5)"} />
+                          <Feather name={toFeatherName(cat.icon, 'briefcase') as any} size={15} color={sel ? C.bg : "rgba(255,255,255,0.5)"} />
                           <Text numberOfLines={1} style={[s.chipText, sel && s.chipTextActive]}>{cat.name}</Text>
                         </TouchableOpacity>
                       );
@@ -765,7 +766,7 @@ export default function Signup() {
               {phase === "identity" && isProvider ? "CONTINUER" : "CRÉER MON COMPTE"}
             </Text>
             <View style={s.arrowPill}>
-              <Ionicons name="arrow-forward" size={14} color={C.white} />
+              <Feather name="arrow-right" size={14} color={C.white} />
             </View>
           </TouchableOpacity>
 
@@ -969,7 +970,7 @@ const s = StyleSheet.create({
   },
   inputFocused: {
     borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "#161616",
+    backgroundColor: darkTokens.surface,
   },
   inputIcon: {
     position: "absolute",
