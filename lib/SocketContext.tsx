@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { api } from './api';
 import { useSoundManager } from '../hooks/useSoundManager';
+import { darkTokens } from './../hooks/use-app-theme';
 import {
   MissionRequestSheet,
   type MissionRequest,
@@ -106,7 +107,7 @@ function SocketToastLayer() {
     <View style={ts.stack} pointerEvents="none">
       {toasts.map(t => {
         const av = anims.current[t.id] || new Animated.Value(1);
-        const bg = '#1A1A1A'; // Always dark toast background
+        const bg = darkTokens.surface; // Always dark toast background
         const icon = t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '●';
         return (
           <Animated.View
@@ -146,8 +147,8 @@ const ts = StyleSheet.create({
       android: { elevation: 12 },
     }),
   },
-  icon: { fontSize: 13, color: '#FFF', fontWeight: '800' },
-  text: { fontSize: 14, color: '#FFF', fontWeight: '600', flex: 1 },
+  icon: { fontSize: 13, color: darkTokens.text, fontWeight: '800' },
+  text: { fontSize: 14, color: darkTokens.text, fontWeight: '600', flex: 1 },
 });
 
 
@@ -305,10 +306,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // ── Charger le nombre de notifications non lues au démarrage ──────────────
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
+    let cancelled = false;
     api.notifications.list().then((res: any) => {
+      if (cancelled) return;
       const items: any[] = res?.data ?? [];
       setUnreadCount(items.filter((n: any) => !n.readAt).length);
     }).catch(err => devError('Failed to load notification count:', err));
+    return () => { cancelled = true; };
   }, [user?.id]);
 
   // Push token registration is handled by usePushNotifications() in _layout.tsx
@@ -329,6 +333,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     devLog('🔌 Initializing socket for user:', user.id);
 
     let cancelled = false;
+    // Track deferred navigations dispatched from socket handlers so we can
+    // cancel them in the effect cleanup when the user logs out / the socket
+    // re-initializes. Otherwise router.push() fires ~900ms later into a
+    // potentially unmounted tree.
+    const deferredNavTimers: ReturnType<typeof setTimeout>[] = [];
 
     (async () => {
     // Retrieve stored JWT for socket auth
@@ -430,6 +439,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // ── PROVIDER EVENTS ───────────────────────────────────────────────────────
 
+    // Guard: tracks requests WE accepted — prevents false "already claimed" toast
+    // and double navigation from both accept events
+    const acceptedRequestIds = new Set<string>();
+
     newSocket.on('new_request', (data) => {
       devLog('🔔 [PROVIDER] New request received:', data);
       playRef.current('newMission');
@@ -438,7 +451,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('request:claimed', (requestId) => {
-      devLog(`🚫 [PROVIDER] Request ${requestId} claimed by another`);
+      const reqId = String(requestId);
+      // Ignore if WE are the provider who just accepted this request
+      if (acceptedRequestIds.has(reqId)) {
+        devLog(`⚡ [PROVIDER] Ignoring request:claimed for own acceptance ${reqId}`);
+        return;
+      }
+      devLog(`🚫 [PROVIDER] Request ${reqId} claimed by another`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       clearMissionRequest(); // ferme la sheet si encore visible
       showSocketToast('Mission déjà prise par un autre prestataire.', 'error');
@@ -450,8 +469,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       showSocketToast('Cette mission a expiré.', 'info');
     });
 
-    // Guard: prevent double navigation from both accept events
-    const acceptedRequestIds = new Set<string>();
     const handleProviderAccept = (data: any, eventName: string) => {
       devLog(`✅ [PROVIDER] ${eventName}:`, data);
       clearMissionRequest();
@@ -505,10 +522,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (userRef.current?.roles?.includes('PROVIDER')) {
         showSocketToast('Mission terminée. Consultez vos gains.', 'success');
-        setTimeout(() => router.push({ pathname: '/request/[id]/earnings', params: { id: reqId } }), 900);
+        deferredNavTimers.push(setTimeout(() => router.push({ pathname: '/request/[id]/earnings', params: { id: reqId } }), 900));
       } else {
         showSocketToast('Mission terminée. Merci !', 'success');
-        setTimeout(() => router.push({ pathname: '/request/[id]/rating', params: { id: reqId } }), 900);
+        deferredNavTimers.push(setTimeout(() => router.push({ pathname: '/request/[id]/rating', params: { id: reqId } }), 900));
       }
     });
 
@@ -601,7 +618,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         clearMissionRequest();
         showSocketToast('Cette mission a déjà été prise.', 'error');
 
-      } else if (error?.code === 'REQUEST_ALREADY_CLAIMED') {
+      } else if (error?.code === 'ALREADY_CLAIMED' || error?.code === 'REQUEST_ALREADY_CLAIMED') {
         clearMissionRequest();
         showSocketToast('Un autre prestataire a accepté en premier.', 'error');
 
@@ -619,6 +636,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       cancelled = true;
       devLog('🧹 Cleaning up socket listeners');
       joinedRoomsRef.current.clear();
+      deferredNavTimers.forEach(clearTimeout);
+      deferredNavTimers.length = 0;
 
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
