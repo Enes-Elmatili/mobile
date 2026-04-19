@@ -112,7 +112,7 @@ interface IncomingRequest {
   urgent: boolean;
   distance?: number;
   clientId?: string;
-  client: { name: string };
+  client: { name: string; avatarUrl?: string | null; city?: string | null };
   latitude?: number;
   longitude?: number;
   isQuote?: boolean;
@@ -294,7 +294,9 @@ function IncomingJobCard({
             </View>
             <View style={jc.infoContent}>
               <Text style={[jc.infoLabel, { color: labelCol }]}>CLIENT</Text>
-              <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]}>{request.client.name}</Text>
+              <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]}>
+                {request.client.name}{request.client.city ? ` · ${request.client.city}` : ''}
+              </Text>
             </View>
           </View>
 
@@ -788,7 +790,7 @@ export default function ProviderDashboard() {
         urgent:      data.urgent || false,
         distance:    data.distance,
         clientId:    data.clientId || data.client?.id,
-        client:      { name: data.client?.name || data.clientName || t('provider.client') },
+        client:      { name: data.client?.name || data.clientName || t('provider.client'), avatarUrl: data.client?.avatarUrl || null, city: data.client?.city || null },
         latitude:    lat,
         longitude:   lng,
         isQuote:     data.isQuote || false,

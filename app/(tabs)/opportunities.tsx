@@ -27,7 +27,7 @@ interface Opportunity {
   preferredTimeStart: string;
   category: { id: number; name: string; icon: string | null };
   subcategory: { id: number; name: string } | null;
-  client: { name: string };
+  client: { name: string; avatarUrl?: string | null; city?: string | null };
 }
 
 function formatScheduledDate(iso: string): { day: string; time: string; relative: string } {
@@ -90,6 +90,22 @@ function OpportunityCard({
             {item.description}
           </Text>
         ) : null}
+
+        {/* Client info */}
+        <View style={st.clientRow}>
+          <View style={[st.clientAvatar, { backgroundColor: theme.surface }]}>
+            <Text style={[st.clientInitials, { color: theme.textSub }]}>
+              {(item.client.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+            </Text>
+          </View>
+          <Text style={[st.clientName, { color: theme.textSub }]} numberOfLines={1}>{item.client.name || 'Client'}</Text>
+          {item.client.city ? (
+            <View style={[st.cityBadge, { backgroundColor: theme.surface }]}>
+              <Feather name="map-pin" size={10} color={theme.textMuted} />
+              <Text style={[st.cityText, { color: theme.textMuted }]}>{item.client.city}</Text>
+            </View>
+          ) : null}
+        </View>
 
         {/* Infos row: date/heure + adresse */}
         <View style={st.infoRow}>
@@ -294,6 +310,13 @@ const st = StyleSheet.create({
 
   serviceName: { fontSize: 17, fontFamily: FONTS.sansMedium, marginBottom: 4 },
   desc: { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18, marginBottom: 10 },
+
+  clientRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  clientAvatar:   { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  clientInitials: { fontSize: 10, fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
+  clientName:     { fontSize: 13, fontFamily: FONTS.sansMedium, flex: 1 },
+  cityBadge:      { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  cityText:       { fontSize: 10, fontFamily: FONTS.sansMedium },
 
   infoRow: { gap: 6, marginBottom: 14 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

@@ -697,6 +697,48 @@ export default function MissionOngoing() {
             </TouchableOpacity>
           </View>
 
+          {/* Access info (if any field is set) */}
+          {(request.client?.floor != null || request.client?.hasElevator != null || request.client?.accessNotes || request.client?.buildingType || request.client?.language) && (
+            <View style={[s.accessCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+              <View style={s.accessHeader}>
+                <Feather name="home" size={14} color={theme.textMuted} />
+                <Text style={[s.accessTitle, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Infos d'accès</Text>
+                {request.client?.language && (
+                  <View style={[s.langBadge, { backgroundColor: theme.cardBg }]}>
+                    <Text style={[s.langText, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{request.client.language.toUpperCase()}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={s.accessBody}>
+                {request.client?.buildingType && (
+                  <View style={s.accessTag}>
+                    <Feather name={request.client.buildingType === 'apartment' ? 'layers' : request.client.buildingType === 'house' ? 'home' : 'briefcase'} size={12} color={theme.textMuted} />
+                    <Text style={[s.accessTagText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
+                      {request.client.buildingType === 'apartment' ? 'Appartement' : request.client.buildingType === 'house' ? 'Maison' : 'Bureau'}
+                    </Text>
+                  </View>
+                )}
+                {request.client?.floor != null && (
+                  <View style={s.accessTag}>
+                    <Feather name="arrow-up" size={12} color={theme.textMuted} />
+                    <Text style={[s.accessTagText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
+                      Étage {request.client.floor}{request.client?.hasElevator != null ? (request.client.hasElevator ? ' · Ascenseur' : ' · Sans ascenseur') : ''}
+                    </Text>
+                  </View>
+                )}
+                {request.client?.hasElevator != null && request.client?.floor == null && (
+                  <View style={s.accessTag}>
+                    <Feather name={request.client.hasElevator ? 'check-circle' : 'x-circle'} size={12} color={theme.textMuted} />
+                    <Text style={[s.accessTagText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{request.client.hasElevator ? 'Ascenseur' : 'Sans ascenseur'}</Text>
+                  </View>
+                )}
+                {request.client?.accessNotes ? (
+                  <Text style={[s.accessNotes, { color: theme.textSub, fontFamily: FONTS.sans }]}>{request.client.accessNotes}</Text>
+                ) : null}
+              </View>
+            </View>
+          )}
+
           {/* Mission + price */}
           <View style={[s.missionRow, { borderBottomColor: theme.borderLight }]}>
             <View style={{ flex: 1 }}>
@@ -920,6 +962,23 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginLeft: 8, borderWidth: 1.5,
   },
+
+  // ── Access info card ──
+  accessCard: {
+    borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 10,
+  },
+  accessHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8,
+  },
+  accessTitle: { fontSize: 12, flex: 1 },
+  langBadge: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+  },
+  langText: { fontSize: 10, letterSpacing: 0.5 },
+  accessBody: { gap: 4 },
+  accessTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  accessTagText: { fontSize: 13 },
+  accessNotes: { fontSize: 13, marginTop: 4, lineHeight: 18 },
 
   // ── Mission row ──
   missionRow: {

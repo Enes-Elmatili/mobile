@@ -28,6 +28,7 @@ import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -693,6 +694,7 @@ export default function NewRequestStepper() {
   const router = useRouter();
   const theme  = useTheme();
   const { t }  = useTranslation();
+  const { user } = useAuth();
   const { selectedCategory: preselectedCategory } = useLocalSearchParams<{ selectedCategory?: string }>();
   const mapRef    = useRef<MapView | null>(null);
   const step2ScrollRef = useRef<ScrollView>(null);
@@ -734,6 +736,14 @@ export default function NewRequestStepper() {
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
   const [selectedTime,   setSelectedTime]   = useState<string | null>(null);
   const [isUrgent,       setIsUrgent]       = useState(false);
+
+  // Infos d'accès (profil client enrichi)
+  const [accessExpanded,  setAccessExpanded]  = useState(false);
+  const [buildingType,    setBuildingType]    = useState<string | null>((user as any)?.buildingType || null);
+  const [floorNum,        setFloorNum]        = useState<string>((user as any)?.floor != null ? String((user as any).floor) : '');
+  const [hasElevator,     setHasElevator]     = useState<boolean | null>((user as any)?.hasElevator ?? null);
+  const [accessNotes,     setAccessNotes]     = useState<string>((user as any)?.accessNotes || '');
+  const [clientLanguage,  setClientLanguage]  = useState<string | null>((user as any)?.language || null);
 
   // Dérivés
   const selectedCategory    = useMemo(() => categories.find((c) => c.id === categoryId) || null, [categories, categoryId]);
@@ -817,7 +827,22 @@ export default function NewRequestStepper() {
     setTimeout(cb, 100);
   };
 
-  const goNext = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); animateStep(() => setStep((p) => Math.min(p + 1, TOTAL_STEPS))); };
+  const goNext = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Save access info to user profile when leaving Step 3
+    if (step === 3) {
+      const profileUpdate: Record<string, unknown> = {};
+      if (buildingType)                         profileUpdate.buildingType = buildingType;
+      if (floorNum.trim())                      profileUpdate.floor        = parseInt(floorNum, 10) || null;
+      if (hasElevator !== null)                  profileUpdate.hasElevator  = hasElevator;
+      if (accessNotes.trim())                    profileUpdate.accessNotes  = accessNotes.trim();
+      if (clientLanguage)                        profileUpdate.language     = clientLanguage;
+      if (Object.keys(profileUpdate).length > 0) {
+        api.patch('/me', profileUpdate).catch(() => {});
+      }
+    }
+    animateStep(() => setStep((p) => Math.min(p + 1, TOTAL_STEPS)));
+  };
   const goBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === 1) {
@@ -1416,6 +1441,131 @@ export default function NewRequestStepper() {
               )}
 
 
+              {/* ── Infos d'accès (collapsible) ── */}
+              <View style={{ marginTop: 24 }}>
+                <View style={[ai.sep, { backgroundColor: theme.sep }]} />
+                <TouchableOpacity
+                  style={ai.header}
+                  onPress={() => setAccessExpanded(prev => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[ai.headerIcon, { backgroundColor: theme.surface }]}>
+                    <Feather name="home" size={16} color={theme.textSub as string} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[ai.headerTitle, { color: theme.text }]}>Infos d'accès</Text>
+                    <Text style={[ai.headerSub, { color: theme.textMuted }]}>Optionnel — facilite l'intervention</Text>
+                  </View>
+                  <Feather name={accessExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textMuted as string} />
+                </TouchableOpacity>
+
+                {accessExpanded && (
+                  <View style={ai.body}>
+                    {/* Type de bâtiment */}
+                    <Text style={[ai.label, { color: theme.textMuted }]}>TYPE DE BÂTIMENT</Text>
+                    <View style={ai.chipRow}>
+                      {([
+                        { key: 'apartment', label: 'Appartement', icon: 'layers' },
+                        { key: 'house',     label: 'Maison',      icon: 'home' },
+                        { key: 'office',    label: 'Bureau',      icon: 'briefcase' },
+                      ] as const).map(bt => (
+                        <TouchableOpacity
+                          key={bt.key}
+                          style={[
+                            ai.chip,
+                            { borderColor: buildingType === bt.key ? theme.accent : theme.surfaceBorder },
+                            buildingType === bt.key && { backgroundColor: theme.accent },
+                          ]}
+                          onPress={() => setBuildingType(prev => prev === bt.key ? null : bt.key)}
+                          activeOpacity={0.7}
+                        >
+                          <Feather name={bt.icon as any} size={14} color={buildingType === bt.key ? theme.accentText as string : theme.textSub as string} />
+                          <Text style={[ai.chipText, { color: buildingType === bt.key ? theme.accentText : theme.textSub }]}>{bt.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Étage + Ascenseur */}
+                    <View style={ai.inlineRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[ai.label, { color: theme.textMuted }]}>ÉTAGE</Text>
+                        <View style={[ai.inputWrap, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+                          <Feather name="arrow-up" size={14} color={theme.textMuted as string} />
+                          <TextInput
+                            style={[ai.input, { color: theme.text }]}
+                            value={floorNum}
+                            onChangeText={setFloorNum}
+                            placeholder="Ex: 3"
+                            placeholderTextColor={theme.textMuted as string}
+                            keyboardType="number-pad"
+                            maxLength={3}
+                          />
+                        </View>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[ai.label, { color: theme.textMuted }]}>ASCENSEUR</Text>
+                        <View style={ai.chipRow}>
+                          <TouchableOpacity
+                            style={[ai.chip, { borderColor: hasElevator === true ? theme.accent : theme.surfaceBorder }, hasElevator === true && { backgroundColor: theme.accent }]}
+                            onPress={() => setHasElevator(prev => prev === true ? null : true)}
+                            activeOpacity={0.7}
+                          >
+                            <Feather name="check" size={14} color={hasElevator === true ? theme.accentText as string : theme.textSub as string} />
+                            <Text style={[ai.chipText, { color: hasElevator === true ? theme.accentText : theme.textSub }]}>Oui</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[ai.chip, { borderColor: hasElevator === false ? theme.accent : theme.surfaceBorder }, hasElevator === false && { backgroundColor: theme.accent }]}
+                            onPress={() => setHasElevator(prev => prev === false ? null : false)}
+                            activeOpacity={0.7}
+                          >
+                            <Feather name="x" size={14} color={hasElevator === false ? theme.accentText as string : theme.textSub as string} />
+                            <Text style={[ai.chipText, { color: hasElevator === false ? theme.accentText : theme.textSub }]}>Non</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Notes d'accès */}
+                    <Text style={[ai.label, { color: theme.textMuted }]}>INSTRUCTIONS D'ACCÈS</Text>
+                    <View style={[ai.textareaWrap, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+                      <TextInput
+                        style={[ai.textarea, { color: theme.text }]}
+                        value={accessNotes}
+                        onChangeText={setAccessNotes}
+                        placeholder="Code portail, interphone, parking..."
+                        placeholderTextColor={theme.textMuted as string}
+                        multiline
+                        maxLength={500}
+                        textAlignVertical="top"
+                      />
+                    </View>
+
+                    {/* Langue */}
+                    <Text style={[ai.label, { color: theme.textMuted }]}>LANGUE PRÉFÉRÉE</Text>
+                    <View style={ai.chipRow}>
+                      {([
+                        { key: 'fr', label: 'Français' },
+                        { key: 'nl', label: 'Nederlands' },
+                        { key: 'en', label: 'English' },
+                      ] as const).map(lang => (
+                        <TouchableOpacity
+                          key={lang.key}
+                          style={[
+                            ai.chip,
+                            { borderColor: clientLanguage === lang.key ? theme.accent : theme.surfaceBorder },
+                            clientLanguage === lang.key && { backgroundColor: theme.accent },
+                          ]}
+                          onPress={() => setClientLanguage(prev => prev === lang.key ? null : lang.key)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[ai.chipText, { color: clientLanguage === lang.key ? theme.accentText : theme.textSub }]}>{lang.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+
               <View style={{ height: 120 }} />
             </ScrollView>
 
@@ -1725,4 +1875,23 @@ const s = StyleSheet.create({
   recapPrice: { fontSize: 24, fontFamily: FONTS.mono },
   recapSep:   { height: 1, marginHorizontal: 16 },
   noteOpt:    { fontFamily: FONTS.sans },
+});
+
+// ─── AccessInfo styles ──────────────────────────────────────────────────────
+const ai = StyleSheet.create({
+  sep:         { height: 1, marginBottom: 16 },
+  header:      { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  headerIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 15, fontFamily: FONTS.sansMedium },
+  headerSub:   { fontSize: 11, fontFamily: FONTS.sans, marginTop: 1 },
+  body:        { marginTop: 12, gap: 14 },
+  label:       { fontSize: 10, fontFamily: FONTS.sansMedium, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 },
+  chipRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip:        { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  chipText:    { fontSize: 13, fontFamily: FONTS.sansMedium },
+  inlineRow:   { flexDirection: 'row', gap: 14 },
+  inputWrap:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  input:       { flex: 1, fontSize: 15, fontFamily: FONTS.sans, paddingVertical: 0 },
+  textareaWrap: { borderWidth: 1.5, borderRadius: 12, padding: 12 },
+  textarea:    { fontSize: 14, fontFamily: FONTS.sans, minHeight: 60 },
 });

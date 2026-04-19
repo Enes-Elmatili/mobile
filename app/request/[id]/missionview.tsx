@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Easing, Platform, Dimensions, StatusBar,
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
 } from 'react-native';
@@ -1093,7 +1093,20 @@ export default function MissionView() {
                       <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{scheduledLabel || 'Dès maintenant'}</Text>
                     </View>
                   </View>
-                  <View style={s.missionRight} />
+                  {price && parseFloat(price) > 0 ? (
+                    <View style={s.missionRight}>
+                      <Text style={[s.missionPrice, { color: theme.text, fontFamily: FONTS.bebas }]}>
+                        {parseFloat(price).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      </Text>
+                    </View>
+                  ) : isQuoteMission ? (
+                    <View style={s.missionRight}>
+                      <View style={[s.quoteBadge, { backgroundColor: 'rgba(232,160,48,0.12)' }]}>
+                        <Feather name="file-text" size={12} color={COLORS.amber} />
+                        <Text style={[s.quoteBadgeText, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>Devis</Text>
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
 
                 {/* Bouton annuler / contacter support */}
@@ -1165,6 +1178,7 @@ export default function MissionView() {
           {/* Bottom sheet tracking */}
           <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04, transform: [{ translateY: trackingSheetY }] }]}>
             <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={s.trackingScroll} contentContainerStyle={s.trackingScrollContent}>
 
             {/* ETA */}
             <View style={s.etaRow}>
@@ -1181,62 +1195,115 @@ export default function MissionView() {
             {/* Divider */}
             <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
-            {/* Provider card */}
+            {/* Provider card — premium */}
             {request?.provider && (
-              <View style={s.providerRow}>
-                {/* Avatar */}
-                <Avatar url={request.provider.avatarUrl} name={request.provider.name} size={46} style={{ marginRight: 12 }} />
+              <TouchableOpacity
+                style={[s.providerCard, { backgroundColor: theme.isDark ? theme.surface : theme.cardBg, borderColor: theme.borderLight }]}
+                onPress={() => router.push(`/providers/${request.provider.id}`)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`Voir le profil de ${request.provider.name}`}
+              >
+                {/* Top row: avatar + identity + call */}
+                <View style={s.providerCardTop}>
+                  <Avatar url={request.provider.avatarUrl} name={request.provider.name} size={54} />
+                  <View style={s.providerIdentity}>
+                    <View style={s.providerNameRow}>
+                      <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
+                        {request.provider.name || t('mission_view.provider')}
+                      </Text>
+                      {request.provider.validationStatus === 'ACTIVE' && (
+                        <View style={[s.verifiedBadge, { backgroundColor: 'rgba(61,139,61,0.12)' }]}>
+                          <Feather name="check" size={10} color={COLORS.greenBrand} />
+                        </View>
+                      )}
+                    </View>
+                    {request.provider.city ? (
+                      <View style={s.providerCityRow}>
+                        <Feather name="map-pin" size={11} color={theme.textMuted} />
+                        <Text style={[s.providerCityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{request.provider.city}</Text>
+                      </View>
+                    ) : null}
+                    {request.provider.description ? (
+                      <Text style={[s.providerDesc, { color: theme.textSub, fontFamily: FONTS.sans }]} numberOfLines={2}>
+                        {request.provider.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
 
-                {/* Infos */}
-                <View style={s.providerInfo}>
-                  <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{request.provider.name || t('mission_view.provider')}</Text>
-                  <View style={s.ratingRow}>
-                    <Feather name="star" size={12} color={COLORS.amber} />
-                    <Text style={[s.ratingText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                      {request.provider.avgRating?.toFixed(1) || '5.0'}
+                {/* Stats strip */}
+                <View style={[s.providerStats, { borderTopColor: theme.borderLight }]}>
+                  <View style={s.providerStat}>
+                    <Feather name="star" size={13} color={COLORS.amber} />
+                    <Text style={[s.providerStatValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                      {request.provider.avgRating > 0 ? request.provider.avgRating.toFixed(1) : '-'}
                     </Text>
-                    <Text style={[s.ratingMuted, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                      · {request.provider.jobsCompleted || 0} missions
+                    <Text style={[s.providerStatLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+                      {request.provider.totalRatings > 0 ? `(${request.provider.totalRatings})` : 'Note'}
                     </Text>
                   </View>
-                  {request.provider.vatNumber ? (
-                    <Text style={[s.serviceText, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
-                      TVA {request.provider.vatNumber}
+                  <View style={[s.providerStatSep, { backgroundColor: theme.borderLight }]} />
+                  <View style={s.providerStat}>
+                    <Feather name="briefcase" size={13} color={theme.textMuted} />
+                    <Text style={[s.providerStatValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                      {request.provider.jobsCompleted || 0}
                     </Text>
-                  ) : null}
+                    <Text style={[s.providerStatLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Missions</Text>
+                  </View>
+                  <View style={[s.providerStatSep, { backgroundColor: theme.borderLight }]} />
+                  <View style={s.providerStat}>
+                    <Feather name="calendar" size={13} color={theme.textMuted} />
+                    <Text style={[s.providerStatValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                      {request.provider.createdAt
+                        ? new Date(request.provider.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })
+                        : '-'}
+                    </Text>
+                    <Text style={[s.providerStatLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Membre</Text>
+                  </View>
                 </View>
 
-                {/* Actions communication */}
-                <View style={s.comActions}>
-                  {/* Appel */}
-                  <TouchableOpacity style={[s.comBtn, { backgroundColor: theme.accent }]} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
-                    <Feather name="phone" size={18} color={theme.accentText} />
-                  </TouchableOpacity>
+                {/* Categories chips */}
+                {request.provider.categories?.length > 0 && (
+                  <View style={s.providerChips}>
+                    {request.provider.categories.slice(0, 3).map((cat: any) => (
+                      <View key={cat.id} style={[s.providerChip, { backgroundColor: theme.isDark ? theme.cardBg : theme.surface }]}>
+                        <Text style={[s.providerChipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{cat.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Voir le profil hint */}
+                <View style={s.profileHint}>
+                  <Text style={[s.profileHintText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Voir le profil</Text>
+                  <Feather name="chevron-right" size={14} color={theme.textMuted} />
                 </View>
-              </View>
+              </TouchableOpacity>
             )}
 
-            {/* Divider */}
-            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-
-            {/* Bouton conversation */}
-            <TouchableOpacity
-              style={[s.messageBtn, { backgroundColor: theme.accent }]}
-              onPress={() => {
-                const recipientId = request?.provider?.userId || request?.provider?.id;
-                if (recipientId) {
-                  router.push({ pathname: '/messages/[userId]', params: { userId: recipientId, name: request?.provider?.name || '' } });
-                } else {
-                  showToast(t('mission_view.provider_not_found'), 'error');
-                }
-              }}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-            >
-              <View style={s.btnIconWrap}><Feather name="message-circle" size={16} color={theme.accentText as string} /></View>
-              <Text style={[s.messageBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_view.message_provider')}</Text>
-            </TouchableOpacity>
+            {/* Communication buttons */}
+            <View style={s.comRow}>
+              <TouchableOpacity
+                style={[s.comBtnPrimary, { backgroundColor: theme.accent }]}
+                onPress={() => {
+                  const recipientId = request?.provider?.userId || request?.provider?.id;
+                  if (recipientId) {
+                    router.push({ pathname: '/messages/[userId]', params: { userId: recipientId, name: request?.provider?.name || '' } });
+                  } else {
+                    showToast(t('mission_view.provider_not_found'), 'error');
+                  }
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+              >
+                <Feather name="message-circle" size={16} color={theme.accentText as string} />
+                <Text style={[s.comBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_view.message_provider')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.comBtnSecondary, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
+                <Feather name="phone" size={18} color={theme.text} />
+              </TouchableOpacity>
+            </View>
 
             {/* Contacter le support — ACCEPTED ou ONGOING */}
             {(status === 'ACCEPTED' || status === 'ONGOING') && (
@@ -1246,6 +1313,7 @@ export default function MissionView() {
               </TouchableOpacity>
             )}
 
+            </ScrollView>
           </Animated.View>
         </>
       )}
@@ -1322,7 +1390,9 @@ const s = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
   metaText: { fontSize: 12, flex: 1 },
   missionRight: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
-  missionPrice: { fontSize: 22, letterSpacing: -0.5 },
+  missionPrice: { fontSize: 24, letterSpacing: -0.5 },
+  quoteBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  quoteBadgeText: { fontSize: 12 },
 
 
   cancelSearchBtn: {
@@ -1352,7 +1422,7 @@ const s = StyleSheet.create({
     }),
   },
   recenterBtn: {
-    position: 'absolute', right: 28, bottom: 355,
+    position: 'absolute', right: 18, bottom: 420,
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
     zIndex: 10,
@@ -1372,6 +1442,8 @@ const s = StyleSheet.create({
   },
   statusText: { fontSize: 13 },
 
+  trackingScroll: { maxHeight: height * 0.55 },
+  trackingScrollContent: { paddingBottom: 4 },
   trackingSheet: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
@@ -1395,35 +1467,52 @@ const s = StyleSheet.create({
 
   divider: { height: 1, marginBottom: 12 },
 
-  providerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  avatar: {
-    width: 46, height: 46, borderRadius: 23,
+  // ── Premium provider card ──
+  providerCard: {
+    borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12,
+    overflow: 'hidden',
+  },
+  providerCardTop: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  providerIdentity: { flex: 1, gap: 3 },
+  providerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  providerName: { fontSize: 17 },
+  verifiedBadge: {
+    width: 20, height: 20, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1.5,
   },
-  providerInfo: { flex: 1 },
-  providerName: { fontSize: 17, marginBottom: 3 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
-  ratingText: { fontSize: 13 },
-  ratingMuted: { fontSize: 13 },
-  serviceText: { fontSize: 12 },
+  providerCityRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  providerCityText: { fontSize: 12 },
+  providerDesc: { fontSize: 12, lineHeight: 17, marginTop: 2 },
 
-  comActions: { flexDirection: 'row', gap: 10 },
-  comBtn: {
-    width: 46, height: 46, borderRadius: 23,
-    alignItems: 'center', justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
-      android: { elevation: 5 },
-    }),
+  providerStats: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, paddingTop: 10, marginBottom: 10,
   },
+  providerStat: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  providerStatValue: { fontSize: 13 },
+  providerStatLabel: { fontSize: 11 },
+  providerStatSep: { width: 1, height: 20 },
 
-  messageBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 12, borderRadius: 12, marginBottom: 10,
+  providerChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  providerChip: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  providerChipText: { fontSize: 11 },
+
+  profileHint: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 4,
   },
-  messageBtnText: { fontSize: 14 },
+  profileHintText: { fontSize: 12 },
+
+  // ── Communication row ──
+  comRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  comBtnPrimary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 12, borderRadius: 12,
+  },
+  comBtnSecondary: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
+  },
+  comBtnText: { fontSize: 14 },
   btnIconWrap: { marginRight: 8 },
 
   cancelTrackBtn: {

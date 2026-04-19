@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -160,8 +161,19 @@ export default function ProviderDetailScreen() {
   const totalRatings = provider.totalRatings ?? reviews.length;
   const jobsDone     = provider.jobsCompleted ?? 0;
   const isOnline     = provider.status === 'ONLINE' || provider.status === 'READY';
+  const isVerified   = provider.validationStatus === 'ACTIVE';
   const initials     = avatarInitials(provider.name);
   const displayedReviews = showAll ? reviews : reviews.slice(0, 3);
+  const acceptRate   = provider.totalRequests > 0
+    ? Math.round((provider.acceptedRequests / provider.totalRequests) * 100)
+    : null;
+  const memberSince  = provider.createdAt
+    ? new Date(provider.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    : null;
+  const API_BASE     = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
+  const avatarUri    = provider.avatarUrl
+    ? (provider.avatarUrl.startsWith('http') ? provider.avatarUrl : `${API_BASE}${provider.avatarUrl}`)
+    : null;
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -178,29 +190,58 @@ export default function ProviderDetailScreen() {
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Identity */}
+        {/* Identity — premium */}
         <View style={[s.identity, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-          <View style={[s.avatarWrap, { backgroundColor: theme.heroBg }]}>
-            <Text style={[s.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{initials}</Text>
+          <View style={s.avatarOuter}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={[s.avatarImg, { borderColor: theme.borderLight }]} />
+            ) : (
+              <View style={[s.avatarWrap, { backgroundColor: theme.heroBg }]}>
+                <Text style={[s.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{initials}</Text>
+              </View>
+            )}
             {isOnline && (
               <View style={[s.onlineDotWrap, { borderColor: theme.cardBg }]}>
                 <PulseDot size={10} />
               </View>
             )}
           </View>
-          <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
+
+          <View style={s.nameRow}>
+            <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
+            {isVerified && (
+              <View style={[s.verifiedBadge, { backgroundColor: 'rgba(61,139,61,0.12)', borderColor: 'rgba(61,139,61,0.22)' }]}>
+                <Feather name="check" size={10} color={COLORS.greenBrand} />
+                <Text style={[s.verifiedText, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>Vérifié</Text>
+              </View>
+            )}
+          </View>
+
           {provider.city ? (
             <View style={s.cityRow}>
               <Feather name="map-pin" size={13} color={theme.textMuted} />
               <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{provider.city}</Text>
+              {memberSince && (
+                <>
+                  <Text style={[s.cityText, { color: theme.textDisabled, fontFamily: FONTS.sans }]}> · </Text>
+                  <Feather name="calendar" size={11} color={theme.textDisabled} />
+                  <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Membre depuis {memberSince}</Text>
+                </>
+              )}
+            </View>
+          ) : memberSince ? (
+            <View style={s.cityRow}>
+              <Feather name="calendar" size={11} color={theme.textMuted} />
+              <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Membre depuis {memberSince}</Text>
             </View>
           ) : null}
+
           {provider.description ? (
             <Text style={[s.desc, { color: theme.textSub, fontFamily: FONTS.sans }]}>{provider.description}</Text>
           ) : null}
         </View>
 
-        {/* Stats */}
+        {/* Stats — 3 or 4 columns */}
         <View style={[s.statsRow, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
           <View style={s.stat}>
             <Text style={[s.statValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
@@ -218,6 +259,15 @@ export default function ProviderDetailScreen() {
             <Text style={[s.statValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{jobsDone}</Text>
             <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('providers.missions')}</Text>
           </View>
+          {acceptRate !== null && (
+            <>
+              <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />
+              <View style={s.stat}>
+                <Text style={[s.statValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{acceptRate}%</Text>
+                <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Acceptation</Text>
+              </View>
+            </>
+          )}
           <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />
           <View style={s.stat}>
             {isOnline ? <PulseDot size={8} /> : <View style={[s.statusDot, { backgroundColor: theme.textDisabled }]} />}
@@ -310,10 +360,14 @@ const s = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
+  avatarOuter: { position: 'relative' },
   avatarWrap: {
     width: 88, height: 88, borderRadius: 44,
     alignItems: 'center', justifyContent: 'center',
-    position: 'relative',
+  },
+  avatarImg: {
+    width: 88, height: 88, borderRadius: 44,
+    borderWidth: 2,
   },
   avatarText: { fontSize: 30, letterSpacing: 1 },
   onlineDotWrap: {
@@ -323,8 +377,15 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 2.5,
   },
-  name: { fontSize: 26, marginTop: 4 },
-  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  name: { fontSize: 26 },
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  verifiedText: { fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center' },
   cityText: { fontSize: 13 },
   desc: { fontSize: 14, textAlign: 'center', lineHeight: 21, paddingHorizontal: 8 },
 
