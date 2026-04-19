@@ -298,7 +298,7 @@ const st = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
 
   card: {
-    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12,
+    borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 12,
     shadowColor: '#000', shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
@@ -328,13 +328,13 @@ const st = StyleSheet.create({
   priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
   declineBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 12, borderWidth: 1,
+    borderRadius: 13, borderWidth: 1,
     paddingHorizontal: 14, paddingVertical: 10,
   },
   declineText: { fontSize: 13, fontFamily: FONTS.sansMedium },
   acceptBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderRadius: 12,
+    borderRadius: 13,
     paddingHorizontal: 18, paddingVertical: 10,
   },
   acceptText: { fontSize: 14, fontFamily: FONTS.sansMedium },

@@ -196,7 +196,7 @@ const s = StyleSheet.create({
   summaryCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     marginHorizontal: 16, marginTop: 16, marginBottom: 8,
-    padding: 16, borderRadius: 16,
+    padding: 16, borderRadius: 18,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 2 },

@@ -415,7 +415,7 @@ const sc = StyleSheet.create({
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, minWidth: 70, alignItems: 'center' as const },
   pillText: { fontSize: 11, fontFamily: FONTS.sansMedium },
-  priceSmall: { fontSize: 10, fontFamily: FONTS.mono },
+  priceSmall: { fontSize: 12, fontFamily: FONTS.bebas },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -567,7 +567,7 @@ const cta = StyleSheet.create({
   label:         { fontSize: 17, fontFamily: FONTS.sansMedium, textAlign: 'center', flex: 1 },
   labelDisabled: {},
   priceBadge:    { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
-  priceText:     { fontSize: 15, fontFamily: FONTS.mono },
+  priceText:     { fontSize: 15, fontFamily: FONTS.bebas },
 });
 
 // ─── Helpers date ──────────────────────────────────────────────────────────────
@@ -1673,7 +1673,7 @@ export default function NewRequestStepper() {
                     {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }}>Estimation travaux</Text>
-                        <Text style={{ fontSize: 13, fontFamily: FONTS.mono, color: theme.textSub as string }}>{selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €</Text>
+                        <Text style={{ fontSize: 13, fontFamily: FONTS.bebas, color: theme.textSub as string }}>{selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €</Text>
                       </View>
                     ) : null}
                     <View style={{ height: 1, backgroundColor: theme.surfaceBorder as string }} />
@@ -1786,7 +1786,7 @@ const s = StyleSheet.create({
   priceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingHorizontal: 4 },
   priceRowLabel:  { fontSize: 13, fontFamily: FONTS.sansMedium },
   priceRowRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceRowValue:  { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.mono },
+  priceRowValue:  { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.bebas },
   priceRowBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   priceRowSub:    { fontSize: 11, fontFamily: FONTS.sans },
 

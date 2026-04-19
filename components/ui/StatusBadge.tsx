@@ -1,52 +1,80 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
-type Status = 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT';
+// ── Unified StatusChip — one component, all statuses, zero drift ──────────
+// Design audit V1.0: uppercase DM Mono, 5/9px padding, 6px colored dot + text.
+
+type Status =
+  | 'PENDING_PAYMENT'
+  | 'PUBLISHED'
+  | 'ACCEPTED'
+  | 'ONGOING'
+  | 'DONE'
+  | 'CANCELLED'
+  | 'REFUNDED'
+  | 'QUOTE_PENDING'
+  | 'QUOTE_SENT'
+  | 'QUOTE_ACCEPTED'
+  | 'QUOTE_REFUSED'
+  | 'QUOTE_EXPIRED';
 
 interface StatusBadgeProps {
-  status: Status;
+  status: string;
+  /** Override default label */
+  label?: string;
 }
 
-const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: string }> = {
-  DONE: { label: 'Terminé', color: COLORS.green, icon: 'check-circle' },
-  CANCELLED: { label: 'Annulé', color: COLORS.red, icon: 'x-circle' },
-  ONGOING: { label: 'En cours', color: COLORS.statusOngoing, icon: 'clock' },
-  PUBLISHED: { label: 'Publié', color: COLORS.amber, icon: 'eye' },
-  ACCEPTED: { label: 'Accepté', color: COLORS.statusAccepted, icon: 'check' },
-  PENDING_PAYMENT: { label: 'Paiement', color: COLORS.statusPending, icon: 'credit-card' },
+const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
+  PENDING_PAYMENT: { label: 'PAIEMENT',       color: COLORS.statusPending },
+  PUBLISHED:       { label: 'PUBLIÉ',         color: COLORS.amber },
+  ACCEPTED:        { label: 'ACCEPTÉ',        color: COLORS.statusAccepted },
+  ONGOING:         { label: 'EN COURS',       color: COLORS.statusOngoing },
+  DONE:            { label: 'TERMINÉ',        color: COLORS.green },
+  CANCELLED:       { label: 'ANNULÉ',         color: COLORS.red },
+  REFUNDED:        { label: 'REMBOURSÉ',      color: COLORS.red },
+  QUOTE_PENDING:   { label: 'DEVIS EN ATTENTE', color: COLORS.amber },
+  QUOTE_SENT:      { label: 'DEVIS ENVOYÉ',  color: COLORS.orangeBrand },
+  QUOTE_ACCEPTED:  { label: 'DEVIS ACCEPTÉ', color: COLORS.greenBrand },
+  QUOTE_REFUSED:   { label: 'DEVIS REFUSÉ',  color: COLORS.red },
+  QUOTE_EXPIRED:   { label: 'DEVIS EXPIRÉ',  color: COLORS.red },
 };
 
-export default function StatusBadge({ status }: StatusBadgeProps) {
+export default function StatusBadge({ status, label }: StatusBadgeProps) {
   const theme = useAppTheme();
-  const config = STATUS_CONFIG[status] || { label: status, color: theme.textMuted, icon: 'help-circle' };
+  const config = STATUS_CONFIG[status as Status] || { label: status, color: theme.textMuted };
 
-  // Use a subtle background tint with the status color for dark mode support
   const bgColor = theme.isDark
     ? `${config.color}22`  // ~13% opacity
-    : `${config.color}18`; // ~9% opacity
+    : `${config.color}15`; // ~8% opacity
 
   return (
-    <View style={[styles.badge, { backgroundColor: bgColor }]}>
-      <Feather name={config.icon as any} size={16} color={config.color} />
-      <Text style={[styles.text, { color: config.color, fontFamily: FONTS.sansMedium }]}>{config.label}</Text>
+    <View style={[s.badge, { backgroundColor: bgColor }]}>
+      <View style={[s.dot, { backgroundColor: config.color }]} />
+      <Text style={[s.text, { color: config.color }]}>{label || config.label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
     alignSelf: 'flex-start',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   text: {
-    fontSize: 12,
-    marginLeft: 6,
+    fontSize: 10,
+    fontFamily: FONTS.mono,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
 });

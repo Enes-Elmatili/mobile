@@ -332,7 +332,7 @@ const s = StyleSheet.create({
 
   stepsCard: {
     borderWidth: 1,
-    borderRadius: 16, padding: 20, width: "100%", gap: 14, marginTop: 4,
+    borderRadius: 18, padding: 20, width: "100%", gap: 14, marginTop: 4,
   },
   stepRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   stepDot: {
@@ -345,7 +345,7 @@ const s = StyleSheet.create({
   infoCard: {
     flexDirection: "row", alignItems: "flex-start", gap: 10,
     borderWidth: 1,
-    borderRadius: 16, padding: 16, width: "100%",
+    borderRadius: 18, padding: 16, width: "100%",
   },
   infoText: {
     flex: 1, fontFamily: FONTS.sansLight, fontSize: 13, lineHeight: 20,
@@ -353,7 +353,7 @@ const s = StyleSheet.create({
 
   recapCard: {
     borderWidth: 1,
-    borderRadius: 16, padding: 16, width: "100%", gap: 10,
+    borderRadius: 18, padding: 16, width: "100%", gap: 10,
   },
   recapRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   recapText: { fontFamily: FONTS.sans, fontSize: 13, flex: 1 },

@@ -747,7 +747,7 @@ export default function MissionOngoing() {
                 Étape {currentStep}/{totalSteps} · {stepInfo.title}
               </Text>
             </View>
-            <Text style={[s.price, { color: theme.text, fontFamily: FONTS.mono }]}>
+            <Text style={[s.price, { color: theme.text, fontFamily: FONTS.bebas }]}>
               {request.price && request.price > 0
                 ? formatEuros(request.price)
                 : (request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic')

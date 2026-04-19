@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
   button: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 13,
   },
   buttonText: {
     fontSize: 16,

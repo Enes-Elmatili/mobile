@@ -144,7 +144,7 @@ function PlanCard({
         <Text style={[pl.name, { color: plan.highlight ? theme.accentText : theme.textAlt, fontFamily: FONTS.bebas }]}>
           {plan.name}
         </Text>
-        <Text style={[pl.price, { color: plan.highlight ? theme.heroSub : theme.textMuted, fontFamily: FONTS.sansMedium }]}>
+        <Text style={[pl.price, { color: plan.highlight ? theme.heroSub : theme.textMuted, fontFamily: FONTS.bebas }]}>
           {plan.priceLabel}
         </Text>
       </View>
@@ -184,7 +184,7 @@ function PlanCard({
 
 const pl = StyleSheet.create({
   card: {
-    borderRadius: 20, padding: 20,
+    borderRadius: 18, padding: 20,
     marginBottom: 12, gap: 16,
     borderWidth: 1,
     ...Platform.select({
@@ -205,7 +205,7 @@ const pl = StyleSheet.create({
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   featureText: { fontSize: 13, flex: 1 },
   btn: {
-    borderRadius: 12,
+    borderRadius: 13,
     paddingVertical: 13, alignItems: 'center',
   },
   btnDisabled: { opacity: 0.6 },
@@ -412,7 +412,7 @@ const s = StyleSheet.create({
   scroll: { padding: 16, gap: 4, paddingBottom: 48 },
 
   currentCard: {
-    borderRadius: 20, padding: 20,
+    borderRadius: 18, padding: 20,
     gap: 12, marginBottom: 20,
     borderWidth: 1,
     ...Platform.select({
@@ -426,13 +426,13 @@ const s = StyleSheet.create({
   currentMeta: { gap: 3 },
   currentMetaText: { fontSize: 13 },
   cancelBtn: {
-    borderWidth: 1, borderRadius: 12,
+    borderWidth: 1, borderRadius: 13,
     paddingVertical: 10, alignItems: 'center',
   },
   cancelBtnText: { fontSize: 14 },
 
   noPlanCard: {
-    borderRadius: 20, padding: 24,
+    borderRadius: 18, padding: 24,
     alignItems: 'center', gap: 8, marginBottom: 20,
     borderWidth: 1,
   },

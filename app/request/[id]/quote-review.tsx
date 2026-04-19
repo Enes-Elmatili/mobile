@@ -434,12 +434,12 @@ const s = StyleSheet.create({
   },
   refuseBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
   refuseCancelBtn: {
-    flex: 1, height: 44, borderRadius: 12, borderWidth: 1,
+    flex: 1, height: 44, borderRadius: 13, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
   refuseCancelText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
   refuseConfirmBtn: {
-    flex: 1, height: 44, borderRadius: 12, backgroundColor: COLORS.red,
+    flex: 1, height: 44, borderRadius: 13, backgroundColor: COLORS.red,
     alignItems: "center", justifyContent: "center",
   },
   refuseConfirmText: { fontFamily: FONTS.sansMedium, fontSize: 14, color: COLORS.alwaysWhite },

@@ -567,14 +567,14 @@ function StatsSection({ loading }: { loading: boolean }) {
 const ss = StyleSheet.create({
   loadingRow: {
     flexDirection: 'row', gap: 8,
-    borderRadius: 16, padding: 16,
+    borderRadius: 18, padding: 16,
   },
   shimmer: {
     flex: 1, height: 28, borderRadius: 6,
   },
   kpiRow: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 16, padding: 14,
+    borderRadius: 18, padding: 14,
     borderWidth: 1,
   },
   kpiItem:  { flex: 1, alignItems: 'center', gap: 4 },

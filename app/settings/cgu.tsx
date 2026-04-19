@@ -153,7 +153,7 @@ const s = StyleSheet.create({
   introText: { fontSize: 13, lineHeight: 20 },
 
   articleList: { gap: 6 },
-  article: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  article: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
   articleHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14,

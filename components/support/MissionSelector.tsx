@@ -74,7 +74,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
                   {formatDate(mission.createdAt)}
                 </Text>
               </View>
-              <Text style={[s.price, { color: theme.text, fontFamily: FONTS.monoMedium }]}>
+              <Text style={[s.price, { color: theme.text, fontFamily: FONTS.bebas }]}>
                 {formatPrice(mission.price)}
               </Text>
             </View>
