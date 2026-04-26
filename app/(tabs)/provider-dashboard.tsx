@@ -736,8 +736,14 @@ export default function ProviderDashboard() {
   // In-flight guard: mount, socket 'connect', and the 20s polling timer can
   // all fire this within a few ms of each other; coalesce to a single GET.
   const incomingInFlightRef = useRef(false);
+  // Hard-stop guard: once the backend tells us this account isn't a provider
+  // (token has PROVIDER role flag but no provider profile exists), there's no
+  // point re-trying every 20s and spamming logs. Latch it for the session and
+  // bounce the user back to the client dashboard.
+  const notProviderRef = useRef(false);
   const fetchIncomingQueue = useCallback(async () => {
     if (!user?.id) return;
+    if (notProviderRef.current) return;
     if (incomingInFlightRef.current) return;
     incomingInFlightRef.current = true;
     try {
@@ -766,21 +772,28 @@ export default function ProviderDashboard() {
           return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
         });
       }
-    } catch {} finally {
+    } catch (e: any) {
+      if (e?.status === 403 && e?.data?.code === 'NOT_PROVIDER') {
+        notProviderRef.current = true;
+        devWarn('⚠️ Account is not a provider — redirecting to client dashboard');
+        router.replace('/(tabs)/dashboard');
+      }
+    } finally {
       incomingInFlightRef.current = false;
     }
-  }, [user?.id]);
+  }, [user?.id, router]);
 
   useEffect(() => {
     fetchIncomingQueue();
   }, [fetchIncomingQueue]);
 
-  // Polling safety net : rafraîchit /requests/incoming toutes les 8s tant que
+  // Polling safety net : rafraîchit /requests/incoming toutes les 20s tant que
   // le provider est online. Garantit l'apparition des cards même si le socket
   // rate un event (cas : register pas encore enregistré sur le backend quand
   // le new_request est émis, latence réseau, buffering, etc.).
   useEffect(() => {
     if (!user?.id || !isOnline) return;
+    if (notProviderRef.current) return;
     const iv = setInterval(() => {
       fetchIncomingQueue();
     }, 20000);
