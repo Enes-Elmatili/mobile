@@ -15,6 +15,7 @@ import { tokenStorage } from './storage';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { api } from './api';
+import { isCompletionHandled, markCompletionHandled } from './navDedup';
 import { useSoundManager } from '../hooks/useSoundManager';
 import { darkTokens } from './../hooks/use-app-theme';
 import {
@@ -477,6 +478,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       acceptedRequestIds.add(reqId);
       playRef.current('missionAccepted');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Mission planifiée pour plus tard ? On NE redirige PAS vers /ongoing — la mission
+      // n'est pas encore active (pas sur place, pas de PIN à vérifier). Le caller REST
+      // (provider-dashboard.tsx) affiche déjà l'Alert de confirmation. Sans cette garde,
+      // le socket annulerait silencieusement le check du REST handler.
+      const startTs = data?.preferredTimeStart
+        ? new Date(data.preferredTimeStart).getTime()
+        : (data?.request?.preferredTimeStart ? new Date(data.request.preferredTimeStart).getTime() : null);
+      const isFutureScheduled = startTs != null && startTs > Date.now() + 30 * 60 * 1000;
+      if (isFutureScheduled) {
+        devLog(`⏭️ [PROVIDER] Skip /ongoing redirect — mission planifiée à ${new Date(startTs).toISOString()}`);
+        return;
+      }
+
       router.push(`/request/${reqId}/ongoing`);
     };
 
@@ -506,6 +521,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       devLog('📢 [CLIENT] Request published:', data);
     });
 
+    // ── Préférence prestataire (CTA "Demander X" depuis fiche provider) ─────
+    // Le provider préféré a refusé OU n'a pas répondu dans la fenêtre exclusive.
+    // On informe le client que la recherche s'élargit.
+    newSocket.on('request:preferred_refused', (data: any) => {
+      devLog('🚫 [CLIENT] Preferred provider refused:', data);
+      const name = data?.providerName ? data.providerName : 'Le prestataire demandé';
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      showSocketToast(`${name} n'a pas pu accepter. Recherche d'un autre prestataire…`, 'info');
+    });
+    newSocket.on('request:preferred_unavailable', (data: any) => {
+      devLog('⏳ [CLIENT] Preferred provider unavailable:', data);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      showSocketToast('Le prestataire demandé n\'a pas répondu à temps. Recherche élargie.', 'info');
+    });
+
     // ── SHARED EVENTS ─────────────────────────────────────────────────────────
 
     // location_update est géré localement dans MissionView — pas de log global
@@ -514,18 +544,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const completedRequestIds = new Set<string>();
     newSocket.on('request:completed', (data) => {
       const reqId = String(data?.requestId);
-      if (completedRequestIds.has(reqId)) return; // deduplicate
+      if (completedRequestIds.has(reqId)) return; // deduplicate same event firing twice
       completedRequestIds.add(reqId);
       devLog('🏁 [COMPLETION] Request completed:', reqId);
       playRef.current('missionAccepted');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+      // Si l'écran source a déjà navigué (handleComplete provider, onCompleted client),
+      // on ne re-navigue pas — sinon double-mount de /earnings ou /rating.
+      if (isCompletionHandled(reqId)) {
+        devLog('🏁 [COMPLETION] Skipped nav — already handled by source screen');
+        return;
+      }
+      markCompletionHandled(reqId);
+
       if (userRef.current?.roles?.includes('PROVIDER')) {
         showSocketToast('Mission terminée. Consultez vos gains.', 'success');
-        deferredNavTimers.push(setTimeout(() => router.push({ pathname: '/request/[id]/earnings', params: { id: reqId } }), 900));
+        deferredNavTimers.push(setTimeout(() => router.replace({ pathname: '/request/[id]/earnings', params: { id: reqId } }), 900));
       } else {
         showSocketToast('Mission terminée. Merci !', 'success');
-        deferredNavTimers.push(setTimeout(() => router.push({ pathname: '/request/[id]/rating', params: { id: reqId } }), 900));
+        deferredNavTimers.push(setTimeout(() => router.replace({ pathname: '/request/[id]/rating', params: { id: reqId } }), 900));
       }
     });
 

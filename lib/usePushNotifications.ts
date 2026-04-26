@@ -57,12 +57,34 @@ export function usePushNotifications(userId?: string | null) {
 }
 
 async function registerForPushNotifications() {
-  // Android : canal de notification requis
+  // Android : canaux de notification requis pour réveiller l'écran verrouillé
   if (Platform.OS === 'android') {
+    // Canal standard (paiements, messages, devis)
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
+      name: 'Notifications FIXED',
+      importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
+      sound: 'default',
+      enableVibrate: true,
+      enableLights: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      showBadge: true,
+    });
+
+    // Canal urgent (nouvelles missions prestataire, alertes critiques)
+    // bypassDnd permet de sonner même en mode Ne pas déranger.
+    await Notifications.setNotificationChannelAsync('missions', {
+      name: 'Missions urgentes',
+      description: 'Alertes pour les nouvelles missions et opportunités',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 500, 250, 500],
+      sound: 'default',
+      enableVibrate: true,
+      enableLights: true,
+      lightColor: '#FFFFFF',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      showBadge: true,
+      bypassDnd: true,
     });
   }
 

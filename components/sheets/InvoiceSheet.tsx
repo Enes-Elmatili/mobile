@@ -28,6 +28,7 @@ import type { Invoice, InvoiceItem } from '@/hooks/useInvoice';
 import { api } from '@/lib/api';
 import { tokenStorage } from '@/lib/storage';
 import { devLog } from '@/lib/logger';
+import { formatEUR as formatEuros } from '@/lib/format';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,12 +56,6 @@ const TAX_RATE = 0.21;
 const PLATFORM_FEE_RATE = 0.15;
 
 // ─── Utils ──────────────────────────────────────────────────────────────────
-
-const formatEuros = (n: number) =>
-  n.toLocaleString('fr-BE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + ' €';
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-BE', {

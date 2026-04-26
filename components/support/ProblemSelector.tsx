@@ -1,8 +1,12 @@
 // components/support/ProblemSelector.tsx
+// Étape 2 : choix du problème, contextualisé par le statut de la mission.
+// Les options sont enrichies d'une sévérité visible (low/medium/high) qui
+// préfigure la réponse côté ResolutionView (auto-résolu / WhatsApp / escalade).
+
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 export type Severity = 'low' | 'medium' | 'high';
 
@@ -12,42 +16,127 @@ export interface ProblemOption {
   icon: string;
   severity: Severity;
   resolution: string;
+  /** Hint optionnel affiché sous le label pour clarifier le scope. */
+  hint?: string;
 }
 
 interface ProblemSelectorProps {
-  missionStatus: string | null; // null = "Autre probleme"
+  missionStatus: string | null;
   onSelect: (problem: ProblemOption) => void;
-  onBack: () => void;
 }
 
 const PROBLEMS_BY_STATUS: Record<string, ProblemOption[]> = {
-  // PUBLISHED or ACCEPTED — searching/waiting phase
+  // Mission acceptée mais pas encore démarrée — provider en route ou en attente.
   SEARCHING: [
-    { id: 'provider_late', label: 'Le prestataire est en retard', icon: 'clock', severity: 'medium', resolution: 'Nous allons contacter le prestataire pour vous. S\'il ne répond pas sous 5 minutes, nous vous attribuerons un nouveau prestataire.' },
-    { id: 'cannot_find', label: 'Je ne trouve pas le prestataire', icon: 'search', severity: 'medium', resolution: 'Le prestataire a reçu votre adresse et devrait vous contacter. Essayez de le joindre via la messagerie de la mission.' },
-    { id: 'want_cancel', label: 'Je veux annuler', icon: 'x-circle', severity: 'low', resolution: 'Vous pouvez annuler cette mission depuis l\'écran de suivi. Des frais d\'annulation peuvent s\'appliquer selon nos CGU.' },
+    {
+      id: 'provider_late',
+      label: 'Le prestataire est en retard',
+      hint: 'L\'heure de rendez-vous est dépassée',
+      icon: 'clock',
+      severity: 'medium',
+      resolution: 'Nous contactons le prestataire pour vous. S\'il ne répond pas sous 5 minutes, nous vous proposons un autre prestataire qualifié.',
+    },
+    {
+      id: 'cannot_find',
+      label: 'Je ne trouve pas le prestataire',
+      hint: 'Il n\'est pas à l\'adresse indiquée',
+      icon: 'search',
+      severity: 'medium',
+      resolution: 'Le prestataire a votre adresse exacte. Essayez la messagerie ou l\'appel direct depuis l\'écran de suivi. Sinon notre équipe intervient.',
+    },
+    {
+      id: 'want_cancel',
+      label: 'Je veux annuler la mission',
+      hint: 'Avant que le prestataire arrive',
+      icon: 'x-circle',
+      severity: 'low',
+      resolution: 'Vous pouvez annuler depuis l\'écran de suivi. Le remboursement est automatique sous 3-5 jours ouvrés selon votre moyen de paiement.',
+    },
   ],
-  // ONGOING — mission in progress
+  // Mission en cours d'exécution — prestataire sur place.
   IN_PROGRESS: [
-    { id: 'security', label: 'Problème de sécurité', icon: 'shield', severity: 'high', resolution: 'Votre sécurité est notre priorité absolue. Un membre de notre équipe va être notifié immédiatement.' },
-    { id: 'stop_mission', label: 'Je veux arrêter la mission', icon: 'minus-circle', severity: 'medium', resolution: 'Contactez notre support pour interrompre la mission en cours. Le prestataire sera notifié.' },
+    {
+      id: 'security',
+      label: 'Problème de sécurité',
+      hint: 'Comportement inapproprié, danger, urgence',
+      icon: 'shield',
+      severity: 'high',
+      resolution: 'Votre sécurité est notre priorité absolue. Notre équipe est notifiée immédiatement et vous rappelle dans les minutes qui suivent.',
+    },
+    {
+      id: 'stop_mission',
+      label: 'Je veux arrêter la mission',
+      hint: 'Le travail ne se passe pas comme prévu',
+      icon: 'minus-circle',
+      severity: 'medium',
+      resolution: 'Notre support peut interrompre la mission en cours. Le prestataire sera notifié et un règlement équitable sera négocié pour le travail déjà réalisé.',
+    },
   ],
-  // DONE — completed
+  // Mission terminée.
   COMPLETED: [
-    { id: 'unsatisfactory', label: 'Le travail est insatisfaisant', icon: 'thumbs-down', severity: 'medium', resolution: 'Nous prenons la qualité très au sérieux. Décrivez le problème à notre équipe pour qu\'elle puisse intervenir.' },
-    { id: 'damage', label: 'Un dommage a été causé', icon: 'alert-triangle', severity: 'high', resolution: 'Nous allons ouvrir une investigation. Les photos avant/après de la mission seront examinées par notre équipe.' },
-    { id: 'payment_issue', label: 'Problème de paiement', icon: 'credit-card', severity: 'medium', resolution: 'Notre équipe financière va examiner votre dossier. Les remboursements sont traités sous 5 jours ouvrables.' },
-    { id: 'unknown_mission', label: 'Je ne reconnais pas cette mission', icon: 'alert-circle', severity: 'high', resolution: 'C\'est très important. Nous allons vérifier immédiatement l\'origine de cette mission et sécuriser votre compte.' },
+    {
+      id: 'unsatisfactory',
+      label: 'Le travail est insatisfaisant',
+      hint: 'Qualité, finitions, conformité',
+      icon: 'thumbs-down',
+      severity: 'medium',
+      resolution: 'Nous prenons la qualité très au sérieux. Décrivez le problème à notre équipe — elle peut organiser un retour du prestataire ou un geste commercial.',
+    },
+    {
+      id: 'damage',
+      label: 'Un dommage a été causé',
+      hint: 'Casse, dégât des eaux, autre',
+      icon: 'alert-triangle',
+      severity: 'high',
+      resolution: 'Investigation immédiate. Les photos avant/après sont examinées par notre équipe et notre assurance pro couvre les dégâts éligibles.',
+    },
+    {
+      id: 'payment_issue',
+      label: 'Problème de paiement',
+      hint: 'Montant, facture, prélèvement',
+      icon: 'credit-card',
+      severity: 'medium',
+      resolution: 'Notre équipe financière examine votre dossier. Tout remboursement éligible est traité sous 5 jours ouvrés.',
+    },
+    {
+      id: 'unknown_mission',
+      label: 'Je ne reconnais pas cette mission',
+      hint: 'Compte potentiellement compromis',
+      icon: 'alert-circle',
+      severity: 'high',
+      resolution: 'Sécurisation immédiate de votre compte. Vérification du paiement et investigation sur l\'origine de la mission.',
+    },
   ],
-  // Autre
+  // Hors mission — questions générales.
   OTHER: [
-    { id: 'account', label: 'Problème de compte', icon: 'user', severity: 'medium', resolution: 'Contactez notre support pour toute question liée à votre compte, vos données ou vos accès.' },
-    { id: 'invoice_question', label: 'Question sur une facture', icon: 'file-text', severity: 'low', resolution: 'Vos factures sont disponibles dans Documents. Pour toute question spécifique, notre équipe peut vous aider.' },
-    { id: 'other', label: 'Autre', icon: 'message-circle', severity: 'medium', resolution: 'Décrivez votre situation à notre équipe support. Nous vous répondrons dans les meilleurs délais.' },
+    {
+      id: 'account',
+      label: 'Problème de compte',
+      hint: 'Connexion, données, accès',
+      icon: 'user',
+      severity: 'medium',
+      resolution: 'Notre support peut investiguer votre compte, restaurer un accès ou corriger des données.',
+    },
+    {
+      id: 'invoice_question',
+      label: 'Question sur une facture',
+      hint: 'Téléchargement, contenu, TVA',
+      icon: 'file-text',
+      severity: 'low',
+      resolution: 'Vos factures sont disponibles dans Documents → Factures. Pour toute question spécifique, notre équipe peut vous aider.',
+    },
+    {
+      id: 'other',
+      label: 'Autre demande',
+      hint: 'Je ne trouve pas mon problème',
+      icon: 'message-circle',
+      severity: 'medium',
+      resolution: 'Décrivez votre situation à notre équipe. Nous vous répondons dans la journée ouvrée — souvent en moins d\'une heure.',
+    },
   ],
 };
 
-function mapStatusToKey(status: string | null): string {
+function mapStatusToKey(status: string | null): keyof typeof PROBLEMS_BY_STATUS {
   if (!status) return 'OTHER';
   const s = status.toUpperCase();
   if (['PUBLISHED', 'ACCEPTED'].includes(s)) return 'SEARCHING';
@@ -56,57 +145,79 @@ function mapStatusToKey(status: string | null): string {
   return 'OTHER';
 }
 
-export default function ProblemSelector({ missionStatus, onSelect, onBack }: ProblemSelectorProps) {
+const SEVERITY_LABEL: Record<Severity, string> = {
+  low: 'Auto-résolu',
+  medium: 'Support',
+  high: 'Urgent',
+};
+
+function severityColor(sev: Severity, theme: ReturnType<typeof useAppTheme>) {
+  if (sev === 'high') return COLORS.red;
+  if (sev === 'medium') return COLORS.amber;
+  return theme.textSub as string;
+}
+
+export default function ProblemSelector({ missionStatus, onSelect }: ProblemSelectorProps) {
   const theme = useAppTheme();
   const key = mapStatusToKey(missionStatus);
   const problems = PROBLEMS_BY_STATUS[key] || PROBLEMS_BY_STATUS.OTHER;
 
   return (
-    <View style={s.root}>
-      <TouchableOpacity style={s.backRow} onPress={onBack} activeOpacity={0.7}>
-        <Feather name="arrow-left" size={18} color={theme.textMuted} />
-        <Text style={[s.backText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Retour</Text>
-      </TouchableOpacity>
-
-      <Text style={[s.title, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-        Quel est le problème ?
-      </Text>
-
-      <View style={s.list}>
-        {problems.map((problem) => (
+    <View style={{ gap: 8 }}>
+      {problems.map(problem => {
+        const tone = severityColor(problem.severity, theme);
+        return (
           <TouchableOpacity
             key={problem.id}
-            style={[s.option, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.borderLight }]}
+            style={[s.option, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={() => onSelect(problem)}
-            activeOpacity={0.7}
+            activeOpacity={0.78}
           >
             <View style={[s.iconWrap, { backgroundColor: theme.surface }]}>
-              <Feather name={problem.icon as any} size={20} color={theme.textSub} />
+              <Feather name={problem.icon as any} size={18} color={theme.textSub} />
             </View>
-            <Text style={[s.optionLabel, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              {problem.label}
-            </Text>
-            <Feather name="chevron-right" size={16} color={theme.textMuted} />
+
+            <View style={s.body}>
+              <Text style={[s.label, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                {problem.label}
+              </Text>
+              {!!problem.hint && (
+                <Text style={[s.hint, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+                  {problem.hint}
+                </Text>
+              )}
+            </View>
+
+            <View style={[s.sevPill, { backgroundColor: `${tone}1A` }]}>
+              <View style={[s.sevDot, { backgroundColor: tone }]} />
+              <Text style={[s.sevText, { color: tone, fontFamily: FONTS.monoMedium }]}>
+                {SEVERITY_LABEL[problem.severity]}
+              </Text>
+            </View>
           </TouchableOpacity>
-        ))}
-      </View>
+        );
+      })}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { gap: 16 },
-  backRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backText: { fontSize: 14 },
-  title: { fontSize: 20, lineHeight: 26 },
-  list: { gap: 8 },
   option: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 14, padding: 14,
+    borderRadius: 14, padding: 14, borderWidth: 1,
   },
   iconWrap: {
-    width: 40, height: 40, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  optionLabel: { flex: 1, fontSize: 15 },
+  body: { flex: 1, gap: 2 },
+  label: { fontSize: 14 },
+  hint: { fontSize: 11.5 },
+
+  sevPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+  },
+  sevDot: { width: 5, height: 5, borderRadius: 2.5 },
+  sevText: { fontSize: 9.5, letterSpacing: 0.8 },
 });

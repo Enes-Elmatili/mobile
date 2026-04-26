@@ -324,26 +324,26 @@ export default function ScheduledConfirmation() {
 
 const st = StyleSheet.create({
   root:   { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
 
-  iconWrap:   { marginBottom: 24 },
-  iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center' },
+  iconWrap:   { marginBottom: 16 },
+  iconCircle: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
 
   content:  { alignItems: 'center', width: '100%' },
-  title:    { fontSize: 28, marginBottom: 8, letterSpacing: -0.3 },
-  subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  title:    { fontSize: 24, marginBottom: 6, letterSpacing: -0.3 },
+  subtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
 
-  card:     { width: '100%', borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16 },
+  card:     { width: '100%', borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 10 },
   row:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  rowText:  { fontSize: 15, flex: 1 },
-  sep:      { height: 1, marginVertical: 8 },
+  rowText:  { fontSize: 14, flex: 1 },
+  sep:      { height: 1, marginVertical: 6 },
 
-  infoBadge:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 14, borderRadius: 12, width: '100%' },
-  infoText:   { fontSize: 13, lineHeight: 18, flex: 1 },
+  infoBadge:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, width: '100%' },
+  infoText:   { fontSize: 12, lineHeight: 17, flex: 1 },
 
-  bottom:          { paddingHorizontal: 24, paddingBottom: 36, gap: 10 },
-  btn:             { borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  btnText:         { fontSize: 16 },
-  btnSecondary:    { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5 },
-  btnSecondaryText:{ fontSize: 15 },
+  bottom:          { paddingHorizontal: 16, paddingBottom: 18, gap: 8 },
+  btn:             { borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  btnText:         { fontSize: 15 },
+  btnSecondary:    { borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1.5 },
+  btnSecondaryText:{ fontSize: 14 },
 });

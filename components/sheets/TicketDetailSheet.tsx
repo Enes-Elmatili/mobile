@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { formatEUR as formatEuros } from '@/lib/format';
 
 // ─── Grayscale map style (cohérent avec MissionView) ─────────────────────────
 const MAP_STYLE = [
@@ -41,9 +42,6 @@ interface TicketDetailSheetProps {
 // ============================================================================
 // UTILS
 // ============================================================================
-
-const formatEuros = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const STATUS_CFG: Record<string, { label: string; icon: string; done?: boolean; active?: boolean }> = {
   PENDING_PAYMENT: { label: 'Paiement en attente', icon: 'credit-card' },

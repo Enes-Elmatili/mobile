@@ -34,6 +34,14 @@ import { PulseDot } from '@/components/ui/PulseDot';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
+import {
+  Card as FixedCard,
+  SectionHeader as FixedSectionHeader,
+  IconBtn as FixedIconBtn,
+  StatusChip as FixedStatusChip,
+  Avatar as FixedAvatar,
+  Price as FixedPrice,
+} from '@/components/fixed';
 
 // ─── Press feel constants (tier-1 haptic + opacity) ─────────────────────────
 const PRESS_PRIMARY   = 0.85;  // CTAs, cards, mission island
@@ -65,7 +73,7 @@ interface DashboardData {
     calloutFee?: number | null;
     category?: { id: number; name: string; icon?: string };
     subcategory?: { id: number; name: string };
-    provider?: { id: string; name?: string } | null;
+    provider?: { id: string; name?: string; avatarUrl?: string | null } | null;
   }[];
 }
 
@@ -254,13 +262,13 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
 const runway = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-    paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8,
+    paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8,
   },
-  headerTitle: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 2.4 },
+  headerTitle: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.2 },
   headerHint: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   headerHintText: { fontFamily: FONTS.mono, fontSize: 10 },
 
-  scrollContent: { paddingHorizontal: 24, gap: CARD_GAP, paddingBottom: 4 },
+  scrollContent: { paddingHorizontal: 16, gap: CARD_GAP, paddingBottom: 4 },
 
   card: {
     width: CARD_WIDTH, height: CARD_HEIGHT,
@@ -399,119 +407,187 @@ function MissionIsland({
     outputRange: [0.45, 0],
   });
 
-  // ── ACCEPTED / ONGOING — active mission island
+  // ── ACCEPTED / ONGOING — HERO mission island (ETA dominant)
   if (activeMission) {
     const isOngoing = activeMission.status.toUpperCase() === 'ONGOING';
+    // Extract ETA minutes from etaLabel (e.g. "Arrivée dans 21 min" → "21")
+    const etaMinMatch = etaLabel.match(/(\d+)/);
+    const etaMin = etaMinMatch ? etaMinMatch[1] : null;
+
     return (
-      <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
-        <TouchableOpacity
-          style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
-          onPress={onActiveMissionPress}
-          activeOpacity={PRESS_PRIMARY}
-        >
-          <View style={islandStyles.pulseWrap}>
-            <Animated.View style={[islandStyles.pulseRing, {
-              backgroundColor: COLORS.green,
-              transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
-              opacity: pulseOpacity,
-            }]} />
-            <PulseDot size={10} />
-          </View>
-          <View style={islandStyles.textWrap}>
-            <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
-              {isOngoing ? 'EN COURS' : `EN ROUTE · ${etaLabel}`}
+      <TouchableOpacity
+        onPress={onActiveMissionPress}
+        activeOpacity={PRESS_PRIMARY}
+      >
+        <View style={{ padding: 20 }}>
+          {/* Status row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <FixedStatusChip variant="ongoing" label={isOngoing ? 'EN COURS' : 'EN ROUTE'} t={theme} />
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 0.8 }}>
+              LIVE · GPS
             </Text>
-            <Text style={[islandStyles.mission, { color: theme.heroText }]} numberOfLines={1}>{activeMission.serviceType || activeMission.title}</Text>
-            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]} numberOfLines={1}>{isOngoing ? t('dashboard.mission_ongoing') : t('dashboard.provider_on_way')}</Text>
           </View>
-          <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
-            <Feather name="arrow-right" size={12} color={theme.heroSub} />
-          </View>
-        </TouchableOpacity>
-      </View>
+
+          {/* ETA — the star of the show */}
+          {!isOngoing && etaMin ? (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+              <Text style={{ fontFamily: FONTS.bebas, fontSize: 56, color: theme.heroText, lineHeight: 56 }}>
+                {etaMin}
+              </Text>
+              <Text style={{ fontFamily: FONTS.mono, fontSize: 13, color: theme.heroSub, letterSpacing: 0.5 }}>
+                MIN
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Service name */}
+          <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.heroText, letterSpacing: 0.4 }} numberOfLines={1}>
+            {(activeMission.serviceType || activeMission.title || '').toUpperCase()}
+          </Text>
+
+          {/* Address */}
+          {activeMission.address ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <Feather name="map-pin" size={12} color={theme.heroSub} />
+              <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub }} numberOfLines={1}>
+                {activeMission.address}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Provider row */}
+          {activeMission.provider && (
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', gap: 12,
+              marginTop: 16, paddingTop: 16,
+              borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+            }}>
+              <FixedAvatar
+                name={activeMission.provider.name || 'P'}
+                avatarUrl={activeMission.provider.avatarUrl}
+                size={40}
+                verified
+                t={theme}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.heroText }}>
+                  {activeMission.provider.name}
+                </Text>
+                <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.heroSub }}>
+                  {t('dashboard.provider_on_way')}
+                </Text>
+              </View>
+              <TouchableOpacity style={{
+                width: 44, height: 44, borderRadius: 12,
+                backgroundColor: COLORS.greenBrand,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Feather name="phone" size={18} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={{
+                width: 44, height: 44, borderRadius: 12,
+                backgroundColor: 'rgba(255,255,255,0.08)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Feather name="message-square" size={18} color={theme.heroText} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   }
 
-  // ── PUBLISHED — searching
+  // ── PUBLISHED — searching (même gabarit que active)
   if (searchingMission) {
     return (
-      <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
-        <TouchableOpacity
-          style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
-          onPress={onSearchingPress}
-          activeOpacity={PRESS_PRIMARY}
-        >
-          <View style={islandStyles.pulseWrap}>
-            <Animated.View style={[islandStyles.pulseRing, {
-              backgroundColor: COLORS.amber,
-              transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
-              opacity: pulseOpacity,
-            }]} />
-            <PulseDot size={10} color={COLORS.amber} />
-          </View>
-          <View style={islandStyles.textWrap}>
-            <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>{t('dashboard.search_in_progress').toUpperCase()}</Text>
-            <Text style={[islandStyles.mission, { color: theme.heroText }]} numberOfLines={1}>{searchingMission.serviceType || searchingMission.title}</Text>
+      <TouchableOpacity onPress={onSearchingPress} activeOpacity={PRESS_PRIMARY}>
+        <View style={{ padding: 20 }}>
+          {/* Status row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <FixedStatusChip variant="warning" label="RECHERCHE EN COURS" t={theme} />
             {secondsLeft !== null && (
-              <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]}>{fmt(secondsLeft)}</Text>
+              <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.heroSubFaint, letterSpacing: 0.5 }}>
+                {fmt(secondsLeft)}
+              </Text>
             )}
           </View>
-          <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
-            <Feather name="arrow-right" size={12} color={theme.heroSub} />
+
+          {/* Service name — hero */}
+          <Text style={{ fontFamily: FONTS.bebas, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
+            {(searchingMission.serviceType || searchingMission.title || '').toUpperCase()}
+          </Text>
+
+          {/* Address */}
+          {searchingMission.address ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <Feather name="map-pin" size={12} color={theme.heroSub} />
+              <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub }} numberOfLines={1}>
+                {searchingMission.address}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Searching indicator */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+            <PulseDot size={8} color={COLORS.amber} />
+            <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.heroSub, flex: 1 }}>
+              Recherche d'un prestataire près de chez vous...
+            </Text>
+            <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: theme.heroSubFaint, alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="arrow-right" size={14} color={theme.heroSub} />
+            </View>
           </View>
-        </TouchableOpacity>
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   }
 
-  // ── QUOTE_PENDING / QUOTE_SENT — devis island
+  // ── QUOTE_PENDING / QUOTE_SENT — devis (même gabarit)
   if (quoteMission && onQuotePress) {
     const isQuoteSent = quoteMission.status?.toUpperCase() === 'QUOTE_SENT';
     return (
-      <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
-        <TouchableOpacity
-          style={[islandStyles.active, { backgroundColor: theme.heroBg }]}
-          onPress={onQuotePress}
-          activeOpacity={PRESS_PRIMARY}
-        >
-          <View style={islandStyles.pulseWrap}>
-            <Animated.View style={[islandStyles.pulseRing, {
-              backgroundColor: isQuoteSent ? COLORS.green : COLORS.amber,
-              transform: [{ scale: pulseScale.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
-              opacity: pulseOpacity,
-            }]} />
-            <PulseDot size={10} color={isQuoteSent ? COLORS.green : COLORS.amber} />
+      <TouchableOpacity onPress={onQuotePress} activeOpacity={PRESS_PRIMARY}>
+        <View style={{ padding: 20 }}>
+          {/* Status row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <FixedStatusChip variant={isQuoteSent ? 'done' : 'pending'} label={isQuoteSent ? 'DEVIS REÇU' : 'DEVIS EN COURS'} t={theme} />
+            <Feather name="file-text" size={14} color={theme.heroSubFaint} />
           </View>
-          <View style={islandStyles.textWrap}>
-            <Text style={[islandStyles.label, { color: theme.heroSubFaint }]}>
-              {isQuoteSent ? 'DEVIS REÇU' : 'DEVIS EN COURS'}
-            </Text>
-            <Text style={[islandStyles.mission, { color: theme.heroText }]} numberOfLines={1}>{quoteMission.serviceType || quoteMission.title}</Text>
-            <Text style={[islandStyles.sub, { color: theme.heroSubFaint }]} numberOfLines={1}>
+
+          {/* Service name — hero */}
+          <Text style={{ fontFamily: FONTS.bebas, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
+            {(quoteMission.serviceType || quoteMission.title || '').toUpperCase()}
+          </Text>
+
+          {/* Address */}
+          {quoteMission.address ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <Feather name="map-pin" size={12} color={theme.heroSub} />
+              <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub }} numberOfLines={1}>
+                {quoteMission.address}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Action hint */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+            <PulseDot size={8} color={isQuoteSent ? COLORS.green : COLORS.amber} />
+            <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.heroSub, flex: 1 }}>
               {isQuoteSent ? 'Consultez et répondez au devis' : 'En attente du prestataire'}
             </Text>
+            <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: theme.heroSubFaint, alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="arrow-right" size={14} color={theme.heroSub} />
+            </View>
           </View>
-          <View style={[islandStyles.arrow, { borderColor: theme.heroSubFaint }]}>
-            <Feather name={isQuoteSent ? 'file-text' : 'clock'} size={12} color={theme.heroSub} />
-          </View>
-        </TouchableOpacity>
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   }
 
-  // ── Empty state
-  return (
-    <View style={{ paddingHorizontal: 24, paddingTop: 6 }}>
-      <View style={[islandStyles.empty, { borderColor: theme.borderLight }]}>
-        <View style={[islandStyles.emptyIconBox, { borderColor: theme.borderLight }]}>
-          <Feather name="clock" size={13} color={theme.textMuted} />
-        </View>
-        <Text style={[islandStyles.emptyText, { color: theme.textMuted }]}>
-          Les statuts de vos services s'afficheront ici.
-        </Text>
-      </View>
-    </View>
-  );
+  // ── Empty — no active mission (parent shows "Besoin d'un pro?" instead)
+  return null;
 }
 
 const islandStyles = StyleSheet.create({
@@ -584,44 +660,55 @@ function ActivityItem({
   }
 
   return (
-    <TouchableOpacity
-      style={[actStyles.row, !isLast && { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
-      onPress={onPress}
-      activeOpacity={PRESS_SECONDARY}
-    >
-      <View style={[actStyles.iconBox, { backgroundColor: theme.surface }]}>
-        <Feather name={icon as any} size={16} color={theme.text} />
-      </View>
-      <View style={actStyles.center}>
-        <Text style={[actStyles.name, { color: theme.text }]} numberOfLines={1}>
-          {serviceName || t('common.service')}
-        </Text>
-        <Text style={[actStyles.meta, { color: theme.textMuted }]}>
-          {date}{request.price ? ` · ${request.price} €` : ''}
-        </Text>
-      </View>
-      <View style={actStyles.right}>
-        <View style={[actStyles.badge, { backgroundColor: badgeBg }]}>
-          <Text style={[actStyles.badgeText, { color: badgeTextColor }]}>{status.label}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={PRESS_PRIMARY} style={{ marginBottom: 8 }}>
+      <FixedCard t={theme} pad={14}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+            <Feather name={icon as any} size={18} color={theme.textSub} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 13.5, color: theme.text }} numberOfLines={1}>
+              {serviceName || t('common.service')}
+            </Text>
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.6, marginTop: 2 }}>
+              {date.toUpperCase()} · FIXED #{String(request.id).slice(-4)}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            {request.price ? (
+              <FixedPrice amount={request.price} size={22} color={theme.text} />
+            ) : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: badgeBg, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: badgeTextColor }} />
+              <Text style={{ fontFamily: FONTS.mono, fontSize: 10, color: badgeTextColor, letterSpacing: 0.5 }}>{status.label}</Text>
+            </View>
+          </View>
         </View>
-        <Feather name="chevron-right" size={13} color={theme.textMuted} />
-      </View>
+      </FixedCard>
     </TouchableOpacity>
   );
 }
 
 const actStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  card: {
+    borderRadius: 18, borderWidth: 1, padding: 14, marginBottom: 8,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: {
-    width: 34, height: 34, borderRadius: 10,
+    width: 40, height: 40, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
   center: { flex: 1, minWidth: 0 },
-  name: { fontFamily: FONTS.sansMedium, fontSize: 12, lineHeight: 14 },
-  meta: { fontFamily: FONTS.mono, fontSize: 10, marginTop: 2 },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  badge: { width: 76, paddingVertical: 3, borderRadius: 20, alignItems: 'center' as const },
-  badgeText: { fontFamily: FONTS.mono, fontSize: 11, textAlign: 'center' as const },
+  name: { fontFamily: FONTS.sansMedium, fontSize: 13.5, lineHeight: 16 },
+  meta: { fontFamily: FONTS.mono, fontSize: 10.5, marginTop: 2, letterSpacing: 0.6 },
+  right: { alignItems: 'flex-end', gap: 4 },
+  price: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.4 },
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8,
+  },
+  badgeDot: { width: 6, height: 6, borderRadius: 3 },
+  badgeText: { fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.5 },
 });
 
 // ============================================================================
@@ -822,49 +909,45 @@ function DashboardSkeleton({ theme }: { theme: AppTheme }) {
         {/* Topbar */}
         <View style={s.topbar}>
           <View>
-            <Block w={90} h={10} style={{ marginBottom: 8 }} />
-            <Block w={180} h={26} />
+            <Block w={100} h={10} style={{ marginBottom: 8 }} />
+            <Block w={160} h={28} />
           </View>
           <View style={s.topbarActions}>
-            <Block w={40} h={40} style={{ borderRadius: 20 }} />
-            <Block w={40} h={40} style={{ borderRadius: 20 }} />
+            <Block w={36} h={36} style={{ borderRadius: 10 }} />
+            <Block w={36} h={36} style={{ borderRadius: 10 }} />
           </View>
         </View>
 
-        {/* Runway header */}
-        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8 }}>
-          <Block w={160} h={12} />
+        {/* Hero CTA */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+          <Block w="100%" h={200} style={{ borderRadius: 20 }} />
         </View>
 
-        {/* Runway cards */}
-        <View style={{ flexDirection: 'row', paddingHorizontal: 24, gap: CARD_GAP }}>
-          <Block w={CARD_WIDTH} h={CARD_HEIGHT} style={{ borderRadius: 20 }} />
-          <Block w={CARD_WIDTH} h={CARD_HEIGHT} style={{ borderRadius: 20 }} />
+        {/* Mission island */}
+        <View style={[s.sectionHead, { paddingTop: 24 }]}>
+          <Block w={80} h={10} />
         </View>
-
-        {/* CTA */}
-        <View style={s.ctaWrap}>
-          <Block w="100%" h={58} style={{ borderRadius: 18 }} />
-        </View>
-
-        {/* Mission island header */}
-        <View style={[s.sectionHead, { paddingTop: 22 }]}>
-          <Block w={160} h={12} />
-        </View>
-        <View style={{ paddingHorizontal: 24, paddingTop: 8 }}>
+        <View style={{ paddingHorizontal: 16 }}>
           <Block w="100%" h={70} style={{ borderRadius: 12 }} />
         </View>
 
-        {/* Activity header */}
-        <View style={[s.sectionHead, { paddingTop: 22 }]}>
-          <Block w={170} h={12} />
+        {/* Services grid */}
+        <View style={[s.sectionHead, { paddingTop: 24 }]}>
+          <Block w={70} h={10} />
         </View>
-        {/* Activity rows */}
-        <View style={{ paddingHorizontal: 24, paddingTop: 10, gap: 14 }}>
-          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
-          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
-          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
-          <Block w="100%" h={36} style={{ borderRadius: 10 }} />
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10 }}>
+          <Block w="48%" h={100} style={{ borderRadius: 18 }} />
+          <Block w="48%" h={100} style={{ borderRadius: 18 }} />
+        </View>
+
+        {/* Activity */}
+        <View style={[s.sectionHead, { paddingTop: 24 }]}>
+          <Block w={100} h={10} />
+        </View>
+        <View style={{ paddingHorizontal: 16, gap: 8 }}>
+          <Block w="100%" h={68} style={{ borderRadius: 18 }} />
+          <Block w="100%" h={68} style={{ borderRadius: 18 }} />
+          <Block w="100%" h={68} style={{ borderRadius: 18 }} />
         </View>
       </View>
     </SafeAreaView>
@@ -875,13 +958,16 @@ function DashboardSkeleton({ theme }: { theme: AppTheme }) {
 // MAIN COMPONENT
 // ============================================================================
 
-const PREVIEW_COUNT = 5;
+// Volontairement très limité côté dashboard : 3 par défaut, 6 au max après "Voir plus".
+// L'historique complet vit dans /missions ou /documents pour ne pas faire concurrence.
+const PREVIEW_COUNT = 3;
+const EXPANDED_COUNT = 6;
 
 export default function Dashboard() {
   const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
-  const { socket, unreadCount } = useSocket();
+  const { socket, unreadCount, unreadMessages } = useSocket();
   const theme = useAppTheme();
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -1127,7 +1213,10 @@ export default function Dashboard() {
   );
 
   const displayedRequests = useMemo(() => {
-    return showAllRequests ? activityRequests : activityRequests.slice(0, PREVIEW_COUNT);
+    // Cap à EXPANDED_COUNT même quand "Voir plus" est cliqué — l'historique
+    // complet est accessible depuis l'onglet Missions / Documents.
+    const limit = showAllRequests ? EXPANDED_COUNT : PREVIEW_COUNT;
+    return activityRequests.slice(0, limit);
   }, [activityRequests, showAllRequests]);
 
   const totalCount = activityRequests.length;
@@ -1152,108 +1241,102 @@ export default function Dashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── TOP BAR ── */}
-        <View style={s.topbar}>
-          <View>
-            <Text style={[s.greeting, { color: theme.textMuted }]}>{getGreeting(t)}</Text>
-            <Text style={[s.name, { color: theme.text }]}>{name.toUpperCase()}</Text>
-          </View>
-          <View style={s.topbarActions}>
-            <TouchableOpacity
-              style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-              onPress={() => { hapticLight(); router.push('/notifications'); }}
-              activeOpacity={PRESS_SECONDARY}
-            >
-              <Feather name="bell" size={18} color={theme.text} />
-              {unreadCount > 0 && (
-                <View style={[s.notifDot, { borderColor: theme.bg }]} />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.iconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-              onPress={() => { hapticLight(); router.push('/(tabs)/profile'); }}
-              activeOpacity={PRESS_SECONDARY}
-            >
-              <Feather name="user" size={18} color={theme.text} />
-            </TouchableOpacity>
+        {/* ══════════════════════════════════════════════════════════════
+            ADAPTIVE TOP: État A (idle) vs État B (mission active)
+            Quand une mission est active, elle ÉCRASE le hero.
+            ══════════════════════════════════════════════════════════════ */}
+
+        {/* ── TOP BAR — always visible, compact ── */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: (activeMission || searchingMission || quoteMission) ? 12 : 16 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 4 }}>
+                {data?.me?.city?.toUpperCase() || 'BRUSSELS'}
+              </Text>
+              <Text style={{ fontFamily: FONTS.bebas, fontSize: (activeMission || searchingMission || quoteMission) ? 22 : 28, color: theme.text, letterSpacing: 0.4 }}>
+                {`${getGreeting(t)}, ${name.split(' ')[0]}`}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <FixedIconBtn icon="bell" t={theme} badge={unreadCount > 0} onPress={() => { hapticLight(); router.push('/notifications'); }} />
+              <FixedIconBtn icon="message-square" t={theme} badge={unreadMessages > 0} onPress={() => { hapticLight(); router.push('/messages'); }} />
+            </View>
           </View>
         </View>
 
-        {/* ── RUNWAY CAROUSEL ── */}
-        <RunwayCarousel
-          theme={theme}
-          onPress={(category) => {
-            hapticMedium();
-            router.push(category
-              ? `/request/NewRequestStepper?selectedCategory=${category}`
-              : '/request/NewRequestStepper'
-            );
-          }}
-        />
-
-        {/* ── CTA BUTTON — squeezy press animation + haptic Medium ── */}
-        <View style={s.ctaWrap}>
-          <Pressable
-            onPressIn={() => {
-              Animated.spring(ctaScale, { toValue: 0.96, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
-            }}
-            onPressOut={() => {
-              Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
-            }}
-            onPress={() => {
-              hapticMedium();
-              router.push('/request/NewRequestStepper');
-            }}
-          >
-            <Animated.View style={[s.ctaBtn, { backgroundColor: theme.accent, transform: [{ scale: ctaScale }] }]}>
-              <Text style={[s.ctaText, { color: theme.accentText }]}>{t('dashboard.order_service').toUpperCase()}</Text>
-              <View style={[s.ctaCircle, { borderColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)' }]}>
-                <Feather name="arrow-right" size={11} color={theme.accentText} />
+        {/* ── ÎLOT NOIR — un seul bloc, deux états ── */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
+          <View style={{
+            backgroundColor: theme.heroBg, borderRadius: 20, overflow: 'hidden',
+            borderWidth: theme.isDark ? 1 : 0, borderColor: theme.borderLight,
+          }}>
+            {(activeMission || searchingMission || quoteMission) ? (
+              /* ── État actif : mission en cours ── */
+              <MissionIsland
+                activeMission={activeMission}
+                searchingMission={searchingMission}
+                quoteMission={quoteMission}
+                onActiveMissionPress={() => {
+                  if (!activeMission) return;
+                  hapticLight();
+                  navigateToMissionView(activeMission);
+                }}
+                onSearchingPress={() => {
+                  if (!searchingMission) return;
+                  hapticLight();
+                  navigateToSearching(searchingMission);
+                }}
+                onQuotePress={() => {
+                  if (!quoteMission) return;
+                  hapticLight();
+                  const st = quoteMission.status?.toUpperCase();
+                  if (st === 'QUOTE_SENT') {
+                    router.push({ pathname: '/request/[id]/quote-review', params: { id: String(quoteMission.id) } });
+                  } else {
+                    router.push({ pathname: '/request/[id]/quote-pending', params: { id: String(quoteMission.id) } });
+                  }
+                }}
+                theme={theme}
+              />
+            ) : (
+              /* ── État idle : "Besoin d'un pro ?" ── */
+              <View style={{ padding: 20 }}>
+                <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
+                  DISPONIBLE · 24/7
+                </Text>
+                <Text style={{ fontFamily: FONTS.bebas, fontSize: 28, color: theme.heroText, letterSpacing: 0.4, marginBottom: 18 }}>
+                  Besoin d'un pro ?
+                </Text>
+                <Pressable
+                  onPressIn={() => { Animated.spring(ctaScale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start(); }}
+                  onPressOut={() => { Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }).start(); }}
+                  onPress={() => { hapticMedium(); router.push('/request/NewRequestStepper'); }}
+                >
+                  <Animated.View style={[{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    borderRadius: 13, paddingVertical: 14,
+                    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)',
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    transform: [{ scale: ctaScale }],
+                  }]}>
+                    <Feather name="plus" size={16} color={theme.heroText} />
+                    <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.heroText }}>
+                      Nouvelle demande
+                    </Text>
+                  </Animated.View>
+                </Pressable>
               </View>
-            </Animated.View>
-          </Pressable>
+            )}
+          </View>
         </View>
-
-        {/* ── MISSION ISLAND ── */}
-        <View style={[s.sectionHead, { paddingTop: 22 }]}>
-          <Text style={[s.sectionTitle, { color: theme.textMuted }]}>DEMANDE EN COURS</Text>
-        </View>
-
-        <MissionIsland
-          activeMission={activeMission}
-          searchingMission={searchingMission}
-          quoteMission={quoteMission}
-          onActiveMissionPress={() => {
-            if (!activeMission) return;
-            hapticLight();
-            navigateToMissionView(activeMission);
-          }}
-          onSearchingPress={() => {
-            if (!searchingMission) return;
-            hapticLight();
-            navigateToSearching(searchingMission);
-          }}
-          onQuotePress={() => {
-            if (!quoteMission) return;
-            hapticLight();
-            const st = quoteMission.status?.toUpperCase();
-            if (st === 'QUOTE_SENT') {
-              router.push({ pathname: '/request/[id]/quote-review', params: { id: String(quoteMission.id) } });
-            } else {
-              router.push({ pathname: '/request/[id]/quote-pending', params: { id: String(quoteMission.id) } });
-            }
-          }}
-          theme={theme}
-        />
 
         {/* ── À VENIR (demandes planifiées futures) ── */}
         {upcomingRequests.length > 0 && (
           <>
-            <View style={[s.sectionHead, { paddingTop: 22 }]}>
-              <Text style={[s.sectionTitle, { color: theme.textMuted }]}>À VENIR</Text>
-              <Text style={[s.sectionActionText, { color: theme.textMuted }]}>{upcomingRequests.length}</Text>
+            <View style={{ marginTop: 22 }}>
+              <FixedSectionHeader label="À VENIR" action={String(upcomingRequests.length)} t={theme} />
             </View>
-            <View style={{ paddingHorizontal: 24, gap: 10 }}>
+            <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {upcomingRequests.map((req) => (
                 <UpcomingIslandCard
                   key={req.id}
@@ -1272,18 +1355,37 @@ export default function Dashboard() {
           </>
         )}
 
+        {/* ── POPULAR SERVICES (2x2 grid) ── */}
+        <View style={{ marginTop: 26 }}>
+          <FixedSectionHeader label="SERVICES" t={theme} />
+        </View>
+        <View style={{ paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {LAUNCH_CARDS.map((card) => (
+            <TouchableOpacity
+              key={card.key}
+              onPress={() => {
+                hapticMedium();
+                router.push(`/request/NewRequestStepper?selectedCategory=${card.category}`);
+              }}
+              activeOpacity={PRESS_PRIMARY}
+              style={{ width: (Dimensions.get('window').width - 42) / 2 }}
+            >
+              <FixedCard t={theme} pad={14}>
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                  <Feather name={card.icon as any} size={18} color={theme.text} />
+                </View>
+                <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>{card.label}</Text>
+                <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.6, marginTop: 3 }}>
+                  {card.providers} PROS
+                </Text>
+              </FixedCard>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* ── ACTIVITÉ RÉCENTE ── */}
-        <View style={[s.sectionHead, { paddingTop: 22 }]}>
-          <Text style={[s.sectionTitle, { color: theme.textMuted }]}>{t('dashboard.recent_activity').toUpperCase()}</Text>
-          <TouchableOpacity
-            style={s.sectionAction}
-            onPress={() => { hapticLight(); onRefresh(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={PRESS_SECONDARY}
-          >
-            <Feather name="refresh-cw" size={13} color={theme.textMuted} />
-            <Text style={[s.sectionActionText, { color: theme.textMuted }]}>{totalCount || ''}</Text>
-          </TouchableOpacity>
+        <View style={{ marginTop: 26 }}>
+          <FixedSectionHeader label={t('dashboard.recent_activity').toUpperCase()} action={totalCount ? String(totalCount) : undefined} t={theme} onAction={() => { hapticLight(); onRefresh(); }} />
         </View>
 
         <View style={s.activityList}>
@@ -1318,7 +1420,7 @@ export default function Dashboard() {
             activeOpacity={PRESS_SECONDARY}
           >
             <Text style={[s.seeAllText, { color: theme.textMuted }]}>
-              {showAllRequests ? t('dashboard.collapse') : 'Voir tout'}
+              {showAllRequests ? t('dashboard.collapse') : 'Voir plus'}
             </Text>
             <Feather name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={11} color={theme.textMuted} />
           </TouchableOpacity>
@@ -1508,52 +1610,83 @@ const s = StyleSheet.create({
 
   // ── Top bar ──
   topbar: {
-    paddingTop: 14, paddingHorizontal: 24, paddingBottom: 6,
-    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
+    paddingTop: 8, paddingHorizontal: 16, paddingBottom: 14,
   },
   greeting: {
-    fontFamily: FONTS.sansMedium, fontSize: 11, letterSpacing: 1,
-    textTransform: 'uppercase', marginBottom: 3,
+    fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.9,
+    textTransform: 'uppercase', marginBottom: 6,
   },
-  name: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.8, lineHeight: 30 },
-  topbarActions: { flexDirection: 'row', gap: 8 },
+  name: { fontFamily: FONTS.bebas, fontSize: 44, letterSpacing: 0.4 },
+  topbarActions: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    borderWidth: 1.5,
+    width: 36, height: 36, borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
   notifDot: {
     position: 'absolute', top: 8, right: 8,
     width: 7, height: 7, borderRadius: 3.5,
-    backgroundColor: COLORS.green, borderWidth: 1.5,
+    backgroundColor: COLORS.orangeBrand, borderWidth: 1.5,
   },
 
-  // ── CTA ──
-  ctaWrap: { paddingHorizontal: 24, paddingTop: 16 },
-  ctaBtn: {
-    height: 58, borderRadius: 18,
-    paddingLeft: 26, paddingRight: 18,
-    flexDirection: 'row', alignItems: 'center',
+  // ── Hero CTA card ──
+  heroCard: {
+    borderRadius: 20, padding: 20,
+    overflow: 'hidden', borderWidth: 1,
   },
-  ctaText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1.8, flex: 1 },
-  ctaCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1.5,
+  heroTag: {
+    fontFamily: FONTS.mono, fontSize: 10.5, letterSpacing: 1,
+    textTransform: 'uppercase', marginBottom: 10,
+    color: 'rgba(255,255,255,0.38)',
+  },
+  heroTitle: {
+    fontFamily: FONTS.bebas, fontSize: 34, letterSpacing: 0.5,
+    color: '#F2F0EB', marginBottom: 4,
+  },
+  heroSub: {
+    fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19,
+    marginTop: 10, marginBottom: 16,
+  },
+  heroBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 18, paddingVertical: 13,
+    borderRadius: 13, alignSelf: 'flex-start',
+  },
+  heroBtnText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
+
+  // ── Services grid ──
+  servicesGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: 16, gap: 10,
+  },
+  serviceCard: {
+    width: (Dimensions.get('window').width - 42) / 2,
+    borderRadius: 18, borderWidth: 1,
+    padding: 14,
+  },
+  serviceIconBox: {
+    width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
+  },
+  serviceCardName: { fontFamily: FONTS.sansMedium, fontSize: 14 },
+  serviceCardFrom: {
+    fontFamily: FONTS.mono, fontSize: 10.5,
+    letterSpacing: 0.6, marginTop: 3,
   },
 
   // ── Section headers ──
   sectionHead: {
-    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 0,
-    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 24, paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  sectionTitle: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 2.4 },
+  sectionTitle: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.2 },
   sectionAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sectionActionText: { fontFamily: FONTS.mono, fontSize: 11 },
 
   // ── Activity list ──
-  activityList: { paddingHorizontal: 24 },
+  activityList: { paddingHorizontal: 16 },
 
   emptyActivity: { padding: 44, alignItems: 'center', gap: 10 },
   emptyActivityIcon: {
@@ -1565,7 +1698,7 @@ const s = StyleSheet.create({
 
   // ── See all button ──
   seeAllBtn: {
-    marginHorizontal: 24, marginTop: 4,
+    marginHorizontal: 16, marginTop: 4,
     paddingVertical: 8,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
   },

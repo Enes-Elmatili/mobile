@@ -70,8 +70,6 @@
     "bank_to_configure": "To configure",
     "legal_docs": "Legal documents",
     "legal_docs_sub": "Insurance, registration",
-    "become_provider": "Become a provider",
-    "become_provider_sub": "Offer your services",
     "notifications": "Notifications",
     "notifications_sub": "Mission alerts, reminders",
     "privacy": "Privacy",
@@ -494,5 +492,18 @@
     "requestQueued": "Request saved — will be sent when back online",
     "actionQueued": "Action saved — will be sent when back online",
     "ratingQueued": "Your review will be posted when back online"
+  },
+  "addresses": {
+    "my_addresses": "My addresses",
+    "my_addresses_sub": "Saved addresses",
+    "save_address": "Save",
+    "address_label": "Address name",
+    "address_label_placeholder": "E.g.: Home, Office...",
+    "saved": "Address saved",
+    "deleted": "Address deleted",
+    "delete_confirm": "Delete this address?",
+    "max_reached": "Maximum 10 addresses",
+    "empty": "No saved addresses",
+    "add": "Add an address"
   }
 }

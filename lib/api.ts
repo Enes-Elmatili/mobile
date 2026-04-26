@@ -325,6 +325,7 @@ class ApiClient {
   providers = {
     list: () => this.request('/providers'),
     get: (id: string) => this.request(`/providers/${id}`),
+    availability: (id: string) => this.request(`/providers/${id}/availability`),
     nearby: (lat: number, lng: number, radius = 5000) =>
       this.request(`/providers/nearby?lat=${lat}&lng=${lng}&radius=${radius}`),
     available: (params: { lat: number; lng: number; radius?: number; categoryId?: number; minRating?: number; limit?: number }) => {
@@ -404,6 +405,14 @@ class ApiClient {
     debit: (amount: number) => this.post('/wallet/debit', { amount }),
   };
 
+  // ==================== ADDRESSES ====================
+  addresses = {
+    list: () => this.request('/addresses'),
+    create: (data: { label: string; address: string; lat: number; lng: number }) =>
+      this.post('/addresses', data),
+    remove: (id: number) => this.delete(`/addresses/${id}`),
+  };
+
   // ==================== NOTIFICATIONS ====================
   notifications = {
     list: () => this.request('/notifications'),
@@ -423,6 +432,7 @@ class ApiClient {
     markAllRead: (recipientId: string) => this.post(`/messages/read-all/${recipientId}`),
     unreadCount: () => this.request('/messages/unread'),
     contactInfo: (recipientId: string) => this.request(`/messages/contact/${recipientId}`),
+    canChat: (recipientId: string) => this.request(`/messages/can-chat/${recipientId}`),
   };
 
   // ==================== RATINGS ====================
@@ -465,9 +475,12 @@ class ApiClient {
   payments = {
     list: () => this.request('/payments'),
     get: (id: string) => this.request(`/payments/${id}`),
-    // Path 2 refactor: prefer `.setup` (SetupIntent — client authorizes, no charge)
-    // over `.intent` (legacy PaymentIntent — immediate charge to platform balance).
-    // Charge happens when a provider accepts, via backend destination charge.
+    // DIRECT_CHARGE flow: backend creates a PaymentIntent with automatic_payment_methods
+    // so Stripe exposes Card, Klarna, Bancontact, Apple Pay… based on amount/region.
+    // Client is charged immediately; backend transfers 80% to the provider at
+    // acceptance and refunds via cron if no provider accepts within the TTL.
+    // Response shape: { paymentIntentClientSecret, setupIntentClientSecret (alias,
+    // deprecated), ephemeralKey, customer, amount, currency, flow }.
     setup: async (requestId: string) => {
       const token = await tokenStorage.getToken();
       if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
@@ -507,6 +520,11 @@ class ApiClient {
     get: (id: string) => this.request(`/tickets/${id}`),
     create: (data: { title: string; description: string; priority?: string; requestId?: number }) =>
       this.post('/tickets', data),
+    events: (id: string) => this.request(`/tickets/${id}/events`),
+    addMessage: (id: string, content: string) =>
+      this.post(`/tickets/${id}/messages`, { content }),
+    update: (id: string, data: { status?: string; priority?: string }) =>
+      this.patch(`/tickets/${id}`, data),
   };
 
   // ==================== QUOTES / DEVIS ====================

@@ -16,6 +16,7 @@ import { api } from '@/lib/api';
 import { FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
+import { formatEUR } from '@/lib/format';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const GRID_SIZE = 40;
@@ -91,8 +92,9 @@ export default function ResumePayment() {
         setRequest(req);
 
         // Init Stripe payment sheet
-        // - Quote flow: PaymentIntent via /quotes/callout-payment (destination charge, callout fee)
-        // - Fixed-price flow (Path 2): SetupIntent via /payments/setup (no charge, authorized only)
+        // - Quote flow: PaymentIntent via /quotes/callout-payment (callout fee)
+        // - Fixed-price (DIRECT_CHARGE): PaymentIntent via /payments/setup
+        //   with automatic_payment_methods → Card, Klarna, Bancontact, Apple Pay…
         const isQuoteFlow = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
 
         let initOptions: Parameters<typeof initPaymentSheet>[0];
@@ -107,16 +109,18 @@ export default function ResumePayment() {
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
           };
         } else {
-          const setupRes = await api.payments.setup(String(id));
+          const setupRes: any = await api.payments.setup(String(id));
           if (!mountedRef.current) return;
+          // Backend returns paymentIntentClientSecret (new) with legacy alias
+          // setupIntentClientSecret during rollout — read whichever is present.
+          const clientSecret = setupRes.paymentIntentClientSecret || setupRes.setupIntentClientSecret;
           initOptions = {
             merchantDisplayName: 'Fixed',
-            setupIntentClientSecret: setupRes.setupIntentClientSecret,
+            paymentIntentClientSecret: clientSecret,
             customerEphemeralKeySecret: setupRes.ephemeralKey,
             customerId: setupRes.customer,
             applePay: { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
-            paymentMethodOrder: ['card'],
           };
         }
 
@@ -192,7 +196,7 @@ export default function ResumePayment() {
   };
 
   const serviceName = request?.serviceType || request?.category?.name || 'Service';
-  const price = request?.price ? `${parseFloat(request.price).toFixed(2)} €` : null;
+  const price = request?.price ? formatEUR(parseFloat(request.price)) : null;
 
   return (
     <View style={s.root}>
@@ -301,70 +305,70 @@ const s = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16,
+    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 48 : 28, paddingBottom: 10,
     zIndex: 2,
   },
-  headerTitle: { fontFamily: FONTS.bebas, fontSize: 20, color: C.white, letterSpacing: 2 },
+  headerTitle: { fontFamily: FONTS.bebas, fontSize: 18, color: C.white, letterSpacing: 2 },
 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   content: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 28, gap: 16, zIndex: 2,
+    paddingHorizontal: 18, gap: 12, zIndex: 2,
   },
 
   iconCircle: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 64, height: 64, borderRadius: 32,
     backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
 
   title: {
-    fontFamily: FONTS.bebas, fontSize: 36, color: C.white,
-    letterSpacing: 1, lineHeight: 40, textAlign: 'center',
+    fontFamily: FONTS.bebas, fontSize: 30, color: C.white,
+    letterSpacing: 1, lineHeight: 34, textAlign: 'center',
   },
   titleOutline: { color: 'rgba(255,255,255,0.3)' },
 
   subtitle: {
-    fontFamily: FONTS.sansLight, fontSize: 14, color: C.grey,
-    textAlign: 'center', lineHeight: 21, paddingHorizontal: 8,
+    fontFamily: FONTS.sansLight, fontSize: 13, color: C.grey,
+    textAlign: 'center', lineHeight: 19, paddingHorizontal: 4,
   },
 
   card: {
     backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 20, width: '100%', gap: 14,
+    borderRadius: 14, padding: 14, width: '100%', gap: 10,
   },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardLabel: { fontFamily: FONTS.sans, fontSize: 13, color: C.grey, width: 60 },
+  cardLabel: { fontFamily: FONTS.sans, fontSize: 12, color: C.grey, width: 56 },
   cardValue: { fontFamily: FONTS.sansMedium, fontSize: 13, color: C.white, flex: 1 },
-  priceRow: { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 14, marginTop: 2 },
+  priceRow: { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10, marginTop: 2 },
   priceValue: { fontFamily: FONTS.bebas, fontSize: 22, color: C.white, flex: 1, letterSpacing: 0.5 },
 
   infoCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 16, width: '100%',
+    borderRadius: 12, padding: 12, width: '100%',
   },
   infoText: {
     flex: 1, fontFamily: FONTS.sansLight, fontSize: 12,
-    lineHeight: 19, color: 'rgba(255,255,255,0.45)',
+    lineHeight: 17, color: 'rgba(255,255,255,0.45)',
   },
 
   footer: {
-    paddingHorizontal: 28,
-    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
     zIndex: 2,
   },
   btnPrimary: {
-    width: '100%', height: 60, backgroundColor: C.white, borderRadius: 18,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12,
+    width: '100%', height: 52, backgroundColor: C.white, borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
   btnDisabled: { opacity: 0.6 },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
+    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2.5, color: C.bg,
   },
   arrowPill: {
-    width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
+    width: 28, height: 28, borderRadius: 8, backgroundColor: C.bg,
     alignItems: 'center', justifyContent: 'center',
   },
 });

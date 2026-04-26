@@ -5,7 +5,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, SafeAreaView, Animated, StatusBar,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,14 @@ import { useSocket } from '@/lib/SocketContext';
 import * as Haptics from 'expo-haptics';
 
 const NET_RATE = 0.80;
+
+type FilterKey = 'all' | 'plumbing' | 'urgent' | 'scheduled';
+const FILTER_CHIPS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'plumbing', label: 'Plumbing' },
+  { key: 'urgent', label: 'Urgent' },
+  { key: 'scheduled', label: 'Scheduled' },
+];
 
 interface Opportunity {
   id: number;
@@ -67,66 +75,46 @@ function OpportunityCard({
     onAccept(item.id);
   };
 
+  // Determine if this is an urgent opportunity (preferredTimeStart within 24h)
+  const diffMs = new Date(item.preferredTimeStart).getTime() - Date.now();
+  const isUrgent = diffMs < 24 * 60 * 60 * 1000;
+
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <View style={[st.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
-        {/* Header: categorie + date relative */}
+        {/* Status chip + timing */}
         <View style={st.cardHead}>
-          <View style={[st.catBadge, { backgroundColor: theme.surface }]}>
-            <Feather name="tool" size={14} color={theme.text} />
-            <Text style={[st.catBadgeText, { color: theme.text }]}>{item.category.name}</Text>
+          <View style={[st.statusChip, { backgroundColor: isUrgent ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.15)' }]}>
+            <View style={[st.statusDot, { backgroundColor: isUrgent ? COLORS.amber : COLORS.statusAccepted }]} />
+            <Text style={[st.statusChipText, { color: isUrgent ? COLORS.amber : COLORS.statusAccepted }]}>
+              {isUrgent ? 'URGENT' : 'SCHEDULED'}
+            </Text>
           </View>
-          <View style={[st.relBadge, { backgroundColor: theme.surface }]}>
-            <Text style={[st.relText, { color: theme.textSub }]}>{relative}</Text>
-          </View>
+          <Text style={[st.timingLabel, { color: theme.textMuted }]}>{relative} · {day}</Text>
         </View>
 
-        {/* Service */}
+        {/* Service name */}
         <Text style={[st.serviceName, { color: theme.text }]} numberOfLines={1}>
-          {item.serviceType}
+          {item.serviceType.toUpperCase()}
         </Text>
-        {item.description ? (
-          <Text style={[st.desc, { color: theme.textSub }]} numberOfLines={2}>
-            {item.description}
+
+        {/* Address + distance */}
+        <View style={st.addressRow}>
+          <Feather name="map-pin" size={13} color={theme.textSub} />
+          <Text style={[st.addressText, { color: theme.textSub }]} numberOfLines={1}>
+            {item.address.split(',')[0]}
           </Text>
-        ) : null}
-
-        {/* Client info */}
-        <View style={st.clientRow}>
-          <View style={[st.clientAvatar, { backgroundColor: theme.surface }]}>
-            <Text style={[st.clientInitials, { color: theme.textSub }]}>
-              {(item.client.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-            </Text>
-          </View>
-          <Text style={[st.clientName, { color: theme.textSub }]} numberOfLines={1}>{item.client.name || 'Client'}</Text>
           {item.client.city ? (
-            <View style={[st.cityBadge, { backgroundColor: theme.surface }]}>
-              <Feather name="map-pin" size={10} color={theme.textMuted} />
-              <Text style={[st.cityText, { color: theme.textMuted }]}>{item.client.city}</Text>
-            </View>
+            <Text style={[st.distanceText, { color: theme.textMuted }]}> · {item.client.city}</Text>
           ) : null}
-        </View>
-
-        {/* Infos row: date/heure + adresse */}
-        <View style={st.infoRow}>
-          <View style={st.infoItem}>
-            <Feather name="calendar" size={14} color={theme.textMuted} />
-            <Text style={[st.infoText, { color: theme.textSub }]}>{day} a {time}</Text>
-          </View>
-          <View style={st.infoItem}>
-            <Feather name="map-pin" size={14} color={theme.textMuted} />
-            <Text style={[st.infoText, { color: theme.textSub }]} numberOfLines={1}>
-              {item.address.split(',')[0]}
-            </Text>
-          </View>
         </View>
 
         {/* Footer: prix + boutons */}
         <View style={st.cardFoot}>
           {net ? (
-            <View>
-              <Text style={[st.priceNet, { color: theme.text }]}>{net} &euro;</Text>
-              <Text style={[st.priceLabel, { color: theme.textMuted }]}>net estime</Text>
+            <View style={st.priceBlock}>
+              <Text style={[st.priceNet, { color: theme.text }]}>{item.price}&nbsp;&euro;</Text>
+              <Text style={[st.priceLabel, { color: theme.textMuted }]}>NET &euro;{net}</Text>
             </View>
           ) : (
             <View />
@@ -138,8 +126,7 @@ function OpportunityCard({
               disabled={accepting !== null}
               activeOpacity={0.8}
             >
-              <Feather name="x-circle" size={18} color={theme.textSub} />
-              <Text style={[st.declineText, { color: theme.textSub }]}>Décliner</Text>
+              <Text style={[st.declineText, { color: theme.textSub }]}>Decline</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[st.acceptBtn, { backgroundColor: theme.accent }]}
@@ -150,10 +137,7 @@ function OpportunityCard({
               {accepting === item.id ? (
                 <ActivityIndicator size="small" color={theme.accentText} />
               ) : (
-                <>
-                  <Feather name="check-circle" size={18} color={theme.accentText} />
-                  <Text style={[st.acceptText, { color: theme.accentText }]}>Accepter</Text>
-                </>
+                <Text style={[st.acceptText, { color: theme.accentText }]}>Accept</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -171,8 +155,14 @@ export default function OpportunitiesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [accepting, setAccepting] = useState<number | null>(null);
+  const [filter, setFilter] = useState<FilterKey>('all');
 
+  // In-flight guard: prevents concurrent fetches (mount effect + pull-to-refresh
+  // + socket rebroadcast can otherwise all fire this within a few ms).
+  const fetchInFlightRef = useRef(false);
   const fetchOpportunities = useCallback(async () => {
+    if (fetchInFlightRef.current) return;
+    fetchInFlightRef.current = true;
     try {
       const res = await api.get('/requests/opportunities');
       const data = res?.data ?? res;
@@ -182,6 +172,7 @@ export default function OpportunitiesScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      fetchInFlightRef.current = false;
     }
   }, []);
 
@@ -221,8 +212,16 @@ export default function OpportunitiesScreen() {
       // Toujours vers MissionView (ongoing), peu importe pricingMode
       router.replace(`/request/${requestId}/ongoing`);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Erreur';
-      Alert.alert('Impossible', msg);
+      const code = e?.response?.data?.code || e?.data?.code;
+      // Mission plus disponible (prise par un autre, annulée, expirée) — on
+      // ne surface pas le message technique du backend, juste un feedback doux.
+      if (code === 'INVALID_STATE' || code === 'ALREADY_TAKEN') {
+        setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
+        Alert.alert('Mission plus disponible', 'Cette mission vient d\'être prise ou n\'est plus active.');
+      } else {
+        const msg = e?.response?.data?.message || e?.message || 'Erreur';
+        Alert.alert('Impossible', msg);
+      }
     } finally {
       setAccepting(null);
     }
@@ -241,6 +240,35 @@ export default function OpportunitiesScreen() {
     }
   }, [socket]);
 
+  // Filter opportunities based on selected chip
+  const filteredOpportunities = React.useMemo(() => {
+    if (filter === 'all') return opportunities;
+    if (filter === 'plumbing') return opportunities.filter(o => o.category.name.toLowerCase().includes('plomb') || o.category.name.toLowerCase().includes('plumb'));
+    if (filter === 'urgent') return opportunities.filter(o => {
+      const diffMs = new Date(o.preferredTimeStart).getTime() - Date.now();
+      return diffMs < 24 * 60 * 60 * 1000;
+    });
+    if (filter === 'scheduled') return opportunities.filter(o => {
+      const diffMs = new Date(o.preferredTimeStart).getTime() - Date.now();
+      return diffMs >= 24 * 60 * 60 * 1000;
+    });
+    return opportunities;
+  }, [opportunities, filter]);
+
+  const chipCounts = React.useMemo(() => {
+    const urgentCount = opportunities.filter(o => {
+      const diffMs = new Date(o.preferredTimeStart).getTime() - Date.now();
+      return diffMs < 24 * 60 * 60 * 1000;
+    }).length;
+    const plumbingCount = opportunities.filter(o => o.category.name.toLowerCase().includes('plomb') || o.category.name.toLowerCase().includes('plumb')).length;
+    return {
+      all: opportunities.length,
+      plumbing: plumbingCount,
+      urgent: urgentCount,
+      scheduled: opportunities.length - urgentCount,
+    };
+  }, [opportunities]);
+
   const renderItem = useCallback(({ item }: { item: Opportunity }) => (
     <OpportunityCard item={item} theme={theme} onAccept={handleAccept} onDecline={handleDecline} accepting={accepting} />
   ), [theme, handleAccept, handleDecline, accepting]);
@@ -251,27 +279,63 @@ export default function OpportunitiesScreen() {
 
       {/* Header */}
       <View style={st.header}>
-        <Text style={[st.headerTitle, { color: theme.text }]}>Opportunites</Text>
-        <Text style={[st.headerSub, { color: theme.textSub }]}>
-          Missions planifiees pour vous
+        <View style={st.headerTopRow}>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity style={[st.filterIconBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7}>
+            <Feather name="sliders" size={18} color={theme.text} />
+          </TouchableOpacity>
+        </View>
+        <Text style={[st.headerSub, { color: theme.textMuted }]}>
+          {opportunities.length} NEW JOBS NEAR YOU
         </Text>
+        <Text style={[st.headerTitle, { color: theme.text }]}>Opportunities</Text>
       </View>
+
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={st.chipRow}
+        style={st.chipScroll}
+      >
+        {FILTER_CHIPS.map((chip) => {
+          const isActive = filter === chip.key;
+          return (
+            <TouchableOpacity
+              key={chip.key}
+              style={[
+                st.chip,
+                { backgroundColor: isActive ? theme.accent : theme.surface },
+              ]}
+              onPress={() => setFilter(chip.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                st.chipText,
+                { color: isActive ? theme.accentText : theme.textSub },
+              ]}>
+                {chip.label}{chipCounts[chip.key] > 0 ? ` \u00B7 ${chipCounts[chip.key]}` : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       {loading ? (
         <View style={st.center}>
           <ActivityIndicator size="large" color={theme.textSub} />
         </View>
-      ) : opportunities.length === 0 ? (
+      ) : filteredOpportunities.length === 0 ? (
         <View style={st.center}>
           <Feather name="search" size={48} color={theme.textMuted} />
-          <Text style={[st.emptyTitle, { color: theme.text }]}>Aucune opportunite</Text>
+          <Text style={[st.emptyTitle, { color: theme.text }]}>No opportunities</Text>
           <Text style={[st.emptySub, { color: theme.textSub }]}>
-            Les missions planifiees correspondant a vos competences apparaitront ici.
+            Scheduled missions matching your skills will appear here.
           </Text>
         </View>
       ) : (
         <FlatList
-          data={opportunities}
+          data={filteredOpportunities}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           contentContainerStyle={st.list}
@@ -287,55 +351,66 @@ export default function OpportunitiesScreen() {
 
 const st = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
-  headerSub: { fontSize: 14, fontFamily: FONTS.sans, marginTop: 2 },
 
+  // ── Header ──
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 8 },
+  filterIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  headerSub: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.9, textTransform: 'uppercase' as const, marginBottom: 2 },
+  headerTitle: { fontSize: 44, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+
+  // ── Filter chips ──
+  chipScroll: { flexGrow: 0 },
+  chipRow: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 8 },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  chipText: { fontSize: 13, fontFamily: FONTS.sansMedium },
+
+  // ── Empty / loading ──
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 18, fontFamily: FONTS.sansMedium, marginTop: 8 },
   emptySub: { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
 
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
+  // ── List ──
+  list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 100 },
 
+  // ── Card ──
   card: {
     borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 12,
     shadowColor: '#000', shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
+
+  // ── Card head: status chip + timing ──
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  catBadgeText: { fontSize: 12, fontFamily: FONTS.sansMedium },
-  relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  relText: { fontSize: 11, fontFamily: FONTS.sansMedium },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusChipText: { fontSize: 11, fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
+  timingLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.3 },
 
-  serviceName: { fontSize: 17, fontFamily: FONTS.sansMedium, marginBottom: 4 },
-  desc: { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18, marginBottom: 10 },
+  // ── Service name ──
+  serviceName: { fontSize: 22, fontFamily: FONTS.bebas, letterSpacing: 0.4, marginBottom: 6 },
 
-  clientRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  clientAvatar:   { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  clientInitials: { fontSize: 10, fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
-  clientName:     { fontSize: 13, fontFamily: FONTS.sansMedium, flex: 1 },
-  cityBadge:      { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  cityText:       { fontSize: 10, fontFamily: FONTS.sansMedium },
+  // ── Address row ──
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 14 },
+  addressText: { fontSize: 12.5, fontFamily: FONTS.sans },
+  distanceText: { fontSize: 12.5, fontFamily: FONTS.sans },
 
-  infoRow: { gap: 6, marginBottom: 14 },
-  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  infoText: { fontSize: 13, fontFamily: FONTS.sans },
-
+  // ── Card footer: price + actions ──
   cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  priceBlock: { gap: 1 },
+  priceNet: { fontSize: 26, fontFamily: FONTS.bebas, letterSpacing: 0.4 },
+  priceLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.5 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceNet: { fontSize: 20, fontFamily: FONTS.bebas },
-  priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
   declineBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignItems: 'center', justifyContent: 'center',
     borderRadius: 13, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 10,
+    paddingHorizontal: 16, paddingVertical: 10,
   },
   declineText: { fontSize: 13, fontFamily: FONTS.sansMedium },
   acceptBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignItems: 'center', justifyContent: 'center',
     borderRadius: 13,
-    paddingHorizontal: 18, paddingVertical: 10,
+    paddingHorizontal: 20, paddingVertical: 10,
   },
   acceptText: { fontSize: 14, fontFamily: FONTS.sansMedium },
 });

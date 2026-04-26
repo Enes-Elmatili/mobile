@@ -20,6 +20,7 @@ import { devError } from '@/lib/logger';
 import { useInvoice } from '@/hooks/useInvoice';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
+import { formatEUR, formatEURCents } from '@/lib/format';
 
 export default function EarningsScreen() {
   const { id } = useLocalSearchParams();
@@ -120,8 +121,8 @@ export default function EarningsScreen() {
   const net = Math.round((basePrice - commission) * 100) / 100;
 
   const rows = [
-    { label: 'Prix de la mission', value: `${basePrice.toFixed(2)} €`, highlight: false },
-    { label: 'Commission (20%)', value: `-${commission.toFixed(2)} €`, highlight: false, negative: true },
+    { label: 'Prix de la mission', value: formatEUR(basePrice), highlight: false },
+    { label: 'Commission (20%)', value: `-${formatEUR(commission)}`, highlight: false, negative: true },
   ];
 
   return (
@@ -148,7 +149,7 @@ export default function EarningsScreen() {
           transform: [{ scale: priceAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }],
           opacity: priceAnim,
         }]}>
-          {displayedPrice.toFixed(2)} €
+          {formatEUR(displayedPrice)}
         </Animated.Text>
 
         <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>disponible sous 7 jours sur votre compte bancaire</Text>
@@ -169,7 +170,7 @@ export default function EarningsScreen() {
           ))}
           <View style={[s.calcTotal, { borderTopColor: theme.border }]}>
             <Text style={[s.calcTotalLabel, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Total net</Text>
-            <Text style={[s.calcTotalValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{net.toFixed(2)} €</Text>
+            <Text style={[s.calcTotalValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{formatEUR(net)}</Text>
           </View>
         </View>
 
@@ -198,7 +199,7 @@ export default function EarningsScreen() {
             <View>
               <Text style={[s.monthCardLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Gains ce mois</Text>
               <Text style={[s.monthCardValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
-                {(monthEarnings / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                {formatEURCents(monthEarnings)}
               </Text>
             </View>
           </View>
@@ -208,7 +209,7 @@ export default function EarningsScreen() {
         {/* ── Actions ── */}
         <TouchableOpacity
           style={[s.primaryBtn, { backgroundColor: theme.accent }]}
-          onPress={() => router.replace('/(tabs)/missions')}
+          onPress={() => router.replace('/(tabs)/dashboard')}
           activeOpacity={0.88}
         >
           <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Trouver ma prochaine mission</Text>
@@ -225,13 +226,6 @@ export default function EarningsScreen() {
             <Text style={[s.invoiceBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Voir la facture</Text>
           </TouchableOpacity>
         )}
-
-        <TouchableOpacity
-          style={s.secondaryBtn}
-          onPress={() => router.replace('/(tabs)/dashboard')}
-        >
-          <Text style={[s.secondaryBtnText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Retour au tableau de bord</Text>
-        </TouchableOpacity>
 
       </Animated.View>
 
@@ -257,84 +251,84 @@ const s = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadError: { fontSize: 15 },
 
-  // Hero zone (fond sombre) — compact pour éviter la troncature
+  // Hero zone (fond sombre) — compact
   heroZone: {
-    alignItems: 'center', paddingTop: 24, paddingBottom: 24, paddingHorizontal: 24,
-    gap: 8,
+    alignItems: 'center', paddingTop: 16, paddingBottom: 16, paddingHorizontal: 16,
+    gap: 6,
   },
   checkCircle: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 60, height: 60, borderRadius: 30,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8,
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
+    marginBottom: 4,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
   },
-  heroLabel: { fontSize: 14, letterSpacing: 0.5 },
+  heroLabel: { fontSize: 13, letterSpacing: 0.5 },
   heroPrice: {
-    fontSize: 56,
-    letterSpacing: -2, lineHeight: 64,
+    fontSize: 48,
+    letterSpacing: -1.5, lineHeight: 54,
   },
-  heroSub: { fontSize: 13, textAlign: 'center' },
+  heroSub: { fontSize: 12, textAlign: 'center' },
 
   // Detail zone (fond adaptatif, arrondis haut)
   detailZone: {
     flex: 1,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 20, paddingTop: 20,
-    gap: 12,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 16, paddingTop: 14,
+    gap: 10,
   },
 
   // Calcul
   calcCard: {
-    borderRadius: 20,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2,
-    marginBottom: 4,
+    borderRadius: 14,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 2,
+    marginBottom: 2,
     borderWidth: 1,
   },
-  calcTitle: { fontSize: 13, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  calcTitle: { fontSize: 12, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  calcRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
   calcRowBorder: { borderBottomWidth: 1 },
-  calcLabel: { fontSize: 14 },
-  calcValue: { fontSize: 14 },
+  calcLabel: { fontSize: 13 },
+  calcValue: { fontSize: 13 },
   calcTotal: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 14, borderTopWidth: 1.5, marginTop: 4,
+    paddingVertical: 11, borderTopWidth: 1.5, marginTop: 2,
   },
-  calcTotalLabel: { fontSize: 15 },
-  calcTotalValue: { fontSize: 24 },
+  calcTotalLabel: { fontSize: 14 },
+  calcTotalValue: { fontSize: 22 },
 
   // Mission
   missionCard: {
-    borderRadius: 20, overflow: 'hidden', marginBottom: 4,
+    borderRadius: 14, overflow: 'hidden', marginBottom: 2,
     borderWidth: 1,
   },
-  missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 11 },
+  missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 9 },
   missionRowBorder: { borderBottomWidth: 1 },
-  missionText: { fontSize: 14, flex: 1 },
+  missionText: { fontSize: 13, flex: 1 },
 
   // Month card
   monthCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 20, paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11,
     borderWidth: 1,
   },
   monthCardLeft: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
   },
-  monthCardLabel: { fontSize: 12, letterSpacing: 0.3 },
-  monthCardValue: { fontSize: 24, letterSpacing: -1, lineHeight: 28 },
+  monthCardLabel: { fontSize: 11, letterSpacing: 0.3 },
+  monthCardValue: { fontSize: 22, letterSpacing: -1, lineHeight: 26 },
 
   // Boutons
   primaryBtn: {
-    borderRadius: 55, height: 55,
+    borderRadius: 14, height: 48,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  primaryBtnText: { fontSize: 16 },
-  secondaryBtn: { alignItems: 'center', paddingVertical: 10 },
-  secondaryBtnText: { fontSize: 15 },
+  primaryBtnText: { fontSize: 15 },
+  secondaryBtn: { alignItems: 'center', paddingVertical: 8 },
+  secondaryBtnText: { fontSize: 14 },
   invoiceBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 55, height: 55,
+    borderRadius: 14, height: 48,
     borderWidth: 1.5,
   },
-  invoiceBtnText: { fontSize: 14 },
+  invoiceBtnText: { fontSize: 13 },
 });

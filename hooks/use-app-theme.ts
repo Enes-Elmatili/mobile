@@ -77,6 +77,8 @@ interface ThemeTokens {
   statusBar: 'light-content' | 'dark-content';
   shadowOpacity: number;
   verified: string;
+  verifiedBg: string;
+  verifiedFg: string;
   badgeDoneBg: string;
   badgeDoneText: string;
   badgeCancelledBg: string;
@@ -97,17 +99,17 @@ function buildTheme(isDark: boolean): ThemeTokens {
     headerBg:     isDark ? '#0A0A0A' : '#F4F4F2',
     // ── Surfaces (chips, icon bg, inputs) ──
     surface:      isDark ? '#1A1A1A' : '#E8E8E8',
-    surfaceAlt:   isDark ? '#222222' : '#E8E8E8',
+    surfaceAlt:   isDark ? '#222222' : '#DCDCDC',
     // ── Borders / separators ──
     border:       isDark ? '#2A2A2A' : '#D8D8D8',
-    borderLight:  isDark ? '#222222' : '#D8D8D8',
+    borderLight:  isDark ? '#222222' : '#E4E4E0',
     // ── Text ──
     text:         isDark ? '#FFFFFF' : '#1A1A18',
     textAlt:      isDark ? '#FFFFFF' : '#1A1A18',
     textSub:      isDark ? '#999999' : '#8A8880',
-    textMuted:    isDark ? '#666666' : '#8A8880',
+    textMuted:    isDark ? '#666666' : '#A5A39B',
     textVeryMuted:isDark ? '#555555' : '#CACBCE',
-    textDisabled: isDark ? '#444444' : '#DEDAD4',
+    textDisabled: isDark ? '#444444' : '#C8C6BE',
     // ── Accent / interactive ──
     accent:       isDark ? '#F8F7F4' : '#1A1A18',
     accentText:   isDark ? '#0A0A0A' : '#F4F4F2',
@@ -127,6 +129,8 @@ function buildTheme(isDark: boolean): ThemeTokens {
     shadowOpacity: isDark ? 0.3 : 0.06,
     // ── Verified badge ──
     verified:     COLORS.verified,
+    verifiedBg:   'rgba(61,139,61,0.14)',
+    verifiedFg:   COLORS.greenBrand,
     // ── Status badges ──
     badgeDoneBg:       isDark ? '#1A2A1A'               : 'rgba(74,222,128,0.1)',
     badgeDoneText:     isDark ? '#4ADE80'               : '#15803D',

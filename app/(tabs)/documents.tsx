@@ -13,9 +13,7 @@ import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
-
-const fmtEur = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const fmtEurCents = (cents: number) => (cents / 100).toFixed(2);
+import { formatEUR, formatEURCents, formatEURInt } from '@/lib/format';
 
 type Tab = 'factures' | 'devis' | 'planifiees';
 type Filter = 'all' | 'paid' | 'pending';
@@ -46,26 +44,30 @@ interface ScheduledRequest {
   createdAt: string;
 }
 
-// ── Summary Card ──
-function SummaryCard({ icon, value, label, dark, theme }: {
+// ── Summary Card (tappable filter) ──
+function SummaryCard({ icon, value, label, dark, active, onPress, theme }: {
   icon: string; value: string; label: string; dark?: boolean;
+  active?: boolean; onPress?: () => void;
   theme: ReturnType<typeof useAppTheme>;
 }) {
   const bg = dark ? darkTokens.bg : theme.cardBg;
-  const border = dark ? 'transparent' : theme.borderLight;
+  const border = active ? theme.accent : (dark ? 'transparent' : theme.borderLight);
   const iconBg = dark ? 'rgba(255,255,255,0.08)' : theme.surface;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : theme.textSub;
   const valColor = dark ? darkTokens.text : theme.text;
   const labelColor = dark ? 'rgba(255,255,255,0.3)' : theme.textMuted;
 
+  const Wrapper: any = onPress ? TouchableOpacity : View;
+  const wrapperProps = onPress ? { onPress, activeOpacity: 0.85 } : {};
+
   return (
-    <View style={[sc.card, { backgroundColor: bg, borderColor: border }]}>
+    <Wrapper style={[sc.card, { backgroundColor: bg, borderColor: border }]} {...wrapperProps}>
       <View style={[sc.icon, { backgroundColor: iconBg }]}>
         <Feather name={icon as any} size={13} color={iconColor} />
       </View>
-      <Text style={[sc.value, { color: valColor }]}>{value}</Text>
+      <Text style={[sc.value, { color: valColor }]} numberOfLines={1}>{value}</Text>
       <Text style={[sc.label, { color: labelColor }]}>{label}</Text>
-    </View>
+    </Wrapper>
   );
 }
 
@@ -115,7 +117,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
         <Text style={[iv.meta, { color: theme.textMuted }]}>{date} · {number}</Text>
       </View>
       <View style={iv.right}>
-        <Text style={[iv.amount, { color: theme.text }]}>{fmtEur(invoice.amount)}</Text>
+        <Text style={[iv.amount, { color: theme.text }]}>{formatEUR(invoice.amount)}</Text>
         <View style={[iv.pill, { backgroundColor: pillBg }]}>
           <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
         </View>
@@ -162,8 +164,14 @@ export default function Documents() {
   const [filter, setFilter] = useState<Filter>('all');
   const [activeTab, setActiveTab] = useState<Tab>('factures');
 
-  const QUOTE_STATUSES = ['QUOTE_SENT', 'QUOTE_ACCEPTED', 'QUOTE_PENDING'];
-  const SCHEDULED_HIDDEN_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
+  // Statuts terminaux communs aux deux onglets (Devis + Planifiées).
+  const TERMINAL_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
+
+  // Une demande appartient au flow Devis si elle est en mode estimate/diagnostic
+  // ET que le callout fee a été payé (la transition QUOTE_PENDING peut ne pas être
+  // encore arrivée si le webhook tarde — on s'appuie donc sur calloutFee, pas le statut).
+  const isQuoteFlow = (r: any) =>
+    (r.pricingMode === 'estimate' || r.pricingMode === 'diagnostic') && r.calloutFee > 0;
 
   const load = useCallback(async () => {
     try {
@@ -175,29 +183,32 @@ export default function Documents() {
       setInvoices(Array.isArray(invData) ? invData : []);
 
       const reqData: any[] = reqRes?.data || reqRes || [];
+
+      // Devis : toute demande en flow estimate/diagnostic dont le callout est payé,
+      // tant qu'elle n'est pas dans un état terminal. On ne filtre PAS sur QUOTE_*
+      // pour ne pas masquer les devis payés bloqués brièvement en PENDING_PAYMENT.
       setQuoteRequests(
         reqData.filter((r: any) => {
           const st = r.status?.toUpperCase();
-          if (!QUOTE_STATUSES.includes(st)) return false;
-          // QUOTE_PENDING sans calloutFee = pas encore payé → ne pas afficher
-          if (st === 'QUOTE_PENDING' && !(r.calloutFee > 0)) return false;
-          return true;
+          if (TERMINAL_STATUSES.includes(st)) return false;
+          return isQuoteFlow(r);
         })
       );
 
-      // Demandes planifiées : preferredTimeStart dans le futur, pas annulées/terminées
-      const now = Date.now();
+      // Planifiées : demandes actives en prix fixe uniquement (les devis vivent dans l'onglet Devis).
       setScheduledRequests(
         reqData
           .filter((r: any) => {
             const st = r.status?.toUpperCase();
-            if (SCHEDULED_HIDDEN_STATUSES.includes(st)) return false;
-            if (!r.preferredTimeStart) return false;
-            return new Date(r.preferredTimeStart).getTime() > now;
+            if (TERMINAL_STATUSES.includes(st)) return false;
+            if (isQuoteFlow(r)) return false;
+            return true;
           })
-          .sort((a: any, b: any) =>
-            new Date(a.preferredTimeStart).getTime() - new Date(b.preferredTimeStart).getTime()
-          )
+          .sort((a: any, b: any) => {
+            const aTime = a.preferredTimeStart ? new Date(a.preferredTimeStart).getTime() : new Date(a.createdAt).getTime();
+            const bTime = b.preferredTimeStart ? new Date(b.preferredTimeStart).getTime() : new Date(b.createdAt).getTime();
+            return aTime - bTime;
+          })
       );
     } catch (e) {
       devError('Documents load error:', e);
@@ -220,7 +231,10 @@ export default function Documents() {
   // Stats
   const totalCount = invoices.length;
   const totalEur = useMemo(() => invoices.reduce((s, i) => s + (i.amount || 0), 0), [invoices]);
-  const paidCount = useMemo(() => invoices.filter(i => i.status === 'PAID').length, [invoices]);
+  const pendingEur = useMemo(
+    () => invoices.filter(i => i.status === 'PENDING').reduce((s, i) => s + (i.amount || 0), 0),
+    [invoices],
+  );
 
   // Filter
   const filtered = useMemo(() => {
@@ -229,11 +243,7 @@ export default function Documents() {
     return invoices;
   }, [invoices, filter]);
 
-  const FILTERS: { key: Filter; label: string }[] = [
-    { key: 'all', label: 'Toutes' },
-    { key: 'paid', label: 'Réglées' },
-    { key: 'pending', label: 'En attente' },
-  ];
+  const cycleFilter = (next: Filter) => setFilter(prev => (prev === next ? 'all' : next));
 
   if (loading) {
     return (
@@ -274,7 +284,8 @@ export default function Documents() {
           const label = tab === 'factures' ? 'FACTURES'
             : tab === 'devis' ? 'DEVIS'
             : 'PLANIFIÉES';
-          const count = tab === 'factures' ? invoices.length
+          // Pas de badge sur Factures (le compte est déjà dans la SummaryCard).
+          const count = tab === 'factures' ? 0
             : tab === 'devis' ? quoteRequests.length
             : scheduledRequests.length;
           return (
@@ -304,43 +315,59 @@ export default function Documents() {
         {/* ── FACTURES TAB ── */}
         {activeTab === 'factures' && (
           <>
-            {/* Summary strip */}
+            {/* Summary strip — cards are filter chips */}
             <View style={s.summaryRow}>
-              <SummaryCard dark icon="file-text" value={String(totalCount)} label="Factures" theme={theme} />
-              <SummaryCard icon="dollar-sign" value={String(Math.round(totalEur))} label="EUR total" theme={theme} />
-              <SummaryCard icon="check" value={String(paidCount)} label="Réglées" theme={theme} />
-            </View>
-
-            {/* Filter tabs */}
-            <View style={s.filterRow}>
-              {FILTERS.map(f => {
-                const active = filter === f.key;
-                return (
-                  <TouchableOpacity
-                    key={f.key}
-                    style={[s.filterTab, active
-                      ? { backgroundColor: theme.accent }
-                      : { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1.5 }
-                    ]}
-                    onPress={() => setFilter(f.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.filterTabText, { color: active ? theme.accentText : theme.textMuted }]}>{f.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <SummaryCard
+                dark
+                icon="file-text"
+                value={String(totalCount)}
+                label="Factures"
+                active={filter === 'all'}
+                onPress={() => setFilter('all')}
+                theme={theme}
+              />
+              <SummaryCard
+                icon="trending-up"
+                value={formatEURInt(totalEur)}
+                label="Total"
+                active={filter === 'paid'}
+                onPress={() => cycleFilter('paid')}
+                theme={theme}
+              />
+              <SummaryCard
+                icon="clock"
+                value={pendingEur > 0 ? formatEURInt(pendingEur) : '0'}
+                label="En attente"
+                active={filter === 'pending'}
+                onPress={() => cycleFilter('pending')}
+                theme={theme}
+              />
             </View>
 
             {/* Invoice list */}
             {filtered.length === 0 ? (
-              <View style={[s.empty, { borderColor: theme.borderLight }]}>
+              <View style={[s.empty, { backgroundColor: theme.cardBg }]}>
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
                   <Feather name="file-text" size={22} color={theme.textDisabled} />
                 </View>
-                <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune facture</Text>
-                <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
-                  Vos factures apparaîtront ici après chaque service terminé.
+                <Text style={[s.emptyTitle, { color: theme.text }]}>
+                  {filter === 'all' ? 'Aucune facture' : filter === 'paid' ? 'Aucune facture réglée' : 'Aucune facture en attente'}
                 </Text>
+                <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
+                  {filter === 'all'
+                    ? 'Vos factures apparaîtront ici après chaque service terminé.'
+                    : 'Tapez sur la carte « Factures » pour voir toutes vos factures.'}
+                </Text>
+                {filter === 'all' && (
+                  <TouchableOpacity
+                    style={[s.emptyCta, { backgroundColor: theme.accent }]}
+                    onPress={() => router.push('/request/NewRequestStepper')}
+                    activeOpacity={0.85}
+                  >
+                    <Feather name="plus" size={14} color={theme.accentText} />
+                    <Text style={[s.emptyCtaText, { color: theme.accentText }]}>Commander un service</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <View style={s.invoiceList}>
@@ -376,7 +403,7 @@ export default function Documents() {
         {activeTab === 'devis' && (
           <>
             {quoteRequests.length === 0 ? (
-              <View style={[s.empty, { borderColor: theme.borderLight }]}>
+              <View style={[s.empty, { backgroundColor: theme.cardBg }]}>
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
                   <Feather name="file-text" size={22} color={theme.textDisabled} />
                 </View>
@@ -384,22 +411,47 @@ export default function Documents() {
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   Vos devis apparaîtront ici une fois qu'un prestataire aura fait son diagnostic.
                 </Text>
+                <TouchableOpacity
+                  style={[s.emptyCta, { backgroundColor: theme.accent }]}
+                  onPress={() => router.push('/request/NewRequestStepper')}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="plus" size={14} color={theme.accentText} />
+                  <Text style={[s.emptyCtaText, { color: theme.accentText }]}>Demander un devis</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <View style={s.invoiceList}>
-                {quoteRequests.slice(0, 5).map(req => {
+                {quoteRequests.map(req => {
                   const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
                   const statusUp = req.status?.toUpperCase();
+                  const isPendingPay = statusUp === 'PENDING_PAYMENT';
+                  const isPending = statusUp === 'QUOTE_PENDING';
                   const isSent = statusUp === 'QUOTE_SENT';
                   const isAccepted = statusUp === 'QUOTE_ACCEPTED';
-                  const isPending = statusUp === 'QUOTE_PENDING';
-                  const pillBg = isSent ? 'rgba(232,120,58,0.1)' : isAccepted ? 'rgba(61,139,61,0.1)' : 'rgba(150,150,150,0.1)';
-                  const pillColor = isSent ? COLORS.orangeBrand : isAccepted ? COLORS.greenBrand : theme.textMuted as string;
-                  const pillLabel = isSent ? 'À examiner' : isAccepted ? 'Accepté' : 'En cours';
-                  const barColor = isSent ? COLORS.orangeBrand : isAccepted ? COLORS.greenBrand : '#888';
+                  const isOngoing = statusUp === 'ONGOING';
 
+                  const pillTone = isSent ? COLORS.orangeBrand
+                    : isAccepted || isOngoing ? COLORS.greenBrand
+                    : isPendingPay ? COLORS.amber
+                    : (theme.textMuted as string);
+                  const pillLabel = isPendingPay ? 'Paiement'
+                    : isPending ? 'Diagnostic'
+                    : isSent ? 'À examiner'
+                    : isAccepted ? 'Accepté'
+                    : isOngoing ? 'En cours'
+                    : 'En cours';
+                  const pillBg = `${pillTone}1A`;
+                  const barColor = pillTone;
+
+                  // Routage : Devis tab = vue contractuelle, jamais de tracking GPS ici.
+                  // PENDING_PAYMENT → resume-payment, QUOTE_PENDING → écran d'attente,
+                  // toutes les autres transitions (SENT/ACCEPTED/ONGOING) ouvrent la fiche devis.
+                  // Pour suivre une mission ONGOING en GPS, l'utilisateur passe par l'îlot dashboard.
                   const handlePress = () => {
-                    if (isPending) {
+                    if (isPendingPay) {
+                      router.push({ pathname: '/request/[id]/resume-payment', params: { id: req.id } });
+                    } else if (isPending) {
                       router.push({ pathname: '/request/[id]/quote-pending', params: { id: req.id } });
                     } else {
                       setSelectedQuote(req);
@@ -415,7 +467,7 @@ export default function Documents() {
                     >
                       <View style={[iv.bar, { backgroundColor: barColor }]} />
                       <View style={[iv.icon, { backgroundColor: pillBg }]}>
-                        <Feather name="file-text" size={16} color={pillColor} />
+                        <Feather name="file-text" size={16} color={pillTone} />
                       </View>
                       <View style={iv.body}>
                         <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
@@ -432,10 +484,10 @@ export default function Documents() {
                       </View>
                       <View style={iv.right}>
                         {req.calloutFee != null && req.calloutFee > 0 && (
-                          <Text style={[iv.amount, { color: theme.text }]}>{fmtEurCents(req.calloutFee)}</Text>
+                          <Text style={[iv.amount, { color: theme.text }]}>{formatEURCents(req.calloutFee)}</Text>
                         )}
                         <View style={[iv.pill, { backgroundColor: pillBg }]}>
-                          <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
+                          <Text style={[iv.pillText, { color: pillTone }]}>{pillLabel}</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -446,11 +498,11 @@ export default function Documents() {
           </>
         )}
 
-        {/* ── PLANIFIÉES TAB ── demandes avec preferredTimeStart futur */}
+        {/* ── PLANIFIÉES TAB ── demandes actives en prix fixe */}
         {activeTab === 'planifiees' && (
           <>
             {scheduledRequests.length === 0 ? (
-              <View style={[s.empty, { borderColor: theme.borderLight }]}>
+              <View style={[s.empty, { backgroundColor: theme.cardBg }]}>
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
                   <Feather name="calendar" size={22} color={theme.textDisabled} />
                 </View>
@@ -458,48 +510,76 @@ export default function Documents() {
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   Vos missions à venir apparaîtront ici. Vous serez notifié dès qu'un prestataire accepte.
                 </Text>
+                <TouchableOpacity
+                  style={[s.emptyCta, { backgroundColor: theme.accent }]}
+                  onPress={() => router.push('/request/NewRequestStepper')}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="calendar" size={14} color={theme.accentText} />
+                  <Text style={[s.emptyCtaText, { color: theme.accentText }]}>Planifier une mission</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <View style={s.invoiceList}>
                 {scheduledRequests.map(req => {
                   const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
                   const isQuote = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
-                  const scheduledDate = new Date(req.preferredTimeStart);
-                  const dayLabel = scheduledDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-                  const timeLabel = scheduledDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                  const statusUp = (req.status || '').toUpperCase();
+                  const isOngoing = statusUp === 'ONGOING';
+                  const isAccepted = statusUp === 'ACCEPTED';
+                  const isPublished = statusUp === 'PUBLISHED';
+                  const isPendingPay = statusUp === 'PENDING_PAYMENT';
+
+                  // Date affichée : preferredTimeStart si défini, sinon createdAt (immédiates).
+                  const dateSrc = req.preferredTimeStart || req.createdAt;
+                  const d = dateSrc ? new Date(dateSrc) : null;
+                  const dayLabel = d ? d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
+                  const timeLabel = d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+
                   const priceLabel = req.price && req.price > 0
-                    ? `${req.price} €`
+                    ? formatEUR(req.price)
                     : isQuote ? 'Devis' : '—';
-                  const pillBg = isQuote ? 'rgba(232,120,58,0.1)' : 'rgba(245,158,11,0.12)';
-                  const pillColor = isQuote ? COLORS.orangeBrand : theme.badgePendingText;
-                  const barColor = isQuote ? COLORS.orangeBrand : COLORS.amber;
+
+                  const pillLabel = isOngoing ? 'En cours'
+                    : isAccepted ? 'Acceptée'
+                    : isPublished ? 'Recherche'
+                    : isPendingPay ? 'Paiement'
+                    : isQuote ? 'Devis'
+                    : 'Planifiée';
+                  const pillTone = isOngoing || isAccepted ? COLORS.greenBrand
+                    : isQuote ? COLORS.orangeBrand
+                    : COLORS.amber;
+                  const pillBg = `${pillTone}1A`;
+                  const barColor = pillTone;
+
+                  // Routage par état : ONGOING → missionview, PENDING_PAYMENT → resume-payment, sinon → scheduled.
+                  const target: any = isOngoing
+                    ? { pathname: '/request/[id]/missionview', params: { id: req.id } }
+                    : isPendingPay
+                      ? { pathname: '/request/[id]/resume-payment', params: { id: req.id } }
+                      : { pathname: '/request/[id]/scheduled', params: { id: req.id, mode: 'recap' } };
 
                   return (
                     <TouchableOpacity
                       key={req.id}
                       style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-                      onPress={() => router.push({
-                        pathname: '/request/[id]/scheduled',
-                        params: { id: req.id, mode: 'recap' },
-                      })}
+                      onPress={() => router.push(target)}
                       activeOpacity={0.85}
                     >
                       <View style={[iv.bar, { backgroundColor: barColor }]} />
                       <View style={[iv.icon, { backgroundColor: pillBg }]}>
-                        <Feather name="calendar" size={16} color={pillColor} />
+                        <Feather name="calendar" size={16} color={pillTone} />
                       </View>
                       <View style={iv.body}>
                         <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
                         <Text style={[iv.meta, { color: theme.textMuted }]} numberOfLines={1}>
-                          {dayLabel} · {timeLabel}
+                          {timeLabel ? `${dayLabel} · ${timeLabel}` : dayLabel}
                         </Text>
                       </View>
                       <View style={iv.right}>
                         <Text style={[iv.amount, { color: theme.text }]}>{priceLabel}</Text>
                         <View style={[iv.pill, { backgroundColor: pillBg }]}>
-                          <Text style={[iv.pillText, { color: pillColor }]}>
-                            {isQuote ? 'Devis' : 'Planifiée'}
-                          </Text>
+                          <Text style={[iv.pillText, { color: pillTone }]}>{pillLabel}</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -585,25 +665,26 @@ const s = StyleSheet.create({
   },
   mainTabBadgeText: { fontFamily: FONTS.mono, fontSize: 10 },
 
-  // Filter tabs (inside Factures)
-  filterRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  filterTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
-  filterTabText: { fontFamily: FONTS.sansMedium, fontSize: 11, letterSpacing: 0.4 },
-
   // Invoice list
   invoiceList: { gap: 8, marginBottom: 26 },
 
   // Empty
   empty: {
-    borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 20,
-    padding: 36, alignItems: 'center', gap: 10, marginBottom: 26,
+    borderRadius: 20,
+    paddingVertical: 44, paddingHorizontal: 24,
+    alignItems: 'center', gap: 10, marginBottom: 26,
   },
   emptyIcon: {
     width: 52, height: 52, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
   emptyTitle: { fontFamily: FONTS.sansMedium, fontSize: 14 },
-  emptyDesc: { fontFamily: FONTS.sans, fontSize: 12, textAlign: 'center', lineHeight: 18, maxWidth: 220 },
+  emptyDesc: { fontFamily: FONTS.sans, fontSize: 12, textAlign: 'center', lineHeight: 18, maxWidth: 240 },
+  emptyCta: {
+    marginTop: 14, paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 999, flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  emptyCtaText: { fontFamily: FONTS.sansMedium, fontSize: 12, letterSpacing: 0.4 },
 
   // Assistance dark card
   assistCard: {

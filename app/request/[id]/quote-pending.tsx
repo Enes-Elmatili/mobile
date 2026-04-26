@@ -311,52 +311,52 @@ const s = StyleSheet.create({
 
   content: {
     flex: 1, justifyContent: "center", alignItems: "center",
-    paddingHorizontal: 28, gap: 16,
+    paddingHorizontal: 18, gap: 12,
   },
 
   iconCircle: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 64, height: 64, borderRadius: 32,
     borderWidth: 1,
-    alignItems: "center", justifyContent: "center", marginBottom: 8,
+    alignItems: "center", justifyContent: "center", marginBottom: 4,
   },
 
   title: {
-    fontFamily: FONTS.bebas, fontSize: 36,
-    letterSpacing: 1, lineHeight: 40, textAlign: "center",
+    fontFamily: FONTS.bebas, fontSize: 30,
+    letterSpacing: 1, lineHeight: 34, textAlign: "center",
   },
 
   subtitle: {
-    fontFamily: FONTS.sansLight, fontSize: 15,
-    textAlign: "center", lineHeight: 22, paddingHorizontal: 8,
+    fontFamily: FONTS.sansLight, fontSize: 13,
+    textAlign: "center", lineHeight: 19, paddingHorizontal: 4,
   },
 
   stepsCard: {
     borderWidth: 1,
-    borderRadius: 18, padding: 20, width: "100%", gap: 14, marginTop: 4,
+    borderRadius: 14, padding: 14, width: "100%", gap: 10, marginTop: 2,
   },
-  stepRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   stepDot: {
-    width: 20, height: 20, borderRadius: 10,
+    width: 18, height: 18, borderRadius: 9,
     borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
   },
-  stepLabel: { fontFamily: FONTS.sans, fontSize: 14 },
+  stepLabel: { fontFamily: FONTS.sans, fontSize: 13 },
 
   infoCard: {
     flexDirection: "row", alignItems: "flex-start", gap: 10,
     borderWidth: 1,
-    borderRadius: 18, padding: 16, width: "100%",
+    borderRadius: 12, padding: 12, width: "100%",
   },
   infoText: {
-    flex: 1, fontFamily: FONTS.sansLight, fontSize: 13, lineHeight: 20,
+    flex: 1, fontFamily: FONTS.sansLight, fontSize: 12, lineHeight: 18,
   },
 
   recapCard: {
     borderWidth: 1,
-    borderRadius: 18, padding: 16, width: "100%", gap: 10,
+    borderRadius: 12, padding: 12, width: "100%", gap: 8,
   },
   recapRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  recapText: { fontFamily: FONTS.sans, fontSize: 13, flex: 1 },
+  recapText: { fontFamily: FONTS.sans, fontSize: 12, flex: 1 },
 
   pulseDotRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   eta: {
@@ -364,25 +364,25 @@ const s = StyleSheet.create({
   },
 
   footer: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 18,
     paddingBottom: 8,
-    gap: 12,
+    gap: 8,
   },
   btnPrimary: {
-    width: "100%", height: 60, borderRadius: 18,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
+    width: "100%", height: 52, borderRadius: 14,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
   },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3,
+    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2.5,
   },
   arrowPill: {
-    width: 32, height: 32, borderRadius: 10,
+    width: 28, height: 28, borderRadius: 8,
     alignItems: "center", justifyContent: "center",
   },
   cancelBtn: {
-    alignItems: "center", paddingVertical: 10,
+    alignItems: "center", paddingVertical: 8,
   },
   cancelText: {
-    fontFamily: FONTS.sansMedium, fontSize: 14,
+    fontFamily: FONTS.sansMedium, fontSize: 13,
   },
 });

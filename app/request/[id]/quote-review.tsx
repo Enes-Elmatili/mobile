@@ -15,9 +15,7 @@ import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { PulseDot } from '@/components/ui/PulseDot';
 import { devError } from "@/lib/logger";
 import { useAuth } from "@/lib/auth/AuthContext";
-
-const fmtEur = (cents: number) =>
-  (cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatEURCents as fmtEur } from "@/lib/format";
 
 export default function QuoteReview() {
   const router = useRouter();
@@ -216,7 +214,7 @@ export default function QuoteReview() {
             {/* Labor */}
             <View style={s.row}>
               <Text style={[s.rowLabel, { color: theme.textSub }]}>{"Main d'œuvre"}</Text>
-              <Text style={[s.rowValue, { color: theme.text }]}>{fmtEur(quote.laborAmount)} €</Text>
+              <Text style={[s.rowValue, { color: theme.text }]}>{fmtEur(quote.laborAmount)}</Text>
             </View>
 
             {/* Parts */}
@@ -228,7 +226,7 @@ export default function QuoteReview() {
                     <Text style={[s.rowDetail, { color: theme.textMuted }]}>{quote.partsDetail}</Text>
                   ) : null}
                 </View>
-                <Text style={[s.rowValue, { color: theme.text }]}>{fmtEur(quote.partsAmount)} €</Text>
+                <Text style={[s.rowValue, { color: theme.text }]}>{fmtEur(quote.partsAmount)}</Text>
               </View>
             )}
 
@@ -238,14 +236,14 @@ export default function QuoteReview() {
             {/* Total */}
             <View style={s.row}>
               <Text style={[s.rowTotalLabel, { color: theme.text }]}>Total</Text>
-              <Text style={[s.rowTotalValue, { color: theme.text }]}>{fmtEur(quote.totalAmount)} €</Text>
+              <Text style={[s.rowTotalValue, { color: theme.text }]}>{fmtEur(quote.totalAmount)}</Text>
             </View>
 
             {/* Callout credit */}
             {quote.calloutPaid > 0 && (
               <View style={s.row}>
                 <Text style={[s.rowLabel, { color: COLORS.green }]}>Acompte déjà payé</Text>
-                <Text style={[s.rowValue, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)} €</Text>
+                <Text style={[s.rowValue, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)}</Text>
               </View>
             )}
 
@@ -255,7 +253,7 @@ export default function QuoteReview() {
             {/* Remaining */}
             <View style={s.row}>
               <Text style={[s.rowFinalLabel, { color: theme.text }]}>Reste à payer</Text>
-              <Text style={[s.rowFinalValue, { color: theme.text }]}>{fmtEur(quote.remainingAmount)} €</Text>
+              <Text style={[s.rowFinalValue, { color: theme.text }]}>{fmtEur(quote.remainingAmount)}</Text>
             </View>
           </View>
 
@@ -343,7 +341,7 @@ export default function QuoteReview() {
                 <>
                   <Text style={[s.acceptBtnText, { color: theme.accentText }]}>ACCEPTER</Text>
                   <Text style={[s.acceptBtnPrice, { color: theme.accentText }]}>
-                    {fmtEur(quote.remainingAmount)} €
+                    {fmtEur(quote.remainingAmount)}
                   </Text>
                 </>
               )}
@@ -363,98 +361,98 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   headerBack: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
   },
   headerTitle: {
     fontFamily: FONTS.bebas,
-    fontSize: 26,
-    letterSpacing: 3,
+    fontSize: 22,
+    letterSpacing: 2.5,
   },
 
-  scroll: { paddingHorizontal: 24, paddingTop: 8, gap: 16 },
+  scroll: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
 
   badge: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 100,
     borderWidth: 1,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   badgeText: { fontFamily: FONTS.sansMedium, fontSize: 12, letterSpacing: 0.5 },
 
-  card: { borderRadius: 14, borderWidth: 1, padding: 24 },
+  card: { borderRadius: 14, borderWidth: 1, padding: 14 },
   cardTitle: {
     fontFamily: FONTS.sansMedium, fontSize: 10,
-    letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 20,
+    letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 10,
   },
 
   row: {
     flexDirection: "row", justifyContent: "space-between",
-    alignItems: "baseline", paddingVertical: 10,
+    alignItems: "baseline", paddingVertical: 7,
   },
-  rowLabel: { fontFamily: FONTS.sans, fontSize: 15 },
-  rowValue: { fontFamily: FONTS.sansMedium, fontSize: 15, letterSpacing: 0.5 },
+  rowLabel: { fontFamily: FONTS.sans, fontSize: 14 },
+  rowValue: { fontFamily: FONTS.sansMedium, fontSize: 14, letterSpacing: 0.5 },
   rowDetail: { fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 },
 
-  divider: { height: 1, marginVertical: 4 },
-  dividerStrong: { height: 1, marginVertical: 4 },
+  divider: { height: 1, marginVertical: 2 },
+  dividerStrong: { height: 1, marginVertical: 2 },
 
-  rowTotalLabel: { fontFamily: FONTS.sansMedium, fontSize: 15 },
-  rowTotalValue: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 1 },
+  rowTotalLabel: { fontFamily: FONTS.sansMedium, fontSize: 14 },
+  rowTotalValue: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1 },
 
-  rowFinalLabel: { fontFamily: FONTS.sansMedium, fontSize: 16 },
-  rowFinalValue: { fontFamily: FONTS.bebas, fontSize: 32, letterSpacing: 1 },
+  rowFinalLabel: { fontFamily: FONTS.sansMedium, fontSize: 15 },
+  rowFinalValue: { fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 1 },
 
-  notesCard: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 24, paddingVertical: 20 },
-  notesText: { fontFamily: FONTS.sans, fontSize: 14, lineHeight: 21 },
+  notesCard: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  notesText: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19 },
 
   expiryRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, marginTop: 4,
+    gap: 6, marginTop: 2,
   },
   expiryText: { fontFamily: FONTS.sans, fontSize: 12 },
 
-  emptyText: { fontFamily: FONTS.sans, fontSize: 15 },
-  emptyBack: { paddingHorizontal: 20, paddingVertical: 10 },
-  emptyBackText: { fontFamily: FONTS.sansMedium, fontSize: 14, textDecorationLine: "underline" },
+  emptyText: { fontFamily: FONTS.sans, fontSize: 14 },
+  emptyBack: { paddingHorizontal: 16, paddingVertical: 8 },
+  emptyBackText: { fontFamily: FONTS.sansMedium, fontSize: 13, textDecorationLine: "underline" },
 
   refuseInput: {
-    borderRadius: 14, borderWidth: 1, padding: 14, minHeight: 80,
-    fontFamily: FONTS.sans, fontSize: 14,
+    borderRadius: 12, borderWidth: 1, padding: 12, minHeight: 72,
+    fontFamily: FONTS.sans, fontSize: 13,
   },
-  refuseBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
+  refuseBtns: { flexDirection: "row", gap: 8, marginTop: 10 },
   refuseCancelBtn: {
-    flex: 1, height: 44, borderRadius: 13, borderWidth: 1,
+    flex: 1, height: 42, borderRadius: 12, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
-  refuseCancelText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
+  refuseCancelText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
   refuseConfirmBtn: {
-    flex: 1, height: 44, borderRadius: 13, backgroundColor: COLORS.red,
+    flex: 1, height: 42, borderRadius: 12, backgroundColor: COLORS.red,
     alignItems: "center", justifyContent: "center",
   },
-  refuseConfirmText: { fontFamily: FONTS.sansMedium, fontSize: 14, color: COLORS.alwaysWhite },
+  refuseConfirmText: { fontFamily: FONTS.sansMedium, fontSize: 13, color: COLORS.alwaysWhite },
 
-  footer: { paddingHorizontal: 24, paddingTop: 16 },
-  footerRow: { flexDirection: "row", gap: 12 },
+  footer: { paddingHorizontal: 16, paddingTop: 10 },
+  footerRow: { flexDirection: "row", gap: 8 },
   refuseBtn: {
-    height: 60, paddingHorizontal: 24, borderRadius: 14, borderWidth: 1,
+    height: 50, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
-  refuseBtnText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
+  refuseBtnText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
   acceptBtn: {
-    flex: 1, height: 60, borderRadius: 14,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
+    flex: 1, height: 50, borderRadius: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
   },
-  acceptBtnText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 },
-  acceptBtnPrice: { fontFamily: FONTS.sansMedium, fontSize: 14, opacity: 0.6 },
+  acceptBtnText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2 },
+  acceptBtnPrice: { fontFamily: FONTS.sansMedium, fontSize: 13, opacity: 0.6 },
 });

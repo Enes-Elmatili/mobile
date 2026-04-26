@@ -5,10 +5,10 @@ import {
   SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
-import { devError } from '../../lib/logger';
+import { devLog, devError } from '../../lib/logger';
 import {
   useSocket,
   onIncomingMessage,
@@ -63,6 +63,10 @@ export default function ConversationScreen() {
   const [contactName, setContactName] = useState<string | null>(name || null);
   const headerName = contactName || displayLabel(userId ?? '');
 
+  // ── Conversation open/closed state (tied to an active Request between users)
+  // null = loading, true = open, false = closed
+  const [canChat, setCanChat] = useState<boolean | null>(null);
+
   // ── Fetch contact name if not provided ─────────────────────────────────────
 
   // Contact name — use module-level cache shared with inbox
@@ -103,6 +107,47 @@ export default function ConversationScreen() {
     if (!userId || loading) return;
     api.messages.markAllRead(userId).catch(() => {});
   }, [userId, loading]);
+
+  // ── Can-chat probe: is there an active request between us? ─────────────────
+  const refreshCanChat = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await api.messages.canChat(userId);
+      const value = res?.data?.canChat ?? false;
+      devLog('[Chat] can-chat probe', { userId, ...res?.data });
+      setCanChat(value);
+    } catch (e: any) {
+      // 404 means backend wasn't restarted after the gating was added — fail
+      // closed in that case so the banner still shows. For other transient
+      // network errors, fail open to avoid locking the UI unnecessarily.
+      devError('[Chat] can-chat probe failed', e?.status, e?.message);
+      if (e?.status === 404) setCanChat(false);
+      else setCanChat(true);
+    }
+  }, [userId]);
+
+  useEffect(() => { refreshCanChat(); }, [refreshCanChat]);
+
+  // Re-probe à chaque focus de l'écran (revient depuis le dashboard, etc.)
+  useFocusEffect(useCallback(() => { refreshCanChat(); }, [refreshCanChat]));
+
+  // Re-check when any related request status changes.
+  // Backend emits différents events selon la transition : `request:statusUpdated`
+  // pour les devis, `request:cancelled` à l'annulation, `request:completed` à la
+  // fin de mission. Sans écouter les trois, le banner reste invisible jusqu'à un
+  // refocus de l'écran et le client peut continuer à chatter sur une demande clôturée.
+  useEffect(() => {
+    if (!socket) return;
+    const handler = () => { refreshCanChat(); };
+    socket.on('request:statusUpdated', handler);
+    socket.on('request:cancelled', handler);
+    socket.on('request:completed', handler);
+    return () => {
+      socket.off('request:statusUpdated', handler);
+      socket.off('request:cancelled', handler);
+      socket.off('request:completed', handler);
+    };
+  }, [socket, refreshCanChat]);
 
   // ── Real-time: append incoming messages ────────────────────────────────────
 
@@ -211,8 +256,14 @@ export default function ConversationScreen() {
         setMessages(prev => [...prev, msg]);
       }
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-    } catch {
-      setInputText(content); // restore on network error
+    } catch (e: any) {
+      // Server closed the conversation between probe and send: lock UI.
+      const serverCode = e?.data?.error?.code ?? e?.data?.code;
+      if (serverCode === 'CONVERSATION_CLOSED' || e?.status === 403) {
+        setCanChat(false);
+      } else {
+        setInputText(content); // restore on network error
+      }
     } finally {
       setSending(false);
     }
@@ -326,28 +377,38 @@ export default function ConversationScreen() {
           />
         )}
 
-        {/* Input bar */}
-        <View style={[s.inputBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
-          <TextInput
-            style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
-            value={inputText}
-            onChangeText={handleTextChange}
-            placeholder="Votre message…"
-            placeholderTextColor={theme.textMuted}
-            multiline
-            maxLength={2000}
-            blurOnSubmit={false}
-          />
-          <TouchableOpacity
-            style={[s.sendBtn, { backgroundColor: theme.accent }, (!inputText.trim() || sending) && s.sendBtnDisabled]}
-            onPress={sendMessage}
-            disabled={!inputText.trim() || sending}
-          >
-            {sending
-              ? <ActivityIndicator size="small" color={theme.accentText} />
-              : <Feather name="send" size={18} color={theme.accentText} />}
-          </TouchableOpacity>
-        </View>
+        {/* Input bar — replaced by a locked banner when the conversation is
+            closed (no active Request between the two users). */}
+        {canChat === false ? (
+          <View style={[s.lockedBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
+            <Feather name="lock" size={16} color={theme.textMuted} />
+            <Text style={[s.lockedText, { color: theme.textMuted }]} numberOfLines={2}>
+              Conversation fermée — la demande associée est clôturée.
+            </Text>
+          </View>
+        ) : (
+          <View style={[s.inputBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
+            <TextInput
+              style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
+              value={inputText}
+              onChangeText={handleTextChange}
+              placeholder="Votre message…"
+              placeholderTextColor={theme.textMuted}
+              multiline
+              maxLength={2000}
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              style={[s.sendBtn, { backgroundColor: theme.accent }, (!inputText.trim() || sending) && s.sendBtnDisabled]}
+              onPress={sendMessage}
+              disabled={!inputText.trim() || sending}
+            >
+              {sending
+                ? <ActivityIndicator size="small" color={theme.accentText} />
+                : <Feather name="send" size={18} color={theme.accentText} />}
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -404,6 +465,13 @@ const s = StyleSheet.create({
     marginBottom: 1,
   },
   sendBtnDisabled: { opacity: 0.4 },
+
+  lockedBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderTopWidth: 1,
+  },
+  lockedText: { flex: 1, fontSize: 13, fontFamily: FONTS.sans },
 });
 
 const b = StyleSheet.create({

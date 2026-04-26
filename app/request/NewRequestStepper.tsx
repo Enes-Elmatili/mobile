@@ -33,6 +33,7 @@ import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { computePrice } from '@/lib/services/priceService';
+import { formatEUR, formatEURCents } from '@/lib/format';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const TOTAL_STEPS = 4;
@@ -695,7 +696,17 @@ export default function NewRequestStepper() {
   const theme  = useTheme();
   const { t }  = useTranslation();
   const { user } = useAuth();
-  const { selectedCategory: preselectedCategory } = useLocalSearchParams<{ selectedCategory?: string }>();
+  const {
+    selectedCategory: preselectedCategory,
+    preferredProviderId,
+    preferredProviderName,
+    forceScheduled,
+  } = useLocalSearchParams<{
+    selectedCategory?: string;
+    preferredProviderId?: string;
+    preferredProviderName?: string;
+    forceScheduled?: string;
+  }>();
   const mapRef    = useRef<MapView | null>(null);
   const step2ScrollRef = useRef<ScrollView>(null);
   const catLayoutsRef  = useRef<Record<number, number>>({});
@@ -707,10 +718,22 @@ export default function NewRequestStepper() {
   const [step,    setStep]    = useState(1);
   const [loading, setLoading] = useState(false);
 
+  // ── Préférence prestataire (CTA "Demander X" depuis fiche provider) ──
+  // Stockée localement pour permettre au client de retirer la préférence en
+  // cours de stepper s'il change d'avis (banner avec X).
+  const [preferred, setPreferred] = useState<{ id: string; name: string } | null>(
+    preferredProviderId ? { id: preferredProviderId, name: preferredProviderName || 'ce prestataire' } : null,
+  );
+
   // Étape 1
   const [location, setLocation] = useState<{ address: string; lat: number; lng: number } | null>(null);
   const [locationAllowed, setLocationAllowed] = useState<boolean>(true);
   const [addressMissingNumber, setAddressMissingNumber] = useState<boolean>(false);
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [showSaveSheet, setShowSaveSheet] = useState(false);
+  const [saveLabel, setSaveLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showAddrDropdown, setShowAddrDropdown] = useState(false);
 
   // ── Phase test : zones autorisées seulement ──────────────────────────────
   const ALLOWED_POSTAL = ['1050', '1060', '1180'];
@@ -723,6 +746,37 @@ export default function NewRequestStepper() {
     return ALLOWED_COMMUNES.some(c => lower.includes(c));
   }
 
+  // ── Saved addresses fetch ──
+  useEffect(() => {
+    if (step === 1) {
+      api.addresses.list().then((res: any) => {
+        setSavedAddresses(Array.isArray(res) ? res : res?.data || []);
+      }).catch(() => {});
+    }
+  }, [step]);
+
+  // Save new address from "+" button (with label sheet)
+  const handleSaveNewAddress = async () => {
+    if (!location || !saveLabel.trim()) return;
+    setSaving(true);
+    try {
+      const created: any = await api.addresses.create({
+        label: saveLabel.trim(),
+        address: location.address,
+        lat: location.lat,
+        lng: location.lng,
+      });
+      setSavedAddresses(prev => [created, ...prev]);
+      setShowSaveSheet(false);
+      setSaveLabel('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert(t('common.error'), t('addresses.max_reached'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Étape 2
   const [categories,    setCategories]    = useState<any[]>([]);
   const [categoryId,    setCategoryId]    = useState<number | null>(null);
@@ -732,7 +786,11 @@ export default function NewRequestStepper() {
 
   // Étape 3
   const days = useMemo(() => buildNextDays(t, 10), [t]);
-  const [scheduleMode,   setScheduleMode]   = useState<'now' | 'later' | null>(null);
+  // Si l'utilisateur a choisi "Planifier avec X" (preferred busy/offline), on
+  // pré-positionne le mode "later" pour qu'il sélectionne directement une date.
+  const [scheduleMode,   setScheduleMode]   = useState<'now' | 'later' | null>(
+    forceScheduled === '1' ? 'later' : null,
+  );
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
   const [selectedTime,   setSelectedTime]   = useState<string | null>(null);
   const [isUrgent,       setIsUrgent]       = useState(false);
@@ -742,7 +800,11 @@ export default function NewRequestStepper() {
   const [buildingType,    setBuildingType]    = useState<string | null>((user as any)?.buildingType || null);
   const [floorNum,        setFloorNum]        = useState<string>((user as any)?.floor != null ? String((user as any).floor) : '');
   const [hasElevator,     setHasElevator]     = useState<boolean | null>((user as any)?.hasElevator ?? null);
-  const [accessNotes,     setAccessNotes]     = useState<string>((user as any)?.accessNotes || '');
+  // accessNotes (digicode/instructions) NE doit PAS être pré-rempli depuis User :
+  // c'est une info contextuelle à chaque mission (code change, instructions ponctuelles,
+  // « laisser au gardien », etc.). Re-saisie obligatoire à chaque demande pour éviter
+  // de propager par erreur les instructions d'une mission précédente.
+  const [accessNotes,     setAccessNotes]     = useState<string>('');
   const [clientLanguage,  setClientLanguage]  = useState<string | null>((user as any)?.language || null);
 
   // Dérivés
@@ -829,13 +891,15 @@ export default function NewRequestStepper() {
 
   const goNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Save access info to user profile when leaving Step 3
+    // Save access info to user profile when leaving Step 3.
+    // ⚠️ accessNotes EXCLU volontairement : c'est une info per-mission (digicode,
+    // instructions ponctuelles) qui n'a pas vocation à devenir un défaut profil.
+    // Le snapshot per-mission est géré via accessSnapshot dans le payload de création.
     if (step === 3) {
       const profileUpdate: Record<string, unknown> = {};
       if (buildingType)                         profileUpdate.buildingType = buildingType;
       if (floorNum.trim())                      profileUpdate.floor        = parseInt(floorNum, 10) || null;
       if (hasElevator !== null)                  profileUpdate.hasElevator  = hasElevator;
-      if (accessNotes.trim())                    profileUpdate.accessNotes  = accessNotes.trim();
       if (clientLanguage)                        profileUpdate.language     = clientLanguage;
       if (Object.keys(profileUpdate).length > 0) {
         api.patch('/me', profileUpdate).catch(() => {});
@@ -878,6 +942,19 @@ export default function NewRequestStepper() {
   const displayPrice = serverPrice || priceDetails;
   const displayTotal = parseFloat(displayPrice.totalTVAC);
 
+  // Snapshot des infos d'accès pour cette mission spécifique (évite que les
+  // missions partagent toutes les mêmes valeurs via User.* qui sert de défaut).
+  const accessSnapshot = useMemo<Record<string, unknown>>(() => {
+    const snap: Record<string, unknown> = {};
+    if (buildingType) snap.accessBuildingType = buildingType;
+    const f = parseInt(floorNum, 10);
+    if (Number.isFinite(f)) snap.accessFloor = f;
+    if (hasElevator !== null) snap.accessHasElevator = hasElevator;
+    if (accessNotes.trim()) snap.accessNotes = accessNotes.trim();
+    if (clientLanguage) snap.clientLanguage = clientLanguage;
+    return snap;
+  }, [buildingType, floorNum, hasElevator, accessNotes, clientLanguage]);
+
   useEffect(() => {
     if (step !== 4 || !selectedCategory || !location || paymentReady) return;
     let cancelled = false;
@@ -902,6 +979,8 @@ export default function NewRequestStepper() {
             urgent:       false,
             scheduledFor: scheduledFor || new Date().toISOString(),
             pricingMode:  'free',
+            ...(preferred?.id ? { preferredProviderId: preferred.id } : {}),
+            ...accessSnapshot,
           };
           const reqRes = await api.post('/requests', payload);
           const rId = reqRes.id || reqRes.data?.id;
@@ -928,6 +1007,8 @@ export default function NewRequestStepper() {
             scheduledFor: scheduledFor || new Date().toISOString(),
             status:       'PENDING_PAYMENT', // → QUOTE_PENDING après confirmation webhook Stripe
             pricingMode,
+            ...(preferred?.id ? { preferredProviderId: preferred.id } : {}),
+            ...accessSnapshot,
           };
           const reqRes = await api.post('/requests', payload);
           const rId    = reqRes.id || reqRes.data?.id;
@@ -974,6 +1055,8 @@ export default function NewRequestStepper() {
           status:       'PENDING_PAYMENT',
           pricingMode,
           pricingToken: lockRes.pricingToken,
+          ...(preferred?.id ? { preferredProviderId: preferred.id } : {}),
+          ...accessSnapshot,
         };
         const reqRes = await api.post('/requests', payload);
         const rId    = reqRes.id || reqRes.data?.id;
@@ -981,17 +1064,22 @@ export default function NewRequestStepper() {
         if (cancelled) return;
         setRequestId(rId);
 
-        // Initialiser le payment sheet — prix fixe (Path 2: SetupIntent, pas de d\u00e9bit imm\u00e9diat)
-        // Le client autorise sa carte ; le d\u00e9bit a lieu quand un prestataire accepte la mission.
-        const { setupIntentClientSecret, ephemeralKey, customer } = await api.payments.setup(rId);
+        // Initialiser le payment sheet — prix fixe (DIRECT_CHARGE flow).
+        // Le client est d\u00e9bit\u00e9 imm\u00e9diatement via PaymentIntent; le backend
+        // transf\u00e8rera 80% au prestataire \u00e0 l'acceptation, et refund si aucun
+        // prestataire n'accepte dans le TTL du cron.
+        // automatic_payment_methods c\u00f4t\u00e9 backend => Stripe expose Card, Klarna,
+        // Bancontact, Apple Pay, Google Pay selon montant/r\u00e9gion. On ne force plus
+        // d'ordre pour laisser Stripe prioriser la m\u00e9thode la plus pertinente.
+        const res: any = await api.payments.setup(rId);
+        const clientSecret = res.paymentIntentClientSecret || res.setupIntentClientSecret;
         const { error } = await initPaymentSheet({
           merchantDisplayName:        'Fixed',
-          setupIntentClientSecret:    setupIntentClientSecret,
-          customerEphemeralKeySecret: ephemeralKey,
-          customerId:                 customer,
+          paymentIntentClientSecret:  clientSecret,
+          customerEphemeralKeySecret: res.ephemeralKey,
+          customerId:                 res.customer,
           applePay:  { merchantCountryCode: 'BE' },
           googlePay: { merchantCountryCode: 'BE', testEnv: false },
-          paymentMethodOrder: ['card'],
         });
         if (!error && !cancelled) setPaymentReady(true);
       } catch (e: any) {
@@ -1144,6 +1232,23 @@ export default function NewRequestStepper() {
       {/* ── Step Indicator ── */}
       <StepIndicator step={step} />
 
+      {/* ── Préférence prestataire (CTA "Demander X" depuis fiche) ── */}
+      {preferred && (
+        <View style={[s.preferredBanner, { backgroundColor: theme.surface, borderColor: theme.sep }]}>
+          <Feather name="user-check" size={14} color={theme.text as string} />
+          <Text style={[s.preferredBannerText, { color: theme.text, fontFamily: FONTS.sans }]}>
+            Demander en priorité à <Text style={{ fontFamily: FONTS.sansMedium }}>{preferred.name}</Text>
+          </Text>
+          <TouchableOpacity
+            onPress={() => setPreferred(null)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Retirer la préférence"
+          >
+            <Feather name="x" size={16} color={theme.textMuted as string} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ── Live Summary ── */}
       {step >= 2 && step < 4 && (
         <LiveSummary
@@ -1201,7 +1306,7 @@ export default function NewRequestStepper() {
                   }}
                   query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr', components: 'country:be', location: '50.8333,4.3333', radius: 15000, strictbounds: true }}
                   styles={{
-                    container:          { flex: 1, marginLeft: 8 },
+                    container:          { flex: 1, marginLeft: 8, overflow: 'visible', zIndex: 999 },
                     textInputContainer: { backgroundColor: 'transparent' },
                     textInput: {
                       height:          36,
@@ -1223,30 +1328,91 @@ export default function NewRequestStepper() {
                       shadowOpacity: 0.15,
                       shadowRadius:  24,
                       shadowOffset:  { width: 0, height: 8 },
-                      elevation:     12,
-                      zIndex:        50,
-                      maxHeight:     260,
+                      elevation:     20,
+                      zIndex:        999,
                     },
                     row:         { backgroundColor: theme.dropdownRow as string, paddingVertical: 14, paddingHorizontal: 18 },
                     description: { fontSize: 14, color: theme.text as string, fontFamily: FONTS.sans },
                     separator:   { backgroundColor: theme.dropdownSep as string, height: 1 },
                   }}
-                  textInputProps={{ placeholderTextColor: theme.textPlaceholder as string }}
+                  textInputProps={{
+                    placeholderTextColor: theme.textPlaceholder as string,
+                    onFocus: () => setShowAddrDropdown(false),
+                  }}
                   enablePoweredByContainer={false}
                   listViewDisplayed="auto"
                   keyboardShouldPersistTaps="handled"
                 />
+                {/* Saved addresses / save actions */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
+                  {savedAddresses.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setShowAddrDropdown(prev => !prev)}
+                      activeOpacity={0.7}
+                      style={{ padding: 8 }}
+                    >
+                      <Feather name="bookmark" size={18} color={showAddrDropdown ? (theme.text as string) : (theme.textMuted as string)} />
+                    </TouchableOpacity>
+                  )}
+                  {savedAddresses.length > 0 && location && savedAddresses.length < 10 && !savedAddresses.some((a: any) => a.address === location.address) && (
+                    <View style={{ width: 1, height: 16, backgroundColor: theme.sep as string, marginHorizontal: 2 }} />
+                  )}
+                  {location && savedAddresses.length < 10 && !savedAddresses.some((a: any) => a.address === location.address) && (
+                    <TouchableOpacity
+                      onPress={() => setShowSaveSheet(true)}
+                      activeOpacity={0.7}
+                      style={{ padding: 8 }}
+                    >
+                      <Feather name="plus-circle" size={18} color={theme.textMuted as string} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
 
-              {location && (
-                <View style={[s.addrConfirm, { backgroundColor: theme.addrConfirmBg }]}>
-                  <View style={[s.addrDot, { backgroundColor: theme.text as string }]} />
-                  <Text style={[s.addrText, { color: theme.text }]} numberOfLines={1}>{location.address}</Text>
-                  <TouchableOpacity onPress={() => { setLocation(null); setLocationAllowed(true); }} style={[s.addrClear, { backgroundColor: theme.addrClearBg }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.clear')} accessibilityRole="button">
-                    <Feather name="x" size={18} color={theme.textSub as string} />
-                  </TouchableOpacity>
+              {/* Saved addresses dropdown */}
+              {showAddrDropdown && savedAddresses.length > 0 && (
+                <View style={{
+                  position: 'absolute', top: 62, left: 0, right: 0, zIndex: 60,
+                  backgroundColor: theme.dropdownBg as string,
+                  borderRadius: 16, overflow: 'hidden',
+                  borderWidth: 1, borderColor: theme.surfaceBorder as string,
+                  shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12,
+                }}>
+                  {savedAddresses.map((addr: any, i: number) => {
+                    const lbl = (addr.label || '').toLowerCase();
+                    const icon = lbl.includes('domicile') || lbl.includes('home') || lbl.includes('maison')
+                      ? 'home' : lbl.includes('bureau') || lbl.includes('office') || lbl.includes('travail')
+                      ? 'briefcase' : 'map-pin';
+                    return (
+                      <TouchableOpacity
+                        key={addr.id}
+                        onPress={() => {
+                          setLocation({ address: addr.address, lat: addr.lat, lng: addr.lng });
+                          setLocationAllowed(checkLocation(addr.address));
+                          setAddressMissingNumber(false);
+                          setShowAddrDropdown(false);
+                          mapRef.current?.animateToRegion({ latitude: addr.lat, longitude: addr.lng, latitudeDelta: 0.006, longitudeDelta: 0.006 });
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 12,
+                          paddingHorizontal: 16, paddingVertical: 12,
+                          borderBottomWidth: i < savedAddresses.length - 1 ? 1 : 0,
+                          borderBottomColor: theme.dropdownSep as string,
+                        }}
+                      >
+                        <Feather name={icon as any} size={16} color={theme.textMuted as string} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text as string }}>{addr.label}</Text>
+                          <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: theme.textMuted as string, marginTop: 1 }} numberOfLines={1}>{addr.address}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
+
               {location && !locationAllowed && (
                 <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
                   <Feather name="alert-triangle" size={16} color={COLORS.orangeBrand} />
@@ -1265,12 +1431,117 @@ export default function NewRequestStepper() {
               )}
             </View>
 
-            <View style={s.ctaFloating}>
+            <LinearGradient
+              colors={[`${theme.bg}00`, theme.bg as string, theme.bg as string]}
+              locations={[0, 0.35, 1]}
+              style={s.ctaFloating}
+              pointerEvents="box-none"
+            >
               <BottomCTA
                 label={location ? t('stepper.confirm_address') : t('stepper.select_address')}
                 onPress={goNext}
                 disabled={!location || !locationAllowed || addressMissingNumber}
+                wrapStyle={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, borderTopWidth: 0 }}
               />
+            </LinearGradient>
+
+          </View>
+        )}
+
+        {/* Rename / Save address sheet */}
+        {showSaveSheet && (
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 100,
+          }}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowSaveSheet(false)} activeOpacity={1} />
+            <View style={{
+              backgroundColor: theme.card as string, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+              paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40,
+              borderTopWidth: 1, borderTopColor: theme.cardBorder as string,
+            }}>
+              {/* Handle */}
+              <View style={{ width: 40, height: 4, backgroundColor: theme.sep as string, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
+
+              {/* Title */}
+              <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text as string, letterSpacing: 1, marginBottom: 6 }}>
+                NOMMER CETTE ADRESSE
+              </Text>
+              <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textMuted as string, marginBottom: 20 }} numberOfLines={1}>
+                {location?.address || ''}
+              </Text>
+
+              {/* Quick chips with icons */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                <TouchableOpacity
+                  onPress={() => setSaveLabel('Domicile')}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
+                    backgroundColor: saveLabel === 'Domicile' ? (theme.accent as string) : (theme.surface as string),
+                    borderWidth: 1, borderColor: saveLabel === 'Domicile' ? (theme.accent as string) : (theme.surfaceBorder as string),
+                  }}
+                >
+                  <Feather name="home" size={14} color={saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string)} />
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string) }}>Domicile</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSaveLabel('Bureau')}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
+                    backgroundColor: saveLabel === 'Bureau' ? (theme.accent as string) : (theme.surface as string),
+                    borderWidth: 1, borderColor: saveLabel === 'Bureau' ? (theme.accent as string) : (theme.surfaceBorder as string),
+                  }}
+                >
+                  <Feather name="briefcase" size={14} color={saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string)} />
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string) }}>Bureau</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSaveLabel('Autre')}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
+                    backgroundColor: saveLabel === 'Autre' ? (theme.accent as string) : (theme.surface as string),
+                    borderWidth: 1, borderColor: saveLabel === 'Autre' ? (theme.accent as string) : (theme.surfaceBorder as string),
+                  }}
+                >
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Autre' ? (theme.accentText as string) : (theme.text as string) }}>Autre</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Custom input */}
+              <TextInput
+                value={saveLabel}
+                onChangeText={setSaveLabel}
+                placeholder={"Ou un nom personnalisé..."}
+                placeholderTextColor={theme.textMuted as string}
+                style={{
+                  fontFamily: FONTS.sans, fontSize: 15, color: theme.text as string,
+                  backgroundColor: theme.surface as string, borderRadius: 12,
+                  borderWidth: 1, borderColor: theme.surfaceBorder as string,
+                  paddingHorizontal: 16, paddingVertical: 14, marginBottom: 20,
+                }}
+                maxLength={50}
+              />
+
+              {/* Save CTA */}
+              <TouchableOpacity
+                onPress={handleSaveNewAddress}
+                disabled={!saveLabel.trim() || saving}
+                activeOpacity={0.85}
+                style={{
+                  backgroundColor: theme.accent as string, borderRadius: 16, height: 52,
+                  alignItems: 'center', justifyContent: 'center',
+                  opacity: !saveLabel.trim() || saving ? 0.4 : 1,
+                }}
+              >
+                <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 16, color: theme.accentText as string }}>
+                  {saving ? t('common.saving') : t('addresses.save_address')}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -1720,7 +1991,7 @@ export default function NewRequestStepper() {
               label={isFreeService
                 ? 'Confirmer (gratuit)'
                 : isQuoteFlow
-                  ? `Réserver · ${confirmedCalloutCents != null ? (confirmedCalloutCents / 100).toFixed(2) : calloutFee > 0 ? calloutFee.toFixed(2) : '...'} €`
+                  ? `Réserver · ${confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : calloutFee > 0 ? formatEUR(calloutFee) : '...'}`
                   : t('stepper.confirm_mission')}
               onPress={handlePay}
               disabled={loading || !paymentReady || !!pricingError}
@@ -1752,9 +2023,18 @@ const s = StyleSheet.create({
 
   // Header
   header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
-  iconBtn:      { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  iconBtn:      { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   headerSide:   { width: 60, justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
+
+  // Préférence prestataire (CTA "Demander X")
+  preferredBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginTop: 4, marginBottom: 4,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, borderWidth: 1,
+  },
+  preferredBannerText: { flex: 1, fontSize: 12 },
   stepCount:    { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: FONTS.mono },
   stepName:     { fontSize: 15, marginTop: 1, fontFamily: FONTS.sansMedium },
   stepSublabel: { fontSize: 11, marginTop: 1, fontFamily: FONTS.sans },
@@ -1763,7 +2043,7 @@ const s = StyleSheet.create({
 
   scrollPad: { paddingHorizontal: 24, paddingTop: 28 },
 
-  title:    { fontSize: 30, lineHeight: 38, marginBottom: 6, letterSpacing: 1, fontFamily: FONTS.bebas },
+  title:    { fontSize: 28, marginBottom: 6, letterSpacing: 0.5, fontFamily: FONTS.bebas },
   subtitle: { fontSize: 15, marginBottom: 28, fontFamily: FONTS.sans },
 
   loadWrap: { paddingVertical: 60, alignItems: 'center', gap: 14 },
@@ -1771,14 +2051,14 @@ const s = StyleSheet.create({
 
   // Step 2
   step2Pad:   { paddingHorizontal: 12, paddingTop: 16 },
-  step2Title: { fontSize: 22, letterSpacing: 1, marginBottom: 22, fontFamily: FONTS.bebas },
+  step2Title: { fontSize: 22, letterSpacing: 0.5, marginBottom: 22, fontFamily: FONTS.bebas },
   catList:    { marginBottom: 4 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
   inlineSubs: { paddingLeft: 4, paddingRight: 4, paddingBottom: 4 },
   subSection: { marginTop: 20 },
   subHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  subTitle:   { fontSize: 14, fontFamily: FONTS.sansMedium },
+  subTitle:   { fontSize: 11, fontFamily: FONTS.mono, letterSpacing: 1, textTransform: 'uppercase' },
   priceInline:{ fontSize: 13, fontFamily: FONTS.mono },
   chips:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   subList:    { gap: 8 },
@@ -1786,7 +2066,7 @@ const s = StyleSheet.create({
   priceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingHorizontal: 4 },
   priceRowLabel:  { fontSize: 13, fontFamily: FONTS.sansMedium },
   priceRowRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceRowValue:  { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.bebas },
+  priceRowValue:  { fontSize: 22, letterSpacing: 0.3, fontFamily: FONTS.bebas },
   priceRowBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   priceRowSub:    { fontSize: 11, fontFamily: FONTS.sans },
 
@@ -1827,13 +2107,13 @@ const s = StyleSheet.create({
   planSummaryText: { fontSize: 14, flex: 1, lineHeight: 20, fontFamily: FONTS.sans },
 
   // Step 1 — carte
-  searchFloat: { position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10, gap: 8 },
-  searchBox:   { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 2, minHeight: 28, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  searchFloat: { position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10, gap: 8, overflow: 'visible' },
+  searchBox:   { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 2, minHeight: 28, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3, overflow: 'visible', zIndex: 999 },
   addrConfirm: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
   addrDot:     { width: 10, height: 10, borderRadius: 5 },
   addrText:    { flex: 1, fontSize: 13, fontFamily: FONTS.sansMedium },
   addrClear:   { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  ctaFloating: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5 },
+  ctaFloating: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 },
 
   markerWrap: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
   markerHalo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.08)', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.06)' },

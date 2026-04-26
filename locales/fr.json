@@ -70,8 +70,6 @@
     "bank_to_configure": "À configurer",
     "legal_docs": "Documents légaux",
     "legal_docs_sub": "Assurance, immatriculation",
-    "become_provider": "Devenir prestataire",
-    "become_provider_sub": "Proposer vos services",
     "notifications": "Notifications",
     "notifications_sub": "Alertes missions, rappels",
     "privacy": "Confidentialité",
@@ -494,5 +492,18 @@
     "requestQueued": "Demande sauvegardée — sera envoyée dès la reconnexion",
     "actionQueued": "Action sauvegardée — sera envoyée dès la reconnexion",
     "ratingQueued": "Votre avis sera publié dès la reconnexion"
+  },
+  "addresses": {
+    "my_addresses": "Mes adresses",
+    "my_addresses_sub": "Adresses sauvegardées",
+    "save_address": "Sauvegarder",
+    "address_label": "Nom de l'adresse",
+    "address_label_placeholder": "Ex : Domicile, Bureau...",
+    "saved": "Adresse sauvegardée",
+    "deleted": "Adresse supprimée",
+    "delete_confirm": "Supprimer cette adresse ?",
+    "max_reached": "Maximum 10 adresses",
+    "empty": "Aucune adresse sauvegardée",
+    "add": "Ajouter une adresse"
   }
 }

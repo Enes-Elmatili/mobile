@@ -12,9 +12,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
-
-const formatEuros = (n: number) =>
-  n.toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+import { formatEUR as formatEuros } from '@/lib/format';
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-BE', {

@@ -407,66 +407,66 @@ export default function RatingScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { paddingHorizontal: 20, paddingBottom: 120 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 100 },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   closeBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
-  skipBtn: { paddingHorizontal: 12, paddingVertical: 8 },
-  skipText: { fontSize: 14 },
+  skipBtn: { paddingHorizontal: 10, paddingVertical: 6 },
+  skipText: { fontSize: 13 },
 
   // Prestataire
-  providerBlock: { alignItems: 'center', paddingVertical: 28, gap: 8 },
+  providerBlock: { alignItems: 'center', paddingVertical: 16, gap: 6 },
   avatar: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 60, height: 60, borderRadius: 30,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  avatarText: { fontSize: 24 },
-  providerLabel: { fontSize: 13 },
-  providerName: { fontSize: 28, letterSpacing: 1 },
+  avatarText: { fontSize: 22 },
+  providerLabel: { fontSize: 12 },
+  providerName: { fontSize: 24, letterSpacing: 1 },
   serviceTag: {
-    borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 5, marginTop: 4,
+    borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 4, marginTop: 4,
     borderWidth: 1,
   },
-  serviceTagText: { fontSize: 12 },
+  serviceTagText: { fontSize: 11 },
 
   // Étoiles
-  starsBlock: { alignItems: 'center', marginBottom: 8 },
-  stars: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  ratingLabel: { fontSize: 17 },
+  starsBlock: { alignItems: 'center', marginBottom: 4 },
+  stars: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  ratingLabel: { fontSize: 16 },
 
   // Section chips
-  section: { marginTop: 24 },
-  sectionTitle: { fontSize: 14, marginBottom: 12 },
+  section: { marginTop: 14 },
+  sectionTitle: { fontSize: 13, marginBottom: 8 },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 
   // Note toggle
   noteToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   noteToggleText: { fontSize: 13 },
   noteInput: {
-    borderRadius: 14,
-    padding: 14, fontSize: 15,
-    minHeight: 90, marginTop: 10,
+    borderRadius: 12,
+    padding: 12, fontSize: 14,
+    minHeight: 80, marginTop: 8,
     borderWidth: 1.5,
   },
 
   // Footer CTA
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
     borderTopWidth: 1,
   },
   submitBtn: {
-    borderRadius: 16, height: 56,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderRadius: 14, height: 50,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  submitBtnText: { fontSize: 16 },
+  submitBtnText: { fontSize: 15 },
 });

@@ -20,13 +20,14 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
+import { formatEURCents as formatEuros } from '@/lib/format';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devWarn, devLog } from '@/lib/logger';
 
@@ -81,9 +82,6 @@ const DARK_MAP_STYLE = [
 // ============================================================================
 // UTILS
 // ============================================================================
-
-const formatEuros = (cents: number): string =>
-  (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 // ============================================================================
 // TYPES
@@ -609,6 +607,12 @@ export default function ProviderDashboard() {
   const [, setStats]          = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
   const [statsLoading,  setStatsLoading]  = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
+
+  // Mission active actuelle (acceptée et en cours, non planifiée future) →
+  // permet au provider qui revient sur le dashboard de re-rentrer dans la mission.
+  const [currentMission, setCurrentMission] = useState<{
+    id: number; serviceType: string | null; status: string; address: string | null;
+  } | null>(null);
   const [loading,       setLoading]        = useState(true);
   const [isOnline,      setIsOnline]       = useState(false);
   const isOnlineRef = useRef(false);
@@ -668,6 +672,7 @@ export default function ProviderDashboard() {
       api.wallet.balance(),
       api.user.me(),
       api.dashboard.provider(),
+      api.providers.missions(),
     ]);
 
     const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
@@ -697,18 +702,44 @@ export default function ProviderDashboard() {
       devWarn('Stats failed:', (results[1] as PromiseRejectedResult).reason?.message);
     }
 
+    // Mission active : ACCEPTED/ONGOING/QUOTE_SENT/QUOTE_ACCEPTED, non planifiée future.
+    // On ouvre le re-entry dans la mission pour le provider qui revient sur le dashboard.
+    if (results[3].status === 'fulfilled') {
+      const m = (results[3].value as any)?.items || [];
+      const ACTIVE = ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
+      const found = m.find((r: any) => {
+        if (!ACTIVE.includes(r.status)) return false;
+        if (r.preferredTimeStart) {
+          const startTs = new Date(r.preferredTimeStart).getTime();
+          if (startTs > Date.now() + 30 * 60 * 1000) return false; // >30 min futur → "à venir"
+        }
+        return true;
+      });
+      setCurrentMission(found ? {
+        id: found.id, serviceType: found.serviceType, status: found.status, address: found.address,
+      } : null);
+    }
+
     setStatsLoading(false);
     setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  // Refetch quand le provider revient sur le dashboard (après /ongoing par ex.)
+  // pour rafraîchir la bannière "mission en cours".
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   // Load current incoming queue via REST — hydrates the card list on dashboard open
   // so the provider sees existing "now" + devis requests without waiting for the next
   // socket rebroadcast tick. Scheduled-for-future requests live in the missions tab.
   // Extracted as a stable callback so we can re-invoke on socket (re)connect.
+  // In-flight guard: mount, socket 'connect', and the 20s polling timer can
+  // all fire this within a few ms of each other; coalesce to a single GET.
+  const incomingInFlightRef = useRef(false);
   const fetchIncomingQueue = useCallback(async () => {
     if (!user?.id) return;
+    if (incomingInFlightRef.current) return;
+    incomingInFlightRef.current = true;
     try {
       const res: any = await api.get('/requests/incoming');
       const items = res?.data || res || [];
@@ -735,7 +766,9 @@ export default function ProviderDashboard() {
           return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
         });
       }
-    } catch {}
+    } catch {} finally {
+      incomingInFlightRef.current = false;
+    }
   }, [user?.id]);
 
   useEffect(() => {
@@ -855,15 +888,34 @@ export default function ProviderDashboard() {
       if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
-        router.replace(`/request/${request.requestId}/ongoing`);
+
+        // Mission planifiée pour plus tard ? Pas de redirection vers /ongoing — la mission
+        // n'est pas encore active (pas sur place, pas de PIN à vérifier). Elle ira dans
+        // l'onglet « À venir » de Missions, le provider la lancera depuis là le jour J.
+        const startTs = res?.data?.preferredTimeStart ? new Date(res.data.preferredTimeStart).getTime() : null;
+        const isFutureScheduled = startTs != null && startTs > Date.now() + 30 * 60 * 1000;
+
+        if (isFutureScheduled) {
+          Alert.alert(
+            'Mission acceptée',
+            'La mission est planifiée. Vous la retrouverez dans l\'onglet « À venir ». Vous serez notifié à l\'approche du rendez-vous.',
+          );
+        } else {
+          router.replace(`/request/${request.requestId}/ongoing`);
+        }
       } else {
         throw new Error(res?.message || 'Erreur inconnue');
       }
     } catch (err: any) {
-      const msg = err?.message || err?.data?.message || 'La mission n\u2019est plus disponible ou une erreur est survenue.';
-      Alert.alert('Impossible d\u2019accepter', msg);
+      const code = err?.response?.data?.code || err?.data?.code;
       declinedIdsRef.current.add(request.requestId);
       setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
+      if (code === 'INVALID_STATE' || code === 'ALREADY_TAKEN') {
+        Alert.alert('Mission plus disponible', 'Cette mission vient d\u2019être prise ou n\u2019est plus active.');
+      } else {
+        const msg = err?.message || err?.data?.message || 'Une erreur est survenue.';
+        Alert.alert('Impossible d\u2019accepter', msg);
+      }
     }
   }, [user?.id, router]);
 
@@ -1010,6 +1062,43 @@ export default function ProviderDashboard() {
         </Animated.View>
       )}
 
+      {/* == Pill discrète "mission en cours" — re-entry depuis le dashboard ==
+            Floutante en bas (au-dessus de la tab bar). Centrée horizontalement,
+            largeur auto. Volontairement minimaliste pour ne pas masquer la map. */}
+      {!activeJob && currentMission && (
+        <Animated.View
+          style={[
+            s.cmbWrap,
+            { opacity: fadeAnim },
+          ]}
+          pointerEvents="box-none"
+        >
+          <TouchableOpacity
+            style={[
+              s.cmbPill,
+              {
+                backgroundColor: theme.cardBg,
+                borderColor: theme.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
+                shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.08,
+              },
+            ]}
+            onPress={() => router.push(`/request/${currentMission.id}/ongoing`)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Reprendre la mission en cours"
+          >
+            <View style={[s.cmbDot, { backgroundColor: COLORS.greenBrand }]} />
+            <Text style={[s.cmbLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
+              EN COURS · #{currentMission.id}
+            </Text>
+            <Text style={[s.cmbService, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
+              {currentMission.serviceType || 'Mission'}
+            </Text>
+            <Feather name="chevron-right" size={14} color={theme.textMuted} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
       {/* -- Pop-up mission entrante -- */}
       {activeJob && (
         <IncomingJobCard
@@ -1109,6 +1198,27 @@ const s = StyleSheet.create({
   },
   activeBannerTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   activeBannerSub: { fontSize: 11, fontFamily: FONTS.sans, marginTop: 1 },
+
+  // Pill "mission en cours" — minimaliste, centrée bas, ne masque pas la map
+  cmbWrap: {
+    position: 'absolute',
+    left: 0, right: 0,
+    bottom: Platform.OS === 'ios' ? 96 : 80,
+    alignItems: 'center',
+  },
+  cmbPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 999, borderWidth: 1,
+    maxWidth: '88%',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+      android: { elevation: 4 },
+    }),
+  },
+  cmbDot: { width: 6, height: 6, borderRadius: 3 },
+  cmbLabel: { fontSize: 10, letterSpacing: 1.2 },
+  cmbService: { fontSize: 13, flexShrink: 1 },
   activePulseWrap: {
     width: 18, height: 18,
     alignItems: 'center', justifyContent: 'center',

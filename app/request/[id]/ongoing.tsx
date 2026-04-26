@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Linking,
   ActivityIndicator,
+  ActionSheetIOS,
   Alert,
   Platform,
   StatusBar,
@@ -26,6 +27,10 @@ import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { useConversationUnread } from '@/lib/useConversationUnread';
+import { markCompletionHandled } from '@/lib/navDedup';
+import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -33,6 +38,8 @@ import * as Haptics from 'expo-haptics';
 import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { formatEUR as formatEuros } from '@/lib/format';
+import { PulseDot } from '@/components/ui/PulseDot';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -42,9 +49,9 @@ function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: s
   const theme = useAppTheme();
   const r = size / 2;
   const base = { width: size, height: size, borderRadius: r, overflow: 'hidden' as const };
-  if (url) {
-    const uri = url.startsWith('http') ? url : `${SERVER_BASE}${url}`;
-    return <Image source={{ uri }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
+  const resolved = resolveAvatarUrl(url);
+  if (resolved) {
+    return <Image source={{ uri: resolved }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
   }
   const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   return (
@@ -56,9 +63,6 @@ function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: s
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 // ─── Utils ───────────────────────────────────────────────────────────────────
-
-const formatEuros = (amount: number): string =>
-  amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const decodePolyline = (encoded: string) => {
   const points: { latitude: number; longitude: number }[] = [];
@@ -164,30 +168,16 @@ function StepIndicator({ current, total, theme }: { current: number; total: numb
     <View style={si.row}>
       {Array.from({ length: total }, (_, i) => {
         const step = i + 1;
-        const isDone = step < current;
-        const isActive = step === current;
+        const isFilled = step <= current;
         return (
-          <React.Fragment key={step}>
-            {i > 0 && <View style={[si.line, { backgroundColor: theme.borderLight }, isDone && { backgroundColor: COLORS.green }]} />}
-            <View style={[
-              si.dot,
-              { backgroundColor: theme.surface },
-              isDone && { backgroundColor: COLORS.green },
-              isActive && {
-                backgroundColor: theme.accent,
-                ...Platform.select({
-                  ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-                  android: { elevation: 3 },
-                }),
-              },
-            ]}>
-              {isDone ? (
-                <Feather name="check" size={10} color={theme.heroText} />
-              ) : (
-                <Text style={[si.dotText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }, isActive && { color: theme.accentText }]}>{step}</Text>
-              )}
-            </View>
-          </React.Fragment>
+          <View
+            key={step}
+            style={[
+              si.bar,
+              { backgroundColor: theme.borderLight },
+              isFilled && { backgroundColor: theme.accent },
+            ]}
+          />
         );
       })}
     </View>
@@ -195,13 +185,8 @@ function StepIndicator({ current, total, theme }: { current: number; total: numb
 }
 
 const si = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
-  dot: {
-    width: 28, height: 28, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  dotText: { fontSize: 12 },
-  line: { width: 28, height: 2, marginHorizontal: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
+  bar: { flex: 1, height: 3, borderRadius: 2 },
 });
 
 // ─── Action card component ───────────────────────────────────────────────────
@@ -244,15 +229,15 @@ function ActionCard({ icon, title, subtitle, children, theme }: {
 }
 
 const ac = StyleSheet.create({
-  card: { borderRadius: 16, padding: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  card: { borderRadius: 14, padding: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   iconCircle: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
   headerText: { flex: 1 },
-  title: { fontSize: 17, marginBottom: 2 },
-  subtitle: { fontSize: 13 },
+  title: { fontSize: 15, marginBottom: 1 },
+  subtitle: { fontSize: 12 },
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -263,6 +248,7 @@ export default function MissionOngoing() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { socket, joinRoom, leaveRoom } = useSocket();
+  const { user: authUser } = useAuth();
   const theme = useAppTheme();
   const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
@@ -283,6 +269,13 @@ export default function MissionOngoing() {
   const [afterPhotoUploaded, setAfterPhotoUploaded] = useState(false);
   const [hasQuote, setHasQuote] = useState(false);
   const pinInputRef = useRef<TextInput>(null);
+
+  // ─── Conversation badge (client → provider) ──────────────────────────────
+  const clientUserId = request?.client?.id || request?.clientId || null;
+  const { count: unreadFromClient, reset: resetUnread } = useConversationUnread(
+    clientUserId,
+    authUser?.id,
+  );
 
   // ─── Route fetch ──────────────────────────────────────────────────────────
 
@@ -324,6 +317,19 @@ export default function MissionOngoing() {
         if (st === 'DONE') router.replace(`/request/${id}/earnings`);
         else router.replace('/(tabs)/dashboard');
         return;
+      }
+
+      // ── Gate temporel ──
+      // Mission planifiée hors fenêtre d'activation (>30 min avant) → écran dédié
+      // /early (countdown, récap mission, itinéraire, refus). On évite l'Alert
+      // qui interrompt brutalement le provider sans contexte. Les ONGOING bypassent.
+      if (st === 'ACCEPTED' && data?.preferredTimeStart) {
+        const startTs = new Date(data.preferredTimeStart).getTime();
+        const minutesUntilStart = Math.round((startTs - Date.now()) / 60_000);
+        if (minutesUntilStart > 30) {
+          router.replace({ pathname: '/request/[id]/early', params: { id: String(id) } });
+          return;
+        }
       }
 
       if (data.beforePhotoUrl) setBeforePhotoUploaded(true);
@@ -442,6 +448,21 @@ export default function MissionOngoing() {
     else Alert.alert('Indisponible', "Le numéro du client n'est pas disponible.");
   };
 
+  const openActionsMenu = useCallback(() => {
+    const goSupport = () => router.push('/settings/help');
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Annuler', 'Contacter le support'], cancelButtonIndex: 0 },
+        (idx: number) => { if (idx === 1) goSupport(); },
+      );
+      return;
+    }
+    Alert.alert('Options', undefined, [
+      { text: 'Contacter le support', onPress: goSupport },
+      { text: 'Fermer', style: 'cancel' },
+    ], { cancelable: true });
+  }, [router]);
+
   const handleNavigate = async () => {
     if (!request?.lat || !request?.lng) return;
     const { lat, lng } = request;
@@ -539,6 +560,11 @@ export default function MissionOngoing() {
         text: 'Confirmer',
         onPress: async () => {
           setActionLoading(true);
+          // Marquer AVANT l'await : le backend émet le socket request:completed
+          // avant de répondre HTTP, donc SocketContext reçoit l'event pendant
+          // que l'await est en cours. Sans mark préalable, SocketContext
+          // schedule sa propre nav 900ms et on se retrouve avec 2 mounts.
+          markCompletionHandled(id);
           try {
             const response = await api.post(`/requests/${id}/complete`);
             if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
@@ -620,41 +646,36 @@ export default function MissionOngoing() {
         ) : null}
       </MapView>
 
-      {/* ── Top bar flottant ── */}
-      <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
-        <TouchableOpacity style={[s.backBtn, {
-          backgroundColor: theme.cardBg,
-          ...Platform.select({
-            ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-            android: { elevation: 4 },
-          }),
-        }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8}>
-          <Feather name="arrow-left" size={20} color={theme.text} />
+      {/* ── Top bar flottant — pattern aligné sur missionview tracking ── */}
+      <SafeAreaView style={s.floatingTopBar} edges={['top']} pointerEvents="box-none">
+        <TouchableOpacity
+          style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          activeOpacity={0.8}
+          accessibilityLabel="Retour"
+          accessibilityRole="button"
+        >
+          <Feather name="chevron-left" size={22} color={theme.text} />
         </TouchableOpacity>
 
-        {/* ETA pills */}
-        <View style={s.etaPills}>
-          <View style={[s.etaPill, {
-            backgroundColor: theme.cardBg,
-            ...Platform.select({
-              ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-              android: { elevation: 3 },
-            }),
-          }]}>
-            <Feather name="truck" size={14} color={theme.text} />
-            <Text style={[s.etaPillText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{duration || '...'}</Text>
-          </View>
-          <View style={[s.etaPill, {
-            backgroundColor: theme.cardBg,
-            ...Platform.select({
-              ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-              android: { elevation: 3 },
-            }),
-          }]}>
-            <Feather name="navigation" size={14} color={theme.text} />
-            <Text style={[s.etaPillText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{distance || '...'}</Text>
+        {/* FIXED · #ID */}
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+            <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, letterSpacing: 2, color: theme.text }}>FIXED</Text>
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.textMuted }}>·</Text>
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 1, color: theme.textSub }}>#{id}</Text>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
+          onPress={openActionsMenu}
+          activeOpacity={0.8}
+          accessibilityLabel="Options"
+          accessibilityRole="button"
+        >
+          <Feather name="more-horizontal" size={22} color={theme.text} />
+        </TouchableOpacity>
       </SafeAreaView>
 
       {/* ── Bottom sheet ── */}
@@ -672,91 +693,139 @@ export default function MissionOngoing() {
         }]}>
           <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
 
-          {/* Client row + quick actions */}
-          <View style={s.clientRow}>
-            <Avatar url={request.client?.avatarUrl} name={request.client?.name} size={46} style={{ marginRight: 12 }} />
-            <View style={s.clientInfo}>
-              <Text style={[s.clientName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{request.client?.name || 'Client'}</Text>
-              <Text style={[s.address, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>{request.address}</Text>
+          {/* Status pill + LIVE · GPS — aligné sur missionview tracking */}
+          {(() => {
+            const statusLabel =
+              status === 'ONGOING' ? (afterPhotoUploaded ? 'CLÔTURE' : 'INTERVENTION') :
+              status === 'QUOTE_SENT' ? 'DEVIS ENVOYÉ' :
+              status === 'QUOTE_ACCEPTED' ? 'DEVIS ACCEPTÉ' :
+              'EN ROUTE';
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(59,130,246,0.10)' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.statusOngoing }} />
+                  <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: COLORS.statusOngoing }}>
+                    {statusLabel}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <PulseDot size={6} color={COLORS.greenBrand} />
+                  <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>LIVE · GPS</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* Hero — ETA quand en route, sinon titre de l'étape */}
+          {(() => {
+            const etaMatch = (duration || '').match(/(\d+)/);
+            const etaMin = etaMatch ? etaMatch[1] : '';
+            const inRoute = status === 'ACCEPTED' && etaMin;
+            return (
+              <View style={{ marginBottom: 6 }}>
+                {inRoute ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 }}>
+                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 52, color: theme.text, lineHeight: 52, letterSpacing: -1 }}>{etaMin}</Text>
+                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>MIN AWAY</Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, color: theme.text, marginBottom: 2 }}>
+                    {stepInfo.title.toUpperCase()}
+                  </Text>
+                )}
+                <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }} numberOfLines={1}>
+                  {request.client?.name || 'Client'}{distance ? ` · ${distance} de chez vous` : ''}
+                </Text>
+              </View>
+            );
+          })()}
+
+          {/* Divider */}
+          <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+
+          {/* Client row — identité + actions rapides */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Avatar url={request.client?.avatarUrl} name={request.client?.name} size={40} />
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
+                {request.client?.name || 'Client'}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Feather name="user" size={11} color={theme.textMuted} />
+                <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.textMuted, letterSpacing: 0.6 }}>
+                  CLIENT FIXED
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={handleCall} activeOpacity={0.75}>
-              <Feather name="phone" size={18} color={theme.accentText} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.actionBtnOutline, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-              onPress={() => {
-                const clientId = request?.client?.id || request?.clientId;
-                if (clientId) router.push({ pathname: '/messages/[userId]', params: { userId: clientId, name: request?.client?.name || '' } });
-              }}
-              activeOpacity={0.75}
-            >
-              <Feather name="message-circle" size={18} color={theme.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.actionBtnOutline, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={handleNavigate} activeOpacity={0.75}>
-              <Feather name="navigation" size={18} color={theme.text} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center' }}
+                onPress={handleCall}
+                activeOpacity={0.75}
+                accessibilityLabel="Appeler le client"
+              >
+                <Feather name="phone" size={16} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => {
+                  const clientId = request?.client?.id || request?.clientId;
+                  if (clientId) {
+                    resetUnread();
+                    router.push({ pathname: '/messages/[userId]', params: { userId: clientId, name: request?.client?.name || '' } });
+                  }
+                }}
+                activeOpacity={0.75}
+                accessibilityLabel="Envoyer un message"
+              >
+                <Feather name="message-circle" size={16} color={theme.text} />
+                {unreadFromClient > 0 && (
+                  <View style={{
+                    position: 'absolute', top: -3, right: -3,
+                    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
+                    backgroundColor: COLORS.greenBrand,
+                    alignItems: 'center', justifyContent: 'center',
+                    borderWidth: 1.5, borderColor: theme.cardBg,
+                  }}>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 9, color: '#fff', lineHeight: 11 }}>
+                      {unreadFromClient > 9 ? '9+' : unreadFromClient}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
+                onPress={handleNavigate}
+                activeOpacity={0.75}
+                accessibilityLabel="Itinéraire"
+              >
+                <Feather name="navigation" size={16} color={theme.text} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Access info (if any field is set) */}
-          {(request.client?.floor != null || request.client?.hasElevator != null || request.client?.accessNotes || request.client?.buildingType || request.client?.language) && (
-            <View style={[s.accessCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-              <View style={s.accessHeader}>
-                <Feather name="home" size={14} color={theme.textMuted} />
-                <Text style={[s.accessTitle, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Infos d'accès</Text>
-                {request.client?.language && (
-                  <View style={[s.langBadge, { backgroundColor: theme.cardBg }]}>
-                    <Text style={[s.langText, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{request.client.language.toUpperCase()}</Text>
-                  </View>
-                )}
-              </View>
-              <View style={s.accessBody}>
-                {request.client?.buildingType && (
-                  <View style={s.accessTag}>
-                    <Feather name={request.client.buildingType === 'apartment' ? 'layers' : request.client.buildingType === 'house' ? 'home' : 'briefcase'} size={12} color={theme.textMuted} />
-                    <Text style={[s.accessTagText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                      {request.client.buildingType === 'apartment' ? 'Appartement' : request.client.buildingType === 'house' ? 'Maison' : 'Bureau'}
-                    </Text>
-                  </View>
-                )}
-                {request.client?.floor != null && (
-                  <View style={s.accessTag}>
-                    <Feather name="arrow-up" size={12} color={theme.textMuted} />
-                    <Text style={[s.accessTagText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                      Étage {request.client.floor}{request.client?.hasElevator != null ? (request.client.hasElevator ? ' · Ascenseur' : ' · Sans ascenseur') : ''}
-                    </Text>
-                  </View>
-                )}
-                {request.client?.hasElevator != null && request.client?.floor == null && (
-                  <View style={s.accessTag}>
-                    <Feather name={request.client.hasElevator ? 'check-circle' : 'x-circle'} size={12} color={theme.textMuted} />
-                    <Text style={[s.accessTagText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{request.client.hasElevator ? 'Ascenseur' : 'Sans ascenseur'}</Text>
-                  </View>
-                )}
-                {request.client?.accessNotes ? (
-                  <Text style={[s.accessNotes, { color: theme.textSub, fontFamily: FONTS.sans }]}>{request.client.accessNotes}</Text>
-                ) : null}
-              </View>
+          {/* Adresse — toujours visible (info critique pour le prestataire qui arrive) */}
+          {request.address && (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
+              <Feather name="map-pin" size={13} color={theme.textMuted} style={{ marginTop: 2 }} />
+              <Text style={{ flex: 1, fontFamily: FONTS.sans, fontSize: 13, color: theme.text, lineHeight: 17 }}>
+                {request.address}
+              </Text>
             </View>
           )}
 
-          {/* Mission + price */}
-          <View style={[s.missionRow, { borderBottomColor: theme.borderLight }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.missionName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{request.serviceType}</Text>
-              <Text style={[s.stepLabel, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                Étape {currentStep}/{totalSteps} · {stepInfo.title}
-              </Text>
-            </View>
-            <Text style={[s.price, { color: theme.text, fontFamily: FONTS.bebas }]}>
-              {request.price && request.price > 0
-                ? formatEuros(request.price)
-                : (request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic')
-                  ? 'Devis'
-                  : formatEuros(0)}
+          {/* Divider */}
+          <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+
+          {/* Step header — label étape + indicateur barres */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>
+              ÉTAPE {currentStep}/{totalSteps}
+            </Text>
+            <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textSub }} numberOfLines={1}>
+              {stepInfo.title.toUpperCase()}
             </Text>
           </View>
-
-          {/* Step indicator — 3 étapes */}
           <StepIndicator current={currentStep} total={totalSteps} theme={theme} />
 
           {/* ── Step content ───────────────────────────────────────────────── */}
@@ -783,7 +852,8 @@ export default function MissionOngoing() {
           {/* STEP 2: PIN */}
           {currentStep === 2 && (
             <Pressable onPress={() => pinInputRef.current?.focus()}>
-              <ActionCard icon="key" title="Code PIN du client" subtitle="Demandez le code à 4 chiffres au client" theme={theme}>
+              <View style={[s.pinCard, { backgroundColor: theme.heroBg }]}>
+                <Text style={[s.pinCardLabel, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>CLIENT PIN · ASK TO VERIFY</Text>
                 <TextInput
                   ref={pinInputRef}
                   value={pin}
@@ -796,11 +866,11 @@ export default function MissionOngoing() {
                 />
                 <View style={s.pinRow}>
                   {[0, 1, 2, 3].map((i) => (
-                    <View key={i} style={[s.pinBox, { backgroundColor: theme.surface, borderColor: theme.border }, pin.length === i && { borderColor: theme.accent }]}>
+                    <View key={i} style={[s.pinBox, { backgroundColor: 'rgba(255,255,255,0.08)' }, pin.length === i && { borderColor: theme.heroText, borderWidth: 1 }]}>
                       {pin.length > i ? (
-                        <Text style={[s.pinDigit, { color: theme.text, fontFamily: FONTS.monoMedium }]}>{pin[i]}</Text>
+                        <Text style={[s.pinDigit, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{pin[i]}</Text>
                       ) : (
-                        <View style={[s.pinEmpty, { backgroundColor: theme.borderLight }]} />
+                        <View style={[s.pinEmpty, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
                       )}
                     </View>
                   ))}
@@ -815,7 +885,7 @@ export default function MissionOngoing() {
                     <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Vérifier le code</Text>
                   )}
                 </TouchableOpacity>
-              </ActionCard>
+              </View>
             </Pressable>
           )}
 
@@ -885,6 +955,7 @@ export default function MissionOngoing() {
               )}
             </ActionCard>
           )}
+
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -913,45 +984,60 @@ const s = StyleSheet.create({
     }),
   },
 
-  // ── Top bar ──
-  topBar: {
-    position: 'absolute', top: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, gap: 10, zIndex: 10,
+  // ── Top bar flottant (mirror missionview tracking) ──
+  floatingTopBar: {
+    position: 'absolute',
+    top: 0, left: 16, right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 8 : 44,
+    gap: 12,
+    zIndex: 10,
   },
   backBtn: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 4 },
+    }),
   },
-  etaPills: { flexDirection: 'row', gap: 8 },
-  etaPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 22,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 4 },
+    }),
   },
-  etaPillText: { fontSize: 13 },
 
-  // ── Bottom sheet ──
+  // ── Bottom sheet (rythme compact) ──
   sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   sheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 16, paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingHorizontal: 14, paddingTop: 4,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 10,
   },
   sheetHandle: {
-    width: 32, height: 4, borderRadius: 2,
-    alignSelf: 'center', marginBottom: 10,
+    width: 36, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginBottom: 8,
   },
+
+  // Divider partagé (compact)
+  divider: { height: 1, marginVertical: 8 },
 
   // ── Client row ──
   clientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   avatar: {
-    width: 46, height: 46, borderRadius: 23,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
     marginRight: 12,
   },
   clientInfo: { flex: 1 },
-  clientName: { fontSize: 16, marginBottom: 2 },
-  address: { fontSize: 12 },
+  clientName: { fontSize: 13.5, marginBottom: 2 },
+  address: { fontSize: 10.5, letterSpacing: 0.5 },
   actionBtn: {
     width: 42, height: 42, borderRadius: 21,
     alignItems: 'center', justifyContent: 'center',
@@ -965,20 +1051,39 @@ const s = StyleSheet.create({
 
   // ── Access info card ──
   accessCard: {
-    borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 10,
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 10,
+    marginTop: 8,
+    gap: 8,
   },
   accessHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
   },
-  accessTitle: { fontSize: 12, flex: 1 },
+  accessTitle: { fontSize: 10, letterSpacing: 1.2, flex: 1 },
   langBadge: {
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1,
   },
-  langText: { fontSize: 10, letterSpacing: 0.5 },
-  accessBody: { gap: 4 },
-  accessTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  accessTagText: { fontSize: 13 },
-  accessNotes: { fontSize: 13, marginTop: 4, lineHeight: 18 },
+  langText: { fontSize: 9, letterSpacing: 1.2 },
+  // Grille KV (key-value) pour bâtiment / étage / ascenseur
+  accessKvGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    columnGap: 12, rowGap: 8,
+  },
+  accessKv: {
+    flexBasis: '47%',
+    gap: 2,
+  },
+  accessKvHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  accessKvLabel: { fontSize: 9, letterSpacing: 1.2 },
+  accessKvValue: { fontSize: 14 },
+
+  accessNotesBlock: {
+    borderRadius: 8, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 8,
+    gap: 4,
+  },
+  accessNotesLabel: { fontSize: 9, letterSpacing: 1.2 },
+  accessNotesValue: { fontSize: 14, lineHeight: 18, letterSpacing: 0.5 },
 
   // ── Mission row ──
   missionRow: {
@@ -986,40 +1091,45 @@ const s = StyleSheet.create({
     paddingBottom: 8, marginBottom: 2,
     borderBottomWidth: 1,
   },
-  missionName: { fontSize: 15, marginBottom: 3 },
-  stepLabel: { fontSize: 12 },
-  price: { fontSize: 22, letterSpacing: -0.5 },
+  missionName: { fontSize: 18, fontFamily: FONTS.bebas, letterSpacing: 0.4, marginBottom: 3 },
+  stepLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.6 },
+  price: { fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.3 },
 
   // ── Buttons ──
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 13, borderRadius: 14, minHeight: 48,
+    paddingVertical: 11, borderRadius: 12, minHeight: 44,
   },
-  primaryBtnText: { fontSize: 15 },
+  primaryBtnText: { fontSize: 14 },
   successBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: COLORS.green, paddingVertical: 13, borderRadius: 55, minHeight: 55,
+    backgroundColor: COLORS.green, paddingVertical: 11, borderRadius: 12, minHeight: 44,
   },
-  successBtnText: { fontSize: 16 },
+  successBtnText: { fontSize: 15 },
   btnDisabled: { opacity: 0.5 },
 
   // ── PIN ──
   hiddenInput: { position: 'absolute', opacity: 0, width: 1, height: 1 },
-  pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 12 },
+  pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 8 },
+  pinCard: {
+    borderRadius: 14, padding: 12, marginTop: 2,
+  },
+  pinCardLabel: {
+    fontSize: 10, letterSpacing: 1.2, marginBottom: 10, textAlign: 'center',
+  },
   pinBox: {
-    width: 52, height: 60, borderRadius: 14,
-    borderWidth: 2,
+    flex: 1, height: 46, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  pinDigit: { fontSize: 28 },
-  pinEmpty: { width: 12, height: 12, borderRadius: 6 },
+  pinDigit: { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  pinEmpty: { width: 10, height: 10, borderRadius: 5 },
 
   // ── Ongoing badge ──
   ongoingBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, marginBottom: 6,
   },
-  liveDot: { width: 8, height: 8, borderRadius: 4 },
-  ongoingBadgeText: { fontSize: 13 },
+  liveDot: { width: 7, height: 7, borderRadius: 3.5 },
+  ongoingBadgeText: { fontSize: 12 },
 });

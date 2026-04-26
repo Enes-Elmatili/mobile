@@ -12,13 +12,11 @@ import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { formatEUR as fmtEur } from '@/lib/format';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 // Le backend stocke les montants en centimes (entiers). On divise par 100 à l'affichage.
 const fromCents = (n: number) => n / 100;
-
-const fmtEur = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', {

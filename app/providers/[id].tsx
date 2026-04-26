@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Platform,
   StatusBar,
   Image,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +20,8 @@ import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
+import IconBtn from '@/components/ui/IconBtn';
+import { resolveAvatarUrl } from '@/lib/avatarUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -99,10 +103,10 @@ const rv = StyleSheet.create({
   },
   row:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 30, height: 30, borderRadius: 15,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 13 },
+  avatarText: { fontSize: 11 },
   name:    { fontSize: 13 },
   date:    { fontSize: 11 },
   comment: { fontSize: 13, lineHeight: 19 },
@@ -120,6 +124,8 @@ export default function ProviderDetailScreen() {
   const [reviews,  setReviews]      = useState<Review[]>([]);
   const [loading,  setLoading]      = useState(true);
   const [showAll,  setShowAll]      = useState(false);
+  const [busyModal, setBusyModal]   = useState(false);
+  const [ctaLoading, setCtaLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -127,13 +133,52 @@ export default function ProviderDetailScreen() {
       api.providers.get(id),
       api.ratings.list(id),
     ]).then(([provRes, ratingsRes]) => {
-      setProvider(provRes?.data ?? provRes);
+      // Backend renvoie { success, provider } — déballer correctement
+      setProvider(provRes?.provider ?? provRes?.data ?? provRes);
       const list = ratingsRes?.data ?? ratingsRes;
       setReviews(Array.isArray(list) ? list : list?.reviews ?? []);
     }).catch(err => {
       devError('[ProviderDetail]', err);
     }).finally(() => setLoading(false));
   }, [id]);
+
+  // ── Callbacks (déclarés AVANT les early returns pour respecter Rules of Hooks) ──
+  // firstName est calculé ici (accepte provider null) pour rester avant les returns.
+  const firstNameCb = provider?.name?.split(' ')[0] || provider?.name;
+
+  const handleRequestProvider = useCallback(async () => {
+    if (!id) return;
+    setCtaLoading(true);
+    try {
+      const av: any = await api.providers.availability(id);
+      if (av?.available) {
+        router.push({
+          pathname: '/new-request',
+          params: { preferredProviderId: id, preferredProviderName: firstNameCb },
+        });
+      } else {
+        setBusyModal(true);
+      }
+    } catch (err) {
+      devError('[providers/[id]] availability', err);
+      router.push('/new-request');
+    } finally {
+      setCtaLoading(false);
+    }
+  }, [id, firstNameCb, router]);
+
+  const handleScheduleWithProvider = useCallback(() => {
+    setBusyModal(false);
+    router.push({
+      pathname: '/new-request',
+      params: { preferredProviderId: id, preferredProviderName: firstNameCb, forceScheduled: '1' },
+    });
+  }, [id, firstNameCb, router]);
+
+  const handleFindOther = useCallback(() => {
+    setBusyModal(false);
+    router.push('/new-request');
+  }, [router]);
 
   if (loading) {
     return (
@@ -150,8 +195,8 @@ export default function ProviderDetailScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={56} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Prestataire introuvable</Text>
-        <TouchableOpacity style={[s.backBtnBottom, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
-          <Text style={[s.backBtnBottomText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
+        <TouchableOpacity style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+          <Text style={[s.backBtnFallbackText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -170,28 +215,50 @@ export default function ProviderDetailScreen() {
   const memberSince  = provider.createdAt
     ? new Date(provider.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
     : null;
-  const API_BASE     = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
-  const avatarUri    = provider.avatarUrl
-    ? (provider.avatarUrl.startsWith('http') ? provider.avatarUrl : `${API_BASE}${provider.avatarUrl}`)
-    : null;
+  const avatarUri = resolveAvatarUrl(provider.avatarUrl);
+
+  // Build subtitle parts: category, experience, city
+  const subtitleParts: string[] = [];
+  if (provider.categories?.[0]?.name) subtitleParts.push(provider.categories[0].name.toUpperCase());
+  if (memberSince) subtitleParts.push(`DEPUIS ${memberSince.toUpperCase()}`);
+  if (provider.city) subtitleParts.push(provider.city.toUpperCase());
+  const subtitleText = subtitleParts.join(' \u00B7 ');
+
+  // Build stat strip items
+  const statItems: { label: string; value: string | number; unit?: string }[] = [
+    { label: 'RATING', value: avgRating > 0 ? avgRating.toFixed(1) : '-', unit: '/5' },
+    { label: 'JOBS', value: jobsDone },
+  ];
+  if (acceptRate !== null) {
+    statItems.push({ label: 'ON-TIME', value: acceptRate, unit: '%' });
+  }
+  // Response time placeholder — show if available
+  if (provider.avgResponseMin) {
+    statItems.push({ label: 'RESP.', value: provider.avgResponseMin, unit: 'min' });
+  }
+
+  // First name for CTA (déjà calculé en `firstNameCb` plus haut, on le réutilise)
+  const firstName = firstNameCb;
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* Header */}
-      <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={20} color={theme.textAlt} />
-        </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Prestataire</Text>
-        <View style={{ width: 40 }} />
+      {/* Header — IconBtn chevron-left + PROVIDER + IconBtn more-horizontal */}
+      <View style={[s.header, { borderBottomColor: theme.borderLight }]}>
+        <IconBtn
+          icon="chevron-left"
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+        />
+        <Text style={[s.headerTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>PROVIDER</Text>
+        <IconBtn icon="more-horizontal" />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Identity — premium */}
-        <View style={[s.identity, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+        {/* Avatar + Name + Subtitle */}
+        <View style={s.identitySection}>
+          {/* Centered avatar 80px with verified overlay */}
           <View style={s.avatarOuter}>
             {avatarUri ? (
               <Image source={{ uri: avatarUri }} style={[s.avatarImg, { borderColor: theme.borderLight }]} />
@@ -200,112 +267,118 @@ export default function ProviderDetailScreen() {
                 <Text style={[s.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{initials}</Text>
               </View>
             )}
+            {isVerified && (
+              <View style={[s.verifiedOverlay, { backgroundColor: COLORS.greenBrand, borderColor: theme.bg }]}>
+                <Feather name="check" size={10} color="#fff" />
+              </View>
+            )}
             {isOnline && (
-              <View style={[s.onlineDotWrap, { borderColor: theme.cardBg }]}>
+              <View style={[s.onlineDotWrap, { borderColor: theme.bg }]}>
                 <PulseDot size={10} />
               </View>
             )}
           </View>
 
-          <View style={s.nameRow}>
-            <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
+          {/* Name — Bebas 34px centered */}
+          <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
+
+          {/* Subtitle — mono 11px, textMuted, letterSpacing 1 */}
+          {subtitleText.length > 0 && (
+            <Text style={[s.subtitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{subtitleText}</Text>
+          )}
+
+          {/* Badges row */}
+          <View style={s.badgesRow}>
             {isVerified && (
-              <View style={[s.verifiedBadge, { backgroundColor: 'rgba(61,139,61,0.12)', borderColor: 'rgba(61,139,61,0.22)' }]}>
-                <Feather name="check" size={10} color={COLORS.greenBrand} />
-                <Text style={[s.verifiedText, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>Vérifié</Text>
+              <View style={[s.badge, { backgroundColor: 'rgba(61,139,61,0.10)' }]}>
+                <Feather name="shield" size={11} color={COLORS.greenBrand} />
+                <Text style={[s.badgeText, { color: COLORS.greenBrand, fontFamily: FONTS.mono }]}>VERIFIED</Text>
+              </View>
+            )}
+            {avgRating > 0 && (
+              <View style={[s.badge, { backgroundColor: 'rgba(245,158,11,0.10)' }]}>
+                <Feather name="star" size={11} color={COLORS.amber} />
+                <Text style={[s.badgeText, { color: COLORS.amber, fontFamily: FONTS.mono }]}>{avgRating.toFixed(1)}</Text>
+              </View>
+            )}
+            {provider.languages?.length > 0 && (
+              <View style={[s.badge, { backgroundColor: theme.surface }]}>
+                <Feather name="globe" size={11} color={theme.textSub} />
+                <Text style={[s.badgeText, { color: theme.textSub, fontFamily: FONTS.mono }]}>{provider.languages.join(', ').toUpperCase()}</Text>
               </View>
             )}
           </View>
-
-          {provider.city ? (
-            <View style={s.cityRow}>
-              <Feather name="map-pin" size={13} color={theme.textMuted} />
-              <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{provider.city}</Text>
-              {memberSince && (
-                <>
-                  <Text style={[s.cityText, { color: theme.textDisabled, fontFamily: FONTS.sans }]}> · </Text>
-                  <Feather name="calendar" size={11} color={theme.textDisabled} />
-                  <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Membre depuis {memberSince}</Text>
-                </>
-              )}
-            </View>
-          ) : memberSince ? (
-            <View style={s.cityRow}>
-              <Feather name="calendar" size={11} color={theme.textMuted} />
-              <Text style={[s.cityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Membre depuis {memberSince}</Text>
-            </View>
-          ) : null}
-
-          {provider.description ? (
-            <Text style={[s.desc, { color: theme.textSub, fontFamily: FONTS.sans }]}>{provider.description}</Text>
-          ) : null}
         </View>
 
-        {/* Stats — 3 or 4 columns */}
-        <View style={[s.statsRow, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-          <View style={s.stat}>
-            <Text style={[s.statValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
-              {avgRating > 0 ? avgRating.toFixed(1) : '-'}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 2, marginVertical: 3 }}>
-              <Stars rating={avgRating} size={12} />
-            </View>
-            <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
-              {totalRatings > 0 ? `${totalRatings} ${t('providers.rating').toLowerCase()}` : t('providers.rating')}
-            </Text>
-          </View>
-          <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />
-          <View style={s.stat}>
-            <Text style={[s.statValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{jobsDone}</Text>
-            <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('providers.missions')}</Text>
-          </View>
-          {acceptRate !== null && (
-            <>
-              <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />
-              <View style={s.stat}>
-                <Text style={[s.statValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{acceptRate}%</Text>
-                <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Acceptation</Text>
-              </View>
-            </>
-          )}
-          <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />
-          <View style={s.stat}>
-            {isOnline ? <PulseDot size={8} /> : <View style={[s.statusDot, { backgroundColor: theme.textDisabled }]} />}
-            <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
-              {isOnline ? t('providers.online') : t('providers.offline')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Categories */}
-        {provider.categories?.length > 0 && (
-          <View style={[s.section, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-            <Text style={[s.sectionTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Catégories</Text>
-            <View style={s.chips}>
-              {provider.categories.map((cat: any) => (
-                <View key={cat.id} style={[s.chip, { backgroundColor: theme.surface }]}>
-                  <Text style={[s.chipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{cat.name}</Text>
+        {/* Stats card — Card wrapping StatStrip-style layout */}
+        <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+          <View style={s.statsRow}>
+            {statItems.map((item, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <View style={[s.statDivider, { backgroundColor: theme.borderLight }]} />}
+                <View style={s.stat}>
+                  <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{item.label}</Text>
+                  <View style={s.statValueRow}>
+                    <Text style={[s.statValue, { color: theme.text, fontFamily: FONTS.bebas }]}>{item.value}</Text>
+                    {item.unit ? (
+                      <Text style={[s.statUnit, { color: theme.textSub, fontFamily: FONTS.mono }]}>{item.unit}</Text>
+                    ) : null}
+                  </View>
                 </View>
-              ))}
+              </React.Fragment>
+            ))}
+          </View>
+        </View>
+
+        {/* About section */}
+        {provider.description ? (
+          <View style={s.sectionWrap}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>ABOUT</Text>
+            </View>
+            <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+              <Text style={[s.desc, { color: theme.textSub, fontFamily: FONTS.sans }]}>{provider.description}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Specialties section */}
+        {provider.categories?.length > 0 && (
+          <View style={s.sectionWrap}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>SPECIALTIES</Text>
+            </View>
+            <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+              <View style={s.chips}>
+                {provider.categories.map((cat: any) => (
+                  <View key={cat.id} style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[s.chipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{cat.name}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </View>
         )}
 
-        {/* Reviews */}
-        <View style={[s.section, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-          <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('providers.reviews')}</Text>
-            {reviews.length > 0 && (
-              <Text style={[s.reviewCount, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
-                {reviews.length} avis
+        {/* Reviews section */}
+        <View style={s.sectionWrap}>
+          <View style={s.sectionHeaderRow}>
+            <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
+              {t('providers.reviews').toUpperCase()}
+            </Text>
+            {totalRatings > 0 && (
+              <Text style={[s.sectionAction, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
+                {totalRatings} total
               </Text>
             )}
           </View>
 
           {reviews.length === 0 ? (
-            <View style={s.emptyReviews}>
-              <Feather name="message-circle" size={32} color={theme.textDisabled} />
-              <Text style={[s.emptyReviewsText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('providers.no_reviews')}</Text>
+            <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+              <View style={s.emptyReviews}>
+                <Feather name="message-circle" size={32} color={theme.textDisabled} />
+                <Text style={[s.emptyReviewsText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('providers.no_reviews')}</Text>
+              </View>
             </View>
           ) : (
             <View style={{ gap: 10 }}>
@@ -329,6 +402,69 @@ export default function ProviderDetailScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Bottom CTA — full width accent button */}
+      <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
+        <TouchableOpacity
+          style={[s.ctaBtn, { backgroundColor: theme.accent }, ctaLoading && { opacity: 0.6 }]}
+          activeOpacity={0.85}
+          onPress={handleRequestProvider}
+          disabled={ctaLoading}
+        >
+          {ctaLoading ? (
+            <ActivityIndicator color={theme.accentText} />
+          ) : (
+            <>
+              <Text style={[s.ctaText, { color: theme.accentText, fontFamily: FONTS.bebas }]}>
+                Demander {firstName}
+              </Text>
+              <Feather name="arrow-right" size={18} color={theme.accentText} />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Modal — provider BUSY/OFFLINE */}
+      <Modal visible={busyModal} transparent animationType="fade" onRequestClose={() => setBusyModal(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setBusyModal(false)}>
+          <Pressable style={[s.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={(e) => e.stopPropagation()}>
+            <View style={[s.modalIconCircle, { backgroundColor: theme.surface }]}>
+              <Feather name="clock" size={24} color={theme.textSub} />
+            </View>
+            <Text style={[s.modalTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>
+              {firstName} n'est pas dispo
+            </Text>
+            <Text style={[s.modalBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>
+              {firstName} est actuellement occupé ou hors ligne. Vous pouvez planifier une mission avec lui pour plus tard, ou trouver un autre prestataire disponible maintenant.
+            </Text>
+
+            <TouchableOpacity
+              style={[s.modalPrimary, { backgroundColor: theme.accent }]}
+              onPress={handleScheduleWithProvider}
+              activeOpacity={0.85}
+            >
+              <Feather name="calendar" size={18} color={theme.accentText} />
+              <Text style={[s.modalPrimaryText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>
+                Planifier avec {firstName}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.modalSecondary, { borderColor: theme.borderLight }]}
+              onPress={handleFindOther}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.modalSecondaryText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                Trouver un autre prestataire
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setBusyModal(false)} activeOpacity={0.7} style={{ paddingVertical: 8 }}>
+              <Text style={[s.modalCancel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Annuler</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -344,87 +480,94 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  headerBack: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 17 },
+  headerTitle: { fontSize: 11, letterSpacing: 1 },
 
-  scroll: { padding: 16, gap: 12, paddingBottom: 48 },
+  scroll: { padding: 16, gap: 16, paddingBottom: 24 },
 
-  identity: {
-    borderRadius: 20, padding: 20,
+  // ── Identity section (no card bg — sits directly on bg) ──
+  identitySection: {
     alignItems: 'center', gap: 8,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 2 },
-    }),
+    paddingTop: 8, paddingBottom: 4,
   },
-  avatarOuter: { position: 'relative' },
+  avatarOuter: { position: 'relative', marginBottom: 4 },
   avatarWrap: {
-    width: 88, height: 88, borderRadius: 44,
+    width: 80, height: 80, borderRadius: 40,
     alignItems: 'center', justifyContent: 'center',
   },
   avatarImg: {
-    width: 88, height: 88, borderRadius: 44,
+    width: 80, height: 80, borderRadius: 40,
     borderWidth: 2,
   },
-  avatarText: { fontSize: 30, letterSpacing: 1 },
+  avatarText: { fontSize: 28, letterSpacing: 1 },
+  verifiedOverlay: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2.5,
+  },
   onlineDotWrap: {
-    position: 'absolute', bottom: 4, right: 4,
+    position: 'absolute', top: 0, right: 0,
     width: 16, height: 16, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'transparent',
     borderWidth: 2.5,
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  name: { fontSize: 26 },
-  verifiedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 4,
-  },
-  verifiedText: { fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center' },
-  cityText: { fontSize: 13 },
-  desc: { fontSize: 14, textAlign: 'center', lineHeight: 21, paddingHorizontal: 8 },
+  name: { fontSize: 34, letterSpacing: 0.4, textAlign: 'center' },
+  subtitle: { fontSize: 11, letterSpacing: 1, textAlign: 'center' },
 
-  statsRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 18,
-    paddingVertical: 16, paddingHorizontal: 12,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 2 },
-    }),
+  // ── Badges row ──
+  badgesRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 4 },
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 5,
   },
-  stat: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 26, letterSpacing: -0.5 },
-  statLabel: { fontSize: 11, textAlign: 'center' },
-  statDivider: { width: 1, height: 44 },
-  statusDot: {
-    width: 12, height: 12, borderRadius: 6,
+  badgeText: { fontSize: 10.5, letterSpacing: 0.5 },
+
+  // ── Card (shared) ──
+  card: {
+    borderRadius: 18, padding: 16,
+    borderWidth: 1,
+    shadowColor: '#000', shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 1 }, shadowRadius: 4,
+    ...Platform.select({ android: { elevation: 1 } }),
+  },
+
+  // ── Stats ──
+  statsRow: { flexDirection: 'row', alignItems: 'stretch' },
+  stat: { flex: 1, paddingHorizontal: 4 },
+  statLabel: {
+    fontSize: 10.5, letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
     marginBottom: 4,
   },
+  statValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+  statValue: { fontSize: 24, lineHeight: 24 },
+  statUnit: { fontSize: 11 },
+  statDivider: { width: 1, marginVertical: 4 },
 
-  section: {
-    borderRadius: 18, padding: 16, gap: 12,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 1 },
-    }),
+  // ── Section layout ──
+  sectionWrap: { gap: 10 },
+  sectionHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 15 },
-  reviewCount: { fontSize: 12 },
+  sectionTitle: { fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' as const },
+  sectionAction: { fontSize: 12 },
 
+  // ── About ──
+  desc: { fontSize: 14, lineHeight: 21 },
+
+  // ── Chips (specialties) ──
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 9,
+    borderWidth: 1,
   },
   chipText: { fontSize: 13 },
 
+  // ── Reviews ──
   emptyReviews: { alignItems: 'center', paddingVertical: 24, gap: 8 },
   emptyReviewsText: { fontSize: 14 },
 
@@ -434,10 +577,55 @@ const s = StyleSheet.create({
   },
   seeAllText: { fontSize: 13 },
 
+  // ── Bottom CTA ──
+  ctaWrap: {
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 8 : 16,
+    borderTopWidth: 1,
+  },
+  ctaBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: 14,
+    width: '100%',
+  },
+  ctaText: { fontSize: 28, letterSpacing: 0.5 },
+
+  // ── Error state ──
   errorText: { fontSize: 16, marginTop: 12 },
-  backBtnBottom: {
+  backBtnFallback: {
     marginTop: 20,
     paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12,
   },
-  backBtnBottomText: { fontSize: 15 },
+  backBtnFallbackText: { fontSize: 15 },
+
+  // ── Modal busy ──
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 380,
+    borderRadius: 20, borderWidth: 1,
+    paddingHorizontal: 22, paddingVertical: 22,
+    alignItems: 'center', gap: 12,
+  },
+  modalIconCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: { fontSize: 28, letterSpacing: 0.4, textAlign: 'center' },
+  modalBody: { fontSize: 13, lineHeight: 19, textAlign: 'center', marginBottom: 8 },
+  modalPrimary: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%', paddingVertical: 13, borderRadius: 12,
+  },
+  modalPrimaryText: { fontSize: 15 },
+  modalSecondary: {
+    width: '100%', paddingVertical: 13, borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalSecondaryText: { fontSize: 15 },
+  modalCancel: { fontSize: 13 },
 });

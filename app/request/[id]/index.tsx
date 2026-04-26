@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { formatEUR } from '@/lib/format';
 
 export default function Wallet() {
   const router = useRouter();
@@ -63,7 +64,7 @@ export default function Wallet() {
           { color: item.type === 'CREDIT' ? COLORS.green : COLORS.red, fontFamily: FONTS.monoMedium },
         ]}
       >
-        {item.type === 'CREDIT' ? '+' : '-'}€{Math.abs(item.amount).toFixed(2)}
+        {item.type === 'CREDIT' ? '+' : '-'}{formatEUR(Math.abs(item.amount))}
       </Text>
     </View>
   );
@@ -90,7 +91,7 @@ export default function Wallet() {
 
       <View style={[styles.balanceCard, { backgroundColor: theme.heroBg }]}>
         <Text style={[styles.balanceLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>Solde actuel</Text>
-        <Text style={[styles.balanceAmount, { color: theme.heroText, fontFamily: FONTS.bebas }]}>€{balance.toFixed(2)}</Text>
+        <Text style={[styles.balanceAmount, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{formatEUR(balance)}</Text>
       </View>
 
       <View style={styles.section}>
@@ -118,25 +119,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1,
   },
   title: { fontSize: 20 },
   balanceCard: {
-    margin: 20,
-    padding: 32,
-    borderRadius: 16,
+    margin: 16,
+    padding: 22,
+    borderRadius: 14,
     alignItems: 'center',
   },
-  balanceLabel: { fontSize: 14, marginBottom: 8 },
-  balanceAmount: { fontSize: 44 },
-  section: { paddingHorizontal: 20, flex: 1 },
-  sectionTitle: { fontSize: 18, marginBottom: 16 },
+  balanceLabel: { fontSize: 13, marginBottom: 6 },
+  balanceAmount: { fontSize: 38 },
+  section: { paddingHorizontal: 16, flex: 1 },
+  sectionTitle: { fontSize: 16, marginBottom: 10 },
   txCard: {
     flexDirection: 'row',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
     alignItems: 'center',
   },
   txIcon: {
@@ -153,7 +154,7 @@ const styles = StyleSheet.create({
   txAmount: { fontSize: 18 },
   empty: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 24,
   },
-  emptyText: { fontSize: 16, marginTop: 12 },
+  emptyText: { fontSize: 14, marginTop: 8 },
 });

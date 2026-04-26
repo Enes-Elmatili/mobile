@@ -20,6 +20,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
 import { useCall } from '@/lib/webrtc/CallContext';
 import * as Haptics from 'expo-haptics';
+import { formatEUR as formatEuros } from '@/lib/format';
 
 
 const { width } = Dimensions.get('window');
@@ -134,8 +135,6 @@ function formatScheduledDate(iso: string): { day: string; time: string; relative
 // UTILS
 // ============================================================================
 
-const formatEuros = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const formatTime = (d?: string) => {
   if (!d) return null;
@@ -1121,7 +1120,7 @@ const sd = StyleSheet.create({
 
   sep: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
 
-  sectionLabel: { fontSize: 11, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 },
+  sectionLabel: { fontSize: 11, fontFamily: FONTS.mono, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8 },
   infoRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   infoIcon:     { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   infoContent:  { flex: 1 },
@@ -1227,8 +1226,14 @@ export default function Missions() {
       setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
       await loadMissions();
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Erreur';
-      Alert.alert('Impossible', msg);
+      const code = e?.response?.data?.code || e?.data?.code;
+      if (code === 'INVALID_STATE' || code === 'ALREADY_TAKEN') {
+        setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
+        Alert.alert('Mission plus disponible', 'Cette mission vient d\'être prise ou n\'est plus active.');
+      } else {
+        const msg = e?.response?.data?.message || e?.message || 'Erreur';
+        Alert.alert('Impossible', msg);
+      }
     } finally {
       setAcceptingOpp(null);
     }
@@ -1456,12 +1461,12 @@ export default function Missions() {
       <View style={[s.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
         <View style={s.headerRow}>
           <View>
-            <Text style={[s.headerTitle, { color: t.text }]}>Missions</Text>
             {upcomingMissions.length > 0 && (
               <Text style={[s.headerSub, { color: t.textMuted }]}>
-                {upcomingMissions.length} mission{upcomingMissions.length > 1 ? 's' : ''} a venir
+                {upcomingMissions.length} MISSION{upcomingMissions.length > 1 ? 'S' : ''} À VENIR
               </Text>
             )}
+            <Text style={[s.headerTitle, { color: t.text }]}>Missions</Text>
           </View>
           {!searchActive && (
             <TouchableOpacity
@@ -1619,9 +1624,9 @@ const s = StyleSheet.create({
 
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 26, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
-  headerSub:   { fontSize: 13, fontFamily: FONTS.sans, marginTop: 2 },
-  searchIconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerSub:   { fontSize: 11, fontFamily: FONTS.mono, marginTop: 6, letterSpacing: 0.9, textTransform: 'uppercase' },
+  searchIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   searchBar:   { flexDirection: 'row', alignItems: 'center', borderRadius: 14, height: 44, marginTop: 12 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: FONTS.sans, paddingHorizontal: 10, height: 44 },
 

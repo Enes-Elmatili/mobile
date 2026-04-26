@@ -27,6 +27,8 @@ import { useTranslation } from 'react-i18next';
 
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { toFeatherName } from '@/lib/iconMapper';
+import { formatEURInt } from '@/lib/format';
+import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tokenStorage } from '../../lib/storage';
 import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
@@ -51,6 +53,7 @@ function ProviderAvatar({
   onPickPhoto?: () => void;
 }) {
   const theme = useAppTheme();
+  const [imgFailed, setImgFailed] = React.useState(false);
   const initials = name
     .split(' ')
     .map(w => w[0])
@@ -59,13 +62,23 @@ function ProviderAvatar({
     .toUpperCase();
   const bg = theme.heroBg;
 
+  // Reset le state d'erreur quand l'URL change (nouvelle tentative)
+  React.useEffect(() => { setImgFailed(false); }, [avatarUri]);
+
+  const showImage = !!avatarUri && !imgFailed;
+
   return (
     <View style={[av.wrapper, { width: size, height: size, borderRadius: size / 2 }]}>
-      {avatarUri ? (
+      {showImage ? (
         <Image
-          source={{ uri: avatarUri }}
+          source={{ uri: avatarUri! }}
           style={[av.circle, { borderRadius: size / 2 }]}
           resizeMode="cover"
+          onError={(e) => {
+            // eslint-disable-next-line no-console
+            console.warn('[Avatar] Image failed to load:', avatarUri, e?.nativeEvent?.error);
+            setImgFailed(true);
+          }}
         />
       ) : (
         <View style={[av.circle, { backgroundColor: bg, borderRadius: size / 2 }]}>
@@ -123,7 +136,7 @@ const sb = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
   value: { fontSize: 16, fontFamily: FONTS.mono, fontWeight: '800' },
-  label: { fontSize: 10, fontFamily: FONTS.sansMedium, textAlign: 'center' },
+  label: { fontSize: 10, fontFamily: FONTS.mono, textAlign: 'center' },
 });
 
 // ============================================================================
@@ -145,7 +158,7 @@ function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
   return (
     <View style={ms.wrap}>
       {!!title && <Text style={[ms.title, { color: t.textMuted }]}>{title}</Text>}
-      <View style={[ms.card, { backgroundColor: t.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: t.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 2 } }) }]}>
+      <View style={[ms.card, { backgroundColor: t.cardBg, borderColor: t.borderLight, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: t.shadowOpacity, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }, android: { elevation: 2 } }) }]}>
         {items.map((item, i) => (
           <React.Fragment key={i}>
             <TouchableOpacity style={ms.row} onPress={item.onPress} activeOpacity={0.7}>
@@ -169,13 +182,13 @@ function MenuSection({ title, items }: { title?: string; items: MenuItem[] }) {
 const ms = StyleSheet.create({
   wrap: { marginBottom: 16 },
   title: {
-    fontSize: 10, fontFamily: FONTS.sansMedium, fontWeight: '600',
-    textTransform: 'uppercase', letterSpacing: 1.5,
+    fontSize: 11, fontFamily: FONTS.mono,
+    textTransform: 'uppercase', letterSpacing: 1.2,
     marginBottom: 10, paddingHorizontal: 2,
   },
   card: {
     borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.08)',
+    borderWidth: 1,
   },
   row: {
     flexDirection: 'row', alignItems: 'center',
@@ -211,8 +224,12 @@ export default function Profile() {
   const [editName,    setEditName]    = useState('');
   const [editPhone,   setEditPhone]   = useState('');
   const [editCity,    setEditCity]    = useState('');
+  // Provider-only : description ("À propos") visible par les clients + numéro TVA
+  const [editProviderBio, setEditProviderBio] = useState('');
+  const [editVatNumber,   setEditVatNumber]   = useState('');
   const [saving,      setSaving]      = useState(false);
   // Password change (email accounts only)
+  const [pwdSheetOpen, setPwdSheetOpen] = useState(false);
   const [currentPwd,  setCurrentPwd]  = useState('');
   const [newPwd,      setNewPwd]      = useState('');
   const [confirmPwd,  setConfirmPwd]  = useState('');
@@ -226,30 +243,32 @@ export default function Profile() {
   const [catsLoading, setCatsLoading] = useState(false);
   const [profileStats, setProfileStats] = useState({ rating: '—', missions: '—', earnings: '—', acceptance: '—' });
   const [tickets, setTickets] = useState<any[]>([]);
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
 
   const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
   const email = user?.email || '';
   const roles = user?.roles?.join(' · ') || 'Prestataire';
 
-  // ── Chargement avatar : AsyncStorage (cache local) prioritaire, API en fallback ──
+  // ── Chargement avatar : URL serveur en priorité (source de vérité) ──
+  // Stratégie : on privilégie l'URL serveur car les `file://` locaux cachés peuvent
+  // devenir invalides entre sessions (réinstall, simulateur reset). La cache locale
+  // n'est utilisée qu'en fallback offline si aucune URL serveur n'est encore connue.
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
-      // 1. Cache local (persiste entre les sessions, survit au filesystem éphémère Railway)
-      const cached = await AsyncStorage.getItem(avatarKey(user.id));
-      if (cached) {
-        setAvatarUri(cached);
+      const rawApiUrl = (user as any)?.avatarUrl;
+      const apiUri = resolveAvatarUrl(rawApiUrl);
+      console.log('[Avatar] Init useEffect — user.avatarUrl:', rawApiUrl, '→ resolved:', apiUri);
+      if (apiUri) {
+        setAvatarUri(apiUri);
         return;
       }
-      // 2. Fallback : URL serveur depuis /auth/me
-      const apiAvatar = (user as any)?.avatarUrl;
-      if (apiAvatar) {
-        const serverBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
-        const uri = apiAvatar.startsWith('http') ? apiAvatar : `${serverBase}${apiAvatar}`;
-        setAvatarUri(uri);
-      }
+      // Pas d'URL serveur (jamais uploadé OU /me en échec) → tente la cache
+      const cached = await AsyncStorage.getItem(avatarKey(user.id));
+      console.log('[Avatar] No API URL, cache value:', cached);
+      if (cached) setAvatarUri(cached);
     })();
-  }, [user?.id]);
+  }, [user?.id, (user as any)?.avatarUrl]);
 
   // ── Chargement consolidé : provider stats + stripe + tickets en 1 seul useEffect ──
   useEffect(() => {
@@ -269,9 +288,14 @@ export default function Profile() {
     }
 
     Promise.all(promises).then(([ticketsRes, provRes, walletRes, stripeRes]) => {
-      // Tickets
+      // Tickets — on garde tout (la card filtre les ouverts pour l'affichage)
       const tickets = ticketsRes?.data || ticketsRes?.tickets || ticketsRes;
-      if (Array.isArray(tickets)) setTickets(tickets.slice(0, 3));
+      if (Array.isArray(tickets)) setTickets(tickets);
+
+      // Saved addresses
+      api.addresses.list().then((res: any) => {
+        setSavedAddresses(Array.isArray(res) ? res : res?.data || []);
+      }).catch(() => {});
 
       if (!isProvider) return;
 
@@ -298,7 +322,7 @@ export default function Profile() {
         const balanceCents: number = wallet?.balance ?? 0;
         setProfileStats(prev => ({
           ...prev,
-          earnings: `${Math.floor(balanceCents / 100).toLocaleString('fr-FR')} €`,
+          earnings: formatEURInt(balanceCents / 100),
         }));
       }
       // Stripe
@@ -361,7 +385,18 @@ export default function Profile() {
       clearTimeout(timeout);
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       const data = await res.json();
-      // Ne pas écraser le cache base64 local avec l'URL serveur (filesystem éphémère Railway)
+      // Cache la server URL résolue (au lieu du file:// local qui devient invalide
+      // entre sessions). Ainsi le démarrage suivant trouve une URL stable.
+      // Cache-bust : timestamp en query pour forcer Image à recharger même si
+      // l'URI est déjà en cache (cas upload sur le même nom de fichier — rare
+      // mais possible avec collision ou retry).
+      const baseUri = resolveAvatarUrl(data?.avatarUrl);
+      const serverUri = baseUri ? `${baseUri}?t=${Date.now()}` : null;
+      console.log('[Avatar] Upload OK — server URL:', baseUri, '→ display URI:', serverUri);
+      if (serverUri && user?.id) {
+        await AsyncStorage.setItem(avatarKey(user.id), serverUri).catch(() => {});
+        setAvatarUri(serverUri);
+      }
       await refreshMe();
       showSocketToast(t('common.success'), 'success');
     } catch {
@@ -375,6 +410,10 @@ export default function Profile() {
     setEditName((user as any)?.name || '');
     setEditPhone((user as any)?.phone || '');
     setEditCity((user as any)?.city || '');
+    // Provider info pré-remplie via api.providers.me() ci-dessous (gardée vide
+    // par défaut côté client puisque l'écran cache la section)
+    setEditProviderBio('');
+    setEditVatNumber('');
     setCurrentPwd('');
     setNewPwd('');
     setConfirmPwd('');
@@ -402,9 +441,11 @@ export default function Profile() {
         api.providers.me(),
       ]).then(([cats, provRes]) => {
         setAllCategories(cats);
-        const prov = provRes?.data?.provider ?? provRes?.data ?? provRes;
+        const prov = provRes?.provider ?? provRes?.data?.provider ?? provRes?.data ?? provRes;
         const currentIds = (prov?.categories || []).map((c: any) => c.id);
         setSelectedCatIds(currentIds);
+        setEditProviderBio(prov?.description || '');
+        setEditVatNumber(prov?.vatNumber || '');
       }).catch(() => {
         showSocketToast('Erreur chargement des catégories', 'error');
       }).finally(() => setCatsLoading(false));
@@ -424,16 +465,23 @@ export default function Profile() {
     }
     setSaving(true);
     try {
-      const payload: any = {
+      // Payload commun (User)
+      const userPayload: any = {
         name: editName.trim() || null,
         phone: editPhone.trim() || null,
         city: editCity.trim() || null,
       };
       if (!isClientOnly) {
-        payload.categoryIds = selectedCatIds;
-        await api.providers.updateMe(payload);
+        // Provider : description + vatNumber + categories vont sur Provider table
+        const providerPayload: any = {
+          ...userPayload,
+          description: editProviderBio.trim() || null,
+          vatNumber: editVatNumber.trim().toUpperCase() || null,
+          categoryIds: selectedCatIds,
+        };
+        await api.providers.updateMe(providerPayload);
       } else {
-        await api.patch('/me', payload);
+        await api.patch('/me', userPayload);
       }
       await refreshMe();
       setEditVisible(false);
@@ -495,6 +543,21 @@ export default function Profile() {
   const isClientOnly =
     user?.roles?.includes('CLIENT') && !user?.roles?.includes('PROVIDER');
 
+  const handleDeleteAddress = (id: number) => {
+    Alert.alert(t('addresses.delete_confirm'), '', [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'), style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.addresses.remove(id);
+            setSavedAddresses(prev => prev.filter(a => a.id !== id));
+          } catch {}
+        },
+      },
+    ]);
+  };
+
   const accountItems: MenuItem[] = [
     {
       icon: 'user', iconColor: theme.textSub, iconBg: theme.surface,
@@ -515,13 +578,6 @@ export default function Profile() {
             onPress: () => router.push('/subscription'),
           },
         ]
-      : []),
-    ...(isClientOnly
-      ? [{
-          icon: 'briefcase' as string, iconColor: theme.textSub, iconBg: theme.surface,
-          label: t('profile.become_provider'), sublabel: t('profile.become_provider_sub'),
-          onPress: () => router.push('/onboarding'),
-        }]
       : []),
   ];
 
@@ -572,13 +628,18 @@ export default function Profile() {
       <StatusBar barStyle={theme.statusBar} />
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.bg }]}>
-        <Text style={[s.headerTitle, { color: theme.text }]}>PROFIL</Text>
+        <View>
+          <Text style={[s.headerGreeting, { color: theme.textMuted }]}>
+            MEMBRE FIXED DEPUIS {new Date((user as any)?.createdAt || Date.now()).getFullYear()}
+          </Text>
+          <Text style={[s.headerTitle, { color: theme.text }]}>PROFIL</Text>
+        </View>
         <TouchableOpacity
-          style={[s.settingsBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+          style={[s.settingsBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => bottomSheetRef.current?.expand()}
           activeOpacity={0.7}
         >
-          <Feather name="settings" size={16} color={theme.text} />
+          <Feather name="settings" size={18} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -634,64 +695,113 @@ export default function Profile() {
         {/* Menus */}
         <View style={s.sections}>
           <MenuSection title="Mon compte" items={accountItems} />
+
+          {/* Mes adresses */}
+          <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, marginBottom: 8 }}>
+              <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 11, letterSpacing: 1, color: theme.textMuted, textTransform: 'uppercase' }}>
+                {t('addresses.my_addresses')}
+              </Text>
+            </View>
+            <View style={{ backgroundColor: theme.cardBg, borderRadius: 18, borderWidth: 1, borderColor: theme.borderLight, overflow: 'hidden' }}>
+              {savedAddresses.length > 0 ? (
+                savedAddresses.map((addr: any, i: number) => (
+                  <View key={addr.id}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        <Feather name="bookmark" size={16} color={theme.textMuted} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>{addr.label}</Text>
+                        <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>{addr.address}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => handleDeleteAddress(addr.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Feather name="trash-2" size={16} color={theme.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                    {i < savedAddresses.length - 1 && <View style={{ height: 1, backgroundColor: theme.border, marginLeft: 64 }} />}
+                  </View>
+                ))
+              ) : (
+                <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                  <Feather name="map-pin" size={24} color={theme.textMuted} />
+                  <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textMuted, marginTop: 8 }}>{t('addresses.empty')}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
           <MenuSection title="Préférences" items={prefItems} />
 
-          {/* Support tickets */}
-          <View style={tk.wrap}>
-            <View style={tk.header}>
-              <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>Support</Text>
-              <TouchableOpacity onPress={() => router.push('/support')} activeOpacity={0.6}>
-                <Text style={[tk.newTicket, { color: theme.textMuted }]}>Nouveau ticket</Text>
-              </TouchableOpacity>
-            </View>
-
-            {tickets.length > 0 ? (
-              <View style={[tk.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-                {tickets.map((ticket, i) => {
-                  const isOpen = ticket.status === 'OPEN' || ticket.status === 'IN_PROGRESS';
-                  const statusLabel = ticket.status === 'OPEN' ? 'Ouvert' : ticket.status === 'IN_PROGRESS' ? 'En cours' : 'Clôturé';
-                  const pillStyle = ticket.status === 'CLOSED' ? tk.pillGray : tk.pillOrange;
-                  const date = new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                  return (
-                    <TouchableOpacity
-                      key={ticket.id}
-                      style={[tk.row, i < tickets.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
-                      onPress={() => router.push({ pathname: '/support', params: { ticketId: ticket.id } })}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[tk.dot, { backgroundColor: isOpen ? COLORS.amber : theme.textDisabled }]} />
-                      <View style={tk.info}>
-                        <Text style={[tk.title, { color: theme.text }]} numberOfLines={1}>{ticket.title}</Text>
-                        <Text style={[tk.meta, { color: theme.textMuted }]}>
-                          {ticket.requestId ? `Mission #${ticket.requestId} · ` : ''}{date}
-                        </Text>
-                      </View>
-                      <View style={[pillStyle, ticket.status === 'CLOSED' && { backgroundColor: theme.surface }]}>
-                        <Text style={[tk.pillText, { color: ticket.status === 'CLOSED' ? theme.textMuted : COLORS.amber }]}>{statusLabel}</Text>
-                      </View>
-                      <Feather name="chevron-right" size={12} color={theme.textDisabled} />
-                    </TouchableOpacity>
-                  );
-                })}
-                <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/support')} activeOpacity={0.6}>
-                  <Text style={[tk.viewAllText, { color: theme.textMuted }]}>Voir tous les tickets</Text>
-                  <Feather name="chevron-right" size={11} color={theme.textMuted} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[tk.empty, { borderColor: theme.borderLight }]}
-                onPress={() => router.push('/support')}
-                activeOpacity={0.7}
-              >
-                <View style={[tk.emptyIcon, { backgroundColor: theme.surface }]}>
-                  <Feather name="plus" size={16} color={theme.textSub} />
+          {/* Support tickets — affiche les ouverts + CTA "Créer un ticket" toujours visible */}
+          {(() => {
+            const openTickets = tickets.filter((tk: any) => tk.status === 'OPEN' || tk.status === 'IN_PROGRESS').slice(0, 3);
+            const hasMoreThanShown = tickets.length > openTickets.length;
+            return (
+              <View style={tk.wrap}>
+                <View style={tk.header}>
+                  <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>Support</Text>
+                  {openTickets.length > 0 && (
+                    <View style={[tk.countBadge, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
+                      <Text style={[tk.countBadgeText, { color: COLORS.amber }]}>
+                        {openTickets.length} ouvert{openTickets.length > 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={[tk.emptyText, { color: theme.textSub }]}>Créer un ticket</Text>
-                <Feather name="chevron-right" size={14} color={theme.textDisabled} />
-              </TouchableOpacity>
-            )}
-          </View>
+
+                <View style={[tk.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+                  {openTickets.map((ticket: any, i: number) => {
+                    const statusLabel = ticket.status === 'OPEN' ? 'Ouvert' : 'En cours';
+                    const date = new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                    return (
+                      <TouchableOpacity
+                        key={ticket.id}
+                        style={[tk.row, { borderBottomWidth: 1, borderBottomColor: theme.borderLight }]}
+                        onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: ticket.id } })}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[tk.dot, { backgroundColor: COLORS.amber }]} />
+                        <View style={tk.info}>
+                          <Text style={[tk.title, { color: theme.text }]} numberOfLines={1}>{ticket.title}</Text>
+                          <Text style={[tk.meta, { color: theme.textMuted }]}>
+                            {ticket.requestId ? `Mission #${ticket.requestId} · ` : ''}{date}
+                          </Text>
+                        </View>
+                        <View style={tk.pillOrange}>
+                          <Text style={[tk.pillText, { color: COLORS.amber }]}>{statusLabel}</Text>
+                        </View>
+                        <Feather name="chevron-right" size={12} color={theme.textDisabled} />
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* CTA "Créer un ticket" — toujours visible */}
+                  <TouchableOpacity
+                    style={tk.row}
+                    onPress={() => router.push('/support')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[tk.emptyIcon, { backgroundColor: theme.surface, width: 28, height: 28, borderRadius: 14 }]}>
+                      <Feather name="plus" size={14} color={theme.textSub} />
+                    </View>
+                    <View style={tk.info}>
+                      <Text style={[tk.title, { color: theme.text }]}>Créer un ticket</Text>
+                      <Text style={[tk.meta, { color: theme.textMuted }]}>Diagnostic guidé · réponse en moins de 2h</Text>
+                    </View>
+                    <Feather name="chevron-right" size={12} color={theme.textDisabled} />
+                  </TouchableOpacity>
+
+                  {hasMoreThanShown && (
+                    <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/settings/help')} activeOpacity={0.6}>
+                      <Text style={[tk.viewAllText, { color: theme.textMuted }]}>Voir tous les tickets (résolus inclus)</Text>
+                      <Feather name="chevron-right" size={11} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          })()}
 
           <MenuSection items={supportItems} />
           <MenuSection items={dangerItems} />
@@ -789,7 +899,7 @@ export default function Profile() {
                     style={[em.fieldInput, { color: theme.textAlt }]}
                     value={editPhone}
                     onChangeText={setEditPhone}
-                    placeholder="+33 6 00 00 00 00"
+                    placeholder="+32 4XX XX XX XX"
                     placeholderTextColor={theme.textVeryMuted}
                     keyboardType="phone-pad"
                     editable={!saving}
@@ -810,7 +920,7 @@ export default function Profile() {
                     style={[em.fieldInput, { color: theme.textAlt }]}
                     value={editCity}
                     onChangeText={setEditCity}
-                    placeholder="Paris"
+                    placeholder="Ixelles, Bruxelles…"
                     placeholderTextColor={theme.textVeryMuted}
                     autoCapitalize="words"
                     editable={!saving}
@@ -818,6 +928,71 @@ export default function Profile() {
                 </View>
               </View>
             </View>
+
+            {/* ── Section: À propos (providers only) ──
+                Description visible par les clients sur la fiche publique.
+                Plus le numéro de TVA pour la facturation officielle. */}
+            {!isClientOnly && (
+              <>
+                <Text style={[em.sectionLabel, { color: theme.textMuted, marginTop: 20 }]}>À PROPOS</Text>
+                <View style={[em.card, { backgroundColor: theme.cardBg, padding: 16, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 2 } }) }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <Feather name="eye" size={12} color={theme.textMuted} />
+                    <Text style={{ fontSize: 11, fontFamily: FONTS.sans, color: theme.textMuted }}>
+                      Visible sur votre fiche publique consultée par les clients
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={{
+                      fontSize: 14, fontFamily: FONTS.sans, color: theme.textAlt,
+                      minHeight: 90, maxHeight: 160,
+                      textAlignVertical: 'top',
+                      paddingVertical: 4,
+                    }}
+                    value={editProviderBio}
+                    onChangeText={setEditProviderBio}
+                    placeholder="Présentez votre activité — ex : Plombier-chauffagiste agréé depuis 2018, intervention rapide à Ixelles et alentours. Spécialiste fuites, débouchage, installation chauffe-eau."
+                    placeholderTextColor={theme.textVeryMuted}
+                    multiline
+                    maxLength={2000}
+                    editable={!saving}
+                  />
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: FONTS.mono, color: theme.textVeryMuted }}>
+                      {editProviderBio.length}/2000
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[em.sectionLabel, { color: theme.textMuted, marginTop: 20 }]}>FACTURATION</Text>
+                <View style={[em.card, { backgroundColor: theme.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 2 } }) }]}>
+                  <View style={em.fieldRow}>
+                    <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
+                      <Feather name="file-text" size={16} color={theme.textSub} />
+                    </View>
+                    <View style={em.fieldBody}>
+                      <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Numéro de TVA</Text>
+                      <TextInput
+                        style={[em.fieldInput, { color: theme.textAlt }]}
+                        value={editVatNumber}
+                        onChangeText={setEditVatNumber}
+                        placeholder="BE0123456789"
+                        placeholderTextColor={theme.textVeryMuted}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        maxLength={20}
+                        editable={!saving}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+                    <Text style={{ fontSize: 11, fontFamily: FONTS.sans, color: theme.textMuted, lineHeight: 15 }}>
+                      Format BE + 10 chiffres. Apparaît sur les factures émises au client.
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
 
             {/* ── Section: Mes services (providers only) ── */}
             {!isClientOnly && (
@@ -827,6 +1002,22 @@ export default function Profile() {
                   {catsLoading ? (
                     <View style={{ alignItems: 'center', paddingVertical: 20 }}>
                       <ActivityIndicator color={theme.textMuted} />
+                    </View>
+                  ) : allCategories.length === 0 ? (
+                    // Empty state propre : pas de catégories chargées (échec API ou aucune dispo)
+                    <View style={{ alignItems: 'center', paddingVertical: 18, gap: 8 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name="briefcase" size={18} color={theme.textMuted} />
+                      </View>
+                      <Text style={{ fontSize: 13, color: theme.textSub, fontFamily: FONTS.sans, textAlign: 'center' }}>
+                        Aucun service disponible pour le moment.
+                      </Text>
+                      <TouchableOpacity
+                        onPress={openEditInfo}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.borderLight }}
+                      >
+                        <Text style={{ fontSize: 12, color: theme.text, fontFamily: FONTS.sansMedium }}>Réessayer</Text>
+                      </TouchableOpacity>
                     </View>
                   ) : (
                     <>
@@ -874,93 +1065,155 @@ export default function Profile() {
               </>
             )}
 
-            {/* ── Save button ── */}
-            <TouchableOpacity
-              style={[em.saveBtn, { backgroundColor: theme.accent }, (saving || (!isClientOnly && selectedCatIds.length === 0)) && { opacity: 0.6 }]}
-              onPress={saveEditInfo}
-              disabled={saving || (!isClientOnly && selectedCatIds.length === 0)}
-              activeOpacity={0.85}
-            >
-              <Text style={[em.saveBtnText, { color: theme.accentText }]}>
-                {saving ? 'Sauvegarde...' : 'Enregistrer les modifications'}
-              </Text>
-            </TouchableOpacity>
+            {/* ── Save button (contraste brutal disabled vs active) ── */}
+            {(() => {
+              const u = user as any;
+              const baseDirty =
+                editName.trim() !== ((u?.name || '').trim()) ||
+                editPhone.trim() !== ((u?.phone || '').trim()) ||
+                editCity.trim() !== ((u?.city || '').trim());
+              // Pour les providers, on accepte aussi les modifs sur description / vatNumber
+              // (mais on ne peut pas comparer à l'état d'origine simplement, donc on laisse
+              // le bouton actif tant qu'au moins une cat est sélectionnée).
+              const noProviderCats = !isClientOnly && selectedCatIds.length === 0;
+              const disabled = saving || noProviderCats || (!baseDirty && isClientOnly);
+              return (
+                <TouchableOpacity
+                  style={[
+                    em.saveBtn,
+                    disabled
+                      ? { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderLight }
+                      : { backgroundColor: theme.accent },
+                  ]}
+                  onPress={saveEditInfo}
+                  disabled={disabled}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[em.saveBtnText, { color: disabled ? theme.textMuted : theme.accentText }]}>
+                    {saving
+                      ? 'Sauvegarde…'
+                      : noProviderCats
+                        ? 'Sélectionnez au moins un service'
+                        : !baseDirty && isClientOnly
+                          ? 'Aucune modification'
+                          : 'Enregistrer les modifications'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })()}
 
             {/* ── Section: Sécurité (email accounts only) ── */}
             {isEmailAccount && (
               <>
                 <Text style={[em.sectionLabel, { color: theme.textMuted, marginTop: 28 }]}>SÉCURITÉ</Text>
-                <View style={[em.card, { backgroundColor: theme.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }, android: { elevation: 2 } }) }]}>
-                  <View style={em.fieldRow}>
-                    <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                      <Feather name="key" size={16} color={theme.textSub} />
+                {!pwdSheetOpen ? (
+                  // État replié : un seul row "Changer mon mot de passe"
+                  <TouchableOpacity
+                    style={[em.card, { backgroundColor: theme.cardBg }]}
+                    onPress={() => { setCurrentPwd(''); setNewPwd(''); setConfirmPwd(''); setPwdSheetOpen(true); }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={em.fieldRow}>
+                      <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
+                        <Feather name="lock" size={16} color={theme.textSub} />
+                      </View>
+                      <View style={em.fieldBody}>
+                        <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Mot de passe</Text>
+                        <Text style={[em.fieldValueStatic, { color: theme.textAlt }]}>••••••••</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontFamily: FONTS.sansMedium, color: theme.text }}>Modifier</Text>
                     </View>
-                    <View style={em.fieldBody}>
-                      <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Mot de passe actuel</Text>
-                      <TextInput
-                        style={[em.fieldInput, { color: theme.textAlt }]}
-                        value={currentPwd}
-                        onChangeText={setCurrentPwd}
-                        placeholder="Saisissez votre mot de passe"
-                        placeholderTextColor={theme.textVeryMuted}
-                        secureTextEntry
-                        editable={!pwdSaving}
-                      />
+                  </TouchableOpacity>
+                ) : (
+                  // État déployé : 3 champs + 2 boutons (annuler / valider)
+                  <View style={[em.card, { backgroundColor: theme.cardBg }]}>
+                    <View style={em.fieldRow}>
+                      <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
+                        <Feather name="key" size={16} color={theme.textSub} />
+                      </View>
+                      <View style={em.fieldBody}>
+                        <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Mot de passe actuel</Text>
+                        <TextInput
+                          style={[em.fieldInput, { color: theme.textAlt }]}
+                          value={currentPwd}
+                          onChangeText={setCurrentPwd}
+                          placeholder="Saisissez votre mot de passe"
+                          placeholderTextColor={theme.textVeryMuted}
+                          secureTextEntry autoFocus
+                          editable={!pwdSaving}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={[em.fieldDivider, { backgroundColor: theme.border }]} />
+
+                    <View style={em.fieldRow}>
+                      <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
+                        <Feather name="lock" size={16} color={theme.textSub} />
+                      </View>
+                      <View style={em.fieldBody}>
+                        <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Nouveau mot de passe</Text>
+                        <TextInput
+                          style={[em.fieldInput, { color: theme.textAlt }]}
+                          value={newPwd}
+                          onChangeText={setNewPwd}
+                          placeholder="Min. 8 caractères"
+                          placeholderTextColor={theme.textVeryMuted}
+                          secureTextEntry
+                          editable={!pwdSaving}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={[em.fieldDivider, { backgroundColor: theme.border }]} />
+
+                    <View style={em.fieldRow}>
+                      <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
+                        <Feather name="shield" size={16} color={theme.textSub} />
+                      </View>
+                      <View style={em.fieldBody}>
+                        <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Confirmer</Text>
+                        <TextInput
+                          style={[em.fieldInput, { color: theme.textAlt }]}
+                          value={confirmPwd}
+                          onChangeText={setConfirmPwd}
+                          placeholder="Retapez le nouveau mot de passe"
+                          placeholderTextColor={theme.textVeryMuted}
+                          secureTextEntry
+                          editable={!pwdSaving}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.border }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: theme.borderLight, alignItems: 'center' }}
+                        onPress={() => { setPwdSheetOpen(false); setCurrentPwd(''); setNewPwd(''); setConfirmPwd(''); }}
+                        disabled={pwdSaving}
+                      >
+                        <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text }}>Annuler</Text>
+                      </TouchableOpacity>
+                      {(() => {
+                        const canSubmit = currentPwd.length > 0 && newPwd.length >= 8 && newPwd === confirmPwd;
+                        return (
+                          <TouchableOpacity
+                            style={{
+                              flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center',
+                              backgroundColor: canSubmit && !pwdSaving ? theme.accent : theme.surface,
+                              borderWidth: canSubmit ? 0 : 1, borderColor: theme.borderLight,
+                            }}
+                            onPress={async () => { await savePassword(); if (!pwdSaving) setPwdSheetOpen(false); }}
+                            disabled={!canSubmit || pwdSaving}
+                          >
+                            <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: canSubmit && !pwdSaving ? theme.accentText : theme.textMuted }}>
+                              {pwdSaving ? 'Modification…' : 'Confirmer'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })()}
                     </View>
                   </View>
-
-                  <View style={[em.fieldDivider, { backgroundColor: theme.border }]} />
-
-                  <View style={em.fieldRow}>
-                    <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                      <Feather name="lock" size={16} color={theme.textSub} />
-                    </View>
-                    <View style={em.fieldBody}>
-                      <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Nouveau mot de passe</Text>
-                      <TextInput
-                        style={[em.fieldInput, { color: theme.textAlt }]}
-                        value={newPwd}
-                        onChangeText={setNewPwd}
-                        placeholder="Min. 8 caractères"
-                        placeholderTextColor={theme.textVeryMuted}
-                        secureTextEntry
-                        editable={!pwdSaving}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={[em.fieldDivider, { backgroundColor: theme.border }]} />
-
-                  <View style={em.fieldRow}>
-                    <View style={[em.fieldIcon, { backgroundColor: theme.surface }]}>
-                      <Feather name="shield" size={16} color={theme.textSub} />
-                    </View>
-                    <View style={em.fieldBody}>
-                      <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Confirmer</Text>
-                      <TextInput
-                        style={[em.fieldInput, { color: theme.textAlt }]}
-                        value={confirmPwd}
-                        onChangeText={setConfirmPwd}
-                        placeholder="Retapez le nouveau mot de passe"
-                        placeholderTextColor={theme.textVeryMuted}
-                        secureTextEntry
-                        editable={!pwdSaving}
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[em.pwdBtn, { borderColor: theme.border }, pwdSaving && { opacity: 0.6 }]}
-                  onPress={savePassword}
-                  disabled={pwdSaving || (!currentPwd && !newPwd)}
-                  activeOpacity={0.85}
-                >
-                  <Feather name="lock" size={14} color={(!currentPwd && !newPwd) ? theme.textVeryMuted : theme.textAlt} />
-                  <Text style={[em.pwdBtnText, { color: (!currentPwd && !newPwd) ? theme.textVeryMuted : theme.textAlt }]}>
-                    {pwdSaving ? 'Modification...' : 'Modifier le mot de passe'}
-                  </Text>
-                </TouchableOpacity>
+                )}
               </>
             )}
 
@@ -988,6 +1241,35 @@ export default function Profile() {
                 </View>
               </>
             )}
+
+            {/* ── Suppression de compte (RGPD) — discret en bas ── */}
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  'Supprimer mon compte',
+                  'Cette action est irréversible. Vos données personnelles seront supprimées sous 30 jours, à l\'exception des justificatifs comptables conservés 7 ans (obligation légale).\n\nConfirmer la suppression ?',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Supprimer', style: 'destructive', onPress: () => {
+                        // TODO : appeler api.account.delete() quand l'endpoint existe
+                        showSocketToast('Demande envoyée — un email de confirmation suit.', 'info');
+                      },
+                    },
+                  ],
+                  { cancelable: true },
+                );
+              }}
+              style={{ marginTop: 28, marginBottom: 8, paddingVertical: 12, alignItems: 'center' }}
+              activeOpacity={0.6}
+            >
+              <Text style={{ fontSize: 12, fontFamily: FONTS.sansMedium, color: '#EF4444' }}>
+                Supprimer mon compte
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textVeryMuted, textAlign: 'center', marginBottom: 12 }}>
+              Conformément au RGPD · Conservation 7 ans des données comptables
+            </Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
@@ -1037,11 +1319,15 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12,
   },
-  headerTitle: { fontSize: 30, fontFamily: FONTS.bebas, letterSpacing: 1 },
+  headerGreeting: {
+    fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.9,
+    textTransform: 'uppercase', marginBottom: 6,
+  },
+  headerTitle: { fontSize: 44, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
   settingsBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
 
   scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 48 },
@@ -1105,11 +1391,11 @@ const s = StyleSheet.create({
   },
   stripIconGreen: { backgroundColor: 'rgba(61,139,61,0.1)' },
   stripValue: {
-    fontFamily: FONTS.sansMedium, fontSize: 11,
+    fontFamily: FONTS.mono, fontSize: 11,
     color: 'rgba(255,255,255,0.75)', textAlign: 'center',
   },
   stripLabel: {
-    fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 0.5,
+    fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.8,
     textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', textAlign: 'center',
   },
 
@@ -1146,12 +1432,18 @@ const tk = StyleSheet.create({
     marginBottom: 10, paddingHorizontal: 2,
   },
   sectionLabel: {
-    fontSize: 10, fontFamily: FONTS.sansMedium, fontWeight: '600',
-    textTransform: 'uppercase', letterSpacing: 1.5,
+    fontSize: 11, fontFamily: FONTS.mono,
+    textTransform: 'uppercase', letterSpacing: 1.2,
   },
   newTicket: {
     fontSize: 10, fontFamily: FONTS.sansMedium,
     letterSpacing: 0.4,
+  },
+  countBadge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  countBadgeText: {
+    fontSize: 10, fontFamily: FONTS.monoMedium, letterSpacing: 0.6,
   },
   card: {
     borderRadius: 18, overflow: 'hidden', borderWidth: 1.5,
@@ -1222,7 +1514,7 @@ const em = StyleSheet.create({
 
   // ── Section labels ──
   sectionLabel: {
-    fontSize: 11, fontFamily: FONTS.sansMedium, letterSpacing: 1.2,
+    fontSize: 11, fontFamily: FONTS.mono, letterSpacing: 1.2,
     textTransform: 'uppercase', marginBottom: 8, paddingHorizontal: 4,
   },
 

@@ -13,11 +13,10 @@ import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devError } from '@/lib/logger';
+import { formatEUR as fmtEur } from '@/lib/format';
 
 // --- Formatage ---
 const fromCents = (n: number) => n / 100;
-const fmtEur = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtTime = (d: string) =>
@@ -369,9 +368,16 @@ export default function WalletTab() {
 
       {/* -- Header -- */}
       <View style={[styles.header, { backgroundColor: t.bg }]}>
-        <Text style={[styles.headerTitle, { color: t.text }]}>Gains</Text>
-        <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Feather name="refresh-cw" size={20} color={t.accent} />
+        <View>
+          <Text style={[styles.headerGreeting, { color: t.textMuted }]}>SOLDE DISPONIBLE</Text>
+          <Text style={[styles.headerTitle, { color: t.text }]}>Gains</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.headerIconBtn, { backgroundColor: t.surface, borderColor: t.borderLight }]}
+          onPress={onRefresh}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Feather name="refresh-cw" size={18} color={t.text} />
         </TouchableOpacity>
       </View>
 
@@ -471,7 +477,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 6, paddingBottom: 12,
   },
-  headerTitle: { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerGreeting: {
+    fontFamily: FONTS.mono, fontSize: 10.5, letterSpacing: 1,
+    textTransform: 'uppercase', marginBottom: 6,
+  },
+  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerIconBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+  },
 
   // Hero
   hero: {
@@ -483,7 +498,7 @@ const styles = StyleSheet.create({
       android: { elevation: 10 },
     }),
   },
-  heroLabel: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 0.5, marginBottom: 6 },
+  heroLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' },
   heroAmount: { fontSize: 44, fontFamily: FONTS.bebas, letterSpacing: -1.5, marginBottom: 8 },
 
   heroStats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
@@ -522,8 +537,8 @@ const styles = StyleSheet.create({
 
   // Date headers
   dateHeader: {
-    fontSize: 13, fontFamily: FONTS.sansMedium, textTransform: 'uppercase',
-    letterSpacing: 0.5, marginBottom: 10, marginTop: 8,
+    fontSize: 11, fontFamily: FONTS.mono, textTransform: 'uppercase',
+    letterSpacing: 1.2, marginBottom: 10, marginTop: 8,
   },
 
   // Tx card

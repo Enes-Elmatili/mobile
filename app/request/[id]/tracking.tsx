@@ -21,6 +21,7 @@ import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devLog, devWarn, devError } from '@/lib/logger';
+import { formatEUR as formatEuros } from '@/lib/format';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -50,9 +51,6 @@ const MAP_STYLE_DARK = [
 ];
 
 // ── Utils ────────────────────────────────────────────────────────────────────
-
-const formatEuros = (amount: number): string =>
-  amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371;

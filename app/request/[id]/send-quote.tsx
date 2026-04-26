@@ -12,9 +12,7 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { devError } from "@/lib/logger";
-
-const fmtEur = (cents: number) =>
-  (cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatEURCents as fmtEur } from "@/lib/format";
 
 export default function SendQuote() {
   const router = useRouter();
@@ -195,7 +193,7 @@ export default function SendQuote() {
               <View style={s.calloutNote}>
                 <View style={[s.calloutDot, { backgroundColor: COLORS.green }]} />
                 <Text style={[s.calloutText, { color: theme.textSub }]}>
-                  Frais de déplacement {fmtEur(calloutFee)} € déjà encaissés
+                  Frais de déplacement {fmtEur(calloutFee)} déjà encaissés
                 </Text>
               </View>
             )}
@@ -231,7 +229,7 @@ export default function SendQuote() {
                 s.ctaSub,
                 { color: canSend ? theme.accentText : theme.textMuted },
               ]}>
-                {canSend ? `${fmtEur(totalCents)} € à facturer` : "Saisissez un montant"}
+                {canSend ? `${fmtEur(totalCents)} à facturer` : "Saisissez un montant"}
               </Text>
             </View>
           )}
@@ -248,57 +246,57 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   headerBack: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
   },
   headerTitle: {
     fontFamily: FONTS.bebas,
-    fontSize: 26,
-    letterSpacing: 3,
+    fontSize: 22,
+    letterSpacing: 2.5,
   },
 
-  scroll: { paddingHorizontal: 24, paddingTop: 4 },
+  scroll: { paddingHorizontal: 16, paddingTop: 4 },
 
   field: { marginBottom: 4 },
   sectionLabel: {
     fontFamily: FONTS.sansMedium, fontSize: 10,
-    letterSpacing: 2.5, textTransform: "uppercase",
-    marginBottom: 8, marginTop: 24,
+    letterSpacing: 1.4, textTransform: "uppercase",
+    marginBottom: 6, marginTop: 16,
   },
 
   inputWrap: {
     flexDirection: "row", alignItems: "center",
-    borderRadius: 10, borderWidth: 1, paddingHorizontal: 20, height: 60,
+    borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, height: 52,
   },
-  inputAmount: { flex: 1, fontFamily: FONTS.sansLight, fontSize: 28, letterSpacing: 0.5 },
-  inputUnit: { fontFamily: FONTS.bebas, fontSize: 22 },
+  inputAmount: { flex: 1, fontFamily: FONTS.sansLight, fontSize: 24, letterSpacing: 0.5 },
+  inputUnit: { fontFamily: FONTS.bebas, fontSize: 20 },
 
   notesInput: {
-    borderRadius: 10, borderWidth: 1, padding: 16, minHeight: 80,
-    fontFamily: FONTS.sans, fontSize: 14, lineHeight: 20,
+    borderRadius: 10, borderWidth: 1, padding: 12, minHeight: 72,
+    fontFamily: FONTS.sans, fontSize: 14, lineHeight: 19,
   },
 
   totalBlock: {
-    marginTop: 32, padding: 24, borderRadius: 14, borderWidth: 1, alignItems: "center",
+    marginTop: 18, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center",
   },
   totalLabel: {
     fontFamily: FONTS.sansMedium, fontSize: 10,
-    letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 8,
+    letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 6,
   },
   totalAmountRow: { flexDirection: "row", alignItems: "baseline" },
-  totalInt: { fontFamily: FONTS.bebas, fontSize: 48, lineHeight: 52 },
-  totalDec: { fontFamily: FONTS.bebas, fontSize: 24, marginLeft: 2 },
-  calloutNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
+  totalInt: { fontFamily: FONTS.bebas, fontSize: 40, lineHeight: 44 },
+  totalDec: { fontFamily: FONTS.bebas, fontSize: 22, marginLeft: 2 },
+  calloutNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
   calloutDot: { width: 6, height: 6, borderRadius: 3 },
   calloutText: { fontFamily: FONTS.sans, fontSize: 12 },
 
-  footer: { paddingHorizontal: 24, paddingTop: 16 },
-  ctaBtn: { borderRadius: 14, paddingVertical: 18, alignItems: "center" },
+  footer: { paddingHorizontal: 16, paddingTop: 10 },
+  ctaBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   ctaContent: { alignItems: "center", gap: 2 },
   ctaText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 },
   ctaSub: {

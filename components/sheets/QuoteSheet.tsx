@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
+import { formatEURCents as fmtEur } from '@/lib/format';
 
 interface QuoteSheetProps {
   requestId: string | null;
@@ -21,9 +22,6 @@ interface QuoteSheetProps {
   isVisible: boolean;
   onClose: () => void;
 }
-
-const fmtEur = (cents: number) =>
-  (cents / 100).toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });

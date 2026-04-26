@@ -6,6 +6,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Easing, Platform, Dimensions, StatusBar,
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
+  ActionSheetIOS, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -15,10 +16,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/lib/SocketContext';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { useConversationUnread } from '@/lib/useConversationUnread';
+import { isCompletionHandled, markCompletionHandled } from '@/lib/navDedup';
+import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { api } from '@/lib/api';
 import { devLog, devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
+import LiveMapSearching from '@/components/searching/LiveMapSearching';
+import { formatEUR as formatEuros } from '@/lib/format';
 
 const { width, height } = Dimensions.get('window');
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
@@ -30,9 +37,9 @@ function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: s
   const theme = useAppTheme();
   const r = size / 2;
   const base = { width: size, height: size, borderRadius: r, overflow: 'hidden' as const };
-  if (url) {
-    const uri = url.startsWith('http') ? url : `${SERVER_BASE}${url}`;
-    return <Image source={{ uri }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
+  const resolved = resolveAvatarUrl(url);
+  if (resolved) {
+    return <Image source={{ uri: resolved }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
   }
   const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   return (
@@ -209,8 +216,26 @@ const cm = StyleSheet.create({
 
 
 
-const formatEuros = (amount: number) =>
-  amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+/** Display name for provider — checks provider.name, then user.name, detects slugs */
+const providerDisplayName = (provider: any): string => {
+  // Try provider.name first, then user.name (joined via backend include)
+  const candidates = [provider?.name, provider?.user?.name, provider?.firstName];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    // Slug detection: all lowercase alphanumeric, no spaces, 6+ chars = probably a hash
+    if (/^[a-z0-9]{6,}$/.test(raw)) continue;
+    // Email detection: skip if it looks like an email
+    if (raw.includes('@')) continue;
+    return raw;
+  }
+  return 'Prestataire';
+};
+
+/** First name only for humanized text */
+const providerFirstName = (provider: any): string => {
+  const full = providerDisplayName(provider);
+  return full.split(' ')[0];
+};
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371;
@@ -505,6 +530,7 @@ export default function MissionView() {
   const isScheduledMission = params.isScheduled === '1';
   const isQuoteMission = params.isQuote === '1';
   const { socket, joinRoom, leaveRoom } = useSocket();
+  const { user: authUser } = useAuth();
 
   // Guard: id is required
   if (!id || !/^\d+$/.test(id)) {
@@ -541,12 +567,18 @@ export default function MissionView() {
   const [message, setMessage] = useState('');
   // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
   const hasRealLocationRef = useRef(false);
-  const hasNavigatedToPinRef = useRef(false);
 
   // ─── PIN state ──────────────────────────────────────────────────────────
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [pinVerified, setPinVerified] = useState(false);
   const [providerArrived, setProviderArrived] = useState(false);
+
+  // ─── Conversation badge (provider → client) ──────────────────────────────
+  const providerUserId = request?.provider?.userId || request?.provider?.id || null;
+  const { count: unreadFromProvider, reset: resetUnread } = useConversationUnread(
+    providerUserId,
+    authUser?.id,
+  );
 
   // ─── Shared ───────────────────────────────────────────────────────────────
   const fadeIn  = useRef(new Animated.Value(0)).current;
@@ -556,6 +588,15 @@ export default function MissionView() {
     latitude: lat ? parseFloat(lat) : request?.lat || 50.8503,
     longitude: lng ? parseFloat(lng) : request?.lng || 4.3517,
   };
+
+  // Computed distance between provider and client (km)
+  const distance = providerLocation
+    ? calculateDistance(providerLocation.latitude, providerLocation.longitude, clientLocation.latitude, clientLocation.longitude)
+    : null;
+
+  // Extract numeric ETA from string (e.g. "21 minutes" → "21", "Arrivée dans 5 min" → "5")
+  const etaNumMatch = eta.match(/(\d+)/);
+  const etaNum = etaNumMatch ? etaNumMatch[1] : null;
 
   // ─── Entrée page ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -677,10 +718,22 @@ export default function MissionView() {
         const data = res?.data || res;
         devLog('[MissionView] poll data keys:', Object.keys(data || {}), 'pinCode:', data?.pinCode, 'status:', data?.status);
         const status = (data?.status || '').toUpperCase();
-        if (status === 'ACCEPTED' || status === 'ONGOING') {
+        // Tracking = prestataire en route ou sur place (ONGOING). Pour ACCEPTED, on bascule
+        // en tracking SEULEMENT si la demande est immédiate (rendez-vous dans <30 min) ;
+        // sinon (mission planifiée), on redirige vers le récap pour ne pas afficher un faux
+        // tracking alors que le prestataire ne bouge pas encore.
+        const startTs = data?.preferredTimeStart ? new Date(data.preferredTimeStart).getTime() : null;
+        const isFutureScheduled = startTs != null && startTs > Date.now() + 30 * 60 * 1000;
+        const isScheduled = isScheduledMission || isFutureScheduled;
+
+        if (status === 'ONGOING' || (status === 'ACCEPTED' && !isScheduled)) {
           // Stop polling before transitioning
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           transitionToTracking(data);
+        } else if (status === 'ACCEPTED' && isScheduled) {
+          // Mission planifiée acceptée → récap, pas de tracking prématuré
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          router.replace({ pathname: '/request/[id]/scheduled', params: { id: String(id), mode: 'recap' } });
         } else if (status === 'QUOTE_SENT') {
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -725,26 +778,9 @@ export default function MissionView() {
     }
   }, [pinCode]);
 
-  // ─── Navigation automatique vers page PIN ─────────────────────────────────
-  // S'affiche seulement quand le prestataire est arrivé (before_photo) ET que le PIN est dispo
-  useEffect(() => {
-    // Guard FIRST — ref check before any log to avoid noise
-    if (hasNavigatedToPinRef.current) return;
-    if (phase !== 'TRACKING' || !pinCode || pinVerified || !providerArrived) return;
-
-    // Set ref synchronously BEFORE the async push to prevent concurrent effect runs
-    hasNavigatedToPinRef.current = true;
-    devLog('[MissionView] → Navigating to PIN page');
-    router.push({
-      pathname: '/request/[id]/pin',
-      params: {
-        id: String(id),
-        pinCode,
-        providerName: request?.provider?.name || '',
-        serviceName: request?.serviceType || serviceName || '',
-      },
-    });
-  }, [phase, pinCode, pinVerified, providerArrived, id, request, serviceName, router]);
+  // ─── PIN — affichage inline dans la sheet de tracking ────────────────────
+  // Plus de navigation vers /request/[id]/pin : le code est désormais visible
+  // directement dans la card PIN du tracking sheet (cf. block "PIN Card" ci-dessous).
 
   // ─── Socket (TRACKING) ────────────────────────────────────────────────────
   const destRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -775,7 +811,15 @@ export default function MissionView() {
       } else if (data.eta) {
         setEta(data.eta);
       }
-      mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+      // Fit map to show both provider and destination pins
+      if (destRef.current) {
+        mapRef.current?.fitToCoordinates(
+          [loc, { latitude: destRef.current.lat, longitude: destRef.current.lng }],
+          { edgePadding: { top: 80, right: 60, bottom: 380, left: 60 }, animated: true }
+        );
+      } else {
+        mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+      }
     };
 
     const onStarted = (data: any) => {
@@ -803,6 +847,8 @@ export default function MissionView() {
 
     const onCompleted = (data: any) => {
       if (String(data.requestId) === String(id)) {
+        if (isCompletionHandled(id)) return; // SocketContext a déjà pris la main
+        markCompletionHandled(id);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         showToast(t('mission_view.mission_completed'), 'success');
         deferredNavTimers.push(setTimeout(() => router.replace({
@@ -840,10 +886,31 @@ export default function MissionView() {
       }
     };
 
+    // ── Reassigning : le prestataire s'est désisté, on cherche un remplaçant.
+    // On rebascule l'écran en phase SEARCHING en réinitialisant les states liés
+    // au tracking (PIN, position provider, request data partielle).
+    const onReassigning = (data: any) => {
+      if (String(data.requestId) !== String(id)) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      showToast('Votre prestataire s\'est désisté. Recherche d\'un remplaçant…', 'info');
+      hasTransitionedRef.current = false;
+      hasRealLocationRef.current = false;
+      setPinCode(null);
+      setPinVerified(false);
+      setProviderArrived(false);
+      setProviderLocation(null);
+      setRouteCoords([]);
+      setEta('');
+      setRequest((p: any) => p ? { ...p, status: 'PUBLISHED', providerId: null, provider: null, pinCode: null, pinVerified: false } : p);
+      setPhase('SEARCHING');
+      Animated.timing(phaseAnim, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }).start();
+    };
+
     socket.on('provider:location_update', onLocation);
     socket.on('request:started', onStarted);
     socket.on('request:completed', onCompleted);
     socket.on('request:cancelled', onCancelled);
+    socket.on('request:reassigning', onReassigning);
     socket.on('mission:pin_ready', onPinReady);
     socket.on('mission:before_photo', onBeforePhoto);
     socket.on('mission:pin_verified', onPinVerified);
@@ -855,6 +922,7 @@ export default function MissionView() {
       socket.off('request:started', onStarted);
       socket.off('request:completed', onCompleted);
       socket.off('request:cancelled', onCancelled);
+      socket.off('request:reassigning', onReassigning);
       socket.off('mission:pin_ready', onPinReady);
       socket.off('mission:before_photo', onBeforePhoto);
       socket.off('mission:pin_verified', onPinVerified);
@@ -900,14 +968,25 @@ export default function MissionView() {
   }, [id, router]);
 
   // ─── Annuler (TRACKING) ───────────────────────────────────────────────────
-  const handleCancelTracking = () => {
+  // useCallback avec status en dep pour qu'openActionsMenu lise toujours la valeur fraîche.
+  // Le guard ONGOING est traité via Alert (pas toast) car le toast peut être invisible
+  // selon la pile UI active — un Alert garantit que le client voit l'explication.
+  const handleCancelTracking = useCallback(() => {
     const status = (request?.status || '').toUpperCase();
     if (status === 'ONGOING') {
-      showToast(t('mission_view.mission_ongoing_contact'), 'error');
+      Alert.alert(
+        'Mission en cours',
+        'La mission est déjà démarrée par le prestataire. Pour l\'annuler maintenant, contactez le support.',
+        [
+          { text: 'Fermer', style: 'cancel' },
+          { text: 'Contacter le support', onPress: () => router.push('/settings/help') },
+        ],
+      );
       return;
     }
     setCancelTrackModal(true);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?.status, router]);
 
   const doConfirmCancelTracking = async () => {
     setCancelTrackModal(false);
@@ -916,15 +995,58 @@ export default function MissionView() {
       showToast(t('mission_view.mission_was_cancelled'), 'info');
       setTimeout(() => router.replace('/(tabs)/dashboard'), 1600);
     } catch (error: any) {
-      if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
-        const res = await api.get(`/requests/${id}`);
-        setRequest(res.data || res);
-        showToast(t('mission_view.state_updated'), 'info');
+      const code = error?.data?.code || error?.response?.data?.code;
+      if (code === 'INVALID_STATE' || error?.status === 400) {
+        // L'état serveur a changé entre l'ouverture de la modale et la confirmation
+        // (ex : le prestataire a démarré la mission entre-temps). On refresh + on explique.
+        try {
+          const res: any = await api.get(`/requests/${id}`);
+          setRequest(res?.data || res);
+        } catch { /* ignore */ }
+        Alert.alert(
+          'Annulation impossible',
+          'Le statut de la mission a changé. Si elle est désormais en cours, contactez le support pour l\'annuler.',
+          [
+            { text: 'OK', style: 'cancel' },
+            { text: 'Contacter le support', onPress: () => router.push('/settings/help') },
+          ],
+        );
       } else {
-        showToast(t('mission_view.cancel_mission_failed'), 'error');
+        Alert.alert('Erreur', 'Impossible d\'annuler la mission. Réessayez ou contactez le support.');
       }
     }
   };
+
+  // ─── Menu d'actions (ellipsis en haut à droite) ──────────────────────────
+  const openActionsMenu = useCallback(() => {
+    const goSupport = () => router.push('/settings/help');
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Annuler', 'Contacter le support', 'Annuler la mission'],
+          destructiveButtonIndex: 2,
+          cancelButtonIndex: 0,
+        },
+        (idx: number) => {
+          if (idx === 1) goSupport();
+          else if (idx === 2) handleCancelTracking();
+        },
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Options',
+      undefined,
+      [
+        { text: 'Contacter le support', onPress: goSupport },
+        { text: 'Annuler la mission', style: 'destructive', onPress: handleCancelTracking },
+        { text: 'Fermer', style: 'cancel' },
+      ],
+      { cancelable: true },
+    );
+  }, [router, handleCancelTracking]);
 
   // ─── Actions communication ───────────────────────────────────────────────
   const handleCall = useCallback(() => {
@@ -983,7 +1105,9 @@ export default function MissionView() {
     <View style={s.root}>
       <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
 
-      {/* ── CARTE ── toujours présente en fond ── */}
+      {/* ── CARTE ── rendue uniquement hors SEARCHING (l'overlay LiveMapSearching
+          porte sa propre carte pour éviter un double MapView) ── */}
+      {phase !== 'SEARCHING' && (
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
@@ -1020,132 +1144,29 @@ export default function MissionView() {
           </Marker>
         )}
 
-        {/* Ghost Markers — seulement en SEARCHING */}
-        {phase === 'SEARCHING' && (
-          <GhostMarkers center={clientLocation} />
-        )}
       </MapView>
+      )}
 
-      {/* ── PHASE SEARCHING : blur + voile + radar ── */}
+      {/* ── PHASE SEARCHING : live map + bottom sheet ── */}
       {phase === 'SEARCHING' && (
-        <>
-          <BlurView intensity={25} tint={theme.isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-          <View style={[s.veil, theme.isDark && { backgroundColor: 'rgba(0,0,0,0.55)' }]} />
-
-          <SafeAreaView style={s.safe} pointerEvents="box-none">
-            <Animated.View style={[s.searchingContent, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
-
-              {/* Radar (now-requests) or calendar icon (scheduled) */}
-              <View style={s.radarZone}>
-                {isScheduledMission ? (
-                  <View style={{
-                    width: 120, height: 120, borderRadius: 60,
-                    backgroundColor: theme.surface,
-                    alignItems: 'center', justifyContent: 'center',
-                    borderWidth: 1, borderColor: theme.border,
-                  }}>
-                    <Feather name="calendar" size={56} color={theme.text} />
-                  </View>
-                ) : (
-                  <>
-                    <RadarWaves />
-                    <CenterLogo />
-                  </>
-                )}
-              </View>
-
-              {/* Messages — static for scheduled missions, dynamic for now-requests */}
-              {isScheduledMission ? (
-                <View style={dm.wrap}>
-                  <Text style={[dm.title, { color: theme.text }]}>
-                    {isQuoteMission ? 'DEVIS PLANIFIÉ' : 'MISSION PLANIFIÉE'}
-                  </Text>
-                  <Text style={[dm.sub, { color: theme.textSub }]}>
-                    {scheduledLabel
-                      ? `Prévue ${scheduledLabel}. Vous serez notifié dès qu'un prestataire accepte votre demande.`
-                      : "Un prestataire acceptera votre demande bientôt. Vous recevrez une notification."}
-                  </Text>
-                </View>
-              ) : (
-                <DynamicMessage elapsed={elapsed} />
-              )}
-
-              <View style={{ flex: 1 }} />
-
-              {/* Card mission */}
-              <Animated.View style={[s.searchingSheet, { backgroundColor: theme.isDark ? 'rgba(20,20,20,0.97)' : 'rgba(255,255,255,0.97)', transform: [{ translateY: searchingSheetY }] }]}>
-                <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
-
-                {/* Infos mission */}
-                <View style={s.missionRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.missionName, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{serviceName || t('missions.mission')}</Text>
-                    <View style={s.metaRow}>
-                      {address ? (
-                        <>
-                          <Feather name="map-pin" size={12} color={theme.textMuted} />
-                          <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>{address.split(',')[0]}</Text>
-                        </>
-                      ) : null}
-                    </View>
-                    <View style={s.metaRow}>
-                      <Feather name="clock" size={12} color={theme.textMuted} />
-                      <Text style={[s.metaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{scheduledLabel || 'Dès maintenant'}</Text>
-                    </View>
-                  </View>
-                  {price && parseFloat(price) > 0 ? (
-                    <View style={s.missionRight}>
-                      <Text style={[s.missionPrice, { color: theme.text, fontFamily: FONTS.bebas }]}>
-                        {parseFloat(price).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                      </Text>
-                    </View>
-                  ) : isQuoteMission ? (
-                    <View style={s.missionRight}>
-                      <View style={[s.quoteBadge, { backgroundColor: 'rgba(232,160,48,0.12)' }]}>
-                        <Feather name="file-text" size={12} color={COLORS.amber} />
-                        <Text style={[s.quoteBadgeText, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>Devis</Text>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* Bouton annuler / contacter support */}
-                {status === 'ACCEPTED' || status === 'ONGOING' ? (
-                  <TouchableOpacity
-                    style={[s.cancelSearchBtn, { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
-                    onPress={() => Linking.openURL('mailto:support@fixed.app')}
-                    activeOpacity={0.75}
-                    accessibilityRole="button"
-                  >
-                    <Feather name="message-circle" size={18} color={theme.textSub as string} style={{ marginRight: 8 }} />
-                    <Text style={[s.cancelSearchText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
-                      {t('mission_view.contact_support')}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[s.cancelSearchBtn, { borderColor: COLORS.red, backgroundColor: theme.isDark ? 'rgba(239,68,68,0.1)' : 'rgba(255,59,48,0.05)' }, cancelling && { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}
-                    onPress={handleCancelSearching}
-                    disabled={cancelling}
-                    activeOpacity={0.75}
-                    accessibilityLabel={t('mission_view.cancel_search')}
-                    accessibilityRole="button"
-                  >
-                    <Feather
-                      name="x-circle"
-                      size={18}
-                      color={cancelling ? theme.textMuted : COLORS.red}
-                      style={{ marginRight: 8 }}
-                    />
-                    <Text style={[s.cancelSearchText, { color: COLORS.red, fontFamily: FONTS.sansMedium }, cancelling && { color: theme.textMuted }]}>
-                      {cancelling ? t('mission_view.cancelling') : t('mission_view.cancel_search')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </Animated.View>
-            </Animated.View>
-          </SafeAreaView>
-        </>
+        <Animated.View
+          style={[StyleSheet.absoluteFillObject, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}
+          pointerEvents="box-none"
+        >
+          <LiveMapSearching
+            missionId={id}
+            missionCoord={clientLocation}
+            missionTitle={serviceName}
+            missionAddress={address}
+            missionWhen={scheduledLabel}
+            missionPrice={price}
+            expiresAt={expiresAt || null}
+            cancelling={cancelling}
+            isScheduled={isScheduledMission}
+            isQuote={isQuoteMission}
+            onCancel={handleCancelSearching}
+          />
+        </Animated.View>
       )}
 
       {/* ── PHASE TRACKING ── */}
@@ -1153,165 +1174,213 @@ export default function MissionView() {
         <>
           {/* Bouton retour flottant */}
           <SafeAreaView style={s.floatingTopBar} pointerEvents="box-none">
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity, position: 'absolute', left: 0, bottom: -2 }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
-              <Feather name="arrow-left" size={20} color={theme.text} />
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
+              <Feather name="chevron-left" size={22} color={theme.text} />
             </TouchableOpacity>
 
-            {/* Badge statut */}
-            <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, status === 'ONGOING' && { backgroundColor: theme.surface }]} accessibilityLabel={status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')} accessibilityRole="text">
-              <PulseDot size={8} />
-              <Text style={[s.statusText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                {status === 'ONGOING' ? t('mission_view.mission_ongoing') : t('mission_view.provider_on_way')}
-              </Text>
+            {/* FIXED · #ID */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+                <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, letterSpacing: 2, color: theme.text }}>FIXED</Text>
+                <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.textMuted }}>·</Text>
+                <Text style={{ fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 1, color: theme.textSub }}>#{id}</Text>
+              </View>
             </View>
-          </SafeAreaView>
 
-          {/* Bouton recentrer */}
-          <TouchableOpacity
-            style={[s.recenterBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
-            onPress={() => mapRef.current?.animateToRegion({ ...clientLocation, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 600)}
-            activeOpacity={0.8}
-          >
-            <Feather name="crosshair" size={18} color={theme.text} />
-          </TouchableOpacity>
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openActionsMenu} activeOpacity={0.8} accessibilityLabel="Options" accessibilityRole="button">
+              <Feather name="more-horizontal" size={22} color={theme.text} />
+            </TouchableOpacity>
+          </SafeAreaView>
 
           {/* Bottom sheet tracking */}
           <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04, transform: [{ translateY: trackingSheetY }] }]}>
             <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
             <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={s.trackingScroll} contentContainerStyle={s.trackingScrollContent}>
 
-            {/* ETA */}
-            <View style={s.etaRow}>
-              <View>
-                <Text style={[s.etaLabel, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                  {status === 'ONGOING' ? t('mission_view.on_site') : t('mission_view.estimated_arrival')}
-                </Text>
-                <Text style={[s.etaTime, { color: theme.text, fontFamily: FONTS.bebas }]}>
-                  {status === 'ONGOING' ? t('mission_view.on_site') : (eta || t('mission_view.calculating'))}
+            {/* Status badge + LIVE indicator */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(59,130,246,0.10)' }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.statusOngoing }} />
+                <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: COLORS.statusOngoing }}>
+                  {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : 'EN ROUTE'}
                 </Text>
               </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <PulseDot size={6} color={COLORS.greenBrand} />
+                <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>LIVE · GPS</Text>
+              </View>
+            </View>
+
+            {/* ETA — the star of the show */}
+            <View style={{ marginBottom: 10 }}>
+              {status !== 'ONGOING' && etaNum ? (
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 2 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 60, color: theme.text, lineHeight: 60, letterSpacing: -1 }}>
+                    {etaNum}
+                  </Text>
+                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 16, color: theme.text, letterSpacing: 0.5, marginBottom: 8 }}>
+                    MIN AWAY
+                  </Text>
+                </View>
+              ) : (
+                <Text style={{ fontFamily: FONTS.bebas, fontSize: 36, color: theme.text, marginBottom: 2 }}>
+                  {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : t('mission_view.calculating')}
+                </Text>
+              )}
+              <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }}>
+                {request?.provider
+                  ? `${providerFirstName(request.provider)} est à ${distance ? `${distance.toFixed(1)} km` : '...'} de chez vous`
+                  : t('mission_view.provider_on_way')}
+              </Text>
             </View>
 
             {/* Divider */}
             <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
-            {/* Provider card — premium */}
+            {/* Provider row — compact, balanced sizing */}
             {request?.provider && (
-              <TouchableOpacity
-                style={[s.providerCard, { backgroundColor: theme.isDark ? theme.surface : theme.cardBg, borderColor: theme.borderLight }]}
-                onPress={() => router.push(`/providers/${request.provider.id}`)}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={`Voir le profil de ${request.provider.name}`}
-              >
-                {/* Top row: avatar + identity + call */}
-                <View style={s.providerCardTop}>
-                  <Avatar url={request.provider.avatarUrl} name={request.provider.name} size={54} />
-                  <View style={s.providerIdentity}>
-                    <View style={s.providerNameRow}>
-                      <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-                        {request.provider.name || t('mission_view.provider')}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <TouchableOpacity onPress={() => router.push(`/providers/${request.provider.id}`)} activeOpacity={0.75}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    {request.provider.avatarUrl ? (
+                      <Image source={{ uri: resolveAvatarUrl(request.provider.avatarUrl) || '' }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                    ) : (
+                      <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 13, color: theme.text }}>
+                        {providerDisplayName(request.provider).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
                       </Text>
-                      {request.provider.validationStatus === 'ACTIVE' && (
-                        <View style={[s.verifiedBadge, { backgroundColor: 'rgba(61,139,61,0.12)' }]}>
-                          <Feather name="check" size={10} color={COLORS.greenBrand} />
-                        </View>
-                      )}
-                    </View>
-                    {request.provider.city ? (
-                      <View style={s.providerCityRow}>
-                        <Feather name="map-pin" size={11} color={theme.textMuted} />
-                        <Text style={[s.providerCityText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{request.provider.city}</Text>
+                    )}
+                    {request.provider.validationStatus === 'ACTIVE' && (
+                      <View style={{ position: 'absolute', bottom: -1, right: -1, width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.cardBg }}>
+                        <Feather name="check" size={8} color="#fff" />
                       </View>
-                    ) : null}
-                    {request.provider.description ? (
-                      <Text style={[s.providerDesc, { color: theme.textSub, fontFamily: FONTS.sans }]} numberOfLines={2}>
-                        {request.provider.description}
-                      </Text>
-                    ) : null}
+                    )}
                   </View>
-                </View>
-
-                {/* Stats strip */}
-                <View style={[s.providerStats, { borderTopColor: theme.borderLight }]}>
-                  <View style={s.providerStat}>
-                    <Feather name="star" size={13} color={COLORS.amber} />
-                    <Text style={[s.providerStatValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingRight: 8 }} onPress={() => router.push(`/providers/${request.provider.id}`)} activeOpacity={0.75}>
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
+                    {providerDisplayName(request.provider)}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Feather name="star" size={12} color={theme.text} />
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, color: theme.textSub }}>
                       {request.provider.avgRating > 0 ? request.provider.avgRating.toFixed(1) : '-'}
                     </Text>
-                    <Text style={[s.providerStatLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                      {request.provider.totalRatings > 0 ? `(${request.provider.totalRatings})` : 'Note'}
+                    <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.textMuted }}>·</Text>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, color: theme.textSub }}>
+                      {request.provider.jobsCompleted || 0} missions
                     </Text>
                   </View>
-                  <View style={[s.providerStatSep, { backgroundColor: theme.borderLight }]} />
-                  <View style={s.providerStat}>
-                    <Feather name="briefcase" size={13} color={theme.textMuted} />
-                    <Text style={[s.providerStatValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                      {request.provider.jobsCompleted || 0}
-                    </Text>
-                    <Text style={[s.providerStatLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Missions</Text>
-                  </View>
-                  <View style={[s.providerStatSep, { backgroundColor: theme.borderLight }]} />
-                  <View style={s.providerStat}>
-                    <Feather name="calendar" size={13} color={theme.textMuted} />
-                    <Text style={[s.providerStatValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                      {request.provider.createdAt
-                        ? new Date(request.provider.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })
-                        : '-'}
-                    </Text>
-                    <Text style={[s.providerStatLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Membre</Text>
-                  </View>
+                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center' }}
+                    onPress={handleCall} activeOpacity={0.75}
+                  >
+                    <Feather name="phone" size={16} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
+                    onPress={() => {
+                      const recipientId = request?.provider?.userId || request?.provider?.id;
+                      if (recipientId) {
+                        resetUnread();
+                        router.push({ pathname: '/messages/[userId]', params: { userId: recipientId, name: request?.provider?.name || '' } });
+                      } else {
+                        showToast(t('mission_view.provider_not_found'), 'error');
+                      }
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Feather name="message-circle" size={16} color={theme.text} />
+                    {unreadFromProvider > 0 && (
+                      <View style={{
+                        position: 'absolute', top: -3, right: -3,
+                        minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
+                        backgroundColor: COLORS.greenBrand,
+                        alignItems: 'center', justifyContent: 'center',
+                        borderWidth: 1.5, borderColor: theme.cardBg,
+                      }}>
+                        <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 9, color: '#fff', lineHeight: 11 }}>
+                          {unreadFromProvider > 9 ? '9+' : unreadFromProvider}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                 </View>
+              </View>
+            )}
 
-                {/* Categories chips */}
-                {request.provider.categories?.length > 0 && (
-                  <View style={s.providerChips}>
-                    {request.provider.categories.slice(0, 3).map((cat: any) => (
-                      <View key={cat.id} style={[s.providerChip, { backgroundColor: theme.isDark ? theme.cardBg : theme.surface }]}>
-                        <Text style={[s.providerChipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{cat.name}</Text>
+            {/* PIN Card — visible dès que le PIN est généré, avant l'arrivée du prestataire.
+                Donne au client le temps de le préparer pour la vérification mutuelle sur place. */}
+            {pinCode && !pinVerified && (
+              <>
+                <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+                <View style={pinStyles.card}>
+                  <View style={pinStyles.header}>
+                    <Feather name="key" size={14} color={theme.textMuted} />
+                    <Text style={[pinStyles.label, { color: theme.textMuted }]}>CODE PIN DE VÉRIFICATION</Text>
+                  </View>
+                  <View style={pinStyles.digitsRow}>
+                    {pinCode.split('').map((digit, i) => (
+                      <View key={i} style={[pinStyles.digitBox, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+                        <Text style={[pinStyles.digitText, { color: theme.text }]}>{digit}</Text>
                       </View>
                     ))}
                   </View>
-                )}
-
-                {/* Voir le profil hint */}
-                <View style={s.profileHint}>
-                  <Text style={[s.profileHintText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Voir le profil</Text>
-                  <Feather name="chevron-right" size={14} color={theme.textMuted} />
+                  <Text style={[pinStyles.hint, { color: theme.textSub }]}>
+                    Communiquez ce code au prestataire à son arrivée.
+                  </Text>
                 </View>
-              </TouchableOpacity>
+              </>
+            )}
+            {pinVerified && (
+              <>
+                <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+                <View style={[pinStyles.verified, { backgroundColor: 'rgba(61,139,61,0.10)' }]}>
+                  <Feather name="check-circle" size={16} color={COLORS.greenBrand} />
+                  <Text style={[pinStyles.verifiedText, { color: COLORS.greenBrand }]}>
+                    Code PIN vérifié — la mission a démarré
+                  </Text>
+                </View>
+              </>
             )}
 
-            {/* Communication buttons */}
-            <View style={s.comRow}>
-              <TouchableOpacity
-                style={[s.comBtnPrimary, { backgroundColor: theme.accent }]}
-                onPress={() => {
-                  const recipientId = request?.provider?.userId || request?.provider?.id;
-                  if (recipientId) {
-                    router.push({ pathname: '/messages/[userId]', params: { userId: recipientId, name: request?.provider?.name || '' } });
-                  } else {
-                    showToast(t('mission_view.provider_not_found'), 'error');
-                  }
-                }}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-              >
-                <Feather name="message-circle" size={16} color={theme.accentText as string} />
-                <Text style={[s.comBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_view.message_provider')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.comBtnSecondary, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={handleCall} activeOpacity={0.75} accessibilityLabel={t('common.call')} accessibilityRole="button">
-                <Feather name="phone" size={18} color={theme.text} />
-              </TouchableOpacity>
-            </View>
+            {/* Divider */}
+            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
-            {/* Contacter le support — ACCEPTED ou ONGOING */}
-            {(status === 'ACCEPTED' || status === 'ONGOING') && (
-              <TouchableOpacity style={[s.cancelTrackBtn, { borderColor: theme.border, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]} onPress={() => Linking.openURL('mailto:support@fixed.app')} activeOpacity={0.75} accessibilityRole="button">
-                <View style={[s.btnIconWrap, { marginRight: 16 }]}><Feather name="message-circle" size={16} color={theme.textSub as string} /></View>
-                <Text style={[s.cancelTrackText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('mission_view.contact_support')}</Text>
-              </TouchableOpacity>
-            )}
+            {/* 3 metrics — SERVICE · MONTANT · DISTANCE */}
+            {(() => {
+              const priceNum = price ? parseFloat(String(price)) : NaN;
+              const hasPrice = Number.isFinite(priceNum) && priceNum > 0;
+              const priceLabel = isQuoteMission && !hasPrice ? 'Devis' : (hasPrice ? Math.round(priceNum).toString() : '—');
+              const priceUnit = hasPrice ? '€' : '';
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+                  <View style={{ flex: 1, paddingVertical: 4 }}>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>SERVICE</Text>
+                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }} numberOfLines={1}>
+                      {(request?.category?.name || request?.serviceType || 'SERVICE').toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ width: 1, backgroundColor: theme.borderLight, marginHorizontal: 12 }} />
+                  <View style={{ flex: 1, paddingVertical: 4 }}>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>MONTANT</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }} numberOfLines={1}>{priceLabel}</Text>
+                      {priceUnit ? <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>{priceUnit}</Text> : null}
+                    </View>
+                  </View>
+                  <View style={{ width: 1, backgroundColor: theme.borderLight, marginHorizontal: 12 }} />
+                  <View style={{ flex: 1, paddingVertical: 4 }}>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>DISTANCE</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }}>{distance ? distance.toFixed(1) : '-'}</Text>
+                      <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>km</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
 
             </ScrollView>
           </Animated.View>
@@ -1380,17 +1449,17 @@ const s = StyleSheet.create({
   },
 
   sheetHandle: {
-    width: 32, height: 4, borderRadius: 2,
+    width: 38, height: 4, borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 12,
   },
 
   missionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  missionName: { fontSize: 14, marginBottom: 6 },
+  missionName: { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
   metaText: { fontSize: 12, flex: 1 },
   missionRight: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
-  missionPrice: { fontSize: 24, letterSpacing: -0.5 },
+  missionPrice: { fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.4 },
   quoteBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   quoteBadgeText: { fontSize: 12 },
 
@@ -1408,29 +1477,20 @@ const s = StyleSheet.create({
     top: 0, left: 16, right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: Platform.OS === 'ios' ? 0 : 40,
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 8 : 44,
     gap: 12,
     zIndex: 10,
   },
   backBtn: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 4 },
     }),
   },
-  recenterBtn: {
-    position: 'absolute', right: 18, bottom: 420,
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-    zIndex: 10,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 4 },
-    }),
-  },
+  // recenterBtn removed — map auto-fits both pins on every location update
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 14, paddingVertical: 10,
@@ -1440,7 +1500,7 @@ const s = StyleSheet.create({
       android: { elevation: 4 },
     }),
   },
-  statusText: { fontSize: 13 },
+  statusText: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.8 },
 
   trackingScroll: { maxHeight: height * 0.55 },
   trackingScrollContent: { paddingBottom: 4 },
@@ -1449,8 +1509,8 @@ const s = StyleSheet.create({
     bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    paddingTop: 6,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
       android: { elevation: 8 },
@@ -1458,14 +1518,14 @@ const s = StyleSheet.create({
   },
 
   etaRow: { alignItems: 'center', marginBottom: 12 },
-  etaLabel: { fontSize: 12, marginBottom: 2, textAlign: 'center' },
-  etaTime: { fontSize: 32, letterSpacing: 1, textAlign: 'center' },
+  etaLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.8, marginBottom: 4, textAlign: 'center', textTransform: 'uppercase' },
+  etaTime: { fontSize: 40, fontFamily: FONTS.bebas, letterSpacing: 0.5, textAlign: 'center' },
   etaBadge: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  divider: { height: 1, marginBottom: 12 },
+  divider: { height: 1, marginVertical: 12 },
 
   // ── Premium provider card ──
   providerCard: {
@@ -1475,7 +1535,7 @@ const s = StyleSheet.create({
   providerCardTop: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   providerIdentity: { flex: 1, gap: 3 },
   providerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  providerName: { fontSize: 17 },
+  providerName: { fontSize: 14, fontFamily: FONTS.sansMedium },
   verifiedBadge: {
     width: 20, height: 20, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
@@ -1489,8 +1549,8 @@ const s = StyleSheet.create({
     borderTopWidth: 1, paddingTop: 10, marginBottom: 10,
   },
   providerStat: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  providerStatValue: { fontSize: 13 },
-  providerStatLabel: { fontSize: 11 },
+  providerStatValue: { fontSize: 13, fontFamily: FONTS.monoMedium },
+  providerStatLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.5 },
   providerStatSep: { width: 1, height: 20 },
 
   providerChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
@@ -1506,10 +1566,10 @@ const s = StyleSheet.create({
   comRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   comBtnPrimary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 12, borderRadius: 12,
+    height: 44, borderRadius: 12,
   },
   comBtnSecondary: {
-    width: 48, height: 48, borderRadius: 14,
+    width: 44, height: 44, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
   },
   comBtnText: { fontSize: 14 },
@@ -1548,4 +1608,28 @@ const s = StyleSheet.create({
     width: 10, height: 10, borderRadius: 5,
     borderWidth: 2,
   },
+});
+
+// ─── PIN Card (TRACKING phase, inline) ───────────────────────────────────────
+const pinStyles = StyleSheet.create({
+  card: {
+    paddingVertical: 4,
+    gap: 4,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  label: { fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2 },
+  digitsRow: { flexDirection: 'row', gap: 5 },
+  digitBox: {
+    width: 36, height: 40, borderRadius: 8,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  digitText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1, lineHeight: 22 },
+  hint: { fontFamily: FONTS.sans, fontSize: 11 },
+  verified: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 10, marginVertical: 4,
+  },
+  verifiedText: { fontFamily: FONTS.sansMedium, fontSize: 13, flex: 1 },
 });

@@ -19,6 +19,7 @@ type UserData = {
   name?: string;
   phone?: string;
   city?: string;
+  bio?: string;
   authProvider?: string; // "email" | "apple" | "google"
   emailVerified?: boolean;
   roles: Role[];
