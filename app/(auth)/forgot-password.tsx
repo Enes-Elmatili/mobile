@@ -1,110 +1,44 @@
-// app/(auth)/forgot-password.tsx — FIXED Premium Forgot Password (dark design)
-import React, { useState, useRef, useEffect } from "react";
+// app/(auth)/forgot-password.tsx — forgot password (inverted gradient)
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, KeyboardAvoidingView, ScrollView, Platform,
-  Easing, StatusBar, ActivityIndicator,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Easing,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-const GRID_SIZE = 40;
-
-// Forced-dark local palette — sourced from theme tokens so charter updates propagate
-const C = {
-  bg:          darkTokens.bg,
-  white:       darkTokens.text,
-  grey:        darkTokens.textMuted,
-  border:      "rgba(255,255,255,0.08)",
-  cardBg:      darkTokens.cardBg,
-  inputBg:     darkTokens.cardBg,
-  green:       COLORS.greenBrand,
-  outlineText: "rgba(255,255,255,0.3)",
-};
-
-function GridLines() {
-  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
-  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
-  const stroke = "rgba(255,255,255,0.025)";
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
-        {Array.from({ length: cols }, (_, i) => (
-          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
-        ))}
-        {Array.from({ length: rows }, (_, i) => (
-          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
-        ))}
-      </Svg>
-      <LinearGradient
-        colors={["transparent", "transparent", C.bg]}
-        locations={[0, 0.35, 0.75]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
-    </View>
-  );
-}
+import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import {
+  AuthScreen,
+  AuthHeadline,
+  AuthCTA,
+  AuthBackButton,
+  AuthInput,
+  authT,
+  alpha,
+} from "@/components/auth";
 
 export default function ForgotPassword() {
   const router = useRouter();
-  const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [focused, setFocused] = useState(false);
 
-  // Animations
-  const ease = Easing.bezier(0.16, 1, 0.3, 1);
-  const headerOp = useRef(new Animated.Value(0)).current;
-  const headerTy = useRef(new Animated.Value(-12)).current;
-  const bodyOp = useRef(new Animated.Value(0)).current;
-  const bodyTy = useRef(new Animated.Value(14)).current;
-  const actionsOp = useRef(new Animated.Value(0)).current;
-  const actionsTy = useRef(new Animated.Value(14)).current;
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOp = useRef(new Animated.Value(0.5)).current;
-
+  // Entrance animation
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(16)).current;
   useEffect(() => {
-    Animated.stagger(100, [
-      Animated.parallel([
-        Animated.timing(headerOp, { toValue: 1, duration: 500, easing: ease, useNativeDriver: true }),
-        Animated.timing(headerTy, { toValue: 0, duration: 500, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(bodyOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(bodyTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(actionsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(actionsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-  }, []);
+  }, [fade, slide]);
 
   const handleSubmit = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -126,280 +60,157 @@ export default function ForgotPassword() {
     }
   };
 
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (router.canGoBack()) router.back();
+    else router.replace("/(auth)/welcome");
+  };
+
   return (
-    <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+    <AuthScreen variant="inverted" scrollable>
+      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+        <View style={s.topRow}>
+          <AuthBackButton onPress={handleBack} />
+        </View>
 
-      <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
-        <LinearGradient
-          colors={["rgba(255,255,255,0.025)", "transparent"]}
-          style={s.glowGradient}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
+        <View style={[s.iconWrap, sent && s.iconWrapSent]}>
+          <Feather
+            name={sent ? "check-circle" : "unlock"}
+            size={34}
+            color={sent ? COLORS.greenBrand : authT.textOnDark}
+          />
+        </View>
+
+        <AuthHeadline
+          title={sent ? "EMAIL\n{accent}ENVOYÉ.{/accent}" : "MOT DE PASSE\n{accent}OUBLIÉ ?{/accent}"}
+          align="left"
         />
-      </Animated.View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          {/* Header */}
-          <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
-            <TouchableOpacity
-              style={[s.backBtn, { borderColor: theme.borderLight }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (router.canGoBack()) router.back();
-                else router.replace('/(auth)/welcome');
-              }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              activeOpacity={0.7}
-            >
-              <Feather name="chevron-left" size={16} color={theme.textMuted} />
-            </TouchableOpacity>
-
-            <View style={s.iconRow}>
-              <View style={[s.iconWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }, sent && s.iconWrapSent]}>
-                <Feather
-                  name={sent ? "check-circle" : "unlock"}
-                  size={34}
-                  color={sent ? C.green : theme.text}
-                />
-              </View>
-            </View>
-
-            <Text style={[s.logoWordmark, { color: theme.text }]}>
-              {sent ? "EMAIL\n" : "MOT DE PASSE\n"}
-              <Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>
-                {sent ? "ENVOYÉ." : "OUBLIÉ ?"}
+        <View style={s.body}>
+          {sent ? (
+            <>
+              <Text style={s.subtitle}>
+                Un email de réinitialisation a été envoyé à{"\n"}
+                <Text style={s.emailText}>{email.trim().toLowerCase()}</Text>
               </Text>
-            </Text>
-          </Animated.View>
 
-          {/* Body */}
-          <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
-            {sent ? (
-              <>
-                <Text style={[s.subtitle, { color: theme.textSub }]}>
-                  Un email de réinitialisation a été envoyé à{"\n"}
-                  <Text style={[s.emailText, { color: theme.text }]}>{email.trim().toLowerCase()}</Text>
+              <View style={s.infoCard}>
+                <Feather name="info" size={16} color={alpha(authT.textOnDark, 0.55)} style={{ marginTop: 1 }} />
+                <Text style={s.infoText}>
+                  Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 48 heures.
                 </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={s.subtitle}>
+                Entrez l'email associé à votre compte. Nous vous enverrons un lien de réinitialisation.
+              </Text>
 
-                <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-                  <Feather name="info" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
-                  <Text style={[s.infoText, { color: theme.textSub }]}>
-                    Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 48 heures.
-                  </Text>
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={[s.subtitle, { color: theme.textSub }]}>
-                  Entrez l'email associé à votre compte. Nous vous enverrons un lien de réinitialisation.
-                </Text>
-
-                <View style={s.form}>
-                  <View style={s.field}>
-                    <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Email</Text>
-                    <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
-                      <View style={s.inputIcon}>
-                        <Feather name="mail" size={15} color={focused ? theme.textSub : theme.textMuted} />
-                      </View>
-                      <TextInput
-                        style={[s.input, { color: theme.text }]}
-                        placeholder="votre@email.com"
-                        placeholderTextColor={theme.textMuted}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                        returnKeyType="done"
-                        autoFocus
-                        value={email}
-                        onChangeText={(t) => { setEmail(t); setError(null); }}
-                        onFocus={() => setFocused(true)}
-                        onBlur={() => setFocused(false)}
-                        onSubmitEditing={handleSubmit}
-                      />
-                    </View>
-                  </View>
-
-                  {error && (
-                    <View style={s.errorRow}>
-                      <Feather name="alert-circle" size={14} color={COLORS.red} />
-                      <Text style={s.errorText}>{error}</Text>
-                    </View>
-                  )}
-                </View>
-              </>
-            )}
-          </Animated.View>
-
-          {/* Actions */}
-          <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
-            {sent ? (
-              <TouchableOpacity
-                style={[s.btnPrimary, { backgroundColor: theme.accent }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  if (router.canGoBack()) router.back();
-                  else router.replace('/(auth)/welcome');
+              <AuthInput
+                label="Email"
+                icon="mail"
+                placeholder="votre@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoFocus
+                returnKeyType="done"
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  setError(null);
                 }}
-                activeOpacity={0.9}
-              >
-                <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RETOUR À LA CONNEXION</Text>
-                <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                  <Feather name="arrow-left" size={14} color={theme.text} />
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[s.btnPrimary, { backgroundColor: theme.accent }, (loading || !email.trim()) && { opacity: 0.55 }]}
-                onPress={handleSubmit}
-                disabled={loading || !email.trim()}
-                activeOpacity={0.9}
-              >
-                {loading
-                  ? <ActivityIndicator size="small" color={theme.accentText} />
-                  : <>
-                      <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>ENVOYER LE LIEN</Text>
-                      <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                        <Feather name="arrow-right" size={14} color={theme.text} />
-                      </View>
-                    </>
-                }
-              </TouchableOpacity>
-            )}
+                onSubmitEditing={handleSubmit}
+                error={error}
+              />
+            </>
+          )}
+        </View>
 
-            <TouchableOpacity
-              onPress={() => { router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'); }}
-              activeOpacity={0.7}
-              style={s.secondaryLink}
-            >
-              <Text style={[s.secondaryLinkText, { color: theme.textMuted }]}>Retour à la connexion</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+        <View style={s.spacer} />
+
+        <AuthCTA
+          label={sent ? "RETOUR À LA CONNEXION" : "ENVOYER LE LIEN"}
+          onPress={sent ? handleBack : handleSubmit}
+          loading={loading}
+          disabled={!sent && !email.trim()}
+        />
+
+        <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
+          <Text style={s.secondaryLinkText}>Retour à la connexion</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </AuthScreen>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
-
-  glowWrap: {
-    position: "absolute", top: -80,
-    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
+  flex: { flex: 1 },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 24,
   },
-  glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
-
-  header: {
-    paddingTop: 50, // fallback; overridden inline with insets.top + 12
-    paddingHorizontal: 28,
-    zIndex: 2,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1, borderColor: C.border,
-    alignItems: "center", justifyContent: "center",
-    marginBottom: 28,
-  },
-  iconRow: { marginBottom: 20 },
   iconWrap: {
-    width: 72, height: 72, borderRadius: 20,
-    borderWidth: 1.5, borderColor: C.border,
-    backgroundColor: C.cardBg,
-    alignItems: "center", justifyContent: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: alpha(authT.textOnDark, 0.14),
+    backgroundColor: alpha(authT.dark, 0.85),
+    alignItems: "center",
+    justifyContent: "center",
     alignSelf: "flex-start",
+    marginBottom: 18,
   },
   iconWrapSent: {
-    backgroundColor: "rgba(61,139,61,0.1)",
-    borderColor: "rgba(61,139,61,0.3)",
+    backgroundColor: alpha(COLORS.greenBrand, 0.12),
+    borderColor: alpha(COLORS.greenBrand, 0.35),
   },
-  logoWordmark: {
-    fontFamily: FONTS.bebas, fontSize: 42, color: C.white,
-    letterSpacing: 2, lineHeight: 46,
-  },
-  logoWordmarkOutline: { color: C.outlineText },
-
   body: {
-    flex: 1, paddingHorizontal: 28, paddingTop: 24,
-    gap: 20, zIndex: 2,
+    paddingTop: 18,
+    gap: 18,
   },
   subtitle: {
-    fontFamily: FONTS.sansLight, fontSize: 15, lineHeight: 22,
-    color: C.grey,
+    fontFamily: FONTS.sans,
+    fontSize: 15,
+    lineHeight: 22,
+    color: alpha(authT.textOnDark, 0.65),
   },
   emailText: {
-    fontFamily: FONTS.mono, fontSize: 14, color: C.white,
+    fontFamily: FONTS.monoMedium,
+    fontSize: 14,
+    color: authT.textOnDark,
   },
   infoCard: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: alpha(authT.dark, 0.7),
+    borderWidth: 1,
+    borderColor: alpha(authT.textOnDark, 0.14),
+    borderRadius: 16,
+    padding: 14,
   },
   infoText: {
-    flex: 1, fontFamily: FONTS.sansLight, fontSize: 13,
-    lineHeight: 20, color: "rgba(255,255,255,0.5)",
+    flex: 1,
+    fontFamily: FONTS.sans,
+    fontSize: 13,
+    lineHeight: 20,
+    color: alpha(authT.textOnDark, 0.55),
   },
-
-  form: { gap: 14 },
-  field: { gap: 7 },
-  fieldLabel: {
-    fontFamily: FONTS.sans, fontSize: 10, letterSpacing: 3,
-    textTransform: "uppercase", color: C.outlineText, paddingLeft: 2,
-  },
-  inputWrap: {
-    flexDirection: "row", alignItems: "center", height: 54,
-    backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16,
-  },
-  inputFocused: {
-    borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: darkTokens.surface,
-  },
-  inputIcon: { position: "absolute", left: 16, zIndex: 1 },
-  input: {
-    flex: 1, height: "100%", paddingLeft: 48, paddingRight: 16,
-    fontFamily: FONTS.sansLight, fontSize: 14, color: C.white,
-  },
-  errorRow: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingLeft: 2,
-  },
-  errorText: {
-    fontFamily: FONTS.sans, fontSize: 12, color: COLORS.red,
-  },
-
-  actions: {
-    paddingHorizontal: 28,
-    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
-    gap: 14, zIndex: 2,
-  },
-  btnPrimary: {
-    width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
-  },
-  btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
-  },
-  arrowPill: {
-    width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
-    alignItems: "center", justifyContent: "center",
-  },
+  spacer: { flex: 1, minHeight: 24 },
   secondaryLink: {
-    alignItems: "center", paddingVertical: 4,
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingBottom: 4,
   },
   secondaryLinkText: {
-    fontFamily: FONTS.sansLight, fontSize: 13, color: C.outlineText,
+    fontFamily: FONTS.sans,
+    fontSize: 13,
+    color: alpha(authT.textOnLight, 0.5),
     textDecorationLine: "underline",
-    textDecorationColor: "rgba(255,255,255,0.12)",
+    textDecorationColor: alpha(authT.textOnLight, 0.2),
   },
 });

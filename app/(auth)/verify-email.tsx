@@ -1,12 +1,14 @@
-// app/(auth)/verify-email.tsx — FIXED Premium Verify Email (dark design)
-import React, { useState, useEffect, useRef } from "react";
+// app/(auth)/verify-email.tsx — verify email (inverted gradient)
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  Platform, StatusBar, Animated, Easing, Dimensions,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Easing,
   ActivityIndicator,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -14,57 +16,20 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import {
+  AuthScreen,
+  AuthHeadline,
+  AuthCTA,
+  authT,
+  alpha,
+} from "@/components/auth";
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-const GRID_SIZE = 40;
 const ROLE_INTENT_KEY = "@fixed:signup:role";
-
-// Forced-dark local palette — sourced from theme tokens so charter updates propagate
-const C = {
-  bg:          darkTokens.bg,
-  white:       darkTokens.text,
-  grey:        darkTokens.textMuted,
-  border:      "rgba(255,255,255,0.08)",
-  cardBg:      darkTokens.cardBg,
-  inputBg:     darkTokens.cardBg,
-  green:       COLORS.greenBrand,
-  amber:       COLORS.amber,
-  outlineText: "rgba(255,255,255,0.3)",
-};
-
-function GridLines() {
-  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
-  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
-  const stroke = "rgba(255,255,255,0.025)";
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
-        {Array.from({ length: cols }, (_, i) => (
-          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
-        ))}
-        {Array.from({ length: rows }, (_, i) => (
-          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
-        ))}
-      </Svg>
-      <LinearGradient
-        colors={["transparent", "transparent", C.bg]}
-        locations={[0, 0.35, 0.75]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
-    </View>
-  );
-}
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const router = useRouter();
-  const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
   const { refreshMe, signOut } = useAuth();
 
   const [resending, setResending] = useState(false);
@@ -74,10 +39,9 @@ export default function VerifyEmail() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(ROLE_INTENT_KEY).then(r => setRole(r));
+    AsyncStorage.getItem(ROLE_INTENT_KEY).then(setRole);
   }, []);
 
-  // Poll /auth/me every 4s — single effect, no re-trigger on state change
   useEffect(() => {
     let cancelled = false;
     pollRef.current = setInterval(async () => {
@@ -95,7 +59,7 @@ export default function VerifyEmail() {
       cancelled = true;
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleResend = async () => {
@@ -103,8 +67,9 @@ export default function VerifyEmail() {
     try {
       await api.post("/auth/resend-verification");
       setResent(true);
-    } catch {}
-    finally { setResending(false); }
+    } catch {} finally {
+      setResending(false);
+    }
   };
 
   const handleContinue = async () => {
@@ -125,52 +90,20 @@ export default function VerifyEmail() {
     }
   };
 
-  // Step indicator
   const stepNum = role === "PROVIDER"
     ? PROVIDER_FLOW.steps.VERIFY_EMAIL
     : CLIENT_FLOW.steps.VERIFY_EMAIL;
   const totalSteps = role === "PROVIDER" ? PROVIDER_FLOW.totalSteps : CLIENT_FLOW.totalSteps;
 
-  // Animations
-  const ease = Easing.bezier(0.16, 1, 0.3, 1);
-  const headerOp = useRef(new Animated.Value(0)).current;
-  const headerTy = useRef(new Animated.Value(-12)).current;
-  const bodyOp = useRef(new Animated.Value(0)).current;
-  const bodyTy = useRef(new Animated.Value(14)).current;
-  const actionsOp = useRef(new Animated.Value(0)).current;
-  const actionsTy = useRef(new Animated.Value(14)).current;
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOpAnim = useRef(new Animated.Value(0.5)).current;
-
+  // Entrance animation
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(16)).current;
   useEffect(() => {
-    Animated.stagger(100, [
-      Animated.parallel([
-        Animated.timing(headerOp, { toValue: 1, duration: 500, easing: ease, useNativeDriver: true }),
-        Animated.timing(headerTy, { toValue: 0, duration: 500, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(bodyOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(bodyTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(actionsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(actionsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOpAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOpAnim, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-  }, []);
+  }, [fade, slide]);
 
   // Pulsing dot for "checking" state
   const pulseOp = useRef(new Animated.Value(1)).current;
@@ -187,23 +120,10 @@ export default function VerifyEmail() {
   }, [verified]);
 
   return (
-    <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
-
-      <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOpAnim, transform: [{ scale: glowScale }] }]}>
-        <LinearGradient
-          colors={["rgba(255,255,255,0.025)", "transparent"]}
-          style={s.glowGradient}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-      </Animated.View>
-
-      {/* Header */}
-      <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
-        <View style={s.navRow}>
-          <View style={{ width: 36 }} />
+    <AuthScreen variant="inverted">
+      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+        {/* Step indicator (top right) */}
+        <View style={s.topRow}>
           <View style={s.stepIndicator}>
             {Array.from({ length: totalSteps }).map((_, i) => (
               <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
@@ -217,89 +137,75 @@ export default function VerifyEmail() {
         </View>
 
         {/* Icon */}
-        <View style={s.iconRow}>
-          <View style={[s.iconWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }, verified && s.iconWrapVerified]}>
-            <Feather
-              name={verified ? "check-circle" : "mail"}
-              size={34}
-              color={verified ? C.green : theme.text}
-            />
-            {!verified && (
-              <Animated.View style={[s.iconDot, { opacity: pulseOp }]} />
-            )}
-          </View>
+        <View style={[s.iconWrap, verified && s.iconWrapVerified]}>
+          <Feather
+            name={verified ? "check-circle" : "mail"}
+            size={34}
+            color={verified ? COLORS.greenBrand : authT.textOnDark}
+          />
+          {!verified && <Animated.View style={[s.iconDot, { opacity: pulseOp }]} />}
         </View>
 
-        <Text style={[s.logoEyebrow, { color: theme.textMuted }]}>
-          {verified ? "Confirmation" : "Vérification"}
-        </Text>
-        <Text style={[s.logoWordmark, { color: theme.text }]}>
-          {verified ? (
-            <>EMAIL{"\n"}<Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>VÉRIFIÉ !</Text></>
-          ) : (
-            <>VÉRIFIEZ{"\n"}<Text style={[s.logoWordmarkOutline, { color: theme.textMuted }]}>VOTRE EMAIL.</Text></>
-          )}
-        </Text>
-      </Animated.View>
-
-      {/* Body */}
-      <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
-        <Text style={[s.subtitle, { color: theme.textSub }]}>
-          {verified
-            ? "Votre adresse email a été confirmée avec succès."
-            : <>
-                {"Un lien a été envoyé à\n"}
-                <Text style={[s.emailText, { color: theme.text }]}>{email || "votre adresse email"}</Text>
-              </>
+        <AuthHeadline
+          kicker={verified ? "CONFIRMATION" : "VÉRIFICATION"}
+          title={
+            verified
+              ? "EMAIL\n{accent}VÉRIFIÉ !{/accent}"
+              : "VÉRIFIEZ\n{accent}VOTRE EMAIL.{/accent}"
           }
-        </Text>
+          align="left"
+        />
 
-        {!verified && (
-          <>
-            {/* Info card */}
-            <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-              <Feather name="info" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
-              <Text style={[s.infoText, { color: theme.textSub }]}>
-                Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 48 heures.
-              </Text>
-            </View>
+        {/* Body */}
+        <View style={s.body}>
+          <Text style={s.subtitle}>
+            {verified ? (
+              "Votre adresse email a été confirmée avec succès."
+            ) : (
+              <>
+                {"Un lien a été envoyé à\n"}
+                <Text style={s.emailText}>{email || "votre adresse email"}</Text>
+              </>
+            )}
+          </Text>
 
-            {/* Resend button */}
-            <TouchableOpacity
-              style={[s.resendBtn, { borderColor: theme.borderLight }, (resending || resent) && { borderColor: theme.textDisabled }]}
-              onPress={handleResend}
-              disabled={resending || resent}
-              activeOpacity={0.7}
-            >
-              {resending
-                ? <ActivityIndicator size="small" color={theme.text} />
-                : resent
-                  ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Feather name="check" size={14} color={theme.textMuted} />
-                      <Text style={[s.resendText, { color: theme.textMuted }]}>Email renvoyé</Text>
-                    </View>
-                  )
-                  : <Text style={[s.resendText, { color: theme.text }]}>Renvoyer le lien</Text>
-              }
-            </TouchableOpacity>
-          </>
-        )}
-      </Animated.View>
+          {!verified && (
+            <>
+              <View style={s.infoCard}>
+                <Feather name="info" size={16} color={alpha(authT.textOnDark, 0.55)} style={{ marginTop: 1 }} />
+                <Text style={s.infoText}>
+                  Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 48 heures.
+                </Text>
+              </View>
 
-      {/* Actions */}
-      <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
-        <TouchableOpacity
-          style={[s.btnPrimary, { backgroundColor: theme.accent }, !verified && { opacity: 0.35 }]}
+              <TouchableOpacity
+                style={[s.resendBtn, (resending || resent) && s.resendBtnDisabled]}
+                onPress={handleResend}
+                disabled={resending || resent}
+                activeOpacity={0.7}
+              >
+                {resending ? (
+                  <ActivityIndicator size="small" color={authT.textOnDark} />
+                ) : resent ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Feather name="check" size={14} color={alpha(authT.textOnDark, 0.55)} />
+                    <Text style={[s.resendText, { color: alpha(authT.textOnDark, 0.55) }]}>Email renvoyé</Text>
+                  </View>
+                ) : (
+                  <Text style={s.resendText}>Renvoyer le lien</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
+        <View style={s.spacer} />
+
+        <AuthCTA
+          label="CONTINUER"
           onPress={handleContinue}
           disabled={!verified}
-          activeOpacity={0.9}
-        >
-          <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>CONTINUER</Text>
-          <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-            <Feather name="arrow-right" size={14} color={theme.text} />
-          </View>
-        </TouchableOpacity>
+        />
 
         <TouchableOpacity
           onPress={() => {
@@ -310,132 +216,131 @@ export default function VerifyEmail() {
           activeOpacity={0.6}
           style={s.logoutLink}
         >
-          <Feather name="log-out" size={14} color={theme.textMuted} />
-          <Text style={[s.logoutText, { color: theme.textSub }]}>Se déconnecter</Text>
+          <Feather name="log-out" size={14} color={alpha(authT.textOnLight, 0.5)} />
+          <Text style={s.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
       </Animated.View>
-    </View>
+    </AuthScreen>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
-
-  glowWrap: {
-    position: "absolute", top: -80,
-    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
-  },
-  glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
-
-  // Header
-  header: {
-    paddingTop: 50, // fallback; overridden inline with insets.top + 12
-    paddingHorizontal: 28,
-    zIndex: 2,
-  },
-  navRow: {
+  flex: { flex: 1 },
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    marginBottom: 28,
+    marginTop: 4,
+    marginBottom: 24,
   },
-  stepIndicator: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-  },
+  stepIndicator: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepBar: { height: 2, borderRadius: 2 },
-  stepBarActive: { width: 36, backgroundColor: C.white },
-  stepBarInactive: { width: 20, backgroundColor: "rgba(255,255,255,0.12)" },
+  stepBarActive: { width: 36, backgroundColor: authT.textOnDark },
+  stepBarInactive: { width: 20, backgroundColor: alpha(authT.textOnDark, 0.15) },
   stepLabel: {
-    fontFamily: FONTS.sans, fontSize: 10, letterSpacing: 2,
-    color: "rgba(255,255,255,0.25)", marginLeft: 4,
+    fontFamily: FONTS.mono,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: alpha(authT.textOnDark, 0.3),
+    marginLeft: 4,
   },
-  stepLabelBold: { color: "rgba(255,255,255,0.5)" },
+  stepLabelBold: { color: alpha(authT.textOnDark, 0.6) },
 
-  iconRow: { marginBottom: 20 },
   iconWrap: {
-    width: 72, height: 72, borderRadius: 20,
-    borderWidth: 1.5, borderColor: C.border,
-    backgroundColor: C.cardBg,
-    alignItems: "center", justifyContent: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: alpha(authT.textOnDark, 0.14),
+    backgroundColor: alpha(authT.dark, 0.85),
+    alignItems: "center",
+    justifyContent: "center",
     alignSelf: "flex-start",
+    marginBottom: 18,
   },
   iconWrapVerified: {
-    backgroundColor: "rgba(61,139,61,0.1)",
-    borderColor: "rgba(61,139,61,0.3)",
+    backgroundColor: alpha(COLORS.greenBrand, 0.12),
+    borderColor: alpha(COLORS.greenBrand, 0.35),
   },
   iconDot: {
-    position: "absolute", bottom: -5, right: -5,
-    width: 16, height: 16, borderRadius: 8,
-    backgroundColor: C.amber, borderWidth: 2.5, borderColor: C.bg,
+    position: "absolute",
+    bottom: -5,
+    right: -5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.amber,
+    borderWidth: 2.5,
+    borderColor: authT.dark,
   },
 
-  logoEyebrow: {
-    fontFamily: FONTS.sans, fontSize: 11, letterSpacing: 3,
-    color: C.grey, textTransform: "uppercase", marginBottom: 4,
-  },
-  logoWordmark: {
-    fontFamily: FONTS.bebas, fontSize: 42, color: C.white,
-    letterSpacing: 2, lineHeight: 46,
-  },
-  logoWordmarkOutline: { color: C.outlineText },
-
-  // Body
   body: {
-    flex: 1, paddingHorizontal: 28, paddingTop: 24,
-    gap: 20, zIndex: 2,
+    paddingTop: 18,
+    gap: 18,
   },
   subtitle: {
-    fontFamily: FONTS.sansLight, fontSize: 15, lineHeight: 22,
-    color: C.grey,
+    fontFamily: FONTS.sans,
+    fontSize: 15,
+    lineHeight: 22,
+    color: alpha(authT.textOnDark, 0.65),
   },
   emailText: {
-    fontFamily: FONTS.mono, fontSize: 14, color: C.white,
+    fontFamily: FONTS.monoMedium,
+    fontSize: 14,
+    color: authT.textOnDark,
   },
   infoCard: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: alpha(authT.dark, 0.7),
+    borderWidth: 1,
+    borderColor: alpha(authT.textOnDark, 0.14),
+    borderRadius: 16,
+    padding: 14,
   },
   infoText: {
-    flex: 1, fontFamily: FONTS.sansLight, fontSize: 13,
-    lineHeight: 20, color: "rgba(255,255,255,0.5)",
+    flex: 1,
+    fontFamily: FONTS.sans,
+    fontSize: 13,
+    lineHeight: 20,
+    color: alpha(authT.textOnDark, 0.55),
   },
   resendBtn: {
-    height: 48, borderRadius: 14, borderWidth: 1, borderColor: C.border,
-    alignItems: "center", justifyContent: "center",
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: alpha(authT.dark, 0.6),
+    borderColor: alpha(authT.textOnDark, 0.2),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resendBtnDisabled: {
+    backgroundColor: alpha(authT.dark, 0.4),
+    borderColor: alpha(authT.textOnDark, 0.1),
   },
   resendText: {
-    fontFamily: FONTS.sansMedium, fontSize: 13, letterSpacing: 0.5,
-    color: C.white,
+    fontFamily: FONTS.sansMedium,
+    fontSize: 13,
+    letterSpacing: 0.5,
+    color: authT.textOnDark,
   },
 
-  // Actions
-  actions: {
-    paddingHorizontal: 28,
-    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
-    gap: 12, zIndex: 2,
-  },
-  btnPrimary: {
-    width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,
-  },
-  btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
-  },
-  arrowPill: {
-    width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
-    alignItems: "center", justifyContent: "center",
-  },
-  hint: {
-    fontFamily: FONTS.sansLight, fontSize: 12, color: "rgba(255,255,255,0.2)",
-    textAlign: "center",
-  },
+  spacer: { flex: 1, minHeight: 24 },
+
   logoutLink: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 8, marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingBottom: 4,
   },
   logoutText: {
-    fontFamily: FONTS.sans, fontSize: 14, color: C.grey,
-    textDecorationLine: "underline", textDecorationColor: "rgba(255,255,255,0.12)",
+    fontFamily: FONTS.sans,
+    fontSize: 13,
+    color: alpha(authT.textOnLight, 0.55),
+    textDecorationLine: "underline",
+    textDecorationColor: alpha(authT.textOnLight, 0.2),
   },
 });

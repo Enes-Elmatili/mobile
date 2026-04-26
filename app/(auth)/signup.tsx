@@ -1,12 +1,20 @@
-// app/(auth)/signup.tsx — FIXED Premium Signup (dark design)
-import React, { useState, useRef, useEffect, useCallback } from "react";
+// app/(auth)/signup.tsx — signup multi-phase (inverted gradient)
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, Platform, KeyboardAvoidingView,
-  Easing, StatusBar, ScrollView, ActivityIndicator, Pressable,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  Platform,
+  Easing,
+  StatusBar,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Line, Path, G, Defs, ClipPath, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -17,65 +25,37 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import { toFeatherName } from "@/lib/iconMapper";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import Slider from "@react-native-community/slider";
+import {
+  AuthScreen,
+  AuthHeadline,
+  AuthCTA,
+  AuthBackButton,
+  AuthInput,
+  AuthLink,
+  authT,
+  alpha,
+} from "@/components/auth";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-const GRID_SIZE = 40;
+const { height: SCREEN_H } = Dimensions.get("window");
 
-// ── Colors (dark-only) — sourced from theme tokens so charter updates propagate ────────────
-const C = {
-  bg:          darkTokens.bg,
-  white:       darkTokens.text,
-  grey:        darkTokens.textMuted,
-  greyFaint:   "rgba(255,255,255,0.2)",
-  border:      "rgba(255,255,255,0.08)",
-  cardBg:      darkTokens.cardBg,
-  inputBg:     darkTokens.cardBg,
-  green:       COLORS.greenBrand,
-  red:         COLORS.red,
-  amber:       COLORS.amber,
-  outlineText: "rgba(255,255,255,0.3)",
-};
-
-// ── Grid background ─────────────────────────────────────────────────────────
-function GridLines() {
-  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
-  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
-  const stroke = "rgba(255,255,255,0.025)";
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
-        {Array.from({ length: cols }, (_, i) => (
-          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
-        ))}
-        {Array.from({ length: rows }, (_, i) => (
-          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
-        ))}
-      </Svg>
-      <LinearGradient
-        colors={["transparent", "transparent", C.bg]}
-        locations={[0, 0.35, 0.75]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
-    </View>
-  );
-}
-
-// ── SVG Icons ───────────────────────────────────────────────────────────────
+// ── SVG logos ───────────────────────────────────────────────────────────────
 function AppleLogo() {
   return (
     <Svg width={15} height={18} viewBox="0 0 15 18" fill="none">
-      <Path d="M12.4 9.6C12.4 7.8 13.5 6.7 13.5 6.7C12.5 5.3 11 5.2 10.4 5.2C9.1 5.1 7.9 6 7.2 6C6.5 6 5.5 5.2 4.4 5.2C2.8 5.3 1 6.4 1 9.1C1 10.9 1.7 12.8 2.6 14C3.3 15 4 15.8 5 15.8C5.9 15.8 6.3 15.2 7.5 15.2C8.7 15.2 9 15.8 10 15.8C11 15.8 11.7 14.9 12.4 13.9C13 13.1 13.3 12.2 13.3 12.1C13.3 12.1 12.4 11.8 12.4 9.6Z" fill="rgba(255,255,255,0.75)" />
-      <Path d="M9.5 3.5C10.1 2.8 10.5 1.8 10.4 0.8C9.5 0.9 8.4 1.4 7.8 2.2C7.2 2.9 6.7 3.9 6.9 4.9C7.9 4.9 8.9 4.3 9.5 3.5Z" fill="rgba(255,255,255,0.75)" />
+      <Path
+        d="M12.4 9.6C12.4 7.8 13.5 6.7 13.5 6.7C12.5 5.3 11 5.2 10.4 5.2C9.1 5.1 7.9 6 7.2 6C6.5 6 5.5 5.2 4.4 5.2C2.8 5.3 1 6.4 1 9.1C1 10.9 1.7 12.8 2.6 14C3.3 15 4 15.8 5 15.8C5.9 15.8 6.3 15.2 7.5 15.2C8.7 15.2 9 15.8 10 15.8C11 15.8 11.7 14.9 12.4 13.9C13 13.1 13.3 12.2 13.3 12.1C13.3 12.1 12.4 11.8 12.4 9.6Z"
+        fill={alpha(authT.textOnDark, 0.85)}
+      />
+      <Path
+        d="M9.5 3.5C10.1 2.8 10.5 1.8 10.4 0.8C9.5 0.9 8.4 1.4 7.8 2.2C7.2 2.9 6.7 3.9 6.9 4.9C7.9 4.9 8.9 4.3 9.5 3.5Z"
+        fill={alpha(authT.textOnDark, 0.85)}
+      />
     </Svg>
   );
 }
@@ -93,7 +73,11 @@ function GoogleLogo() {
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = "error" | "success" | "info";
-interface ToastMsg { id: number; type: ToastType; message: string }
+interface ToastMsg {
+  id: number;
+  type: ToastType;
+  message: string;
+}
 
 function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
   const ty = useRef(new Animated.Value(-72)).current;
@@ -112,7 +96,7 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
     return () => clearTimeout(t);
   }, []);
   const icon = msg.type === "error" ? "x-circle" : msg.type === "success" ? "check-circle" : "info";
-  const color = msg.type === "error" ? C.red : msg.type === "success" ? C.green : C.white;
+  const color = msg.type === "error" ? COLORS.red : msg.type === "success" ? COLORS.greenBrand : authT.textOnDark;
   return (
     <Animated.View style={[ts.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
       <Feather name={icon as any} size={16} color={color} />
@@ -124,24 +108,31 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
 const ts = StyleSheet.create({
   layer: {
     position: "absolute",
-    top: 56, // fallback; overridden inline with insets.top
-    left: 20, right: 20, zIndex: 9999, gap: 8,
+    left: 20,
+    right: 20,
+    zIndex: 9999,
+    gap: 8,
   },
   pill: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: C.cardBg,
-    borderWidth: 1, borderColor: C.border, borderRadius: 14,
-    paddingHorizontal: 18, paddingVertical: 13, gap: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: alpha(authT.dark, 0.95),
+    borderWidth: 1,
+    borderColor: alpha(authT.textOnDark, 0.12),
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    gap: 10,
     ...Platform.select({
       ios: { shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 10 },
     }),
   },
-  text: { fontFamily: FONTS.sansMedium, fontSize: 14, color: C.white, flex: 1 },
+  text: { fontFamily: FONTS.sansMedium, fontSize: 14, color: authT.textOnDark, flex: 1 },
 });
 
 // ── Spinner ─────────────────────────────────────────────────────────────────
-function Spinner({ color = C.bg }: { color?: string }) {
+function Spinner({ color = authT.textOnDark }: { color?: string }) {
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const a = Animated.loop(
@@ -153,32 +144,52 @@ function Spinner({ color = C.bg }: { color?: string }) {
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   return (
     <Animated.View style={{ transform: [{ rotate }] }}>
-      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2.5, borderColor: color, borderTopColor: "transparent" }} />
+      <View
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 10,
+          borderWidth: 2.5,
+          borderColor: color,
+          borderTopColor: "transparent",
+        }}
+      />
     </Animated.View>
   );
 }
 
 // ── Password strength ───────────────────────────────────────────────────────
 function StrengthBar({ password }: { password: string }) {
-  const checks = [password.length >= 8, /[A-Z]/.test(password), /[0-9]/.test(password), /[^A-Za-z0-9]/.test(password)];
+  const checks = [
+    password.length >= 8,
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ];
   const score = checks.filter(Boolean).length;
-  const barColors = [C.red, C.amber, C.amber, C.green];
+  const barColors = [COLORS.red, COLORS.amber, COLORS.amber, COLORS.greenBrand];
   const labels = ["Faible", "Moyen", "Bon", "Fort"];
   return (
     <View style={str.wrap}>
       <View style={str.barRow}>
-        {[0, 1, 2, 3].map(i => (
-          <View key={i} style={[str.segment, { backgroundColor: i < score ? barColors[score - 1] : "rgba(255,255,255,0.08)" }]} />
+        {[0, 1, 2, 3].map((i) => (
+          <View
+            key={i}
+            style={[
+              str.segment,
+              { backgroundColor: i < score ? barColors[score - 1] : alpha(authT.textOnLight, 0.1) },
+            ]}
+          />
         ))}
       </View>
-      <Text style={[str.label, { color: score > 0 ? barColors[score - 1] : "rgba(255,255,255,0.2)" }]}>
+      <Text style={[str.label, { color: score > 0 ? barColors[score - 1] : alpha(authT.textOnLight, 0.3) }]}>
         {score > 0 ? labels[score - 1] : ""}
       </Text>
     </View>
   );
 }
 const str = StyleSheet.create({
-  wrap: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: -4, marginBottom: 4 },
+  wrap: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: -2, marginBottom: 4 },
   barRow: { flex: 1, flexDirection: "row", gap: 4 },
   segment: { flex: 1, height: 3, borderRadius: 2 },
   label: { fontFamily: FONTS.sansMedium, fontSize: 11, width: 40 },
@@ -188,39 +199,32 @@ const str = StyleSheet.create({
 const ROLE_INTENT_KEY = "@fixed:signup:role";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-const CITY_OPTIONS = [
-  { value: "Bruxelles", label: "Bruxelles" },
-];
+const CITY_OPTIONS = [{ value: "Bruxelles", label: "Bruxelles" }];
 
-const RADIUS_OPTIONS = [
-  { value: 5, label: "5 km", hint: "Quartier" },
-  { value: 10, label: "10 km", hint: "Ville" },
-  { value: 20, label: "20 km", hint: "Agglo." },
-  { value: 30, label: "30 km", hint: "Grand bassin" },
-  { value: 50, label: "50 km", hint: "Région" },
-  { value: 100, label: "100 km", hint: "Élargie" },
-];
+interface Category {
+  id: number;
+  name: string;
+  icon?: string;
+}
 
-interface Category { id: number; name: string; icon?: string }
-
-// ── SIGNUP ──────────────────────────────────────────────────────────────────
 type Phase = "identity" | "zone" | "creating";
 
+// ── Signup screen ───────────────────────────────────────────────────────────
 export default function Signup() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { refreshMe, signIn } = useAuth();
 
-  // ── Role ──
   const [role, setRole] = useState<string | null>(null);
-  useEffect(() => { AsyncStorage.getItem(ROLE_INTENT_KEY).then(r => setRole(r)); }, []);
+  useEffect(() => {
+    AsyncStorage.getItem(ROLE_INTENT_KEY).then(setRole);
+  }, []);
   const isProvider = role === "PROVIDER";
 
-  // ── Phase ──
   const [phase, setPhase] = useState<Phase>("identity");
   const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
 
-  // ── Google Auth ──
+  // Google Auth
   const googleDiscovery = {
     authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenEndpoint: "https://oauth2.googleapis.com/token",
@@ -233,7 +237,7 @@ export default function Signup() {
       scopes: ["openid", "profile", "email"],
       responseType: ResponseType.Token,
     },
-    googleDiscovery,
+    googleDiscovery
   );
 
   useEffect(() => {
@@ -250,9 +254,9 @@ export default function Signup() {
       const res = await api.auth.google(accessToken);
       if (!res?.token) throw new Error();
       await signIn(res.token);
-      if (res.roles && res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      }
+      await refreshMe();
+      if (!res.roles || res.roles.length === 0) router.replace("/(auth)/role-select");
+      else router.replace("/(tabs)/dashboard");
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
       else showToast("Connexion impossible, réessaie");
@@ -261,7 +265,6 @@ export default function Signup() {
     }
   };
 
-  // ── Apple Auth ──
   const handleAppleSignIn = async () => {
     setSocialLoading("apple");
     try {
@@ -273,38 +276,39 @@ export default function Signup() {
       });
       const res = await api.auth.apple(
         credential.identityToken!,
-        credential.fullName ? {
-          givenName: credential.fullName.givenName ?? undefined,
-          familyName: credential.fullName.familyName ?? undefined,
-        } : undefined,
-        credential.email ?? undefined,
+        credential.fullName
+          ? {
+              givenName: credential.fullName.givenName ?? undefined,
+              familyName: credential.fullName.familyName ?? undefined,
+            }
+          : undefined,
+        credential.email ?? undefined
       );
       if (!res?.token) throw new Error();
       await signIn(res.token);
-      if (res.roles && res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      }
+      await refreshMe();
+      if (!res.roles || res.roles.length === 0) router.replace("/(auth)/role-select");
+      else router.replace("/(tabs)/dashboard");
     } catch (e: any) {
-      if (e?.code === "ERR_CANCELED" || e?.code === "1001") { /* silent */ }
-      else if (e?.status === 409) showToast(e.data?.error || e.message);
+      if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
+        // silent cancel
+      } else if (e?.status === 409) showToast(e.data?.error || e.message);
       else showToast("Connexion impossible, réessaie");
     } finally {
       setSocialLoading(null);
     }
   };
 
-  // ── Form state ──
+  // Form state
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
-  const [focused, setFocused] = useState<string | null>(null);
 
-  const nameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const pwdRef = useRef<TextInput>(null);
 
-  // ── Zone state (provider) ──
+  // Zone state (provider)
   const [city, setCity] = useState("");
   const [radius, setRadius] = useState(5);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -312,71 +316,41 @@ export default function Signup() {
   const [catsLoading, setCatsLoading] = useState(false);
   const [catsError, setCatsError] = useState(false);
 
-  // ── Toast ──
+  // Toast
   const [msgs, setMsgs] = useState<ToastMsg[]>([]);
   const counter = useRef(0);
   const showToast = useCallback((message: string, type: ToastType = "error") => {
     const id = ++counter.current;
-    setMsgs(p => [...p, { id, type, message }]);
+    setMsgs((p) => [...p, { id, type, message }]);
   }, []);
 
-  // ── Animations ──
-  const ease = Easing.bezier(0.16, 1, 0.3, 1);
-  const headerOp = useRef(new Animated.Value(0)).current;
-  const headerTy = useRef(new Animated.Value(-12)).current;
-  const bodyOp = useRef(new Animated.Value(0)).current;
-  const bodyTy = useRef(new Animated.Value(14)).current;
-  const actionsOp = useRef(new Animated.Value(0)).current;
-  const actionsTy = useRef(new Animated.Value(14)).current;
-
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOp = useRef(new Animated.Value(0.5)).current;
-
+  // Entrance
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(16)).current;
   const animateIn = useCallback(() => {
-    headerOp.setValue(0); headerTy.setValue(-12);
-    bodyOp.setValue(0); bodyTy.setValue(14);
-    actionsOp.setValue(0); actionsTy.setValue(14);
-    Animated.stagger(100, [
-      Animated.parallel([
-        Animated.timing(headerOp, { toValue: 1, duration: 500, easing: ease, useNativeDriver: true }),
-        Animated.timing(headerTy, { toValue: 0, duration: 500, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(bodyOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(bodyTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(actionsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(actionsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
+    fade.setValue(0);
+    slide.setValue(16);
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-  }, []);
-
-  useEffect(() => { animateIn(); }, []);
+  }, [fade, slide]);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
+    animateIn();
   }, []);
 
-  // ── Load categories ──
+  // Categories loader
   const loadCategories = useCallback(() => {
     setCatsLoading(true);
     setCatsError(false);
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000));
     Promise.race([api.taxonomies.list(), timeout])
       .then((res: any) => setCategories(res?.data ?? res ?? []))
-      .catch(() => { setCatsError(true); showToast("Erreur de chargement des catégories"); })
+      .catch(() => {
+        setCatsError(true);
+        showToast("Erreur de chargement des catégories");
+      })
       .finally(() => setCatsLoading(false));
   }, []);
 
@@ -384,12 +358,12 @@ export default function Signup() {
     if (phase === "zone" && isProvider && categories.length === 0) loadCategories();
   }, [phase, isProvider]);
 
-  // ── Validation ──
+  // Validation
   const isEmailValid = EMAIL_RE.test(email.trim());
   const canIdentity = name.trim().length > 0 && isEmailValid && password.length >= 8;
   const canZone = city.trim().length >= 2 && selectedCats.length > 0;
 
-  // ── Navigation ──
+  // Navigation
   const goToZone = () => {
     if (!canIdentity) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -405,16 +379,19 @@ export default function Signup() {
 
   const goBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (phase === "zone") { setPhase("identity"); animateIn(); }
-    else router.canGoBack() ? router.back() : router.replace("/(auth)/welcome");
+    if (phase === "zone") {
+      setPhase("identity");
+      animateIn();
+    } else if (router.canGoBack()) router.back();
+    else router.replace("/(auth)/welcome");
   };
 
   const toggleCat = (id: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedCats(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setSelectedCats((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // ── Account creation ──
+  // Account creation
   const createAccount = async () => {
     if (isProvider && !canZone) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -428,23 +405,31 @@ export default function Signup() {
     setPhase("creating");
 
     try {
-      await api.auth.signup(email.trim().toLowerCase(), password, name.trim() || undefined, isProvider ? { role: "PROVIDER" } : undefined);
+      await api.auth.signup(
+        email.trim().toLowerCase(),
+        password,
+        name.trim() || undefined,
+        isProvider ? { role: "PROVIDER" } : undefined
+      );
 
       if (isProvider) {
-        const selectedCatObjects = categories.filter(c => selectedCats.includes(c.id));
+        const selectedCatObjects = categories.filter((c) => selectedCats.includes(c.id));
         await api.providers.register({
           name: name.trim(),
           city: city.trim(),
           categoryIds: selectedCats,
         });
         await refreshMe();
-        await AsyncStorage.setItem("onboarding_data", JSON.stringify({
-          name: name.trim(),
-          city: city.trim(),
-          radius,
-          categoryIds: selectedCats,
-          categories: selectedCatObjects.map(c => ({ id: c.id, name: c.name })),
-        }));
+        await AsyncStorage.setItem(
+          "onboarding_data",
+          JSON.stringify({
+            name: name.trim(),
+            city: city.trim(),
+            radius,
+            categoryIds: selectedCats,
+            categories: selectedCatObjects.map((c) => ({ id: c.id, name: c.name })),
+          })
+        );
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -456,275 +441,211 @@ export default function Signup() {
     }
   };
 
-  // ── Progress ──
+  // Progress
   const flow = isProvider ? PROVIDER_FLOW : CLIENT_FLOW;
   const totalSteps = flow.totalSteps;
   const stepNum = isProvider
-    ? (phase === "identity" ? PROVIDER_FLOW.steps.SIGNUP_ID : PROVIDER_FLOW.steps.ZONE)
+    ? phase === "identity"
+      ? PROVIDER_FLOW.steps.SIGNUP_ID
+      : PROVIDER_FLOW.steps.ZONE
     : CLIENT_FLOW.steps.REGISTER;
 
   const isBusy = !!socialLoading;
 
-  // ── Creating screen ──
+  // ── Creating phase ──
   if (phase === "creating") {
     return (
-      <View style={s.root}>
-        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-        <GridLines />
-        <View style={s.creatingWrap}>
-          <Spinner color={C.white} />
-          <Text style={s.creatingText}>Création de votre compte...</Text>
-          {isProvider && <Text style={s.creatingSubtext}>Configuration du profil prestataire</Text>}
-        </View>
+      <View style={s.creatingRoot}>
+        <StatusBar barStyle="light-content" />
+        <Spinner color={authT.textOnDark} />
+        <Text style={s.creatingText}>Création de votre compte...</Text>
+        {isProvider && <Text style={s.creatingSub}>Configuration du profil prestataire</Text>}
       </View>
     );
   }
 
+  // ── Headline per phase ──
+  const headlineProps = isProvider && phase === "zone"
+    ? { kicker: "INSCRIPTION", title: "VOTRE\n{accent}ACTIVITÉ.{/accent}", subtitle: "Zone d'intervention et domaines d'expertise." }
+    : { kicker: "INSCRIPTION", title: "CRÉEZ VOTRE\n{accent}COMPTE.{/accent}", subtitle: "Opérationnel en moins d'une minute." };
+
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-
-      {/* Grid + glow */}
-      <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
-        <LinearGradient
-          colors={["rgba(255,255,255,0.025)", "transparent"]}
-          style={s.glowGradient}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-      </Animated.View>
-
-      {/* Toast */}
-      <View style={[ts.layer, { top: insets.top }]} pointerEvents="none">
-        {msgs.map(m => (
-          <Toast key={m.id} msg={m} onDone={() => setMsgs(p => p.filter(x => x.id !== m.id))} />
+    <AuthScreen variant="inverted" scrollable>
+      <View style={[ts.layer, { top: insets.top + 8 }]} pointerEvents="none">
+        {msgs.map((m) => (
+          <Toast key={m.id} msg={m} onDone={() => setMsgs((p) => p.filter((x) => x.id !== m.id))} />
         ))}
       </View>
 
-      <View style={{ flex: 1 }}>
+      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+        {/* Top row: back + step indicator */}
+        <View style={s.topRow}>
+          <AuthBackButton onPress={goBack} />
+          <View style={s.stepIndicator}>
+            {Array.from({ length: isProvider ? totalSteps : 2 }).map((_, i) => (
+              <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
+            ))}
+            <Text style={s.stepLabel}>
+              <Text style={s.stepLabelBold}>{String(stepNum).padStart(2, "0")}</Text>
+              {" / "}
+              {String(isProvider ? totalSteps : 2).padStart(2, "0")}
+            </Text>
+          </View>
+        </View>
 
-        {/* Header */}
-        <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
-          <View style={s.navRow}>
-            <TouchableOpacity style={s.backBtn} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.7}>
-              <Feather name="chevron-left" size={16} color="rgba(255,255,255,0.6)" />
-            </TouchableOpacity>
+        <AuthHeadline {...headlineProps} align="left" />
 
-            <View style={s.stepIndicator}>
-              {Array.from({ length: isProvider ? totalSteps : 2 }).map((_, i) => (
-                <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
-              ))}
-              <Text style={s.stepLabel}>
-                <Text style={s.stepLabelBold}>{String(stepNum).padStart(2, "0")}</Text>
-                {" / "}
-                {String(isProvider ? totalSteps : 2).padStart(2, "0")}
+        {/* === IDENTITY PHASE === */}
+        {phase === "identity" && (
+          <View style={s.body}>
+            {/* Social */}
+            <View style={s.socialRow}>
+              <TouchableOpacity style={s.socialBtn} onPress={handleAppleSignIn} disabled={isBusy} activeOpacity={0.7}>
+                {socialLoading === "apple" ? (
+                  <Spinner color={authT.textOnDark} />
+                ) : (
+                  <>
+                    <AppleLogo />
+                    <Text style={s.socialText}>Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={s.socialBtn} onPress={() => googlePromptAsync()} disabled={isBusy || !googleRequest} activeOpacity={0.7}>
+                {socialLoading === "google" ? (
+                  <Spinner color={authT.textOnDark} />
+                ) : (
+                  <>
+                    <GoogleLogo />
+                    <Text style={s.socialText}>Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.divider}>
+              <View style={s.dividerLine} />
+              <Text style={s.dividerLabel}>OU</Text>
+              <View style={s.dividerLine} />
+            </View>
+
+            {/* Form */}
+            <View style={s.form}>
+              <AuthInput
+                label="Nom complet"
+                icon="user"
+                placeholder="Prénom et nom"
+                autoCapitalize="words"
+                maxLength={60}
+                returnKeyType="next"
+                value={name}
+                onChangeText={setName}
+                onSubmitEditing={() => emailRef.current?.focus()}
+              />
+              <AuthInput
+                inputRef={emailRef}
+                label="Adresse mail"
+                icon="mail"
+                placeholder="votre@email.com"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                returnKeyType="next"
+                value={email}
+                onChangeText={setEmail}
+                onSubmitEditing={() => pwdRef.current?.focus()}
+              />
+              <AuthInput
+                inputRef={pwdRef}
+                label="Mot de passe"
+                icon="lock"
+                placeholder="Minimum 8 caractères"
+                secureTextEntry={!showPwd}
+                trailingIcon={showPwd ? "eye-off" : "eye"}
+                onTrailingPress={() => setShowPwd((p) => !p)}
+                returnKeyType="done"
+                value={password}
+                onChangeText={setPassword}
+                onSubmitEditing={isProvider ? goToZone : createAccount}
+              />
+              {password.length > 0 && <StrengthBar password={password} />}
+            </View>
+
+            {/* CGU */}
+            <View style={s.cguRow}>
+              <Feather name="shield" size={13} color={alpha(authT.textOnLight, 0.3)} style={{ marginTop: 1 }} />
+              <Text style={s.cguText}>
+                En continuant, vous acceptez nos <Text style={s.cguLink}>CGU</Text> et notre{" "}
+                <Text style={s.cguLink}>Politique de confidentialité</Text>.
               </Text>
             </View>
           </View>
+        )}
 
-          <View style={s.titleBlock}>
-            <Text style={s.logoEyebrow}>Inscription</Text>
-            {phase === "identity" ? (
-              <>
-                <Text style={s.logoWordmark}>
-                  CRÉEZ VOTRE{"\n"}
-                  <Text style={s.logoWordmarkOutline}>COMPTE.</Text>
-                </Text>
-                <Text style={s.titleSub}>Opérationnel en moins d'une minute.</Text>
-              </>
-            ) : (
-              <>
-                <Text style={s.logoWordmark}>
-                  VOTRE{"\n"}
-                  <Text style={s.logoWordmarkOutline}>ACTIVITÉ.</Text>
-                </Text>
-                <Text style={s.titleSub}>Zone d'intervention et domaines d'expertise.</Text>
-              </>
-            )}
-          </View>
-        </Animated.View>
-
-        {/* Body */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
-        >
-        <Animated.View style={[s.bodyWrapper, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
-          <ScrollView
-            contentContainerStyle={s.bodyScroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* === IDENTITY PHASE === */}
-            {phase === "identity" && (
-              <>
-                {/* Social */}
-                <View style={s.socialRow}>
-                  <TouchableOpacity style={s.socialBtn} onPress={handleAppleSignIn} disabled={isBusy} activeOpacity={0.7}>
-                    {socialLoading === "apple" ? <Spinner color={C.white} /> : <><AppleLogo /><Text style={s.socialText}>Apple</Text></>}
+        {/* === ZONE PHASE === */}
+        {phase === "zone" && isProvider && (
+          <View style={s.body}>
+            <View>
+              <Text style={s.sectionLabel}>VILLE DE BASE</Text>
+              <View style={s.cityDropdown}>
+                {CITY_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[s.cityOption, city === opt.value && s.cityOptionActive]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setCity(opt.value);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="map-pin"
+                      size={15}
+                      color={city === opt.value ? authT.textOnLight : alpha(authT.textOnDark, 0.6)}
+                    />
+                    <Text style={[s.cityOptionText, city === opt.value && s.cityOptionTextActive]}>{opt.label}</Text>
+                    {city === opt.value && <Feather name="check-circle" size={18} color={authT.textOnLight} />}
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.socialBtn} onPress={() => googlePromptAsync()} disabled={isBusy || !googleRequest} activeOpacity={0.7}>
-                    {socialLoading === "google" ? <Spinner color={C.white} /> : <><GoogleLogo /><Text style={s.socialText}>Google</Text></>}
-                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View>
+              <Text style={s.sectionLabel}>RAYON D'INTERVENTION</Text>
+              <View style={s.sliderWrap}>
+                <Text style={s.sliderValue}>{radius} km</Text>
+                <Slider
+                  minimumValue={1}
+                  maximumValue={15}
+                  step={1}
+                  value={radius}
+                  onValueChange={(v: number) => setRadius(v)}
+                  minimumTrackTintColor={authT.textOnDark}
+                  maximumTrackTintColor={alpha(authT.textOnDark, 0.15)}
+                  thumbTintColor={authT.textOnDark}
+                  style={{ width: "100%", height: 40 }}
+                />
+                <View style={s.sliderLabels}>
+                  <Text style={s.sliderLabelText}>1 km</Text>
+                  <Text style={s.sliderLabelText}>15 km</Text>
                 </View>
+              </View>
+            </View>
 
-                {/* Divider */}
-                <View style={s.divider}>
-                  <View style={s.dividerLine} />
-                  <Text style={s.dividerLabel}>ou</Text>
-                  <View style={s.dividerLine} />
+            <View>
+              <Text style={s.sectionLabel}>VOS MÉTIERS</Text>
+              {catsLoading ? (
+                <View style={s.centered}>
+                  <ActivityIndicator size="large" color={alpha(authT.textOnDark, 0.6)} />
                 </View>
-
-                {/* Form */}
-                <View style={s.form}>
-                  {/* Name */}
-                  <View style={s.field}>
-                    <Text style={s.fieldLabel}>Nom complet</Text>
-                    <View style={[s.inputWrap, focused === "name" && s.inputFocused]}>
-                      <View style={s.inputIcon}>
-                        <Feather name="user" size={15} color={focused === "name" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
-                      </View>
-                      <TextInput
-                        ref={nameRef}
-                        style={s.input}
-                        placeholder="Prénom et nom"
-                        placeholderTextColor="rgba(255,255,255,0.2)"
-                        autoCapitalize="words"
-                        maxLength={60}
-                        returnKeyType="next"
-                        value={name}
-                        onChangeText={setName}
-                        onFocus={() => setFocused("name")}
-                        onBlur={() => setFocused(null)}
-                        onSubmitEditing={() => emailRef.current?.focus()}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Email */}
-                  <View style={s.field}>
-                    <Text style={s.fieldLabel}>Adresse mail</Text>
-                    <View style={[s.inputWrap, focused === "email" && s.inputFocused]}>
-                      <View style={s.inputIcon}>
-                        <Feather name="mail" size={15} color={focused === "email" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
-                      </View>
-                      <TextInput
-                        ref={emailRef}
-                        style={s.input}
-                        placeholder="votre@email.com"
-                        placeholderTextColor="rgba(255,255,255,0.2)"
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                        returnKeyType="next"
-                        value={email}
-                        onChangeText={setEmail}
-                        onFocus={() => setFocused("email")}
-                        onBlur={() => setFocused(null)}
-                        onSubmitEditing={() => pwdRef.current?.focus()}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Password */}
-                  <View style={s.field}>
-                    <Text style={s.fieldLabel}>Mot de passe</Text>
-                    <View style={[s.inputWrap, focused === "password" && s.inputFocused]}>
-                      <View style={s.inputIcon}>
-                        <Feather name="lock" size={14} color={focused === "password" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)"} />
-                      </View>
-                      <TextInput
-                        ref={pwdRef}
-                        style={s.input}
-                        placeholder="Minimum 6 caractères"
-                        placeholderTextColor="rgba(255,255,255,0.2)"
-                        secureTextEntry={!showPwd}
-                        returnKeyType="done"
-                        value={password}
-                        onChangeText={setPassword}
-                        onFocus={() => setFocused("password")}
-                        onBlur={() => setFocused(null)}
-                        onSubmitEditing={isProvider ? goToZone : createAccount}
-                      />
-                      <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                        <Feather name={showPwd ? "eye-off" : "eye"} size={17} color="rgba(255,255,255,0.4)" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {password.length > 0 && <StrengthBar password={password} />}
-                </View>
-
-                {/* CGU */}
-                <View style={s.cguRow}>
-                  <Feather name="shield" size={13} color="rgba(255,255,255,0.2)" style={{ marginTop: 1 }} />
-                  <Text style={s.cguText}>
-                    En continuant, vous acceptez nos{" "}
-                    <Text style={s.cguLink}>CGU</Text> et notre{" "}
-                    <Text style={s.cguLink}>Politique de confidentialité</Text>.
-                  </Text>
-                </View>
-              </>
-            )}
-
-            {/* === ZONE PHASE (provider) === */}
-            {phase === "zone" && isProvider && (
-              <>
-                {/* City — dropdown */}
-                <View style={s.field}>
-                  <Text style={s.fieldLabel}>Ville de base</Text>
-                  <View style={s.cityDropdown}>
-                    {CITY_OPTIONS.map(opt => (
-                      <TouchableOpacity
-                        key={opt.value}
-                        style={[s.cityOption, city === opt.value && s.cityOptionActive]}
-                        onPress={() => { Haptics.selectionAsync(); setCity(opt.value); }}
-                        activeOpacity={0.7}
-                      >
-                        <Feather name="map-pin" size={15} color={city === opt.value ? C.bg : C.grey} />
-                        <Text style={[s.cityOptionText, city === opt.value && s.cityOptionTextActive]}>{opt.label}</Text>
-                        {city === opt.value && <Feather name="check-circle" size={18} color={C.bg} />}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Radius — slider */}
-                <Text style={s.sectionLabel}>Rayon d'intervention</Text>
-                <View style={s.sliderWrap}>
-                  <View style={s.sliderHeader}>
-                    <Text style={s.sliderValue}>{radius} km</Text>
-                  </View>
-                  <Slider
-                    minimumValue={1}
-                    maximumValue={15}
-                    step={1}
-                    value={radius}
-                    onValueChange={(v: number) => setRadius(v)}
-                    minimumTrackTintColor={C.white}
-                    maximumTrackTintColor="rgba(255,255,255,0.12)"
-                    thumbTintColor={C.white}
-                    style={{ width: '100%', height: 40 }}
-                  />
-                  <View style={s.sliderLabels}>
-                    <Text style={s.sliderLabelText}>1 km</Text>
-                    <Text style={s.sliderLabelText}>15 km</Text>
-                  </View>
-                </View>
-
-                {/* Categories */}
-                <Text style={[s.sectionLabel, { marginTop: 24 }]}>Vos métiers</Text>
-                {catsLoading ? (
-                  <View style={s.centered}><ActivityIndicator size="large" color={C.grey} /></View>
-                ) : catsError && categories.length === 0 ? (
-                  <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
-                    <Feather name="refresh-cw" size={24} color={C.grey} />
-                    <Text style={s.retryText}>Réessayer</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={s.catGrid}>
-                    {[...categories].sort((a, b) => a.name.localeCompare(b.name, "fr")).map(cat => {
+              ) : catsError && categories.length === 0 ? (
+                <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
+                  <Feather name="refresh-cw" size={24} color={alpha(authT.textOnDark, 0.5)} />
+                  <Text style={s.retryText}>Réessayer</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={s.catGrid}>
+                  {[...categories]
+                    .sort((a, b) => a.name.localeCompare(b.name, "fr"))
+                    .map((cat) => {
                       const sel = selectedCats.includes(cat.id);
                       return (
                         <TouchableOpacity
@@ -733,186 +654,122 @@ export default function Signup() {
                           onPress={() => toggleCat(cat.id)}
                           activeOpacity={0.7}
                         >
-                          <Feather name={toFeatherName(cat.icon, 'briefcase') as any} size={15} color={sel ? C.bg : "rgba(255,255,255,0.5)"} />
-                          <Text numberOfLines={1} style={[s.chipText, sel && s.chipTextActive]}>{cat.name}</Text>
+                          <Feather
+                            name={toFeatherName(cat.icon, "briefcase") as any}
+                            size={15}
+                            color={sel ? authT.textOnLight : alpha(authT.textOnDark, 0.55)}
+                          />
+                          <Text numberOfLines={1} style={[s.chipText, sel && s.chipTextActive]}>
+                            {cat.name}
+                          </Text>
                         </TouchableOpacity>
                       );
                     })}
-                  </View>
-                )}
-                {selectedCats.length > 0 && (
-                  <Text style={s.catCount}>
-                    {selectedCats.length} service{selectedCats.length > 1 ? "s" : ""} sélectionné{selectedCats.length > 1 ? "s" : ""}
-                  </Text>
-                )}
-              </>
-            )}
-          </ScrollView>
-        </Animated.View>
-        </KeyboardAvoidingView>
+                </View>
+              )}
+              {selectedCats.length > 0 && (
+                <Text style={s.catCount}>
+                  {selectedCats.length} service{selectedCats.length > 1 ? "s" : ""} sélectionné
+                  {selectedCats.length > 1 ? "s" : ""}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
 
-        {/* Actions */}
-        <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
-          <TouchableOpacity
-            style={[s.btnPrimary, phase === "identity" && !canIdentity && { opacity: 0.4 }, phase === "zone" && !canZone && { opacity: 0.4 }]}
+        <View style={s.spacer} />
+
+        <AuthCTA
+          label={phase === "identity" && isProvider ? "CONTINUER" : "CRÉER MON COMPTE"}
+          onPress={() => {
+            if (phase === "identity" && isProvider) goToZone();
+            else createAccount();
+          }}
+          disabled={
+            (phase === "identity" && !canIdentity) ||
+            (phase === "zone" && !canZone)
+          }
+        />
+
+        {phase === "identity" && (
+          <AuthLink
+            prefix="Déjà un compte ?"
+            action="Se connecter"
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              if (phase === "identity" && isProvider) goToZone();
-              else createAccount();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(auth)/login");
             }}
-            activeOpacity={0.9}
-          >
-            <Text style={s.btnPrimaryText}>
-              {phase === "identity" && isProvider ? "CONTINUER" : "CRÉER MON COMPTE"}
-            </Text>
-            <View style={s.arrowPill}>
-              <Feather name="arrow-right" size={14} color={C.white} />
-            </View>
-          </TouchableOpacity>
-
-          {phase === "identity" && (
-            <View style={s.loginRow}>
-              <Text style={s.loginLabel}>Déjà un compte ?</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/(auth)/login");
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={s.loginLink}>Se connecter</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </Animated.View>
-      </View>
-    </View>
+          />
+        )}
+      </Animated.View>
+    </AuthScreen>
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
+// ── Styles ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: {
+  flex: { flex: 1 },
+
+  creatingRoot: {
     flex: 1,
-    backgroundColor: C.bg,
+    backgroundColor: authT.dark,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 14,
+  },
+  creatingText: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 14,
+    color: authT.textOnDark,
+    marginTop: 8,
+  },
+  creatingSub: {
+    fontFamily: FONTS.sans,
+    fontSize: 12,
+    color: alpha(authT.textOnDark, 0.55),
   },
 
-  // Background glow
-  glowWrap: {
-    position: "absolute",
-    top: -80,
-    left: (SCREEN_W - 420) / 2,
-    width: 420,
-    height: 420,
-  },
-  glowGradient: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 210,
-  },
-
-  // Header
-  header: {
-    paddingTop: 50, // fallback; overridden inline with insets.top + 12
-    paddingHorizontal: 28,
-    zIndex: 2,
-  },
-  navRow: {
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 28,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
+    marginTop: 2,
+    marginBottom: 16,
   },
   stepIndicator: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  stepBar: {
-    height: 2,
-    borderRadius: 2,
-  },
-  stepBarActive: {
-    width: 36,
-    backgroundColor: C.white,
-  },
-  stepBarInactive: {
-    width: 20,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
+  stepBar: { height: 2, borderRadius: 2 },
+  stepBarActive: { width: 36, backgroundColor: authT.textOnDark },
+  stepBarInactive: { width: 20, backgroundColor: alpha(authT.textOnDark, 0.15) },
   stepLabel: {
-    fontFamily: FONTS.sans,
+    fontFamily: FONTS.mono,
     fontSize: 10,
     letterSpacing: 2,
-    color: "rgba(255,255,255,0.25)",
+    color: alpha(authT.textOnDark, 0.3),
     marginLeft: 4,
   },
-  stepLabelBold: {
-    color: "rgba(255,255,255,0.5)",
-  },
+  stepLabelBold: { color: alpha(authT.textOnDark, 0.6) },
 
-  // Title
-  titleBlock: {
-    paddingLeft: 4,
-  },
-  logoEyebrow: {
-    fontFamily: FONTS.sans,
-    fontSize: 11,
-    letterSpacing: 3,
-    color: C.grey,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  logoWordmark: {
-    fontFamily: FONTS.bebas,
-    fontSize: 48,
-    color: C.white,
-    letterSpacing: 2,
-    lineHeight: 50,
-    marginBottom: 8,
-  },
-  logoWordmarkOutline: {
-    color: C.outlineText,
-  },
-  titleSub: {
-    fontFamily: FONTS.sansLight,
-    fontSize: 13,
-    color: C.grey,
-  },
-
-  // Body
-  bodyWrapper: {
-    flex: 1,
-    zIndex: 2,
-  },
-  bodyScroll: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 12,
+  body: {
+    paddingTop: 14,
+    gap: 12,
   },
 
   // Social
   socialRow: {
     flexDirection: "row",
     gap: 10,
-    marginBottom: 20,
   },
   socialBtn: {
     flex: 1,
-    height: 52,
-    backgroundColor: C.cardBg,
+    height: 46,
+    backgroundColor: alpha(authT.dark, 0.85),
     borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 16,
+    borderColor: alpha(authT.textOnDark, 0.16),
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -921,169 +778,128 @@ const s = StyleSheet.create({
   socialText: {
     fontFamily: FONTS.sansMedium,
     fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
+    color: alpha(authT.textOnDark, 0.85),
     letterSpacing: 0.2,
   },
-
-  // Divider
   divider: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    marginBottom: 20,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: C.border,
+    backgroundColor: alpha(authT.textOnLight, 0.18),
   },
   dividerLabel: {
-    fontFamily: FONTS.sans,
-    fontSize: 11,
-    color: "rgba(255,255,255,0.18)",
+    fontFamily: FONTS.mono,
+    fontSize: 10,
+    color: alpha(authT.textOnLight, 0.55),
     letterSpacing: 2,
   },
 
-  // Form
   form: {
-    gap: 12,
-  },
-  field: {
-    gap: 7,
-  },
-  fieldLabel: {
-    fontFamily: FONTS.sans,
-    fontSize: 10,
-    letterSpacing: 3,
-    textTransform: "uppercase",
-    color: C.outlineText,
-    paddingLeft: 2,
-  },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 54,
-    backgroundColor: C.inputBg,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 16,
-  },
-  inputFocused: {
-    borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: darkTokens.surface,
-  },
-  inputIcon: {
-    position: "absolute",
-    left: 16,
-    zIndex: 1,
-  },
-  input: {
-    flex: 1,
-    height: "100%",
-    paddingLeft: 48,
-    paddingRight: 48,
-    fontFamily: FONTS.sansLight,
-    fontSize: 14,
-    color: C.white,
-  },
-  inputEnd: {
-    position: "absolute",
-    right: 16,
-    padding: 4,
+    gap: 10,
   },
 
   // CGU
   cguRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
-    marginTop: 16,
+    gap: 8,
+    paddingTop: 2,
   },
   cguText: {
     flex: 1,
-    fontFamily: FONTS.sansLight,
+    fontFamily: FONTS.sans,
     fontSize: 11,
-    lineHeight: 18,
-    color: "rgba(255,255,255,0.25)",
+    lineHeight: 16,
+    color: alpha(authT.textOnLight, 0.5),
   },
   cguLink: {
-    color: "rgba(255,255,255,0.45)",
+    color: authT.textOnLight,
     textDecorationLine: "underline",
-    textDecorationColor: "rgba(255,255,255,0.2)",
   },
 
-  // Zone phase
+  // Zone — section labels (sit in light/transition zone)
   sectionLabel: {
-    fontFamily: FONTS.sansMedium,
-    fontSize: 12,
-    letterSpacing: 0.5,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 12,
-    marginTop: 8,
+    fontFamily: FONTS.mono,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: alpha(authT.textOnLight, 0.55),
+    marginBottom: 10,
   },
-  cityDropdown: { gap: 8 },
-  cityOption: {
-    flexDirection: "row" as const, alignItems: "center" as const, gap: 10,
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
-  },
-  cityOptionActive: { backgroundColor: C.white, borderColor: C.white },
-  cityOptionText: { flex: 1, fontFamily: FONTS.sansMedium, fontSize: 15, color: C.white },
-  cityOptionTextActive: { color: C.bg },
-  sliderWrap: {
-    backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, padding: 16,
-  },
-  sliderHeader: { alignItems: "center" as const, marginBottom: 4 },
-  sliderValue: { fontFamily: FONTS.bebas, fontSize: 28, color: C.white, letterSpacing: 1 },
-  sliderLabels: { flexDirection: "row" as const, justifyContent: "space-between" as const },
-  sliderLabelText: { fontFamily: FONTS.sans, fontSize: 11, color: C.grey },
-  radiusGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+
+  // City
+  cityDropdown: {
     gap: 8,
   },
-  radiusCard: {
-    width: "30%" as any,
-    flexGrow: 1,
-    backgroundColor: C.cardBg,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
+  cityOption: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: alpha(authT.dark, 0.7),
+    borderWidth: 1,
+    borderColor: alpha(authT.textOnDark, 0.16),
+    borderRadius: 14,
   },
-  radiusCardActive: {
-    backgroundColor: C.white,
-    borderColor: C.white,
+  cityOptionActive: {
+    backgroundColor: authT.textOnDark,
+    borderColor: authT.textOnDark,
   },
-  radiusLabel: {
+  cityOptionText: {
+    flex: 1,
     fontFamily: FONTS.sansMedium,
-    fontSize: 15,
-    color: C.white,
+    fontSize: 14,
+    color: alpha(authT.textOnDark, 0.85),
   },
-  radiusLabelActive: {
-    color: C.bg,
+  cityOptionTextActive: {
+    color: authT.textOnLight,
   },
-  radiusHint: {
-    fontFamily: FONTS.sans,
+
+  // Slider
+  sliderWrap: {
+    backgroundColor: alpha(authT.dark, 0.7),
+    borderWidth: 1,
+    borderColor: alpha(authT.textOnDark, 0.16),
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  sliderValue: {
+    fontFamily: FONTS.bebas,
+    fontSize: 28,
+    color: authT.textOnDark,
+    letterSpacing: 1.5,
+  },
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: -4,
+  },
+  sliderLabelText: {
+    fontFamily: FONTS.mono,
     fontSize: 10,
-    color: C.grey,
-    marginTop: 2,
-  },
-  radiusHintActive: {
-    color: "rgba(10,10,10,0.6)",
+    color: alpha(authT.textOnDark, 0.45),
+    letterSpacing: 1,
   },
 
-  centered: { paddingVertical: 40, alignItems: "center" },
+  // Categories
+  centered: {
+    minHeight: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
   retryText: {
-    fontFamily: FONTS.sans,
-    fontSize: 13,
-    color: C.grey,
-    marginTop: 8,
+    fontFamily: FONTS.sansMedium,
+    fontSize: 12,
+    color: alpha(authT.textOnDark, 0.55),
+    textDecorationLine: "underline",
   },
-
   catGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1092,106 +908,37 @@ const s = StyleSheet.create({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    width: "48%" as any,
-    flexGrow: 1,
-    height: 48,
+    gap: 6,
+    height: 44,
     paddingHorizontal: 14,
-    backgroundColor: C.cardBg,
+    backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
+    borderColor: alpha(authT.textOnDark, 0.16),
+    borderRadius: 100,
+    minWidth: "47%",
+    flexGrow: 1,
   },
   chipActive: {
-    backgroundColor: C.white,
-    borderColor: C.white,
+    backgroundColor: authT.textOnDark,
+    borderColor: authT.textOnDark,
   },
   chipText: {
+    flex: 1,
     fontFamily: FONTS.sansMedium,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
-    flexShrink: 1,
+    fontSize: 12,
+    color: alpha(authT.textOnDark, 0.9),
+    letterSpacing: 0.2,
   },
   chipTextActive: {
-    color: C.bg,
+    color: authT.textOnLight,
   },
   catCount: {
-    fontFamily: FONTS.sans,
-    fontSize: 13,
-    color: C.grey,
-    textAlign: "center",
-    marginTop: 12,
+    fontFamily: FONTS.mono,
+    fontSize: 10,
+    color: alpha(authT.textOnLight, 0.6),
+    letterSpacing: 1,
+    marginTop: 8,
   },
 
-  // Actions
-  actions: {
-    paddingHorizontal: 28,
-    paddingTop: 16,
-    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
-    gap: 14,
-    zIndex: 2,
-  },
-  btnPrimary: {
-    width: "100%",
-    height: 60,
-    backgroundColor: C.white,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  btnPrimaryText: {
-    fontFamily: FONTS.bebas,
-    fontSize: 20,
-    letterSpacing: 3,
-    color: C.bg,
-  },
-  arrowPill: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: C.bg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Login link
-  loginRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  loginLabel: {
-    fontFamily: FONTS.sansLight,
-    fontSize: 13,
-    color: C.outlineText,
-  },
-  loginLink: {
-    fontFamily: FONTS.sansMedium,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
-    textDecorationLine: "underline",
-    textDecorationColor: "rgba(255,255,255,0.2)",
-  },
-
-  // Creating
-  creatingWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  creatingText: {
-    fontFamily: FONTS.sansMedium,
-    fontSize: 18,
-    color: C.white,
-  },
-  creatingSubtext: {
-    fontFamily: FONTS.sansLight,
-    fontSize: 14,
-    color: C.grey,
-  },
+  spacer: { flex: 1, minHeight: 24 },
 });

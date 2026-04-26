@@ -1,12 +1,17 @@
-// app/(auth)/login.tsx — FIXED Premium Login (dark design)
-import React, { useState, useRef, useEffect, useCallback } from "react";
+// app/(auth)/login.tsx — login (inverted gradient)
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, KeyboardAvoidingView, ScrollView, Platform,
-  Easing, StatusBar,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Easing,
+  Platform,
+  StatusBar,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Line, Path, G, Defs, ClipPath, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -17,60 +22,32 @@ import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import {
+  AuthScreen,
+  AuthHeadline,
+  AuthCTA,
+  AuthBackButton,
+  AuthInput,
+  AuthLink,
+  authT,
+  alpha,
+} from "@/components/auth";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-const GRID_SIZE = 40;
-
-// ── Colors (dark-only) — sourced from theme tokens so charter updates propagate ────────────
-const C = {
-  bg:          darkTokens.bg,
-  white:       darkTokens.text,
-  grey:        darkTokens.textMuted,
-  greyFaint:   "rgba(255,255,255,0.2)",
-  border:      "rgba(255,255,255,0.08)",
-  cardBg:      darkTokens.cardBg,
-  inputBg:     darkTokens.cardBg,
-  green:       COLORS.greenBrand,
-  outlineText: "rgba(255,255,255,0.3)",
-};
-
-// ── Grid background ─────────────────────────────────────────────────────────
-function GridLines() {
-  const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
-  const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
-  const stroke = "rgba(255,255,255,0.025)";
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
-        {Array.from({ length: cols }, (_, i) => (
-          <Line key={`v${i}`} x1={i * GRID_SIZE} y1={0} x2={i * GRID_SIZE} y2={SCREEN_H} stroke={stroke} strokeWidth={1} />
-        ))}
-        {Array.from({ length: rows }, (_, i) => (
-          <Line key={`h${i}`} x1={0} y1={i * GRID_SIZE} x2={SCREEN_W} y2={i * GRID_SIZE} stroke={stroke} strokeWidth={1} />
-        ))}
-      </Svg>
-      <LinearGradient
-        colors={["transparent", "transparent", C.bg]}
-        locations={[0, 0.35, 0.75]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
-    </View>
-  );
-}
-
-// ── SVG Icons ───────────────────────────────────────────────────────────────
+// ── SVG Logos ───────────────────────────────────────────────────────────────
 function AppleLogo({ size = 15 }: { size?: number }) {
   return (
     <Svg width={size} height={size * 1.2} viewBox="0 0 15 18" fill="none">
-      <Path d="M12.4 9.6C12.4 7.8 13.5 6.7 13.5 6.7C12.5 5.3 11 5.2 10.4 5.2C9.1 5.1 7.9 6 7.2 6C6.5 6 5.5 5.2 4.4 5.2C2.8 5.3 1 6.4 1 9.1C1 10.9 1.7 12.8 2.6 14C3.3 15 4 15.8 5 15.8C5.9 15.8 6.3 15.2 7.5 15.2C8.7 15.2 9 15.8 10 15.8C11 15.8 11.7 14.9 12.4 13.9C13 13.1 13.3 12.2 13.3 12.1C13.3 12.1 12.4 11.8 12.4 9.6Z" fill="rgba(255,255,255,0.75)" />
-      <Path d="M9.5 3.5C10.1 2.8 10.5 1.8 10.4 0.8C9.5 0.9 8.4 1.4 7.8 2.2C7.2 2.9 6.7 3.9 6.9 4.9C7.9 4.9 8.9 4.3 9.5 3.5Z" fill="rgba(255,255,255,0.75)" />
+      <Path
+        d="M12.4 9.6C12.4 7.8 13.5 6.7 13.5 6.7C12.5 5.3 11 5.2 10.4 5.2C9.1 5.1 7.9 6 7.2 6C6.5 6 5.5 5.2 4.4 5.2C2.8 5.3 1 6.4 1 9.1C1 10.9 1.7 12.8 2.6 14C3.3 15 4 15.8 5 15.8C5.9 15.8 6.3 15.2 7.5 15.2C8.7 15.2 9 15.8 10 15.8C11 15.8 11.7 14.9 12.4 13.9C13 13.1 13.3 12.2 13.3 12.1C13.3 12.1 12.4 11.8 12.4 9.6Z"
+        fill={alpha(authT.textOnDark, 0.85)}
+      />
+      <Path
+        d="M9.5 3.5C10.1 2.8 10.5 1.8 10.4 0.8C9.5 0.9 8.4 1.4 7.8 2.2C7.2 2.9 6.7 3.9 6.9 4.9C7.9 4.9 8.9 4.3 9.5 3.5Z"
+        fill={alpha(authT.textOnDark, 0.85)}
+      />
     </Svg>
   );
 }
@@ -88,7 +65,11 @@ function GoogleLogo({ size = 17 }: { size?: number }) {
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = "error" | "success" | "info";
-interface ToastMsg { id: number; type: ToastType; message: string }
+interface ToastMsg {
+  id: number;
+  type: ToastType;
+  message: string;
+}
 
 function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
   const ty = useRef(new Animated.Value(-72)).current;
@@ -107,7 +88,7 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
     return () => clearTimeout(t);
   }, []);
   const icon = msg.type === "error" ? "x-circle" : msg.type === "success" ? "check-circle" : "info";
-  const color = msg.type === "error" ? COLORS.red : msg.type === "success" ? C.green : C.white;
+  const color = msg.type === "error" ? COLORS.red : msg.type === "success" ? COLORS.greenBrand : authT.textOnDark;
   return (
     <Animated.View style={[ts.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
       <Feather name={icon as any} size={16} color={color} />
@@ -119,24 +100,41 @@ function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
 const ts = StyleSheet.create({
   layer: {
     position: "absolute",
-    top: 56, // fallback; overridden inline with insets.top
-    left: 20, right: 20, zIndex: 9999, gap: 8,
+    left: 20,
+    right: 20,
+    zIndex: 9999,
+    gap: 8,
   },
   pill: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: C.cardBg,
-    borderWidth: 1, borderColor: C.border, borderRadius: 14,
-    paddingHorizontal: 18, paddingVertical: 13, gap: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: alpha(authT.dark, 0.95),
+    borderWidth: 1,
+    borderColor: alpha(authT.textOnDark, 0.12),
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    gap: 10,
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
       android: { elevation: 10 },
     }),
   },
-  text: { fontFamily: FONTS.sansMedium, fontSize: 14, color: C.white, flex: 1 },
+  text: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 14,
+    color: authT.textOnDark,
+    flex: 1,
+  },
 });
 
 // ── Spinner ─────────────────────────────────────────────────────────────────
-function Spinner({ color = C.bg }: { color?: string }) {
+function Spinner({ color = authT.textOnDark }: { color?: string }) {
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const a = Animated.loop(
@@ -148,17 +146,25 @@ function Spinner({ color = C.bg }: { color?: string }) {
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   return (
     <Animated.View style={{ transform: [{ rotate }] }}>
-      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2.5, borderColor: color, borderTopColor: "transparent" }} />
+      <View
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 10,
+          borderWidth: 2.5,
+          borderColor: color,
+          borderTopColor: "transparent",
+        }}
+      />
     </Animated.View>
   );
 }
 
-// ── LOGIN ───────────────────────────────────────────────────────────────────
+// ── Login screen ────────────────────────────────────────────────────────────
 export default function Login() {
   const router = useRouter();
   const { signIn, isBooting, refreshMe } = useAuth();
   const { t } = useTranslation();
-  const theme = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
@@ -166,17 +172,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
   const [showPwd, setShowPwd] = useState(false);
-  const [focused, setFocused] = useState<"email" | "password" | null>(null);
   const [msgs, setMsgs] = useState<ToastMsg[]>([]);
   const counter = useRef(0);
   const pwdRef = useRef<TextInput>(null);
 
   const showToast = useCallback((message: string, type: ToastType = "error") => {
     const id = ++counter.current;
-    setMsgs(p => [...p, { id, type, message }]);
+    setMsgs((p) => [...p, { id, type, message }]);
   }, []);
 
-  // ── Google Auth ──
+  // Google Auth
   const googleRedirectUri = "https://auth.expo.io/@eneselmatili/fixed-app";
   const googleDiscovery = {
     authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
@@ -215,25 +220,17 @@ export default function Login() {
       const res = await api.auth.google(accessToken);
       if (!res?.token) throw new Error();
       await signIn(res.token);
-      // Force refreshMe to resolve before navigating
       await refreshMe();
-      if (res.roles && res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      if (!res.roles || res.roles.length === 0) router.replace("/(auth)/role-select");
+      else router.replace("/(tabs)/dashboard");
     } catch (e: any) {
-      if (e?.status === 409) {
-        showToast(e.data?.error || e.message);
-      } else {
-        showToast("Connexion impossible, réessaie");
-      }
+      if (e?.status === 409) showToast(e.data?.error || e.message);
+      else showToast("Connexion impossible, réessaie");
     } finally {
       setSocialLoading(null);
     }
   };
 
-  // ── Apple Auth ──
   const handleAppleSignIn = async () => {
     setSocialLoading("apple");
     try {
@@ -246,24 +243,23 @@ export default function Login() {
 
       const res = await api.auth.apple(
         credential.identityToken!,
-        credential.fullName ? {
-          givenName: credential.fullName.givenName ?? undefined,
-          familyName: credential.fullName.familyName ?? undefined,
-        } : undefined,
+        credential.fullName
+          ? {
+              givenName: credential.fullName.givenName ?? undefined,
+              familyName: credential.fullName.familyName ?? undefined,
+            }
+          : undefined,
         credential.email ?? undefined
       );
 
       if (!res?.token) throw new Error();
       await signIn(res.token);
       await refreshMe();
-      if (res.roles && res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      if (!res.roles || res.roles.length === 0) router.replace("/(auth)/role-select");
+      else router.replace("/(tabs)/dashboard");
     } catch (e: any) {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
-        // Silent
+        // silent cancel
       } else if (e?.status === 409) {
         showToast(e.data?.error || e.message);
       } else {
@@ -274,55 +270,22 @@ export default function Login() {
     }
   };
 
-  // ── Entrance animations ──
-  const ease = Easing.bezier(0.16, 1, 0.3, 1);
-  const headerOp = useRef(new Animated.Value(0)).current;
-  const headerTy = useRef(new Animated.Value(-12)).current;
-  const bodyOp = useRef(new Animated.Value(0)).current;
-  const bodyTy = useRef(new Animated.Value(14)).current;
-  const actionsOp = useRef(new Animated.Value(0)).current;
-  const actionsTy = useRef(new Animated.Value(14)).current;
-
+  // Entrance
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(16)).current;
   useEffect(() => {
-    Animated.stagger(100, [
-      Animated.parallel([
-        Animated.timing(headerOp, { toValue: 1, duration: 500, easing: ease, useNativeDriver: true }),
-        Animated.timing(headerTy, { toValue: 0, duration: 500, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(bodyOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(bodyTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(actionsOp, { toValue: 1, duration: 600, easing: ease, useNativeDriver: true }),
-        Animated.timing(actionsTy, { toValue: 0, duration: 600, easing: ease, useNativeDriver: true }),
-      ]),
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-  }, []);
-
-  // ── Glow animation ──
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOp = useRef(new Animated.Value(0.5)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-  }, []);
+  }, [fade, slide]);
 
   const onSubmit = async () => {
     if (!email.trim() || !password) {
-      showToast(t('auth.fill_all_fields'));
+      showToast(t("auth.fill_all_fields"));
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
       const res = await api.auth.login(email.trim().toLowerCase(), password);
@@ -330,7 +293,7 @@ export default function Login() {
       if (!token) throw new Error();
       await signIn(token);
     } catch {
-      showToast(t('auth.invalid_credentials'));
+      showToast(t("auth.invalid_credentials"));
     } finally {
       setLoading(false);
     }
@@ -338,271 +301,150 @@ export default function Login() {
 
   const isBusy = loading || !!socialLoading;
 
-  if (isBooting) return (
-    <View style={{ flex: 1, backgroundColor: theme.bg, justifyContent: "center", alignItems: "center" }}>
-      <StatusBar barStyle={theme.statusBar} />
-      <Spinner color={theme.text} />
-    </View>
-  );
+  if (isBooting) {
+    return (
+      <View style={{ flex: 1, backgroundColor: authT.dark, justifyContent: "center", alignItems: "center" }}>
+        <StatusBar barStyle="light-content" />
+        <Spinner color={authT.textOnDark} />
+      </View>
+    );
+  }
+
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (router.canGoBack()) router.back();
+    else router.replace("/(auth)/welcome");
+  };
 
   return (
-    <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
-
-      {/* Grid + glow background */}
-      <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
-        <LinearGradient
-          colors={["rgba(255,255,255,0.025)", "transparent"]}
-          style={s.glowGradient}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-      </Animated.View>
-
-      {/* Toast layer */}
-      <View style={[ts.layer, { top: insets.top }]} pointerEvents="none">
-        {msgs.map(m => (
-          <Toast key={m.id} msg={m} onDone={() => setMsgs(p => p.filter(x => x.id !== m.id))} />
+    <AuthScreen variant="inverted" scrollable>
+      {/* Toast layer (above gradient, inside safe area) */}
+      <View style={[ts.layer, { top: insets.top + 8 }]} pointerEvents="none">
+        {msgs.map((m) => (
+          <Toast key={m.id} msg={m} onDone={() => setMsgs((p) => p.filter((x) => x.id !== m.id))} />
         ))}
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-        {/* Header */}
-        <Animated.View style={[s.header, { paddingTop: insets.top + 12, opacity: headerOp, transform: [{ translateY: headerTy }] }]}>
-          <TouchableOpacity
-            style={[s.backBtn, { borderColor: theme.borderLight }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.canGoBack() ? router.back() : router.replace("/(auth)/welcome");
-            }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            activeOpacity={0.7}
-          >
-            <Feather name="chevron-left" size={16} color={theme.textMuted} />
-          </TouchableOpacity>
+      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+        <View style={s.topRow}>
+          <AuthBackButton onPress={handleBack} />
+        </View>
 
-          <Text style={[s.logoWordmark, { color: theme.text }]}>CONNEXION</Text>
-        </Animated.View>
+        <AuthHeadline title="CONNEXION" align="left" />
 
-        {/* Body */}
-        <Animated.View style={[s.body, { opacity: bodyOp, transform: [{ translateY: bodyTy }] }]}>
+        <View style={s.body}>
           {/* Social buttons */}
           <View style={s.socialRow}>
             <TouchableOpacity
-              style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+              style={s.socialBtn}
               onPress={handleAppleSignIn}
               disabled={isBusy}
               activeOpacity={0.7}
             >
-              {socialLoading === "apple"
-                ? <Spinner color={theme.text} />
-                : <>
-                    <AppleLogo />
-                    <Text style={[s.socialText, { color: theme.textSub }]}>Apple</Text>
-                  </>
-              }
+              {socialLoading === "apple" ? (
+                <Spinner color={authT.textOnDark} />
+              ) : (
+                <>
+                  <AppleLogo />
+                  <Text style={s.socialText}>Apple</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+              style={s.socialBtn}
               onPress={() => googlePromptAsync()}
               disabled={isBusy || !googleRequest}
               activeOpacity={0.7}
             >
-              {socialLoading === "google"
-                ? <Spinner color={theme.text} />
-                : <>
-                    <GoogleLogo />
-                    <Text style={[s.socialText, { color: theme.textSub }]}>Google</Text>
-                  </>
-              }
+              {socialLoading === "google" ? (
+                <Spinner color={authT.textOnDark} />
+              ) : (
+                <>
+                  <GoogleLogo />
+                  <Text style={s.socialText}>Google</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
           {/* Divider */}
           <View style={s.divider}>
-            <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
-            <Text style={[s.dividerLabel, { color: theme.textMuted }]}>ou</Text>
-            <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
+            <View style={s.dividerLine} />
+            <Text style={s.dividerLabel}>OU</Text>
+            <View style={s.dividerLine} />
           </View>
 
           {/* Form */}
           <View style={s.form}>
-            {/* Email */}
-            <View style={s.field}>
-              <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Email</Text>
-              <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "email" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
-                <View style={s.inputIcon}>
-                  <Feather name="mail" size={15} color={focused === "email" ? theme.textSub : theme.textMuted} />
-                </View>
-                <TextInput
-                  style={[s.input, { color: theme.text }]}
-                  placeholder="votre@email.com"
-                  placeholderTextColor={theme.textMuted}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  returnKeyType="next"
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocused("email")}
-                  onBlur={() => setFocused(null)}
-                  onSubmitEditing={() => pwdRef.current?.focus()}
-                />
-              </View>
-            </View>
+            <AuthInput
+              label="Email"
+              icon="mail"
+              placeholder="votre@email.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              returnKeyType="next"
+              value={email}
+              onChangeText={setEmail}
+              onSubmitEditing={() => pwdRef.current?.focus()}
+            />
 
-            {/* Password */}
-            <View style={s.field}>
-              <Text style={[s.fieldLabel, { color: theme.textMuted }]}>Mot de passe</Text>
-              <View style={[s.inputWrap, { backgroundColor: theme.surface, borderColor: theme.borderLight }, focused === "password" && { borderColor: theme.textMuted, backgroundColor: theme.surfaceAlt }]}>
-                <View style={s.inputIcon}>
-                  <Feather name="lock" size={14} color={focused === "password" ? theme.textSub : theme.textMuted} />
-                </View>
-                <TextInput
-                  ref={pwdRef}
-                  style={[s.input, { color: theme.text }]}
-                  placeholder="••••••••"
-                  placeholderTextColor={theme.textMuted}
-                  secureTextEntry={!showPwd}
-                  returnKeyType="done"
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocused("password")}
-                  onBlur={() => setFocused(null)}
-                  onSubmitEditing={onSubmit}
-                />
-                <TouchableOpacity onPress={() => setShowPwd(p => !p)} style={s.inputEnd} activeOpacity={0.6}>
-                  <Feather name={showPwd ? "eye-off" : "eye"} size={17} color={theme.textMuted} />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <AuthInput
+              inputRef={pwdRef}
+              label="Mot de passe"
+              icon="lock"
+              placeholder="••••••••"
+              secureTextEntry={!showPwd}
+              trailingIcon={showPwd ? "eye-off" : "eye"}
+              onTrailingPress={() => setShowPwd((p) => !p)}
+              returnKeyType="done"
+              value={password}
+              onChangeText={setPassword}
+              onSubmitEditing={onSubmit}
+            />
 
-            {/* Forgot password */}
             <View style={s.forgotRow}>
               <TouchableOpacity activeOpacity={0.6} onPress={() => router.push("/(auth)/forgot-password")}>
-                <Text style={[s.forgotLink, { color: theme.textMuted }]}>Mot de passe oublié ?</Text>
+                <Text style={s.forgotLink}>Mot de passe oublié ?</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </Animated.View>
+        </View>
 
-        {/* Actions */}
-        <Animated.View style={[s.actions, { paddingBottom: insets.bottom + 16, opacity: actionsOp, transform: [{ translateY: actionsTy }] }]}>
-          <TouchableOpacity
-            style={[s.btnPrimary, { backgroundColor: theme.accent }, isBusy && { opacity: 0.55 }]}
+        <View style={s.spacer} />
 
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onSubmit();
-            }}
-            disabled={isBusy}
-            activeOpacity={0.9}
-          >
-            {loading
-              ? <Spinner color={theme.accentText} />
-              : <>
-                  <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>SE CONNECTER</Text>
-                  <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
-                    <Feather name="arrow-right" size={14} color={theme.text} />
-                  </View>
-                </>
-            }
-          </TouchableOpacity>
+        <AuthCTA
+          label="SE CONNECTER"
+          onPress={onSubmit}
+          loading={loading}
+          disabled={isBusy}
+        />
 
-          <View style={s.registerRow}>
-            <Text style={[s.registerLabel, { color: theme.textMuted }]}>Pas encore de compte ?</Text>
-            <TouchableOpacity
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/(auth)/role-select");
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.registerLink, { color: theme.textSub }]}>Créer un compte</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+        <AuthLink
+          prefix="Pas encore de compte ?"
+          action="Créer un compte"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/(auth)/role-select");
+          }}
+        />
+      </Animated.View>
+    </AuthScreen>
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-
-  // Background glow
-  glowWrap: {
-    position: "absolute",
-    top: -80,
-    left: (SCREEN_W - 420) / 2,
-    width: 420,
-    height: 420,
-  },
-  glowGradient: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 210,
-  },
-
-  // Header
-  header: {
-    paddingTop: 50, // fallback; overridden inline with insets.top + 12
-    paddingHorizontal: 32,
-    zIndex: 2,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.border,
+  flex: { flex: 1 },
+  topRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 28,
+    marginTop: 4,
+    marginBottom: 24,
   },
-  logoEyebrow: {
-    fontFamily: FONTS.sans,
-    fontSize: 11,
-    fontWeight: "400",
-    letterSpacing: 3,
-    color: C.grey,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  logoWordmark: {
-    fontFamily: FONTS.bebas,
-    fontSize: 52,
-    color: C.white,
-    letterSpacing: 3,
-    lineHeight: 56,
-  },
-
-  // Body
   body: {
-    flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingTop: 32,
-    gap: 20,
-    zIndex: 2,
+    paddingTop: 24,
+    gap: 18,
   },
-
-  // Social buttons
   socialRow: {
     flexDirection: "row",
     gap: 10,
@@ -610,9 +452,9 @@ const s = StyleSheet.create({
   socialBtn: {
     flex: 1,
     height: 52,
-    backgroundColor: C.cardBg,
+    backgroundColor: alpha(authT.dark, 0.85),
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: alpha(authT.textOnDark, 0.16),
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -622,11 +464,9 @@ const s = StyleSheet.create({
   socialText: {
     fontFamily: FONTS.sansMedium,
     fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
+    color: alpha(authT.textOnDark, 0.85),
     letterSpacing: 0.2,
   },
-
-  // Divider
   divider: {
     flexDirection: "row",
     alignItems: "center",
@@ -635,128 +475,27 @@ const s = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: C.border,
+    backgroundColor: alpha(authT.textOnLight, 0.18),
   },
   dividerLabel: {
-    fontFamily: FONTS.sans,
-    fontSize: 11,
-    color: "rgba(255,255,255,0.18)",
+    fontFamily: FONTS.mono,
+    fontSize: 10,
+    color: alpha(authT.textOnLight, 0.55),
     letterSpacing: 2,
   },
-
-  // Form
   form: {
-    gap: 14,
-  },
-  field: {
-    gap: 7,
-  },
-  fieldLabel: {
-    fontFamily: FONTS.sans,
-    fontSize: 10,
-    fontWeight: "400",
-    letterSpacing: 3,
-    textTransform: "uppercase",
-    color: C.outlineText,
-    paddingLeft: 2,
-  },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 54,
-    backgroundColor: C.inputBg,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 16,
-  },
-  inputFocused: {
-    borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: darkTokens.surface,
-  },
-  inputIcon: {
-    position: "absolute",
-    left: 16,
-    zIndex: 1,
-  },
-  input: {
-    flex: 1,
-    height: "100%",
-    paddingLeft: 48,
-    paddingRight: 48,
-    fontFamily: FONTS.sansLight,
-    fontSize: 14,
-    color: C.white,
-  },
-  inputEnd: {
-    position: "absolute",
-    right: 16,
-    padding: 4,
-  },
-
-  // Forgot password
-  forgotRow: {
-    alignItems: "flex-end",
-    marginTop: -4,
-  },
-  forgotLink: {
-    fontFamily: FONTS.sansLight,
-    fontSize: 12,
-    color: C.outlineText,
-    textDecorationLine: "underline",
-    textDecorationColor: "rgba(255,255,255,0.12)",
-  },
-
-  // Actions
-  actions: {
-    paddingHorizontal: 28,
-    paddingBottom: 32, // fallback; overridden inline with insets.bottom + 16
-    gap: 14,
-    zIndex: 2,
-  },
-
-  // Primary button
-  btnPrimary: {
-    width: "100%",
-    height: 60,
-    backgroundColor: C.white,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     gap: 12,
   },
-  btnPrimaryText: {
-    fontFamily: FONTS.bebas,
-    fontSize: 20,
-    letterSpacing: 3,
-    color: C.bg,
+  forgotRow: {
+    alignItems: "flex-end",
+    marginTop: -2,
   },
-  arrowPill: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: C.bg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Register link
-  registerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  registerLabel: {
-    fontFamily: FONTS.sansLight,
-    fontSize: 13,
-    color: C.outlineText,
-  },
-  registerLink: {
-    fontFamily: FONTS.sansMedium,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
+  forgotLink: {
+    fontFamily: FONTS.sans,
+    fontSize: 12,
+    color: alpha(authT.textOnLight, 0.55),
     textDecorationLine: "underline",
-    textDecorationColor: "rgba(255,255,255,0.2)",
+    textDecorationColor: alpha(authT.textOnLight, 0.18),
   },
+  spacer: { flex: 1, minHeight: 24 },
 });
