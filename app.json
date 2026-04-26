@@ -34,6 +34,11 @@
         "NSLocationAlwaysUsageDescription": "Le suivi en arrière-plan permet de vous alerter de l'arrivée de votre prestataire même si l'application est fermée.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Nous utilisons votre position pour garantir la sécurité et la précision du suivi de la mission du début à la fin.",
         "NSMicrophoneUsageDescription": "FIXED utilise votre micro pour les appels vocaux avec votre prestataire ou client."
+      },
+      "entitlements": {
+        "com.apple.developer.in-app-payments": [
+          "merchant.com.fixed.app"
+        ]
       }
     },
     "android": {
@@ -71,14 +76,14 @@
         }
       ],
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "FOREGROUND_SERVICE",
-        "ACCESS_BACKGROUND_LOCATION",
-        "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED",
-        "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
