@@ -591,7 +591,7 @@ export default function ProviderDashboard() {
   const router           = useRouter();
   const { t }            = useTranslation();
   const { user }         = useAuth();
-  const { socket, unreadCount } = useSocket();
+  const { socket, unreadCount, unreadMessages } = useSocket();
   const { isOnline: networkOnline } = useNetwork();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -1033,6 +1033,21 @@ export default function ProviderDashboard() {
               accessibilityRole="button"
             >
               <Feather name="crosshair" size={20} color={theme.text} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.recenterBtn, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)' }]}
+              onPress={() => router.push('/messages')}
+              activeOpacity={0.8}
+              accessibilityLabel="Messages"
+              accessibilityRole="button"
+            >
+              <Feather name="message-square" size={20} color={theme.text} />
+              {unreadMessages > 0 && (
+                <View style={[s.notifBadge, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
+                  <Text style={[s.notifBadgeText, { color: theme.accentText }]}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

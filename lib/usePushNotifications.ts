@@ -128,7 +128,13 @@ function handleNotificationNavigation(data: any) {
         router.push({ pathname: '/request/[id]/rating', params: { id: requestId } });
         return;
       case 'Messages':
-        router.push('/(tabs)/messages');
+        // Optionally deep-link directly into the conversation if a senderId was
+        // attached to the push payload, otherwise land on the inbox.
+        if (data.senderId) {
+          router.push({ pathname: '/messages/[userId]', params: { userId: String(data.senderId) } });
+        } else {
+          router.push('/messages');
+        }
         return;
       case 'Dashboard':
         router.replace('/(tabs)/dashboard');
