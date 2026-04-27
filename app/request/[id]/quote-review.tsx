@@ -85,7 +85,7 @@ export default function QuoteReview() {
           paymentIntentClientSecret: res.paymentIntent.clientSecret,
           applePay: { merchantCountryCode: "BE" },
           googlePay: { merchantCountryCode: "BE", testEnv: false },
-          paymentMethodOrder: ['apple_pay', 'card', 'klarna', 'revolut_pay'],
+          paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
         });
 
         if (initError) {

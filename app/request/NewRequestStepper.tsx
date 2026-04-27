@@ -1022,7 +1022,7 @@ export default function NewRequestStepper() {
             paymentIntentClientSecret: calloutRes.clientSecret,
             applePay:  { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
-            paymentMethodOrder: ['apple_pay', 'card', 'klarna', 'revolut_pay'],
+            paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
           });
           if (!error && !cancelled) setPaymentReady(true);
           return;
@@ -1080,7 +1080,7 @@ export default function NewRequestStepper() {
           customerId:                 res.customer,
           applePay:  { merchantCountryCode: 'BE' },
           googlePay: { merchantCountryCode: 'BE', testEnv: false },
-          paymentMethodOrder: ['apple_pay', 'card', 'klarna', 'revolut_pay'],
+          paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
         });
         if (!error && !cancelled) setPaymentReady(true);
       } catch (e: any) {

@@ -107,7 +107,7 @@ export default function ResumePayment() {
             paymentIntentClientSecret: calloutRes.clientSecret,
             applePay: { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
-            paymentMethodOrder: ['apple_pay', 'card', 'klarna', 'revolut_pay'],
+            paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
           };
         } else {
           const setupRes: any = await api.payments.setup(String(id));
@@ -122,7 +122,7 @@ export default function ResumePayment() {
             customerId: setupRes.customer,
             applePay: { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
-            paymentMethodOrder: ['apple_pay', 'card', 'klarna', 'revolut_pay'],
+            paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
           };
         }
 
