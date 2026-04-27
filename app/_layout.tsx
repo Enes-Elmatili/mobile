@@ -242,7 +242,7 @@ export default Sentry.wrap(function RootLayout() {
         <NetworkProvider>
           <StripeProvider
             publishableKey={STRIPE_PUBLISHABLE_KEY}
-            merchantIdentifier="merchant.com.fixed.app"
+            merchantIdentifier="merchant.app.thefixed"
             urlScheme="fixed"
           >
             <AuthProvider>

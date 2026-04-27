@@ -37,7 +37,7 @@
       },
       "entitlements": {
         "com.apple.developer.in-app-payments": [
-          "merchant.com.fixed.app"
+          "merchant.app.thefixed"
         ]
       }
     },
@@ -90,7 +90,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.fixed.app",
+          "merchantIdentifier": "merchant.app.thefixed",
           "enableGooglePay": true
         }
       ],
