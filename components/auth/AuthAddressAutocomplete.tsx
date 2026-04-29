@@ -32,7 +32,9 @@ function getComponent(
   type: string,
   longName = true
 ): string {
-  const comp = components.find((c) => c.types.includes(type));
+  // The library types `types` as a fixed enum (PlaceType[]); we accept a wider
+  // string here for caller convenience and cast at the comparison.
+  const comp = components.find((c) => (c.types as readonly string[]).includes(type));
   return comp ? (longName ? comp.long_name : comp.short_name) : "";
 }
 
@@ -117,7 +119,6 @@ export function AuthAddressAutocomplete({
             components: "country:be",
           }}
           minLength={2}
-          numberOfResults={5}
           enablePoweredByContainer={false}
           keyboardShouldPersistTaps="handled"
           listViewDisplayed="auto"

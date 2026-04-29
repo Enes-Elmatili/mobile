@@ -26,7 +26,7 @@ type Props = {
   error?: string | null;
   label?: string;
   placeholder?: string;
-  returnKeyType?: PhoneInputProps["textInputProps"] extends { returnKeyType?: infer R } ? R : never;
+  returnKeyType?: "done" | "next" | "go" | "search" | "send";
   onSubmitEditing?: () => void;
 };
 
