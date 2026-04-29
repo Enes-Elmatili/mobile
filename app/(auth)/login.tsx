@@ -219,10 +219,18 @@ export default function Login() {
     try {
       const res = await api.auth.google(accessToken);
       if (!res?.token) throw new Error();
-      await signIn(res.token);
+      await signIn(res.token, res.missingFields ?? []);
       await refreshMe();
-      if (!res.roles || res.roles.length === 0) router.replace("/(auth)/role-select");
-      else router.replace("/(tabs)/dashboard");
+      if (!res.roles || res.roles.length === 0) {
+        router.replace("/(auth)/role-select");
+      } else if (res.profileIncomplete) {
+        router.replace({
+          pathname: "/(auth)/complete-profile",
+          params: { missingFields: (res.missingFields ?? []).join(",") },
+        });
+      } else {
+        router.replace("/(tabs)/dashboard");
+      }
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
       else showToast("Connexion impossible, réessaie");
@@ -253,10 +261,18 @@ export default function Login() {
       );
 
       if (!res?.token) throw new Error();
-      await signIn(res.token);
+      await signIn(res.token, res.missingFields ?? []);
       await refreshMe();
-      if (!res.roles || res.roles.length === 0) router.replace("/(auth)/role-select");
-      else router.replace("/(tabs)/dashboard");
+      if (!res.roles || res.roles.length === 0) {
+        router.replace("/(auth)/role-select");
+      } else if (res.profileIncomplete) {
+        router.replace({
+          pathname: "/(auth)/complete-profile",
+          params: { missingFields: (res.missingFields ?? []).join(",") },
+        });
+      } else {
+        router.replace("/(tabs)/dashboard");
+      }
     } catch (e: any) {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
         // silent cancel
