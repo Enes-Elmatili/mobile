@@ -1,30 +1,27 @@
 /**
  * AuthPhoneInput — country-code phone picker for the FIXED auth flow.
  *
- * Wraps react-native-phone-number-input and matches AuthInput exactly:
- * same height (46), same border, same focus colour, same error row.
+ * Built directly on react-native-country-picker-modal (the picker / flag layer)
+ * + a plain TextInput (the number layer). We control the chip, the picker, and
+ * the formatting ourselves, which avoids the incompatibility between
+ * react-native-phone-number-input@2.1 and the current country-picker-modal
+ * (the older lib doesn't pass `withFlagButton` so flags rendered as null).
  *
- * Default country: BE (Belgium). User can tap the flag chip to open
- * the country picker modal.
+ * Visually identical to <AuthInput>: same height, border, focus/error palette.
  *
- * Emits:
- *   onChangeText(rawNumber)          — digits only, without dial code
- *   onChangeFormattedText(e164)      — full E.164, e.g. "+32470123456"
+ * Emits via onChangeFormattedText:
+ *   "+32470123456"   (E.164, dial code prefixed)
+ * The local number prop is uncontrolled — parent reads only the formatted output.
  */
-import React, { useRef, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import PhoneInput from "react-native-phone-number-input";
-import type { PhoneInputProps } from "react-native-phone-number-input";
+import React, { useEffect, useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import CountryPicker from "react-native-country-picker-modal";
+import type { Country, CountryCode } from "react-native-country-picker-modal";
 import { Feather } from "@expo/vector-icons";
 import { FONTS } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
 type Props = {
-  /**
-   * Initial local number (digits only, NO dial code) — used once on mount.
-   * Updates after first render are ignored: this component is uncontrolled
-   * for the input visual to avoid the E.164 echoing back into the field.
-   */
   defaultValue?: string;
   onChangeText?: (localNumber: string) => void;
   onChangeFormattedText?: (e164: string) => void;
@@ -33,6 +30,11 @@ type Props = {
   placeholder?: string;
   returnKeyType?: "done" | "next" | "go" | "search" | "send";
   onSubmitEditing?: () => void;
+};
+
+const DEFAULT_COUNTRY: { cca2: CountryCode; callingCode: string } = {
+  cca2: "BE",
+  callingCode: "32",
 };
 
 export function AuthPhoneInput({
@@ -46,7 +48,26 @@ export function AuthPhoneInput({
   onSubmitEditing,
 }: Props) {
   const [focused, setFocused] = useState(false);
-  const phoneRef = useRef<PhoneInput>(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [country, setCountry] = useState<{ cca2: CountryCode; callingCode: string }>(
+    DEFAULT_COUNTRY
+  );
+  const [number, setNumber] = useState(defaultValue);
+
+  // Emit changes upward whenever the country or local number shifts.
+  useEffect(() => {
+    const digits = number.replace(/\D/g, "");
+    onChangeText?.(digits);
+    onChangeFormattedText?.(digits ? `+${country.callingCode}${digits}` : "");
+  }, [country, number]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onSelect = (c: Country) => {
+    setCountry({
+      cca2: c.cca2,
+      callingCode: Array.isArray(c.callingCode) ? c.callingCode[0] : (c.callingCode as string),
+    });
+    setPickerVisible(false);
+  };
 
   return (
     <View style={s.wrap}>
@@ -58,45 +79,51 @@ export function AuthPhoneInput({
           !!error && s.fieldError,
         ]}
       >
-        <PhoneInput
-          ref={phoneRef}
-          defaultCode="BE"
-          layout="first"
-          defaultValue={defaultValue}
-          onChangeText={onChangeText}
-          onChangeFormattedText={onChangeFormattedText}
-          withDarkTheme={false}
+        {/* Country chip — flag + dial code + chevron */}
+        <TouchableOpacity
+          style={s.chip}
+          activeOpacity={0.7}
+          onPress={() => setPickerVisible(true)}
+        >
+          <CountryPicker
+            countryCode={country.cca2}
+            withFlag
+            withFilter
+            withCallingCode
+            withEmoji
+            withFlagButton
+            withCountryNameButton={false}
+            onSelect={onSelect}
+            onClose={() => setPickerVisible(false)}
+            visible={pickerVisible}
+            // Keep the picker's filter input hint localized.
+            filterProps={{ placeholder: "Rechercher un pays...", autoFocus: true }}
+          />
+          <Text style={s.dialCode}>+{country.callingCode}</Text>
+          <Feather name="chevron-down" size={14} color={alpha(authT.textOnDark, 0.5)} />
+        </TouchableOpacity>
+
+        {/* Subtle separator between chip and number */}
+        <View style={s.divider} />
+
+        {/* Local number input */}
+        <TextInput
+          style={s.numberInput}
+          value={number}
+          onChangeText={setNumber}
           placeholder={placeholder}
-          containerStyle={s.phoneContainer}
-          textContainerStyle={s.textContainer}
-          textInputStyle={s.textInput}
-          codeTextStyle={s.codeText}
-          flagButtonStyle={s.flagButton}
-          countryPickerProps={{
-            withFilter: true,
-            withFlag: true,
-            withCallingCode: true,
-            // Emoji flags are rendered by the OS (universal on iOS, decent on
-            // Android 11+). Convention in payment / billing UIs (Stripe, Revolut,
-            // Splitwise) is to keep them — they're the strongest visual cue.
-            withEmoji: true,
-            withCountryNameButton: false,
-            filterProps: {
-              placeholder: "Rechercher un pays...",
-              autoFocus: true,
-            },
-          }}
-          textInputProps={{
-            keyboardType: "phone-pad",
-            returnKeyType,
-            onSubmitEditing,
-            placeholderTextColor: alpha(authT.textOnDark, 0.4),
-            onFocus: () => setFocused(true),
-            onBlur: () => setFocused(false),
-            selectionColor: authT.textOnDark,
-          }}
+          placeholderTextColor={alpha(authT.textOnDark, 0.4)}
+          keyboardType="phone-pad"
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          selectionColor={authT.textOnDark}
+          autoCorrect={false}
+          textContentType="telephoneNumber"
         />
       </View>
+
       {error ? (
         <View style={s.errorRow}>
           <Feather name="alert-circle" size={12} color="#DC2626" />
@@ -136,34 +163,33 @@ const s = StyleSheet.create({
   fieldError: {
     borderColor: "#DC2626",
   },
-  // PhoneInput internal overrides
-  phoneContainer: {
-    flex: 1,
-    height: 44,
-    backgroundColor: "transparent",
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 12,
+    paddingRight: 8,
+    height: "100%",
+    gap: 6,
   },
-  textContainer: {
-    flex: 1,
-    backgroundColor: "transparent",
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-  },
-  textInput: {
-    fontFamily: FONTS.sans,
-    fontSize: 15,
-    color: authT.textOnDark,
-    height: 44,
-    paddingVertical: 0,
-    margin: 0,
-  },
-  codeText: {
-    fontFamily: FONTS.sans,
+  dialCode: {
+    fontFamily: FONTS.sansMedium,
     fontSize: 15,
     color: authT.textOnDark,
   },
-  flagButton: {
-    paddingLeft: 14,
-    paddingRight: 4,
+  divider: {
+    width: 1,
+    height: 22,
+    backgroundColor: alpha(authT.textOnDark, 0.12),
+    marginRight: 12,
+  },
+  numberInput: {
+    flex: 1,
+    fontFamily: FONTS.sans,
+    fontSize: 15,
+    color: authT.textOnDark,
+    paddingVertical: 0,
+    paddingRight: 14,
+    height: "100%",
   },
   errorRow: {
     flexDirection: "row",

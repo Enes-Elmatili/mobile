@@ -122,6 +122,14 @@ export function AuthAddressAutocomplete({
           enablePoweredByContainer={false}
           keyboardShouldPersistTaps="always"
           listViewDisplayed="auto"
+          // disableScroll: true makes the dropdown render as plain Views (not
+          // a VirtualizedList) inside its absolute container. This silences
+          // the "VirtualizedLists should never be nested inside ScrollViews"
+          // warning AND lets the dropdown render correctly on top of the
+          // form ScrollView. We cap maxHeight on listView so a long list
+          // doesn't overflow visually.
+          disableScroll
+          listEmptyComponent={null}
           onFail={() => setInternalError("Erreur de recherche — réessaie")}
           textInputProps={{
             placeholderTextColor: alpha(authT.textOnDark, 0.4),
