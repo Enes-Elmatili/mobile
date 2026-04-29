@@ -36,9 +36,12 @@ import {
   AuthBackButton,
   AuthInput,
   AuthLink,
+  AuthPhoneInput,
+  AuthAddressAutocomplete,
   authT,
   alpha,
 } from "@/components/auth";
+import type { ParsedAddress } from "@/components/auth";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -338,12 +341,9 @@ export default function Signup() {
   const [postalCodeError, setPostalCodeError] = useState("");
   const [billingCityError, setBillingCityError] = useState("");
 
-  const addressRef = useRef<TextInput>(null);
-  const postalCodeRef = useRef<TextInput>(null);
-  const billingCityRef = useRef<TextInput>(null);
-
   const POSTAL_RE = /^\d{4}$/;
-  const isPhoneValid = phone.trim().length >= 6;
+  // E.164 phone (set by AuthPhoneInput via onChangeFormattedText): starts with + and has enough digits
+  const isPhoneValid = /^\+\d{7,}$/.test(phone.trim());
   const isAddressValid = address.trim().length >= 3;
   const isPostalCodeValid = POSTAL_RE.test(postalCode.trim());
   const isBillingCityValid = billingCity.trim().length >= 2;
@@ -420,7 +420,7 @@ export default function Signup() {
 
   const validateBillingFields = (): boolean => {
     let valid = true;
-    if (!isPhoneValid) { setPhoneError("Numéro de téléphone invalide — 6 chiffres min."); valid = false; } else setPhoneError("");
+    if (!isPhoneValid) { setPhoneError("Numéro de téléphone invalide"); valid = false; } else setPhoneError("");
     if (!isAddressValid) { setAddressError("Adresse trop courte — 3 caractères min."); valid = false; } else setAddressError("");
     if (!isPostalCodeValid) { setPostalCodeError("Code postal invalide — 4 chiffres requis"); valid = false; } else setPostalCodeError("");
     if (!isBillingCityValid) { setBillingCityError("Ville trop courte — 2 caractères min."); valid = false; } else setBillingCityError("");
@@ -662,53 +662,22 @@ export default function Signup() {
         {phase === "billing" && (
           <View style={s.body}>
             <View style={s.form}>
-              <AuthInput
-                label="Téléphone *"
-                icon="phone"
-                placeholder="+32 470 00 00 00"
-                keyboardType="phone-pad"
-                returnKeyType="next"
+              <AuthPhoneInput
                 value={phone}
-                onChangeText={(v) => { setPhone(v); if (phoneError) setPhoneError(""); }}
-                onSubmitEditing={() => addressRef.current?.focus()}
+                onChangeFormattedText={(e164) => { setPhone(e164); if (phoneError) setPhoneError(""); }}
+                onChangeText={() => { if (phoneError) setPhoneError(""); }}
                 error={phoneError || undefined}
               />
-              <AuthInput
-                inputRef={addressRef}
-                label="Adresse *"
-                icon="map-pin"
-                placeholder="Rue de la Loi 16"
-                autoCapitalize="words"
-                returnKeyType="next"
-                value={address}
-                onChangeText={(v) => { setAddress(v); if (addressError) setAddressError(""); }}
-                onSubmitEditing={() => postalCodeRef.current?.focus()}
+              <AuthAddressAutocomplete
+                onAddressSelected={(p: ParsedAddress) => {
+                  setAddress(p.street);
+                  setPostalCode(p.postalCode);
+                  setBillingCity(p.city);
+                  if (addressError) setAddressError("");
+                  if (postalCodeError) setPostalCodeError("");
+                  if (billingCityError) setBillingCityError("");
+                }}
                 error={addressError || undefined}
-              />
-              <AuthInput
-                inputRef={postalCodeRef}
-                label="Code postal *"
-                icon="hash"
-                placeholder="1000"
-                keyboardType="number-pad"
-                maxLength={4}
-                returnKeyType="next"
-                value={postalCode}
-                onChangeText={(v) => { setPostalCode(v); if (postalCodeError) setPostalCodeError(""); }}
-                onSubmitEditing={() => billingCityRef.current?.focus()}
-                error={postalCodeError || undefined}
-              />
-              <AuthInput
-                inputRef={billingCityRef}
-                label="Ville *"
-                icon="map"
-                placeholder="Bruxelles"
-                autoCapitalize="words"
-                returnKeyType="done"
-                value={billingCity}
-                onChangeText={(v) => { setBillingCity(v); if (billingCityError) setBillingCityError(""); }}
-                onSubmitEditing={isProvider ? goToZone : createAccount}
-                error={billingCityError || undefined}
               />
             </View>
           </View>

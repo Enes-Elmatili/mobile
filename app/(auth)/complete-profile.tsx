@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   Animated,
   Easing,
@@ -25,9 +24,12 @@ import {
   AuthHeadline,
   AuthCTA,
   AuthInput,
+  AuthPhoneInput,
+  AuthAddressAutocomplete,
   authT,
   alpha,
 } from "@/components/auth";
+import type { ParsedAddress } from "@/components/auth";
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = "error" | "success" | "info";
@@ -125,11 +127,7 @@ export default function CompleteProfile() {
   const [postalCodeError, setPostalCodeError] = useState("");
   const [cityError, setCityError] = useState("");
 
-  // Refs for focus chains
-  const phoneRef = useRef<TextInput>(null);
-  const addressRef = useRef<TextInput>(null);
-  const postalCodeRef = useRef<TextInput>(null);
-  const cityRef = useRef<TextInput>(null);
+  // Refs no longer needed — AuthPhoneInput and AuthAddressAutocomplete handle focus internally
 
   const [loading, setLoading] = useState(false);
 
@@ -158,26 +156,22 @@ export default function CompleteProfile() {
       if (name.trim().length < 2) { setNameError("Nom trop court — 2 caractères min."); valid = false; } else setNameError("");
     }
     if (needs("phone")) {
-      if (phone.trim().length < 6) { setPhoneError("Numéro de téléphone invalide — 6 chiffres min."); valid = false; } else setPhoneError("");
+      if (!/^\+\d{7,}$/.test(phone.trim())) { setPhoneError("Numéro de téléphone invalide"); valid = false; } else setPhoneError("");
     }
-    if (needs("address")) {
-      if (address.trim().length < 3) { setAddressError("Adresse trop courte — 3 caractères min."); valid = false; } else setAddressError("");
-    }
-    if (needs("postalCode")) {
-      if (!POSTAL_RE.test(postalCode.trim())) { setPostalCodeError("Code postal invalide — 4 chiffres requis"); valid = false; } else setPostalCodeError("");
-    }
-    if (needs("city")) {
-      if (city.trim().length < 2) { setCityError("Ville trop courte — 2 caractères min."); valid = false; } else setCityError("");
+    if (needs("address") || needs("postalCode") || needs("city")) {
+      if (address.trim().length < 3) { setAddressError("Sélectionne ton adresse dans la liste"); valid = false; } else setAddressError("");
+      if (!POSTAL_RE.test(postalCode.trim())) { setPostalCodeError(""); valid = false; }
+      if (city.trim().length < 2) { setCityError(""); valid = false; }
     }
     return valid;
   };
 
+  // address/postalCode/city are filled together by AuthAddressAutocomplete
+  const needsAddressBlock = needs("address") || needs("postalCode") || needs("city");
   const isFormValid: boolean = (
     (!needs("name") || name.trim().length >= 2) &&
-    (!needs("phone") || phone.trim().length >= 6) &&
-    (!needs("address") || address.trim().length >= 3) &&
-    (!needs("postalCode") || POSTAL_RE.test(postalCode.trim())) &&
-    (!needs("city") || city.trim().length >= 2)
+    (!needs("phone") || /^\+\d{7,}$/.test(phone.trim())) &&
+    (!needsAddressBlock || (address.trim().length >= 3 && POSTAL_RE.test(postalCode.trim()) && city.trim().length >= 2))
   );
 
   const onSubmit = async () => {
@@ -241,65 +235,29 @@ export default function CompleteProfile() {
                 returnKeyType="next"
                 value={name}
                 onChangeText={(v) => { setName(v); if (nameError) setNameError(""); }}
-                onSubmitEditing={() => needs("phone") ? phoneRef.current?.focus() : needs("address") ? addressRef.current?.focus() : needs("postalCode") ? postalCodeRef.current?.focus() : cityRef.current?.focus()}
+                onSubmitEditing={() => { /* focus handled by phone picker / address autocomplete */ }}
                 error={nameError || undefined}
               />
             )}
             {needs("phone") && (
-              <AuthInput
-                inputRef={phoneRef}
-                label="Téléphone *"
-                icon="phone"
-                placeholder="+32 470 00 00 00"
-                keyboardType="phone-pad"
-                returnKeyType="next"
+              <AuthPhoneInput
                 value={phone}
-                onChangeText={(v) => { setPhone(v); if (phoneError) setPhoneError(""); }}
-                onSubmitEditing={() => needs("address") ? addressRef.current?.focus() : needs("postalCode") ? postalCodeRef.current?.focus() : cityRef.current?.focus()}
+                onChangeFormattedText={(e164) => { setPhone(e164); if (phoneError) setPhoneError(""); }}
+                onChangeText={() => { if (phoneError) setPhoneError(""); }}
                 error={phoneError || undefined}
               />
             )}
-            {needs("address") && (
-              <AuthInput
-                inputRef={addressRef}
-                label="Adresse *"
-                icon="map-pin"
-                placeholder="Rue de la Loi 16"
-                autoCapitalize="words"
-                returnKeyType="next"
-                value={address}
-                onChangeText={(v) => { setAddress(v); if (addressError) setAddressError(""); }}
-                onSubmitEditing={() => needs("postalCode") ? postalCodeRef.current?.focus() : cityRef.current?.focus()}
+            {needsAddressBlock && (
+              <AuthAddressAutocomplete
+                onAddressSelected={(p: ParsedAddress) => {
+                  setAddress(p.street);
+                  setPostalCode(p.postalCode);
+                  setCity(p.city);
+                  if (addressError) setAddressError("");
+                  if (postalCodeError) setPostalCodeError("");
+                  if (cityError) setCityError("");
+                }}
                 error={addressError || undefined}
-              />
-            )}
-            {needs("postalCode") && (
-              <AuthInput
-                inputRef={postalCodeRef}
-                label="Code postal *"
-                icon="hash"
-                placeholder="1000"
-                keyboardType="number-pad"
-                maxLength={4}
-                returnKeyType="next"
-                value={postalCode}
-                onChangeText={(v) => { setPostalCode(v); if (postalCodeError) setPostalCodeError(""); }}
-                onSubmitEditing={() => needs("city") ? cityRef.current?.focus() : onSubmit()}
-                error={postalCodeError || undefined}
-              />
-            )}
-            {needs("city") && (
-              <AuthInput
-                inputRef={cityRef}
-                label="Ville *"
-                icon="map"
-                placeholder="Bruxelles"
-                autoCapitalize="words"
-                returnKeyType="done"
-                value={city}
-                onChangeText={(v) => { setCity(v); if (cityError) setCityError(""); }}
-                onSubmitEditing={onSubmit}
-                error={cityError || undefined}
               />
             )}
           </View>
