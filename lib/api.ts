@@ -232,7 +232,20 @@ class ApiClient {
       }
       return result;
     },
-    signup: async (email: string, password: string, name?: string, extra?: { role?: string; phone?: string; firstName?: string; lastName?: string }) => {
+    signup: async (
+      email: string,
+      password: string,
+      name?: string,
+      extra?: {
+        role?: string;
+        phone?: string;
+        firstName?: string;
+        lastName?: string;
+        address?: string;
+        postalCode?: string;
+        city?: string;
+      }
+    ) => {
       const result = await this.post('/auth/signup', { email, password, name, ...extra });
       if (result.token) {
         await tokenStorage.setToken(result.token);

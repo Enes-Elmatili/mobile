@@ -207,7 +207,7 @@ interface Category {
   icon?: string;
 }
 
-type Phase = "identity" | "zone" | "creating";
+type Phase = "identity" | "billing" | "zone" | "creating";
 
 // ── Signup screen ───────────────────────────────────────────────────────────
 export default function Signup() {
@@ -308,6 +308,27 @@ export default function Signup() {
   const emailRef = useRef<TextInput>(null);
   const pwdRef = useRef<TextInput>(null);
 
+  // Billing state
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [billingCity, setBillingCity] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [addressError, setAddressError] = useState("");
+  const [postalCodeError, setPostalCodeError] = useState("");
+  const [billingCityError, setBillingCityError] = useState("");
+
+  const addressRef = useRef<TextInput>(null);
+  const postalCodeRef = useRef<TextInput>(null);
+  const billingCityRef = useRef<TextInput>(null);
+
+  const POSTAL_RE = /^\d{4}$/;
+  const isPhoneValid = phone.trim().length >= 6;
+  const isAddressValid = address.trim().length >= 3;
+  const isPostalCodeValid = POSTAL_RE.test(postalCode.trim());
+  const isBillingCityValid = billingCity.trim().length >= 2;
+  const canBilling = isPhoneValid && isAddressValid && isPostalCodeValid && isBillingCityValid;
+
   // Zone state (provider)
   const [city, setCity] = useState("");
   const [radius, setRadius] = useState(5);
@@ -364,12 +385,31 @@ export default function Signup() {
   const canZone = city.trim().length >= 2 && selectedCats.length > 0;
 
   // Navigation
-  const goToZone = () => {
+  const goToBilling = () => {
     if (!canIdentity) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (!name.trim()) showToast("Entrez votre nom");
       else if (!isEmailValid) showToast("Adresse mail invalide");
       else showToast("Mot de passe trop court — 8 caractères min.");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPhase("billing");
+    animateIn();
+  };
+
+  const validateBillingFields = (): boolean => {
+    let valid = true;
+    if (!isPhoneValid) { setPhoneError("Numéro de téléphone invalide — 6 chiffres min."); valid = false; } else setPhoneError("");
+    if (!isAddressValid) { setAddressError("Adresse trop courte — 3 caractères min."); valid = false; } else setAddressError("");
+    if (!isPostalCodeValid) { setPostalCodeError("Code postal invalide — 4 chiffres requis"); valid = false; } else setPostalCodeError("");
+    if (!isBillingCityValid) { setBillingCityError("Ville trop courte — 2 caractères min."); valid = false; } else setBillingCityError("");
+    return valid;
+  };
+
+  const goToZone = () => {
+    if (!validateBillingFields()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -380,6 +420,9 @@ export default function Signup() {
   const goBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (phase === "zone") {
+      setPhase("billing");
+      animateIn();
+    } else if (phase === "billing") {
       setPhase("identity");
       animateIn();
     } else if (router.canGoBack()) router.back();
@@ -399,7 +442,7 @@ export default function Signup() {
       else showToast("Sélectionnez au moins un domaine");
       return;
     }
-    if (!isProvider && !canIdentity) return;
+    if (!isProvider && !canBilling) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPhase("creating");
@@ -409,7 +452,13 @@ export default function Signup() {
         email.trim().toLowerCase(),
         password,
         name.trim() || undefined,
-        isProvider ? { role: "PROVIDER" } : undefined
+        {
+          role: isProvider ? "PROVIDER" : "CLIENT",
+          phone: phone.trim(),
+          address: address.trim(),
+          postalCode: postalCode.trim(),
+          city: billingCity.trim(),
+        }
       );
 
       if (isProvider) {
@@ -437,18 +486,24 @@ export default function Signup() {
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showToast(err.message || "Échec de l'inscription");
-      setPhase(isProvider ? "zone" : "identity");
+      setPhase(isProvider ? "zone" : "billing");
     }
   };
 
   // Progress
+  // CLIENT: identity(1) → billing(2) → creating
+  // PROVIDER: identity(1) → billing(2) → zone(3) → creating (totalSteps from flow covers verify/docs/stripe)
   const flow = isProvider ? PROVIDER_FLOW : CLIENT_FLOW;
   const totalSteps = flow.totalSteps;
   const stepNum = isProvider
     ? phase === "identity"
       ? PROVIDER_FLOW.steps.SIGNUP_ID
-      : PROVIDER_FLOW.steps.ZONE
-    : CLIENT_FLOW.steps.REGISTER;
+      : phase === "billing"
+        ? 2
+        : PROVIDER_FLOW.steps.ZONE
+    : phase === "identity"
+      ? 1
+      : CLIENT_FLOW.steps.REGISTER;
 
   const isBusy = !!socialLoading;
 
@@ -465,9 +520,12 @@ export default function Signup() {
   }
 
   // ── Headline per phase ──
-  const headlineProps = isProvider && phase === "zone"
-    ? { kicker: "INSCRIPTION", title: "VOTRE\n{accent}ACTIVITÉ.{/accent}", subtitle: "Zone d'intervention et domaines d'expertise." }
-    : { kicker: "INSCRIPTION", title: "CRÉEZ VOTRE\n{accent}COMPTE.{/accent}", subtitle: "Opérationnel en moins d'une minute." };
+  const headlineProps =
+    phase === "billing"
+      ? { kicker: "INSCRIPTION", title: "VOS\n{accent}COORDONNÉES.{/accent}", subtitle: "Téléphone et adresse de facturation." }
+      : isProvider && phase === "zone"
+        ? { kicker: "INSCRIPTION", title: "VOTRE\n{accent}ACTIVITÉ.{/accent}", subtitle: "Zone d'intervention et domaines d'expertise." }
+        : { kicker: "INSCRIPTION", title: "CRÉEZ VOTRE\n{accent}COMPTE.{/accent}", subtitle: "Opérationnel en moins d'une minute." };
 
   return (
     <AuthScreen variant="inverted" scrollable>
@@ -580,6 +638,62 @@ export default function Signup() {
           </View>
         )}
 
+        {/* === BILLING PHASE === */}
+        {phase === "billing" && (
+          <View style={s.body}>
+            <View style={s.form}>
+              <AuthInput
+                label="Téléphone *"
+                icon="phone"
+                placeholder="+32 470 00 00 00"
+                keyboardType="phone-pad"
+                returnKeyType="next"
+                value={phone}
+                onChangeText={(v) => { setPhone(v); if (phoneError) setPhoneError(""); }}
+                onSubmitEditing={() => addressRef.current?.focus()}
+                error={phoneError || undefined}
+              />
+              <AuthInput
+                inputRef={addressRef}
+                label="Adresse *"
+                icon="map-pin"
+                placeholder="Rue de la Loi 16"
+                autoCapitalize="words"
+                returnKeyType="next"
+                value={address}
+                onChangeText={(v) => { setAddress(v); if (addressError) setAddressError(""); }}
+                onSubmitEditing={() => postalCodeRef.current?.focus()}
+                error={addressError || undefined}
+              />
+              <AuthInput
+                inputRef={postalCodeRef}
+                label="Code postal *"
+                icon="hash"
+                placeholder="1000"
+                keyboardType="number-pad"
+                maxLength={4}
+                returnKeyType="next"
+                value={postalCode}
+                onChangeText={(v) => { setPostalCode(v); if (postalCodeError) setPostalCodeError(""); }}
+                onSubmitEditing={() => billingCityRef.current?.focus()}
+                error={postalCodeError || undefined}
+              />
+              <AuthInput
+                inputRef={billingCityRef}
+                label="Ville *"
+                icon="map"
+                placeholder="Bruxelles"
+                autoCapitalize="words"
+                returnKeyType="done"
+                value={billingCity}
+                onChangeText={(v) => { setBillingCity(v); if (billingCityError) setBillingCityError(""); }}
+                onSubmitEditing={isProvider ? goToZone : createAccount}
+                error={billingCityError || undefined}
+              />
+            </View>
+          </View>
+        )}
+
         {/* === ZONE PHASE === */}
         {phase === "zone" && isProvider && (
           <View style={s.body}>
@@ -680,13 +794,23 @@ export default function Signup() {
         <View style={s.spacer} />
 
         <AuthCTA
-          label={phase === "identity" && isProvider ? "CONTINUER" : "CRÉER MON COMPTE"}
+          label={
+            phase === "identity"
+              ? "CONTINUER"
+              : phase === "billing" && isProvider
+                ? "CONTINUER"
+                : phase === "billing"
+                  ? "CRÉER MON COMPTE"
+                  : "CRÉER MON COMPTE"
+          }
           onPress={() => {
-            if (phase === "identity" && isProvider) goToZone();
+            if (phase === "identity") goToBilling();
+            else if (phase === "billing" && isProvider) goToZone();
             else createAccount();
           }}
           disabled={
             (phase === "identity" && !canIdentity) ||
+            (phase === "billing" && !canBilling) ||
             (phase === "zone" && !canZone)
           }
         />
