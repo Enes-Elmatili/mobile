@@ -8,4 +8,7 @@ export { AuthCTA } from "./AuthCTA";
 export { AuthBackButton } from "./AuthBackButton";
 export { AuthInput } from "./AuthInput";
 export { AuthLink } from "./AuthLink";
+export { AuthPhoneInput } from "./AuthPhoneInput";
+export { AuthAddressAutocomplete } from "./AuthAddressAutocomplete";
+export type { ParsedAddress } from "./AuthAddressAutocomplete";
 export { authT, alpha, invertedGradient, standardGradient } from "./tokens";
