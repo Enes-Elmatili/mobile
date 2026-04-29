@@ -598,6 +598,7 @@ export default function ProviderDashboard() {
 
   const mapRef   = useRef<MapView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [mapReady, setMapReady] = useState(false);
 
 
   const [location,      setLocation]      = useState<{ latitude: number; longitude: number } | null>(null);
@@ -645,11 +646,15 @@ export default function ProviderDashboard() {
       mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 900);
 
       const sub = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, distanceInterval: 50, timeInterval: 15000 },
+        // distanceInterval réduit (10 m) + timeInterval court (3 s) pour que
+        // l'auto-recenter de la map suive bien les mouvements. Le throttle du
+        // socket emit reste à 15s pour ne pas spammer le backend.
+        { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
         (l) => {
           const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
           setLocation(c);
           if (l.coords.heading != null) setHeading(l.coords.heading);
+
           const now = Date.now();
           if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnline && user?.id) {
             dashLastEmitRef.current = now;
@@ -665,6 +670,18 @@ export default function ProviderDashboard() {
       if (dashLocSubRef.current) { dashLocSubRef.current.remove(); dashLocSubRef.current = null; }
     };
   }, []);
+
+  // Auto-recenter la map à chaque mise à jour de position.
+  // Bloqué par mapReady : react-native-maps 1.20+ avec PROVIDER_GOOGLE ignore
+  // silencieusement animateToRegion tant que onMapReady n'a pas été émis,
+  // c'est pourquoi le premier auto-center sautait sans erreur.
+  useEffect(() => {
+    if (!location || !mapReady) return;
+    mapRef.current?.animateToRegion(
+      { ...location, latitudeDelta: 0.02, longitudeDelta: 0.02 },
+      700,
+    );
+  }, [location, mapReady]);
 
   // Data
   const loadData = useCallback(async () => {
@@ -968,6 +985,7 @@ export default function ProviderDashboard() {
         showsScale={false}
         pitchEnabled={false}
         toolbarEnabled={false}
+        onMapReady={() => setMapReady(true)}
         initialRegion={{
           latitude:      location?.latitude  ?? 50.8466,
           longitude:     location?.longitude ?? 4.3528,
@@ -1023,18 +1041,6 @@ export default function ProviderDashboard() {
               onToggle={handleToggleOnline}
               onWalletPress={() => router.push('/wallet')}
             />
-            <TouchableOpacity
-              style={[s.recenterBtn, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)' }]}
-              onPress={() => location && mapRef.current?.animateToRegion({
-                ...location, latitudeDelta: 0.035, longitudeDelta: 0.035,
-              }, 700)}
-              activeOpacity={0.8}
-              accessibilityLabel="Recenter"
-              accessibilityRole="button"
-            >
-              <Feather name="crosshair" size={20} color={theme.text} />
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={[s.recenterBtn, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)' }]}
               onPress={() => router.push('/messages')}
