@@ -18,6 +18,8 @@ type UserData = {
   email: string;
   name?: string;
   phone?: string;
+  address?: string;
+  postalCode?: string;
   city?: string;
   bio?: string;
   authProvider?: string; // "email" | "apple" | "google"
@@ -30,7 +32,12 @@ type AuthState = {
   isBooting: boolean;
   token: string | null;
   user: UserData | null;
-  signIn: (token: string) => Promise<void>;
+  // Option A: missingFields from login response stored here so the login screen
+  // can gate on profileIncomplete without waiting for /auth/me to reflect it.
+  // /auth/me does not currently return profileIncomplete, so we rely on the login
+  // response payload passed into signIn.
+  missingFields: string[];
+  signIn: (token: string, missingFields?: string[]) => Promise<void>;
   signOut: () => Promise<void>;
   refreshMe: () => Promise<void>;
 };
@@ -41,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isBooting, setIsBooting] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<UserData | null>(null);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
 
   // Subscribe to token changes from storage
   useEffect(() => {
@@ -172,15 +180,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, isBooting]); // refreshMe retiré des deps, géré via ref
 
-  const signIn = useCallback(async (newToken: string) => {
+  const signIn = useCallback(async (newToken: string, loginMissingFields?: string[]) => {
     devLog('🔐 SIGNIN:', newToken.slice(0, 20) + '...');
     await tokenStorage.setToken(newToken);
+    // Store missingFields from the login response (Option A).
+    // /auth/me does not currently return profileIncomplete, so we use the
+    // value provided by the login caller directly.
+    setMissingFields(loginMissingFields ?? []);
     devLog('✅ SIGNIN: Token saved to storage');
   }, []);
 
   const value = useMemo(
-    () => ({ isBooting, token, user, signIn, signOut, refreshMe }),
-    [isBooting, token, user, signIn, signOut, refreshMe]
+    () => ({ isBooting, token, user, missingFields, signIn, signOut, refreshMe }),
+    [isBooting, token, user, missingFields, signIn, signOut, refreshMe]
   );
 
   devLog('🔍 AUTH STATE:', {

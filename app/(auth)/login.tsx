@@ -291,7 +291,15 @@ export default function Login() {
       const res = await api.auth.login(email.trim().toLowerCase(), password);
       const token = res?.token;
       if (!token) throw new Error();
-      await signIn(token);
+      await signIn(token, res.missingFields ?? []);
+      if (res.profileIncomplete && Array.isArray(res.missingFields) && res.missingFields.length > 0) {
+        router.replace({
+          pathname: "/(auth)/complete-profile",
+          params: { missingFields: res.missingFields.join(",") },
+        });
+      } else {
+        router.replace("/(tabs)/dashboard");
+      }
     } catch {
       showToast(t("auth.invalid_credentials"));
     } finally {
