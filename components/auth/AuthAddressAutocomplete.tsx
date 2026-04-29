@@ -120,7 +120,7 @@ export function AuthAddressAutocomplete({
           }}
           minLength={2}
           enablePoweredByContainer={false}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           listViewDisplayed="auto"
           onFail={() => setInternalError("Erreur de recherche — réessaie")}
           textInputProps={{
@@ -162,41 +162,46 @@ export function AuthAddressAutocomplete({
               margin: 0,
             },
             listView: {
+              // Dropdown matches the dark auth form aesthetic instead of
+              // appearing as a jarring white card. Slightly elevated tone
+              // (rgba(255,255,255,0.04) over the dark bg) to read as a panel.
               position: "absolute",
-              top: 46,
+              top: 50,
               left: -38,
               right: -14,
-              backgroundColor: authT.light,
+              maxHeight: 220, // ~4 results — keeps it visible above keyboard
+              backgroundColor: "#171717",
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: alpha(authT.textOnLight, 0.08),
+              borderColor: alpha(authT.textOnDark, 0.1),
               overflow: "hidden",
               zIndex: 9999,
               ...Platform.select({
                 ios: {
                   shadowColor: "#000",
-                  shadowOpacity: 0.12,
-                  shadowRadius: 18,
-                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.5,
+                  shadowRadius: 24,
+                  shadowOffset: { width: 0, height: 8 },
                 },
-                android: { elevation: 16 },
+                android: { elevation: 24 },
               }),
             },
             row: {
               backgroundColor: "transparent",
-              paddingVertical: 13,
-              paddingHorizontal: 16,
+              paddingVertical: 14,
+              paddingHorizontal: 18,
+              minHeight: 48,
             },
             description: {
               fontSize: 14,
               fontFamily: FONTS.sans,
-              color: authT.textOnLight,
+              color: authT.textOnDark,
             },
             predefinedPlacesDescription: {
-              color: alpha(authT.textOnLight, 0.5),
+              color: alpha(authT.textOnDark, 0.5),
             },
             separator: {
-              backgroundColor: alpha(authT.textOnLight, 0.07),
+              backgroundColor: alpha(authT.textOnDark, 0.06),
               height: 1,
             },
             poweredContainer: { display: "none" },

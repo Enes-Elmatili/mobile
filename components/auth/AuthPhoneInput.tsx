@@ -36,7 +36,7 @@ export function AuthPhoneInput({
   onChangeFormattedText,
   error,
   label = "Téléphone *",
-  placeholder = "+32 470 00 00 00",
+  placeholder = "470 12 34 56",
   returnKeyType = "next",
   onSubmitEditing,
 }: Props) {
@@ -71,7 +71,10 @@ export function AuthPhoneInput({
             withFilter: true,
             withFlag: true,
             withCallingCode: true,
-            withEmoji: false,
+            // Emoji flags are rendered by the OS (universal on iOS, decent on
+            // Android 11+). Convention in payment / billing UIs (Stripe, Revolut,
+            // Splitwise) is to keep them — they're the strongest visual cue.
+            withEmoji: true,
             withCountryNameButton: false,
             filterProps: {
               placeholder: "Rechercher un pays...",
