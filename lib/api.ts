@@ -253,11 +253,15 @@ class ApiClient {
       return result;
     },
     logout: async () => {
-      try {
-        await this.post('/auth/logout');
-      } finally {
-        await tokenStorage.removeToken();
-      }
+      // Clear the local token FIRST so the navigation guard
+      // (which gates on `hasToken`) can redirect immediately. Otherwise a
+      // slow / unreachable backend would block signOut and the user would
+      // appear "stuck" on the screen with the logout button doing nothing
+      // visible. The backend invalidation becomes a best-effort fire-and-forget.
+      await tokenStorage.removeToken();
+      this.post('/auth/logout').catch(() => {
+        // Network failure is fine — the token is already gone locally.
+      });
     },
     refresh: () => this.post('/auth/refresh'),
     assignRole: async (role: 'CLIENT' | 'PROVIDER') => {
