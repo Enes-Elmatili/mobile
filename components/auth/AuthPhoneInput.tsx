@@ -20,9 +20,14 @@ import { FONTS } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
 type Props = {
-  value?: string;
-  onChangeText?: (text: string) => void;
-  onChangeFormattedText?: (text: string) => void;
+  /**
+   * Initial local number (digits only, NO dial code) — used once on mount.
+   * Updates after first render are ignored: this component is uncontrolled
+   * for the input visual to avoid the E.164 echoing back into the field.
+   */
+  defaultValue?: string;
+  onChangeText?: (localNumber: string) => void;
+  onChangeFormattedText?: (e164: string) => void;
   error?: string | null;
   label?: string;
   placeholder?: string;
@@ -31,7 +36,7 @@ type Props = {
 };
 
 export function AuthPhoneInput({
-  value = "",
+  defaultValue = "",
   onChangeText,
   onChangeFormattedText,
   error,
@@ -57,7 +62,7 @@ export function AuthPhoneInput({
           ref={phoneRef}
           defaultCode="BE"
           layout="first"
-          value={value}
+          defaultValue={defaultValue}
           onChangeText={onChangeText}
           onChangeFormattedText={onChangeFormattedText}
           withDarkTheme={false}

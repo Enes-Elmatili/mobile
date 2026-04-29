@@ -663,7 +663,6 @@ export default function Signup() {
           <View style={s.body}>
             <View style={s.form}>
               <AuthPhoneInput
-                value={phone}
                 onChangeFormattedText={(e164) => { setPhone(e164); if (phoneError) setPhoneError(""); }}
                 onChangeText={() => { if (phoneError) setPhoneError(""); }}
                 error={phoneError || undefined}

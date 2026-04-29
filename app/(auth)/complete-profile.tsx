@@ -241,7 +241,6 @@ export default function CompleteProfile() {
             )}
             {needs("phone") && (
               <AuthPhoneInput
-                value={phone}
                 onChangeFormattedText={(e164) => { setPhone(e164); if (phoneError) setPhoneError(""); }}
                 onChangeText={() => { if (phoneError) setPhoneError(""); }}
                 error={phoneError || undefined}
