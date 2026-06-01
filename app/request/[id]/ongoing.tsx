@@ -450,18 +450,51 @@ export default function MissionOngoing() {
 
   const openActionsMenu = useCallback(() => {
     const goSupport = () => router.push('/settings/help');
+    // Safety valve : si le provider est bloqué sur une mission anormale (pas de PIN,
+    // données manquantes...), il doit pouvoir sortir proprement. On confirme, on log
+    // un ticket support en background, et on retourne au dashboard. Le statut DB reste
+    // inchangé — l'admin (ou le script cleanupZombieMissions) fera le ménage côté serveur.
+    const abandonMission = () => {
+      Alert.alert(
+        'Abandonner cette mission ?',
+        'Utilisez cette option uniquement si la mission est anormale (code PIN absent, client injoignable, données manquantes). Le support sera notifié.',
+        [
+          { text: 'Garder la mission', style: 'cancel' },
+          {
+            text: 'Abandonner',
+            style: 'destructive',
+            onPress: () => {
+              // Best-effort backend notify (non bloquant)
+              api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' })
+                .catch(() => { /* ignored — fallback frontend-only escape */ });
+              router.replace('/(tabs)/dashboard');
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    };
+
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: ['Annuler', 'Contacter le support'], cancelButtonIndex: 0 },
-        (idx: number) => { if (idx === 1) goSupport(); },
+        {
+          options: ['Annuler', 'Contacter le support', 'Abandonner cette mission'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 2,
+        },
+        (idx: number) => {
+          if (idx === 1) goSupport();
+          else if (idx === 2) abandonMission();
+        },
       );
       return;
     }
     Alert.alert('Options', undefined, [
       { text: 'Contacter le support', onPress: goSupport },
+      { text: 'Abandonner cette mission', style: 'destructive', onPress: abandonMission },
       { text: 'Fermer', style: 'cancel' },
     ], { cancelable: true });
-  }, [router]);
+  }, [router, id]);
 
   const handleNavigate = async () => {
     if (!request?.lat || !request?.lng) return;

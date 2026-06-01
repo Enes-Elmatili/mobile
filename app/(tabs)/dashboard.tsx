@@ -16,6 +16,7 @@ import {
   Dimensions,
   Animated,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -23,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
+import { useCall } from '../../lib/webrtc/CallContext';
 import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
@@ -313,6 +315,8 @@ function MissionIsland({
   onActiveMissionPress,
   onSearchingPress,
   onQuotePress,
+  onCallProvider,
+  onMessageProvider,
   theme,
 }: {
   activeMission: DashboardData['requests'][0] | null;
@@ -321,6 +325,8 @@ function MissionIsland({
   onActiveMissionPress: () => void;
   onSearchingPress: () => void;
   onQuotePress?: () => void;
+  onCallProvider?: () => void;
+  onMessageProvider?: () => void;
   theme: AppTheme;
 }) {
   const { t } = useTranslation();
@@ -477,19 +483,31 @@ function MissionIsland({
                   {t('dashboard.provider_on_way')}
                 </Text>
               </View>
-              <TouchableOpacity style={{
-                width: 44, height: 44, borderRadius: 12,
-                backgroundColor: COLORS.greenBrand,
-                alignItems: 'center', justifyContent: 'center',
-              }}>
+              <TouchableOpacity
+                style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  backgroundColor: COLORS.greenBrand,
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+                onPress={(e) => { e.stopPropagation?.(); hapticLight(); onCallProvider?.(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Appeler le prestataire"
+                activeOpacity={0.85}
+              >
                 <Feather name="phone" size={18} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity style={{
-                width: 44, height: 44, borderRadius: 12,
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
+              <TouchableOpacity
+                style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+                onPress={(e) => { e.stopPropagation?.(); hapticLight(); onMessageProvider?.(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Envoyer un message au prestataire"
+                activeOpacity={0.85}
+              >
                 <Feather name="message-square" size={18} color={theme.heroText} />
               </TouchableOpacity>
             </View>
@@ -968,6 +986,7 @@ export default function Dashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const { socket, unreadCount, unreadMessages } = useSocket();
+  const { initiateCall } = useCall();
   const theme = useAppTheme();
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -1295,6 +1314,34 @@ export default function Dashboard() {
                   } else {
                     router.push({ pathname: '/request/[id]/quote-pending', params: { id: String(quoteMission.id) } });
                   }
+                }}
+                onCallProvider={() => {
+                  const provider = activeMission?.provider;
+                  if (!provider) return;
+                  const providerUserId = (provider as any).userId || provider.id;
+                  if (providerUserId) {
+                    initiateCall({
+                      targetUserId: String(providerUserId),
+                      targetName: provider.name || 'Prestataire',
+                      requestId: String(activeMission.id),
+                    });
+                  } else if ((provider as any).phone) {
+                    Linking.openURL(`tel:${String((provider as any).phone).replace(/\s+/g, '')}`);
+                  }
+                }}
+                onMessageProvider={() => {
+                  const provider = activeMission?.provider;
+                  if (!provider) return;
+                  const providerUserId = (provider as any).userId || provider.id;
+                  if (!providerUserId) return;
+                  router.push({
+                    pathname: '/messages/[userId]',
+                    params: {
+                      userId: String(providerUserId),
+                      name: provider.name || '',
+                      requestId: String(activeMission.id),
+                    },
+                  });
                 }}
                 theme={theme}
               />

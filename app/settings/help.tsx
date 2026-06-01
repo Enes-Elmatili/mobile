@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 // ── FAQ catégorisée ────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ type FaqCategory = 'payments' | 'missions' | 'account' | 'providers';
 
 interface FaqItem { q: string; a: string; cat: FaqCategory }
 
-const FAQ: FaqItem[] = [
+const FAQ_CLIENT: FaqItem[] = [
   // Paiements
   {
     cat: 'payments',
@@ -75,16 +76,78 @@ const FAQ: FaqItem[] = [
     q: 'Comment supprimer mon compte ?',
     a: 'Rendez-vous dans Profil → Paramètres → Confidentialité → Supprimer mon compte. Conformément au RGPD, vos données sont supprimées sous 30 jours, à l\'exception des justificatifs comptables conservés 7 ans.',
   },
-  // Prestataires
+  // Prestataires (pour clients qui veulent devenir provider)
   {
     cat: 'providers',
     q: 'Comment devenir prestataire FIXED ?',
     a: 'Depuis votre profil, appuyez sur "Devenir prestataire" et complétez les 4 étapes : présentation, zone d\'intervention, catégories de services, soumission. Notre équipe valide votre dossier sous 48h.',
   },
+];
+
+const FAQ_PROVIDER: FaqItem[] = [
+  // Paiements (du point de vue provider)
+  {
+    cat: 'payments',
+    q: 'Quand suis-je payé pour mes missions ?',
+    a: 'Dès que la mission est marquée terminée et que le PIN client est vérifié, 80% du montant client est crédité sur votre wallet FIXED. Vous pouvez retirer vos gains à tout moment vers votre compte bancaire (versement sous 1 à 3 jours ouvrables).',
+  },
+  {
+    cat: 'payments',
+    q: 'Comment fonctionne la commission FIXED ?',
+    a: 'FIXED prélève 20% du prix client (formule Free). Avec l\'abonnement Pro (29€/mois) ou Pro+ (99,99€/mois), votre commission descend et vous accédez à plus d\'opportunités. Plus de détails dans Profil → Abonnement.',
+  },
+  {
+    cat: 'payments',
+    q: 'Que se passe-t-il si le client annule après mon déplacement ?',
+    a: 'Si la mission est en cours et que le client annule, vous êtes indemnisé via le partage de coûts géré par le support. Ouvrez un ticket avec le numéro de mission et la preuve du déplacement.',
+  },
+  // Missions (point de vue provider)
+  {
+    cat: 'missions',
+    q: 'Comment vérifier le code PIN du client ?',
+    a: 'À votre arrivée, demandez le code PIN à 4 chiffres au client. Saisissez-le dans l\'écran mission (étape 2) — la mission démarre automatiquement une fois validé.',
+  },
+  {
+    cat: 'missions',
+    q: 'Comment terminer une mission ?',
+    a: 'Prenez une photo "avant" (étape 3) à votre arrivée, puis une photo "après" à la fin. Appuyez ensuite sur "Terminer la mission" — vos gains sont crédités immédiatement.',
+  },
+  {
+    cat: 'missions',
+    q: 'Je n\'arrive pas à entrer dans une mission (PIN absent, client injoignable)…',
+    a: 'Ouvrez le menu "..." en haut de l\'écran mission et choisissez "Abandonner cette mission". Le support est notifié et vous pouvez reprendre votre activité.',
+  },
+  {
+    cat: 'missions',
+    q: 'Comment voir mes missions à venir ?',
+    a: 'L\'onglet Missions liste vos prochaines missions planifiées, vos missions actives et l\'historique. Filtrez par date pour planifier votre semaine.',
+  },
+  // Compte (provider)
+  {
+    cat: 'account',
+    q: 'Comment passer à l\'abonnement Pro / Pro+ ?',
+    a: 'Profil → Abonnement → Choisir un plan. Le passage est immédiat, et la commission baissée s\'applique dès votre prochaine mission acceptée.',
+  },
+  {
+    cat: 'account',
+    q: 'Comment modifier mes documents KYC ?',
+    a: 'Profil → Documents. Les documents rejetés peuvent être ré-uploadés, les documents approuvés peuvent être mis à jour avant expiration. Le support repasse en revue sous 24-48h.',
+  },
+  {
+    cat: 'account',
+    q: 'Mon profil prestataire est suspendu, pourquoi ?',
+    a: 'Suspension automatique en cas de notes basses répétées, documents expirés ou plainte client validée. Contactez le support via WhatsApp pour comprendre la cause et lever la suspension.',
+  },
+  // Prestataires — autres infos métier
   {
     cat: 'providers',
-    q: 'Quand suis-je payé pour mes missions ?',
-    a: 'Dès que la mission est marquée terminée, 80% du montant client est crédité sur votre wallet FIXED. Vous pouvez retirer vos gains à tout moment vers votre compte bancaire (versement sous 1 à 3 jours ouvrables).',
+    q: 'Comment fonctionne le matching des demandes ?',
+    a: 'Vous recevez les opportunités correspondant à vos catégories, votre zone et votre disponibilité. Les Pro+ ont priorité sur les missions urgentes. Activez la géoloc en arrière-plan pour ne rien manquer.',
+  },
+  {
+    cat: 'providers',
+    q: 'Pourquoi je ne reçois pas de notifications de nouvelles demandes ?',
+    a: 'Vérifiez : (1) Notifications activées dans les réglages iOS / Android, (2) Géolocalisation autorisée en arrière-plan, (3) Vous êtes en statut "Disponible" sur le dashboard, (4) Vos catégories et zone couvrent la mission. Si tout est OK, contactez le support.',
   },
 ];
 
@@ -142,6 +205,9 @@ export default function HelpScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useAppTheme();
+  const { user } = useAuth();
+  const isProvider = !!user?.roles?.includes('PROVIDER');
+  const FAQ = isProvider ? FAQ_PROVIDER : FAQ_CLIENT;
 
   const [query, setQuery] = useState('');
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -177,7 +243,7 @@ export default function HelpScreen() {
     const q = query.trim().toLowerCase();
     if (!q) return FAQ;
     return FAQ.filter(f => f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q));
-  }, [query]);
+  }, [query, FAQ]);
 
   const groupedByCat = useMemo(() => {
     const map = new Map<FaqCategory, FaqItem[]>();

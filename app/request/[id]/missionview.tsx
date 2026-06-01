@@ -631,6 +631,20 @@ export default function MissionView() {
     return () => clearInterval(iv);
   }, [phase, isScheduledMission, clientLocation.latitude, clientLocation.longitude]);
 
+  // ─── Recenter map dès que la position client réelle est chargée ───────────
+  // Sans ça, la carte reste sur la région par défaut (Bruxelles) jusqu'à ce
+  // que le drift / le tracking ne fire — l'utilisateur ne voit pas son adresse.
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const clat = request?.lat ?? (lat ? parseFloat(lat) : null);
+    const clng = request?.lng ?? (lng ? parseFloat(lng) : null);
+    if (clat == null || clng == null) return;
+    mapRef.current.animateToRegion(
+      { latitude: clat, longitude: clng, latitudeDelta: 0.015, longitudeDelta: 0.015 },
+      600,
+    );
+  }, [request?.lat, request?.lng, lat, lng]);
+
   // ─── Fetch PIN (silencieux — le 404 NO_PIN est un état normal) ───────────
   const fetchPin = useCallback(async (requestId: string) => {
     try {

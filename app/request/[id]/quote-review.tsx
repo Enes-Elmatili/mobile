@@ -106,7 +106,9 @@ export default function QuoteReview() {
 
         // Payment succeeded → confirm on backend to transition status to ONGOING
         const quoteId = res.paymentIntent.quoteId || quote.id;
-        await api.quotes.confirmPayment(quoteId);
+        // Passer le paymentIntentId pour qu'il soit persisté sur le Payment
+        // (nécessaire pour un refund admin ultérieur).
+        await api.quotes.confirmPayment(quoteId, res.paymentIntent.id);
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

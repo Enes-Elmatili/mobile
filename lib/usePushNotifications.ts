@@ -157,6 +157,24 @@ function handleNotificationNavigation(data: any) {
       case 'kyc_status':
         router.replace('/onboarding/provider/pending');
         return;
+      case 'dispute_opened':
+      case 'dispute_resolved':
+        // Pour les litiges : on ouvre la mission concernée (info + contexte)
+        // plutôt qu'une simple liste de notifs vide de sens.
+        if (requestId) {
+          router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
+        } else {
+          router.push('/notifications');
+        }
+        return;
+      case 'refund':
+        // Notif de remboursement → écran de la demande (info utile : statut, montant)
+        if (requestId) {
+          router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
+        } else {
+          router.push('/notifications');
+        }
+        return;
     }
 
     // Fallback: if we have a requestId but no type/screen, go to missionview

@@ -552,8 +552,8 @@ class ApiClient {
       this.post(`/quotes/${requestId}`, data),
     accept: (quoteId: number) =>
       this.post(`/quotes/${quoteId}/accept`),
-    confirmPayment: (quoteId: number) =>
-      this.post(`/quotes/${quoteId}/confirm-payment`),
+    confirmPayment: (quoteId: number, paymentIntentId?: string) =>
+      this.post(`/quotes/${quoteId}/confirm-payment`, paymentIntentId ? { paymentIntentId } : undefined),
     refuse: (quoteId: number, reason?: string) =>
       this.post(`/quotes/${quoteId}/refuse`, { reason }),
     calloutPayment: (requestId: string | number) =>

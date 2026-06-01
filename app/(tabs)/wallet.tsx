@@ -7,7 +7,7 @@ import {
   Platform, RefreshControl, StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
@@ -185,6 +185,7 @@ export default function WalletTab() {
   const [stripeLoading, setStripeLoading] = useState(false);
   const [filter, setFilter]             = useState<Filter>('all');
   const t = useAppTheme();
+  const router = useRouter();
 
   const load = useCallback(async () => {
     try {
@@ -433,6 +434,19 @@ export default function WalletTab() {
               <Feather name="chevron-right" size={13} color={t.textVeryMuted} />
             </>
         }
+      </TouchableOpacity>
+
+      {/* -- Mes factures -- */}
+      <TouchableOpacity
+        style={styles.stripeLink}
+        onPress={() => router.push('/invoices')}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Mes factures"
+      >
+        <Feather name="file-text" size={15} color={t.accent} />
+        <Text style={[styles.stripeLinkText, { color: t.text }]}>Mes factures</Text>
+        <Feather name="chevron-right" size={13} color={t.textVeryMuted} />
       </TouchableOpacity>
 
       {/* -- Filtres -- */}

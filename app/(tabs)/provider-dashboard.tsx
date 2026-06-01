@@ -683,6 +683,15 @@ export default function ProviderDashboard() {
     );
   }, [location, mapReady]);
 
+  // Fallback : si onMapReady ne fire pas dans les 3 secondes (Google Maps SDK
+  // qui silencie parfois l'event sur iOS / simulateur), on force mapReady=true
+  // pour débloquer l'auto-recenter. animateToRegion no-op si réellement pas prêt.
+  useEffect(() => {
+    if (mapReady) return;
+    const t = setTimeout(() => setMapReady(true), 3000);
+    return () => clearTimeout(t);
+  }, [mapReady]);
+
   // Data
   const loadData = useCallback(async () => {
     const results = await Promise.allSettled([

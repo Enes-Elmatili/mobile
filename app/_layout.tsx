@@ -110,10 +110,13 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(auth)';
 
     // Guard : ne jamais interrompre un flow en cours
+    // Exception: si le token a disparu (logout explicite ou 401), on doit rediriger
+    // vers (auth) même si on est au milieu d'un flow — sinon l'écran reste bloqué
+    // jusqu'à un kill app (bug observé sur onboarding/provider/pending).
     const isOnMissionFlow = MISSION_FLOW_ROUTES.some(route =>
       segments.some(seg => seg === route)
     );
-    if (isOnMissionFlow) return;
+    if (isOnMissionFlow && hasToken) return;
 
     if (!userId && !inAuthGroup) {
       router.replace('/(auth)/welcome');
