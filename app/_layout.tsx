@@ -1,4 +1,4 @@
-import '../lib/i18n'; // i18n — doit être importé avant tout autre module
+import i18n from '../lib/i18n'; // i18n — doit être importé avant tout autre module
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
@@ -7,6 +7,7 @@ import { NetworkProvider } from '../lib/NetworkContext';
 import { OfflineQueueProvider } from '../lib/OfflineQueueContext';
 import { CallProvider } from '../lib/webrtc/CallContext';
 import IncomingCallOverlay from '../components/IncomingCallOverlay';
+import { FeedbackHost } from '@/components/feedback/FeedbackHost';
 import { usePushNotifications } from '../lib/usePushNotifications';
 import {
   ActivityIndicator,
@@ -202,15 +203,15 @@ class AppErrorBoundary extends React.Component<
       const t = dark ? darkTokens : lightTokens;
       return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: t.bg }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: t.text }}>Une erreur est survenue</Text>
+          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: t.text }}>{i18n.t('common.error')}</Text>
           <Text style={{ fontSize: 14, color: t.textSub, textAlign: 'center', marginBottom: 24 }}>
-            L'application a rencontré un problème inattendu.
+            {i18n.t('ext.error_boundary_msg')}
           </Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false })}
             style={{ backgroundColor: t.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
-            <Text style={{ color: t.accentText, fontWeight: '600' }}>Réessayer</Text>
+            <Text style={{ color: t.accentText, fontWeight: '600' }}>{i18n.t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -260,6 +261,7 @@ export default Sentry.wrap(function RootLayout() {
             </AuthProvider>
           </StripeProvider>
         </NetworkProvider>
+        <FeedbackHost />
       </GestureHandlerRootView>
     </AppErrorBoundary>
   );
