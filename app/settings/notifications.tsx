@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
+import { feedback } from '@/lib/feedback/feedback';
 
 // ── Storage key ────────────────────────────────────────────────────────────────
 
@@ -85,6 +87,11 @@ export default function NotificationsScreen() {
   const theme = useAppTheme();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
 
+  const sound = useFeedbackPrefs((s) => s.sound);
+  const haptics = useFeedbackPrefs((s) => s.haptics);
+  const animations = useFeedbackPrefs((s) => s.animations);
+  const setPref = useFeedbackPrefs((s) => s.setPref);
+
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_PREFS_KEY).then(raw => {
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
@@ -95,7 +102,7 @@ export default function NotificationsScreen() {
     const next = { ...prefs, [key]: value };
     setPrefs(next);
     AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next)).catch(() => {});
-    showSocketToast(value ? 'Activé' : 'Désactivé', 'success');
+    showSocketToast(value ? t('ext.settings_activated') : t('ext.settings_deactivated'), 'success');
   };
 
   const ITEMS: {
@@ -105,27 +112,27 @@ export default function NotificationsScreen() {
     {
       key: 'newMissions', icon: 'briefcase',
       label: t('settings.notif_new_missions'),
-      sublabel: 'Quand une nouvelle mission est disponible',
+      sublabel: t('ext.settings_notif_new_missions_sub'),
     },
     {
       key: 'messages', icon: 'message-circle',
       label: t('settings.notif_messages'),
-      sublabel: 'Nouveaux messages de clients',
+      sublabel: t('ext.settings_notif_messages_sub'),
     },
     {
       key: 'payments', icon: 'credit-card',
       label: t('settings.notif_payments'),
-      sublabel: 'Confirmations de paiement',
+      sublabel: t('ext.settings_notif_payments_sub'),
     },
     {
       key: 'reminders', icon: 'clock',
       label: t('settings.notif_reminders'),
-      sublabel: 'Rappels avant une mission',
+      sublabel: t('ext.settings_notif_reminders_sub'),
     },
     {
       key: 'promotions', icon: 'tag',
       label: t('settings.notif_promotions'),
-      sublabel: 'Offres et actualités Fixed',
+      sublabel: t('ext.settings_notif_promotions_sub'),
     },
   ];
 
@@ -153,8 +160,34 @@ export default function NotificationsScreen() {
             />
           ))}
         </View>
+        {/* ── Feedback & sound ── */}
+        <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('feedback.settings.section')}</Text>
+        <View style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+          <ToggleRow
+            icon="volume-2"
+            label={t('feedback.settings.sound')}
+            sublabel={t('feedback.settings.sound_sub')}
+            value={sound}
+            onToggle={(v) => { setPref('sound', v); feedback.haptic('selection'); }}
+          />
+          <ToggleRow
+            icon="smartphone"
+            label={t('feedback.settings.haptics')}
+            sublabel={t('feedback.settings.haptics_sub')}
+            value={haptics}
+            onToggle={(v) => { setPref('haptics', v); if (v) feedback.haptic('selection'); }}
+          />
+          <ToggleRow
+            icon="zap"
+            label={t('feedback.settings.animations')}
+            sublabel={t('feedback.settings.animations_sub')}
+            value={animations}
+            onToggle={(v) => { setPref('animations', v); feedback.haptic('selection'); }}
+          />
+        </View>
+
         <Text style={[s.hint, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-          Ces préférences contrôlent les notifications push. Vous pouvez également les gérer dans les réglages de votre appareil.
+          {t('ext.settings_notif_hint')}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -182,4 +215,8 @@ const s = StyleSheet.create({
     }),
   },
   hint: { fontSize: 12, lineHeight: 18, paddingHorizontal: 4 },
+  sectionTitle: {
+    fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.2,
+    marginBottom: 8, marginTop: 8, paddingHorizontal: 4,
+  },
 });
