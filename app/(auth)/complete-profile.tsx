@@ -14,8 +14,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
@@ -176,10 +176,10 @@ export default function CompleteProfile() {
 
   const onSubmit = async () => {
     if (!validate()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      feedback.haptic('error');
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setLoading(true);
     try {
       const payload: Record<string, string> = {};
@@ -191,10 +191,10 @@ export default function CompleteProfile() {
 
       await api.patch("/me/profile", payload);
       await refreshMe();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
       router.replace("/(tabs)/dashboard");
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      feedback.haptic('error');
       showToast(err.message || "Mise à jour impossible, réessaie");
     } finally {
       setLoading(false);

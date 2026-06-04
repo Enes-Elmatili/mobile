@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
+import { feedback } from "@/lib/feedback/feedback";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
@@ -76,13 +76,13 @@ export default function ResetPassword() {
     }
     if (!token) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setLoading(true);
     setError(null);
     try {
       await api.auth.resetPassword(token, password);
       setDone(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
     } catch (e: any) {
       setError(e?.data?.error || "Une erreur est survenue. Le lien a peut-être expiré.");
     } finally {
@@ -121,7 +121,7 @@ export default function ResetPassword() {
       return {
         label: "SE CONNECTER",
         onPress: () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          feedback.haptic('medium');
           router.replace("/(auth)/login");
         },
       };
@@ -130,7 +130,7 @@ export default function ResetPassword() {
       return {
         label: "DEMANDER UN NOUVEAU LIEN",
         onPress: () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          feedback.haptic('medium');
           router.replace("/(auth)/forgot-password");
         },
       };
@@ -149,7 +149,7 @@ export default function ResetPassword() {
         <View style={s.topRow}>
           <AuthBackButton
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              feedback.haptic('light');
               router.replace("/(auth)/login");
             }}
           />

@@ -17,8 +17,8 @@ import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuthRequest, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
-import * as Haptics from "expo-haptics";
 import { useAuth } from "../../lib/auth/AuthContext";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -301,7 +301,7 @@ export default function Login() {
       showToast(t("auth.fill_all_fields"));
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setLoading(true);
     try {
       const res = await api.auth.login(email.trim().toLowerCase(), password);
@@ -335,7 +335,7 @@ export default function Login() {
   }
 
   const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     if (router.canGoBack()) router.back();
     else router.replace("/(auth)/welcome");
   };
@@ -448,7 +448,7 @@ export default function Login() {
           prefix="Pas encore de compte ?"
           action="Créer un compte"
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            feedback.haptic('light');
             router.push("/(auth)/role-select");
           }}
         />

@@ -7,12 +7,12 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
+import { feedback } from "@/lib/feedback/feedback";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
 import { FONTS } from "@/hooks/use-app-theme";
@@ -93,6 +93,7 @@ function RoleCard({
 // ── Main screen ─────────────────────────────────────────────────────────────
 export default function RoleSelect() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, signIn } = useAuth();
   const [selected, setSelected] = useState<"CLIENT" | "PROVIDER" | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -120,12 +121,12 @@ export default function RoleSelect() {
 
   const select = (role: "CLIENT" | "PROVIDER") => {
     setSelected(role);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
   };
 
   const confirm = async () => {
     if (!selected || submitting) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
 
     if (isAuthenticated) {
       setSubmitting(true);
@@ -137,7 +138,7 @@ export default function RoleSelect() {
           return;
         }
       } catch (e: any) {
-        Alert.alert("Erreur", e?.message || "Impossible d'attribuer le rôle");
+        feedback.error(e?.message || t('ext.role_assign_error'));
         setSubmitting(false);
       }
     } else {
@@ -147,7 +148,7 @@ export default function RoleSelect() {
   };
 
   const handleBack = () => {
-    Haptics.selectionAsync();
+    feedback.haptic('selection');
     if (router.canGoBack()) router.back();
     else router.replace("/(auth)/welcome");
   };
@@ -157,15 +158,15 @@ export default function RoleSelect() {
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
         <View style={s.topRow}>
           {!isAuthenticated ? <AuthBackButton onPress={handleBack} /> : <View style={{ width: 36 }} />}
-          <Text style={s.eyebrow}>Inscription</Text>
+          <Text style={s.eyebrow}>{t('ext.role_signup')}</Text>
           <View style={{ width: 36 }} />
         </View>
 
         <View style={s.header}>
           <AuthHeadline
-            kicker="ÉTAPE 1 / 3"
-            title={"JE SUIS\n{accent}QUI ?{/accent}"}
-            subtitle="Choisissez votre profil pour personnaliser l'expérience."
+            kicker={t('ext.role_step')}
+            title={t('ext.role_title')}
+            subtitle={t('ext.role_subtitle')}
             align="left"
           />
         </View>
@@ -173,15 +174,15 @@ export default function RoleSelect() {
         <View style={s.cards}>
           <RoleCard
             icon="user"
-            title="CLIENT"
-            subtitle={"Je cherche un prestataire\npour mon domicile"}
+            title={t('ext.role_client')}
+            subtitle={t('ext.role_client_sub')}
             isSelected={selected === "CLIENT"}
             onPress={() => select("CLIENT")}
           />
           <RoleCard
             icon="tool"
-            title="PRESTATAIRE"
-            subtitle={"Je propose mes services\net gère mes missions"}
+            title={t('ext.role_provider')}
+            subtitle={t('ext.role_provider_sub')}
             isSelected={selected === "PROVIDER"}
             onPress={() => select("PROVIDER")}
           />
@@ -190,7 +191,7 @@ export default function RoleSelect() {
         <View style={s.spacer} />
 
         <AuthCTA
-          label={submitting ? "CHARGEMENT…" : "CONTINUER"}
+          label={submitting ? t('ext.role_loading') : t('ext.role_continue')}
           onPress={confirm}
           loading={submitting}
           disabled={!selected}
@@ -198,10 +199,10 @@ export default function RoleSelect() {
 
         {!isAuthenticated && (
           <AuthLink
-            prefix="Déjà un compte ?"
-            action="Se connecter"
+            prefix={t('ext.role_already_account')}
+            action={t('ext.role_sign_in')}
             onPress={() => {
-              Haptics.selectionAsync();
+              feedback.haptic('selection');
               router.push("/(auth)/login");
             }}
           />

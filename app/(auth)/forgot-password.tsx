@@ -10,8 +10,9 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
+import { feedback } from "@/lib/feedback/feedback";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
@@ -25,6 +26,7 @@ import {
 
 export default function ForgotPassword() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -43,25 +45,25 @@ export default function ForgotPassword() {
   const handleSubmit = async () => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed) {
-      setError("Entrez votre adresse email");
+      setError(t('auth.forgot_password_empty'));
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setLoading(true);
     setError(null);
     try {
       await api.auth.forgotPassword(trimmed);
       setSent(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
     } catch {
-      setError("Une erreur est survenue. Réessayez.");
+      setError(t('auth.forgot_password_error'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     if (router.canGoBack()) router.back();
     else router.replace("/(auth)/welcome");
   };
@@ -82,7 +84,7 @@ export default function ForgotPassword() {
         </View>
 
         <AuthHeadline
-          title={sent ? "EMAIL\n{accent}ENVOYÉ.{/accent}" : "MOT DE PASSE\n{accent}OUBLIÉ ?{/accent}"}
+          title={sent ? t('auth.forgot_password_sent_title') : t('auth.forgot_password_title')}
           align="left"
         />
 
@@ -90,34 +92,34 @@ export default function ForgotPassword() {
           {sent ? (
             <>
               <Text style={s.subtitle}>
-                Un email de réinitialisation a été envoyé à{"\n"}
+                {t('auth.forgot_password_sent_sub')}{"\n"}
                 <Text style={s.emailText}>{email.trim().toLowerCase()}</Text>
               </Text>
 
               <View style={s.infoCard}>
                 <Feather name="info" size={16} color={alpha(authT.textOnDark, 0.55)} style={{ marginTop: 1 }} />
                 <Text style={s.infoText}>
-                  Cliquez sur le lien dans l'email pour créer un nouveau mot de passe. Le lien expire dans 48 heures.
+                  {t('auth.forgot_password_info')}
                 </Text>
               </View>
             </>
           ) : (
             <>
               <Text style={s.subtitle}>
-                Entrez l'email associé à votre compte. Nous vous enverrons un lien de réinitialisation.
+                {t('auth.forgot_password_sub')}
               </Text>
 
               <AuthInput
-                label="Email"
+                label={t('auth.email_label')}
                 icon="mail"
-                placeholder="votre@email.com"
+                placeholder={t('auth.email_placeholder_value')}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoFocus
                 returnKeyType="done"
                 value={email}
-                onChangeText={(t) => {
-                  setEmail(t);
+                onChangeText={(val) => {
+                  setEmail(val);
                   setError(null);
                 }}
                 onSubmitEditing={handleSubmit}
@@ -130,14 +132,14 @@ export default function ForgotPassword() {
         <View style={s.spacer} />
 
         <AuthCTA
-          label={sent ? "RETOUR À LA CONNEXION" : "ENVOYER LE LIEN"}
+          label={sent ? t('auth.back_to_login_cta') : t('auth.send_link')}
           onPress={sent ? handleBack : handleSubmit}
           loading={loading}
           disabled={!sent && !email.trim()}
         />
 
         <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
-          <Text style={s.secondaryLinkText}>Retour à la connexion</Text>
+          <Text style={s.secondaryLinkText}>{t('auth.back_to_login_link')}</Text>
         </TouchableOpacity>
       </Animated.View>
     </AuthScreen>

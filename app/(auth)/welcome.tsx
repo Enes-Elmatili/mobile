@@ -9,8 +9,8 @@ import {
   Easing,
 } from "react-native";
 import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
 import { FONTS } from "@/hooks/use-app-theme";
+import { feedback } from "@/lib/feedback/feedback";
 import { AuthScreen, AuthCTA, AuthLink, authT, alpha } from "@/components/auth";
 
 export default function Welcome() {
@@ -35,12 +35,12 @@ export default function Welcome() {
   }, [fade, slide]);
 
   const handlePrimary = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     router.push("/(auth)/role-select");
   };
 
   const handleSignIn = async () => {
-    await Haptics.selectionAsync();
+    feedback.haptic('selection');
     router.push("/(auth)/login");
   };
 

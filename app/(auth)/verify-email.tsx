@@ -12,8 +12,8 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
+import { feedback } from "@/lib/feedback/feedback";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
@@ -73,7 +73,7 @@ export default function VerifyEmail() {
   };
 
   const handleContinue = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     let detectedRole = await AsyncStorage.getItem(ROLE_INTENT_KEY);
     if (!detectedRole) {
       try {

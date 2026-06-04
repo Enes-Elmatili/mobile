@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
+import { feedback } from "@/lib/feedback/feedback";
 import { FONTS } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
@@ -23,6 +24,7 @@ import {
 
 export default function AuthChoice() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(16)).current;
@@ -45,22 +47,22 @@ export default function AuthChoice() {
   }, [fade, slide]);
 
   const handleLogin = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     router.push("/(auth)/login");
   };
 
   const handleSignup = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     router.push("/(auth)/role-select");
   };
 
   const handleStart = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     router.push("/(auth)/role-select");
   };
 
   const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     if (router.canGoBack()) router.back();
     else router.replace("/(auth)/welcome");
   };
@@ -86,8 +88,8 @@ export default function AuthChoice() {
               <Feather name="log-in" size={20} color={authT.textOnDark} />
             </View>
             <View style={s.cardContent}>
-              <Text style={s.cardTitle}>Se connecter</Text>
-              <Text style={s.cardSub}>J'ai déjà un compte</Text>
+              <Text style={s.cardTitle}>{t('auth.login_btn')}</Text>
+              <Text style={s.cardSub}>{t('auth.already_account')}</Text>
             </View>
             <Feather name="chevron-right" size={16} color={alpha(authT.textOnDark, 0.4)} />
           </TouchableOpacity>
@@ -97,8 +99,8 @@ export default function AuthChoice() {
               <Feather name="user-plus" size={20} color={authT.textOnDark} />
             </View>
             <View style={s.cardContent}>
-              <Text style={s.cardTitle}>Créer un compte</Text>
-              <Text style={s.cardSub}>Nouveau sur FIXED</Text>
+              <Text style={s.cardTitle}>{t('auth.signup_btn')}</Text>
+              <Text style={s.cardSub}>{t('auth.new_on_fixed')}</Text>
             </View>
             <Feather name="chevron-right" size={16} color={alpha(authT.textOnDark, 0.4)} />
           </TouchableOpacity>

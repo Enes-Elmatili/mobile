@@ -20,10 +20,11 @@ import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuthRequest, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
-import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import { toFeatherName } from "@/lib/iconMapper";
@@ -217,6 +218,7 @@ export default function Signup() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { refreshMe, signIn } = useAuth();
+  const { t } = useTranslation();
 
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => {
@@ -407,13 +409,13 @@ export default function Signup() {
   // Navigation
   const goToBilling = () => {
     if (!canIdentity) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      feedback.haptic('error');
       if (!name.trim()) showToast("Entrez votre nom");
       else if (!isEmailValid) showToast("Adresse mail invalide");
       else showToast("Mot de passe trop court — 8 caractères min.");
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     setPhase("billing");
     animateIn();
   };
@@ -429,16 +431,16 @@ export default function Signup() {
 
   const goToZone = () => {
     if (!validateBillingFields()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      feedback.haptic('error');
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     setPhase("zone");
     animateIn();
   };
 
   const goBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     if (phase === "zone") {
       setPhase("billing");
       animateIn();
@@ -450,21 +452,21 @@ export default function Signup() {
   };
 
   const toggleCat = (id: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     setSelectedCats((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   // Account creation
   const createAccount = async () => {
     if (isProvider && !canZone) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      feedback.haptic('error');
       if (city.trim().length < 2) showToast("Entrez votre ville de base");
       else showToast("Sélectionnez au moins un domaine");
       return;
     }
     if (!isProvider && !canBilling) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setPhase("creating");
 
     try {
@@ -501,10 +503,10 @@ export default function Signup() {
         );
       }
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
       router.replace({ pathname: "/(auth)/verify-email", params: { email: email.trim().toLowerCase() } });
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      feedback.haptic('error');
       showToast(err.message || "Échec de l'inscription");
       setPhase(isProvider ? "zone" : "billing");
     }
@@ -533,8 +535,8 @@ export default function Signup() {
       <View style={s.creatingRoot}>
         <StatusBar barStyle="light-content" />
         <Spinner color={authT.textOnDark} />
-        <Text style={s.creatingText}>Création de votre compte...</Text>
-        {isProvider && <Text style={s.creatingSub}>Configuration du profil prestataire</Text>}
+        <Text style={s.creatingText}>{t('auth.creating_account')}</Text>
+        {isProvider && <Text style={s.creatingSub}>{t('auth.configuring_provider')}</Text>}
       </View>
     );
   }
@@ -693,7 +695,7 @@ export default function Signup() {
                     key={opt.value}
                     style={[s.cityOption, city === opt.value && s.cityOptionActive]}
                     onPress={() => {
-                      Haptics.selectionAsync();
+                      feedback.haptic('selection');
                       setCity(opt.value);
                     }}
                     activeOpacity={0.7}
@@ -808,7 +810,7 @@ export default function Signup() {
             prefix="Déjà un compte ?"
             action="Se connecter"
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              feedback.haptic('light');
               router.push("/(auth)/login");
             }}
           />
