@@ -6,7 +6,7 @@ import { devLog, devWarn, devError } from './logger';
 import React, {
   createContext, useContext, useEffect, useState, useRef, useCallback, useMemo,
 } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Platform, AppState } from 'react-native';
+import { AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './auth/AuthContext';
 import { useNetwork } from './NetworkContext';
@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { api } from './api';
 import { isCompletionHandled, markCompletionHandled } from './navDedup';
 import { useSoundManager } from '../hooks/useSoundManager';
-import { darkTokens } from './../hooks/use-app-theme';
+import { feedback } from '@/lib/feedback/feedback';
 import {
   MissionRequestSheet,
   type MissionRequest,
@@ -59,98 +59,12 @@ const SocketContext = createContext<SocketContextType>({
 
 export const useSocket = () => useContext(SocketContext);
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TOAST SYSTEM
-// ─── showSocketToast() est exporté et utilisable dans toute l'app ─────────────
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Toast — delegates to the unified feedback engine (single renderer) ───────
 type ToastType = 'success' | 'error' | 'info';
-interface ToastData { id: number; message: string; type: ToastType }
-
-const socketToastEmitter = { listeners: [] as ((t: ToastData) => void)[] };
-let toastId = 0;
 
 export function showSocketToast(message: string, type: ToastType = 'info') {
-  const t: ToastData = { id: toastId++, message, type };
-  socketToastEmitter.listeners.forEach(fn => fn(t));
+  feedback.toast(message, type);
 }
-
-function SocketToastLayer() {
-  const [toasts, setToasts] = useState<ToastData[]>([]);
-  const anims = useRef<Record<number, Animated.Value>>({});
-
-  useEffect(() => {
-    const handler = (t: ToastData) => {
-      anims.current[t.id] = new Animated.Value(0);
-      setToasts(prev => [t, ...prev]);
-      Animated.sequence([
-        Animated.timing(anims.current[t.id], {
-          toValue: 1, duration: 300,
-          easing: Easing.out(Easing.back(1.4)), useNativeDriver: true,
-        }),
-        Animated.delay(2800),
-        Animated.timing(anims.current[t.id], {
-          toValue: 0, duration: 220, useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setToasts(prev => prev.filter(x => x.id !== t.id));
-        delete anims.current[t.id];
-      });
-    };
-    socketToastEmitter.listeners.push(handler);
-    return () => {
-      socketToastEmitter.listeners = socketToastEmitter.listeners.filter(l => l !== handler);
-    };
-  }, []);
-
-  if (!toasts.length) return null;
-
-  return (
-    <View style={ts.stack} pointerEvents="none">
-      {toasts.map(t => {
-        const av = anims.current[t.id] || new Animated.Value(1);
-        const bg = darkTokens.surface; // Always dark toast background
-        const icon = t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '●';
-        return (
-          <Animated.View
-            key={t.id}
-            style={[
-              ts.pill,
-              { backgroundColor: bg },
-              {
-                opacity:   av,
-                transform: [{ translateY: av.interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }],
-              },
-            ]}
-          >
-            <Text style={ts.icon}>{icon}</Text>
-            <Text style={ts.text}>{t.message}</Text>
-          </Animated.View>
-        );
-      })}
-    </View>
-  );
-}
-
-const ts = StyleSheet.create({
-  stack: {
-    position: 'absolute',
-    top:   Platform.OS === 'ios' ? 56 : 36,
-    left:  20, right: 20,
-    zIndex: 9999,
-    gap: 8,
-    pointerEvents: 'none',
-  },
-  pill: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, gap: 10,
-    ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 12 },
-    }),
-  },
-  icon: { fontSize: 13, color: darkTokens.text, fontWeight: '800' },
-  text: { fontSize: 14, color: darkTokens.text, fontWeight: '600', flex: 1 },
-});
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -197,7 +111,7 @@ export function onMessageReadAll(handler: (e: { readBy: string; readAt: string }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MISSION REQUEST EMITTER
-// ─── Même pattern que socketToastEmitter ─────────────────────────────────────
+// ─── Même pattern d'emitter que les autres listeners ci-dessus ───────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 const missionRequestEmitter = {
   listeners: [] as ((req: MissionRequest | null) => void)[],
@@ -694,9 +608,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <SocketContext.Provider value={contextValue}>
       {children}
-
-      {/* Toasts globaux (paiement, acceptation, erreurs socket…) */}
-      <SocketToastLayer />
 
       {/* Sheet "Nouvelle Mission" — visible uniquement pour les PROVIDERS */}
       <MissionRequestLayer />
