@@ -5,7 +5,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
-  Platform, Pressable, Alert, Dimensions,
+  Platform, Pressable, Dimensions,
 } from 'react-native';
 import { api } from '@/lib/api';
 import { useRouter } from 'expo-router';
@@ -646,26 +646,21 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 )}
                 <TouchableOpacity
                   style={sd.cancelLink}
-                  onPress={() => {
-                    Alert.alert(
-                      'Annuler la mission',
-                      'Voulez-vous vraiment annuler cette mission ?',
-                      [
-                        { text: 'Non', style: 'cancel' },
-                        {
-                          text: 'Oui, annuler',
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              await api.post(`/requests/${ticket.id}/cancel`);
-                              onClose();
-                            } catch (e: any) {
-                              Alert.alert(t('common.error'), e?.message || 'Impossible d\'annuler la mission.');
-                            }
-                          },
-                        },
-                      ]
-                    );
+                  onPress={async () => {
+                    const ok = await feedback.confirm({
+                      title: 'Annuler la mission',
+                      message: 'Voulez-vous vraiment annuler cette mission ?',
+                      confirm: 'Oui, annuler',
+                      cancel: 'Non',
+                      destructive: true,
+                    });
+                    if (!ok) return;
+                    try {
+                      await api.post(`/requests/${ticket.id}/cancel`);
+                      onClose();
+                    } catch (e: any) {
+                      feedback.error(e?.message || 'Impossible d\'annuler la mission.');
+                    }
                   }}
                   activeOpacity={0.6}
                 >
