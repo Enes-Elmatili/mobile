@@ -7,6 +7,7 @@ import { __setSoundPlayer } from '@/lib/feedback/feedback';
 import { Toast } from './Toast';
 import { CelebrationOverlay } from './CelebrationOverlay';
 import { ConfirmSheet } from './ConfirmSheet';
+import { ActionSheet } from './ActionSheet';
 
 export function FeedbackHost() {
   const toasts = useFeedbackStore((s) => s.toasts);
@@ -33,6 +34,7 @@ export function FeedbackHost() {
       </View>
       {celebration && <CelebrationOverlay item={celebration} />}
       <ConfirmSheet />
+      <ActionSheet />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useFeedbackStore } from '../store';
 
-beforeEach(() => useFeedbackStore.setState({ toasts: [], celebration: null, confirm: null }));
+beforeEach(() => useFeedbackStore.setState({ toasts: [], celebration: null, confirm: null, actionSheet: null }));
 
 test('pushToast appends a toast with id', () => {
   useFeedbackStore.getState().pushToast({ type: 'success', message: 'Hi' });
@@ -30,4 +30,19 @@ test('setCelebration / clearCelebration', () => {
   expect(useFeedbackStore.getState().celebration?.title).toBe('Yes!');
   s.clearCelebration();
   expect(useFeedbackStore.getState().celebration).toBeNull();
+});
+
+test('setActionSheet / clearActionSheet', () => {
+  const s = useFeedbackStore.getState();
+  let chosen: number | null = -99;
+  s.setActionSheet({
+    options: [{ label: 'A' }, { label: 'B', destructive: true }],
+    cancelLabel: 'Cancel',
+    resolve: (i) => { chosen = i; },
+  });
+  expect(useFeedbackStore.getState().actionSheet?.options).toHaveLength(2);
+  useFeedbackStore.getState().actionSheet!.resolve(1);
+  expect(chosen).toBe(1);
+  s.clearActionSheet();
+  expect(useFeedbackStore.getState().actionSheet).toBeNull();
 });

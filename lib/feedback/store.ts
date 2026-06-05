@@ -11,6 +11,13 @@ export interface ConfirmItem {
   destructive: boolean;
   resolve: (ok: boolean) => void;
 }
+export interface ActionSheetOption { label: string; destructive?: boolean }
+export interface ActionSheetItem {
+  title?: string;
+  options: ActionSheetOption[];
+  cancelLabel: string;
+  resolve: (index: number | null) => void;
+}
 
 const TOAST_CAP = 3;
 let nextId = 1;
@@ -25,12 +32,16 @@ interface FeedbackStoreState {
   clearCelebration: () => void;
   setConfirm: (c: ConfirmItem) => void;
   clearConfirm: () => void;
+  actionSheet: ActionSheetItem | null;
+  setActionSheet: (a: ActionSheetItem) => void;
+  clearActionSheet: () => void;
 }
 
 export const useFeedbackStore = create<FeedbackStoreState>((set) => ({
   toasts: [],
   celebration: null,
   confirm: null,
+  actionSheet: null,
 
   pushToast: (t) => {
     const id = nextId++;
@@ -42,4 +53,6 @@ export const useFeedbackStore = create<FeedbackStoreState>((set) => ({
   clearCelebration: () => set({ celebration: null }),
   setConfirm: (c) => set({ confirm: c }),
   clearConfirm: () => set({ confirm: null }),
+  setActionSheet: (a) => set({ actionSheet: a }),
+  clearActionSheet: () => set({ actionSheet: null }),
 }));

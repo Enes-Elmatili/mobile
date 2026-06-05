@@ -8,7 +8,7 @@ const playMock = jest.fn();
 beforeEach(() => {
   jest.clearAllMocks();
   __setSoundPlayer(playMock);
-  useFeedbackStore.setState({ toasts: [], celebration: null, confirm: null });
+  useFeedbackStore.setState({ toasts: [], celebration: null, confirm: null, actionSheet: null });
   useFeedbackPrefs.setState({ sound: true, haptics: true, animations: true, reduceMotion: false, hydrated: true });
 });
 
@@ -44,6 +44,18 @@ test('confirm resolves true when confirmed', async () => {
   const p = feedback.confirm({ titleKey: 'x', confirmKey: 'ok', cancelKey: 'no' });
   useFeedbackStore.getState().confirm!.resolve(true);
   await expect(p).resolves.toBe(true);
+});
+
+test('actionSheet resolves the chosen index', async () => {
+  const p = feedback.actionSheet({ options: [{ labelKey: 'a' }, { labelKey: 'b' }], cancelKey: 'c' });
+  useFeedbackStore.getState().actionSheet!.resolve(1);
+  await expect(p).resolves.toBe(1);
+});
+
+test('actionSheet resolves null on cancel', async () => {
+  const p = feedback.actionSheet({ options: [{ labelKey: 'a' }], cancelKey: 'c' });
+  useFeedbackStore.getState().actionSheet!.resolve(null);
+  await expect(p).resolves.toBeNull();
 });
 
 test('success/info/error wrappers push the right toast type', () => {
