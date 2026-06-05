@@ -71,72 +71,13 @@ interface MissionParams {
 
 // ─── Utils ───────────────────────────────────────────────────────────────────
 // ─── Toast System ─────────────────────────────────────────────────────────────
+// Delegates to the unified app-wide feedback engine (mounted via <FeedbackHost/>
+// at app root) so there is exactly ONE toast renderer.
 type ToastType = 'success' | 'error' | 'info';
-interface ToastData { id: number; message: string; type: ToastType }
-
-const toastEmitter = { listeners: [] as ((t: ToastData) => void)[] };
-let toastId = 0;
 
 function showToast(message: string, type: ToastType = 'info') {
-  const t: ToastData = { id: toastId++, message, type };
-  toastEmitter.listeners.forEach(fn => fn(t));
+  feedback.toast(message, type);
 }
-
-function ToastProvider() {
-  const theme = useAppTheme();
-  const [toasts, setToasts] = useState<ToastData[]>([]);
-  const anim = useRef<Record<number, Animated.Value>>({});
-
-  useEffect(() => {
-    const handler = (t: ToastData) => {
-      anim.current[t.id] = new Animated.Value(0);
-      setToasts(prev => [t, ...prev]);
-      Animated.sequence([
-        Animated.timing(anim.current[t.id], { toValue: 1, duration: 280, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
-        Animated.delay(2600),
-        Animated.timing(anim.current[t.id], { toValue: 0, duration: 220, useNativeDriver: true }),
-      ]).start(() => {
-        setToasts(prev => prev.filter(x => x.id !== t.id));
-        delete anim.current[t.id];
-      });
-    };
-    toastEmitter.listeners.push(handler);
-    return () => { toastEmitter.listeners = toastEmitter.listeners.filter(l => l !== handler); };
-  }, []);
-
-  if (!toasts.length) return null;
-  return (
-    <View style={toast.stack} pointerEvents="none">
-      {toasts.map(t => {
-        const av = anim.current[t.id] || new Animated.Value(1);
-        const bg = t.type === 'success' ? COLORS.greenBrand : theme.cardBg;
-        const iconName = t.type === 'success' ? 'check' : t.type === 'error' ? 'x' : 'circle';
-        return (
-          <Animated.View
-            key={t.id}
-            style={[toast.pill, { backgroundColor: bg, borderWidth: 1, borderColor: theme.borderLight },
-              {
-                opacity: av,
-                transform: [{ translateY: av.interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }],
-              },
-            ]}
-          >
-            <Feather name={iconName as any} size={14} color={darkTokens.text} />
-            <Text style={toast.text}>{t.message}</Text>
-          </Animated.View>
-        );
-      })}
-    </View>
-  );
-}
-
-const toast = StyleSheet.create({
-  stack:  { position: 'absolute', top: Platform.OS === 'ios' ? 56 : 36, left: 20, right: 20, zIndex: 9999, gap: 8, pointerEvents: 'none' },
-  pill:   { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, gap: 10,
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 12 } }) },
-  icon:   { fontSize: 13, color: darkTokens.text, fontFamily: FONTS.sansMedium },
-  text:   { fontSize: 14, color: darkTokens.text, fontFamily: FONTS.sansMedium, flex: 1 },
-});
 
 // ─── ConfirmModal (remplace Alert.alert) ─────────────────────────────────────
 interface ConfirmModalProps {
@@ -1407,8 +1348,6 @@ export default function MissionView() {
         onCancel={() => setCancelTrackModal(false)}
       />
 
-      {/* ── TOASTS ── */}
-      <ToastProvider />
     </View>
   );
 }
