@@ -9,7 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
+import { feedback } from "@/lib/feedback/feedback";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -86,7 +86,7 @@ export function OnboardingLayout({
   const shouldShowBack = showBack && (!!onBack || canGoBack);
 
   const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     if (onBack) onBack();
     else if (router.canGoBack()) router.back();
   };
@@ -174,7 +174,7 @@ export function OnboardingLayout({
             <TouchableOpacity
               style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                feedback.haptic('medium');
                 cta.onPress();
               }}
               disabled={cta.disabled || cta.loading}
@@ -193,7 +193,7 @@ export function OnboardingLayout({
             {secondaryCta && (
               <TouchableOpacity
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  feedback.haptic('light');
                   secondaryCta.onPress();
                 }}
                 style={s.secondaryCta}

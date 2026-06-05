@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -32,10 +33,10 @@ export interface Mission {
 
 type Level = 1 | 2 | 3;
 
-const LEVEL_META: Record<Level, { label: string; subtitle: string }> = {
-  1: { label: 'Mission', subtitle: 'Sélectionnez la mission concernée' },
-  2: { label: 'Problème', subtitle: 'Décrivez ce qu\'il se passe' },
-  3: { label: 'Résolution', subtitle: 'Voici comment nous allons vous aider' },
+const LEVEL_META: Record<Level, { labelKey: string; subtitleKey: string }> = {
+  1: { labelKey: 'ext.support_level_mission',    subtitleKey: 'ext.support_level_mission_sub' },
+  2: { labelKey: 'ext.support_level_problem',    subtitleKey: 'ext.support_level_problem_sub' },
+  3: { labelKey: 'ext.support_level_resolution', subtitleKey: 'ext.support_level_resolution_sub' },
 };
 
 // ─── Wrappers d'animation ────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ function FadeSlide({ children }: { children: React.ReactNode }) {
 // ─── Stepper professionnel avec animation ────────────────────────────────────
 
 function Stepper({ level, theme }: { level: Level; theme: ReturnType<typeof useAppTheme> }) {
+  const { t } = useTranslation();
   const steps: Level[] = [1, 2, 3];
   const progressAnim = useRef(new Animated.Value(level - 1)).current;
 
@@ -129,7 +131,7 @@ function Stepper({ level, theme }: { level: Level; theme: ReturnType<typeof useA
                   },
                 ]}
               >
-                {meta.label}
+                {t(meta.labelKey)}
               </Text>
             </View>
           </React.Fragment>
@@ -156,6 +158,7 @@ function MissionContextCard({ mission, onChange, theme }: {
   onChange: () => void;
   theme: ReturnType<typeof useAppTheme>;
 }) {
+  const { t } = useTranslation();
   if (!mission) {
     return (
       <View style={[ctxStyles.card, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
@@ -164,10 +167,10 @@ function MissionContextCard({ mission, onChange, theme }: {
         </View>
         <View style={ctxStyles.body}>
           <Text style={[ctxStyles.title, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-            Question générale
+            {t('ext.support_general_question')}
           </Text>
           <Text style={[ctxStyles.sub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            Pas liée à une mission
+            {t('ext.support_not_linked')}
           </Text>
         </View>
         <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -176,7 +179,7 @@ function MissionContextCard({ mission, onChange, theme }: {
       </View>
     );
   }
-  const date = new Date(mission.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const date = new Date(mission.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   return (
     <View style={[ctxStyles.card, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
       <View style={[ctxStyles.iconWrap, { backgroundColor: theme.cardBg }]}>
@@ -216,6 +219,7 @@ export default function SupportScreen() {
   const params = useLocalSearchParams<{ missionId?: string }>();
   const { user } = useAuth();
   const theme = useAppTheme();
+  const { t } = useTranslation();
 
   const [level, setLevel] = useState<Level>(1);
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -255,21 +259,21 @@ export default function SupportScreen() {
 
   // ─── Handlers ──
   const handleMissionSelect = useCallback((mission: Mission) => {
-    Haptics.selectionAsync();
+    feedback.haptic('selection');
     setSelectedMission(mission);
     setMissionStatus(mission.status);
     setLevel(2);
   }, []);
 
   const handleOther = useCallback(() => {
-    Haptics.selectionAsync();
+    feedback.haptic('selection');
     setSelectedMission(null);
     setMissionStatus(null);
     setLevel(2);
   }, []);
 
   const handleProblemSelect = useCallback((problem: ProblemOption) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     setSelectedProblem(problem);
     setLevel(3);
   }, []);
@@ -291,7 +295,7 @@ export default function SupportScreen() {
     else router.replace('/(tabs)/dashboard');
   }, [router]);
 
-  const subtitle = useMemo(() => LEVEL_META[level].subtitle, [level]);
+  const subtitle = useMemo(() => t(LEVEL_META[level].subtitleKey), [level, t]);
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -309,10 +313,10 @@ export default function SupportScreen() {
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-            CENTRE D'AIDE
+            {t('ext.support_center')}
           </Text>
           <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas }]}>
-            Support
+            {t('ext.support_title')}
           </Text>
         </View>
         <View style={{ width: 38 }} />
@@ -364,7 +368,7 @@ export default function SupportScreen() {
             <ResolutionView
               problem={selectedProblem}
               mission={selectedMission}
-              userName={user?.name || 'Client'}
+              userName={user?.name || t('ext.missions_client')}
               userId={user?.id || ''}
               onBack={handleBackToProblems}
               onDone={handleDone}

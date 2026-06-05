@@ -8,7 +8,7 @@
 
 import React, { useRef, useCallback } from 'react';
 import { Animated, Pressable, StyleProp, ViewStyle } from 'react-native';
-import * as Haptics from 'expo-haptics'; // npm install expo-haptics
+import { feedback } from '@/lib/feedback/feedback';
 
 interface SquishButtonProps {
   onPress: () => void;
@@ -51,14 +51,7 @@ export function SquishButton({
 
   const handlePress = useCallback(() => {
     if (disabled) return;
-    if (haptic !== 'none') {
-      const map = {
-        light:  Haptics.ImpactFeedbackStyle.Light,
-        medium: Haptics.ImpactFeedbackStyle.Medium,
-        heavy:  Haptics.ImpactFeedbackStyle.Heavy,
-      } as const;
-      Haptics.impactAsync(map[haptic]).catch(() => {/* Silently fail on simulators */});
-    }
+    if (haptic !== 'none') feedback.haptic(haptic);
     onPress();
   }, [disabled, haptic, onPress]);
 

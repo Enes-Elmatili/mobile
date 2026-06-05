@@ -17,7 +17,7 @@ import {
   Vibration,
   Dimensions,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -77,8 +77,8 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   // ── Haptics ───────────────────────────────────────────────────────────────
   const triggerArrivalHaptic = useCallback(() => {
     if (Platform.OS === 'ios') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 320);
+      feedback.haptic('warning');
+      setTimeout(() => feedback.haptic('heavy'), 320);
     } else {
       Vibration.vibrate([0, 120, 80, 120]);
     }
@@ -86,7 +86,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
   const triggerSuccessHaptic = useCallback(() => {
     if (Platform.OS === 'ios') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
     } else {
       Vibration.vibrate([0, 60, 40, 60]);
     }
@@ -94,7 +94,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
   const triggerDeclineHaptic = useCallback(() => {
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      feedback.haptic('medium');
     } else {
       Vibration.vibrate(180);
     }
@@ -435,12 +435,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     gap: 12,
   },
+  // Raised tactile : top highlight + bottom chamfer donnent l'illusion d'épaisseur
+  // physique. Combiné à activeOpacity 0.7-0.85 + ombre déjà présente sur accept,
+  // ça suffit à transformer le bouton plat en truc qu'on a "envie de presser".
   declineBtn: {
     width:           88,
     height:          56,
     borderRadius:    16,
     alignItems:      'center',
     justifyContent:  'center',
+    borderTopWidth:    1,
+    borderTopColor:    'rgba(255,255,255,0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.25)',
   },
   declineTxt: { fontSize: 15 },
   acceptWrap: { flex: 1 },
@@ -450,6 +457,10 @@ const styles = StyleSheet.create({
     borderRadius:    16,
     alignItems:      'center',
     justifyContent:  'center',
+    borderTopWidth:    1.5,
+    borderTopColor:    'rgba(255,255,255,0.45)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.18)',
     ...Platform.select({
       ios: {
         shadowColor:   '#000',

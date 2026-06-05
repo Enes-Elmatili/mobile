@@ -8,11 +8,13 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useTranslation } from 'react-i18next';
 
 export default function IncomingCallOverlay() {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const [incoming, setIncoming] = useState<IncomingCallData | null>(null);
   const { acceptCall, rejectCall } = useCall();
   const insets = useSafeAreaInsets();
@@ -30,7 +32,7 @@ export default function IncomingCallOverlay() {
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   useEffect(() => {
     if (incoming) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      feedback.haptic('warning');
       Animated.spring(slideAnim, {
         toValue: 0, useNativeDriver: true,
         tension: 60, friction: 10,
@@ -80,7 +82,7 @@ export default function IncomingCallOverlay() {
         {/* Info */}
         <View style={s.info}>
           <Text style={[s.name, { color: theme.text }]} numberOfLines={1}>{incoming.callerName}</Text>
-          <Text style={[s.label, { color: theme.textMuted }]}>Appel entrant…</Text>
+          <Text style={[s.label, { color: theme.textMuted }]}>{t('provider.incoming_call')}</Text>
         </View>
 
         {/* Actions */}

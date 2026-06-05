@@ -9,7 +9,7 @@ import React, { useRef, useCallback } from 'react';
 import { View, Text, Animated, Pressable, FlatList, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 const QUICK_ACTIONS = [
@@ -31,7 +31,7 @@ function ActionItem({ item, isLast }: { item: typeof QUICK_ACTIONS[number]; isLa
   const springOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 30, bounciness: 8 }).start();
 
   const handlePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    feedback.haptic('light');
     // ── Smart-Routing : on envoie la catégorie au stepper ──
     if (item.category) {
       router.push({

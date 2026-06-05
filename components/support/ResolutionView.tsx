@@ -11,7 +11,8 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
+import { feedback } from '@/lib/feedback/feedback';
 import * as WebBrowser from 'expo-web-browser';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { api } from '@/lib/api';
@@ -44,7 +45,7 @@ interface ResolutionViewProps {
 interface SeverityConfig {
   toneIcon: string;
   toneColor: (theme: ReturnType<typeof useAppTheme>) => string;
-  primaryLabel: string;
+  primaryLabelKey: string;
   primaryIcon: string;
 }
 
@@ -52,19 +53,19 @@ const SEVERITY: Record<Severity, SeverityConfig> = {
   low: {
     toneIcon: 'check-circle',
     toneColor: t => t.text as string,
-    primaryLabel: 'C\'est résolu, merci',
+    primaryLabelKey: 'ext.support_resolved_sub',
     primaryIcon: 'check',
   },
   medium: {
     toneIcon: 'message-circle',
     toneColor: () => COLORS.amber,
-    primaryLabel: 'Ouvrir WhatsApp',
+    primaryLabelKey: 'ext.support_open_whatsapp',
     primaryIcon: 'message-circle',
   },
   high: {
     toneIcon: 'alert-octagon',
     toneColor: () => COLORS.red,
-    primaryLabel: 'Demander une intervention urgente',
+    primaryLabelKey: 'ext.support_urgent_intervention',
     primaryIcon: 'alert-octagon',
   },
 };
@@ -78,6 +79,7 @@ export default function ResolutionView({
   problem, mission, userName, userId, onBack, onDone,
 }: ResolutionViewProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const [submitting, setSubmitting] = useState(false);
   const [escalation, setEscalation] = useState<EscalationResult | null>(null);
 
@@ -110,15 +112,15 @@ export default function ResolutionView({
     const tel = `tel:${SUPPORT_CHANNELS.emergencyPhone.replace(/\s/g, '')}`;
     const can = await Linking.canOpenURL(tel);
     if (can) await Linking.openURL(tel);
-    else Alert.alert('Appel impossible', `Composez manuellement : ${SUPPORT_CHANNELS.emergencyPhone}`);
-  }, []);
+    else Alert.alert(t('ext.support_call_impossible'), t('ext.support_dial_manual', { phone: SUPPORT_CHANNELS.emergencyPhone }));
+  }, [t]);
 
   const submit = useCallback(async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
 
     // Low : pas d'escalade backend, l'utilisateur valide juste que c'est résolu.
     if (problem.severity === 'low') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
       onDone();
       return;
     }
@@ -148,14 +150,14 @@ export default function ResolutionView({
       const ticketId = res?.ticketId || res?.data?.ticketId;
       const ref = ticketId ? shortTicketRef(String(ticketId)) : null;
       setEscalation({ ticketRef: ref, ok: true });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
       // Ouvre WhatsApp avec le ticketRef pour que l'agent retrouve le ticket en DB.
       await openWhatsAppPrefilled(ref);
     } catch (err) {
       devError('[SUPPORT] high escalation failed:', err);
       // Backend KO mais on N'EMPÊCHE PAS le contact WhatsApp — l'urgence prime.
       setEscalation({ ticketRef: null, ok: false });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      feedback.haptic('warning');
       await openWhatsAppPrefilled(null);
     } finally {
       setSubmitting(false);
@@ -197,7 +199,7 @@ export default function ResolutionView({
         <View style={[s.slaPill, { backgroundColor: theme.surface }]}>
           <Feather name="clock" size={12} color={theme.textSub} />
           <Text style={[s.slaText, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>
-            RÉPONSE {sla.label.toUpperCase()}
+            {t('ext.support_response_in', { sla: sla.label.toUpperCase() })}
           </Text>
         </View>
       </View>
@@ -231,7 +233,7 @@ export default function ResolutionView({
                 },
               ]}
             >
-              {cfg.primaryLabel}
+              {t(cfg.primaryLabelKey)}
             </Text>
           </>
         )}
@@ -247,7 +249,7 @@ export default function ResolutionView({
           >
             <Feather name="phone" size={15} color={theme.text} />
             <Text style={[s.secondaryBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Appeler
+              {t('ext.support_call')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -257,7 +259,7 @@ export default function ResolutionView({
           >
             <Feather name="mail" size={15} color={theme.text} />
             <Text style={[s.secondaryBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Email
+              {t('ext.support_email')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -272,7 +274,7 @@ export default function ResolutionView({
       >
         <Feather name="arrow-left" size={14} color={theme.textMuted} />
         <Text style={[s.backText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-          Choisir un autre problème
+          {t('ext.support_choose_other')}
         </Text>
       </TouchableOpacity>
     </View>
@@ -290,6 +292,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
   onDone: () => void;
   theme: ReturnType<typeof useAppTheme>;
 }) {
+  const { t } = useTranslation();
   const tint = ok ? COLORS.greenBrand : COLORS.amber;
   return (
     <View style={{ gap: 16 }}>
@@ -298,12 +301,12 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
           <Feather name={ok ? 'check-circle' : 'alert-triangle'} size={28} color={tint} />
         </View>
         <Text style={[s.problemLabel, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-          {ok ? 'Signalement transmis' : 'Signalement en cours'}
+          {ok ? t('ext.support_report_sent') : t('ext.support_report_pending')}
         </Text>
         <Text style={[s.resolution, { color: theme.textSub, fontFamily: FONTS.sans }]}>
           {ok
-            ? `Notre équipe a été notifiée. Réponse garantie ${sla.toLowerCase()}.`
-            : 'Nous n\'avons pas pu créer le ticket automatiquement. Contactez le support directement — votre demande sera traitée immédiatement.'}
+            ? t('ext.support_team_notified', { sla: sla.toLowerCase() })
+            : t('ext.support_ticket_failed')}
         </Text>
         {ticketRef && (
           <View style={[s.ticketRow, { backgroundColor: theme.surface }]}>
@@ -322,7 +325,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
       >
         <Feather name="message-circle" size={17} color={theme.bg} />
         <Text style={[s.actionBtnText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
-          Continuer sur WhatsApp
+          {t('ext.ticket_continue_whatsapp')}
         </Text>
       </TouchableOpacity>
 
@@ -333,7 +336,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
       >
         <Feather name="phone" size={16} color={theme.text} />
         <Text style={[s.secondaryBtnText, { color: theme.text, fontFamily: FONTS.sansMedium, fontSize: 15 }]}>
-          Appeler le support
+          {t('ext.support_call_support')}
         </Text>
       </TouchableOpacity>
 
@@ -344,7 +347,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Text style={[s.backText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-          Retour à l'accueil
+          {t('ext.support_back_home')}
         </Text>
       </TouchableOpacity>
     </View>

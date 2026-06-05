@@ -8,8 +8,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { useSocket } from "../../../lib/SocketContext";
@@ -66,6 +67,7 @@ interface DocStatus {
 
 export default function PendingValidation() {
   const { signOut } = useAuth();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "suspended">("pending");
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -120,7 +122,7 @@ export default function PendingValidation() {
     const handler = (data: any) => {
       if (data.validationStatus === 'ACTIVE') {
         setStatus('approved');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        feedback.haptic('success');
         setTimeout(() => router.replace('/(tabs)/provider-dashboard'), 1500);
       } else if (data.validationStatus === 'REJECTED') {
         setStatus('rejected');
@@ -188,20 +190,19 @@ export default function PendingValidation() {
         {status === "pending" && (
           <>
             <Text style={s.title}>
-              DOSSIER EN{"\n"}
-              <Text style={s.titleOutline}>VÉRIFICATION.</Text>
+              {t('onboarding.pending_title_l1')}{"\n"}
+              <Text style={s.titleOutline}>{t('onboarding.pending_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>
-              Notre équipe vérifie vos documents et qualifications.{"\n"}
-              Vous recevrez un email dès que votre compte sera activé.
+              {t('onboarding.pending_sub')}
             </Text>
 
             {/* Steps card */}
             <View style={s.stepsCard}>
               {[
-                { label: "Dossier reçu", done: true },
-                { label: "Stripe configuré", done: stripeConnected },
-                { label: "Vérification en cours", done: false },
+                { label: t('onboarding.pending_step_received'), done: true },
+                { label: t('onboarding.pending_step_stripe'), done: stripeConnected },
+                { label: t('onboarding.pending_step_verifying'), done: false },
               ].map((step, i) => (
                 <View key={i} style={s.stepRow}>
                   <View style={[s.stepDot, step.done && s.stepDotDone]}>
@@ -215,7 +216,7 @@ export default function PendingValidation() {
             {/* Documents */}
             {documents.length > 0 && (
               <View style={s.docsCard}>
-                <Text style={s.docsTitle}>Vos documents</Text>
+                <Text style={s.docsTitle}>{t('onboarding.pending_docs_title')}</Text>
                 {documents.map(doc => (
                   <View key={doc.id} style={s.docRow}>
                     <Feather
@@ -230,7 +231,7 @@ export default function PendingValidation() {
                       )}
                     </View>
                     <Text style={[s.docStatus, doc.status === "APPROVED" && { color: C.green }, doc.status === "REJECTED" && { color: C.red }]}>
-                      {doc.status === "APPROVED" ? "Validé" : doc.status === "REJECTED" ? "Refusé" : "En attente"}
+                      {doc.status === "APPROVED" ? t('onboarding.pending_doc_validated') : doc.status === "REJECTED" ? t('onboarding.pending_doc_refused') : t('onboarding.pending_doc_pending')}
                     </Text>
                   </View>
                 ))}
@@ -240,7 +241,7 @@ export default function PendingValidation() {
             <Animated.View style={{ opacity: pulseOp, alignItems: "center", marginTop: 12 }}>
               <View style={s.pulseDotRow}>
                 <PulseDot size={5} />
-                <Text style={s.eta}>Confirmation sous 24-48h</Text>
+                <Text style={s.eta}>{t('onboarding.pending_eta')}</Text>
               </View>
             </Animated.View>
           </>
@@ -249,11 +250,11 @@ export default function PendingValidation() {
         {status === "approved" && (
           <>
             <Text style={s.title}>
-              COMPTE{"\n"}
-              <Text style={s.titleOutline}>ACTIVÉ !</Text>
+              {t('onboarding.approved_title_l1')}{"\n"}
+              <Text style={s.titleOutline}>{t('onboarding.approved_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>
-              Bienvenue sur FIXED. Vous pouvez maintenant recevoir des missions.
+              {t('onboarding.approved_sub')}
             </Text>
           </>
         )}
@@ -261,21 +262,21 @@ export default function PendingValidation() {
         {status === "rejected" && (
           <>
             <Text style={s.title}>
-              DOSSIER NON{"\n"}
-              <Text style={s.titleOutline}>VALIDÉ.</Text>
+              {t('onboarding.rejected_title_l1')}{"\n"}
+              <Text style={s.titleOutline}>{t('onboarding.rejected_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>
-              Votre dossier n'a pas pu être validé. Vérifiez vos documents et réessayez.
+              {t('onboarding.rejected_sub')}
             </Text>
             <TouchableOpacity
               style={s.stripeCta}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                feedback.haptic('medium');
                 router.replace("/onboarding/documents");
               }}
               activeOpacity={0.9}
             >
-              <Text style={s.stripeCtaText}>CORRIGER MON DOSSIER</Text>
+              <Text style={s.stripeCtaText}>{t('onboarding.rejected_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
@@ -286,22 +287,21 @@ export default function PendingValidation() {
         {status === "suspended" && (
           <>
             <Text style={s.title}>
-              COMPTE{"\n"}
-              <Text style={s.titleOutline}>SUSPENDU.</Text>
+              {t('onboarding.suspended_title_l1')}{"\n"}
+              <Text style={s.titleOutline}>{t('onboarding.suspended_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>
-              Votre compte prestataire a été temporairement suspendu.{"\n"}
-              Contactez le support pour plus d'informations.
+              {t('onboarding.suspended_sub')}
             </Text>
             <TouchableOpacity
               style={s.stripeCta}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                feedback.haptic('medium');
                 router.push("/support");
               }}
               activeOpacity={0.9}
             >
-              <Text style={s.stripeCtaText}>CONTACTER LE SUPPORT</Text>
+              <Text style={s.stripeCtaText}>{t('onboarding.suspended_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
@@ -316,12 +316,12 @@ export default function PendingValidation() {
           <TouchableOpacity
             style={s.stripeCta}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              feedback.haptic('medium');
               router.push("/onboarding/provider/stripe-connect");
             }}
             activeOpacity={0.9}
           >
-            <Text style={s.stripeCtaText}>CONFIGURER STRIPE</Text>
+            <Text style={s.stripeCtaText}>{t('onboarding.stripe_cta')}</Text>
             <View style={s.arrowPill}>
               <Feather name="arrow-right" size={14} color={C.white} />
             </View>
@@ -331,13 +331,13 @@ export default function PendingValidation() {
         <TouchableOpacity
           style={[s.logoutBtn, { paddingBottom: insets.bottom + 16 }]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            feedback.haptic('light');
             signOut();
           }}
           activeOpacity={0.6}
         >
           <Feather name="log-out" size={16} color={C.grey} />
-          <Text style={s.logoutText}>Se déconnecter</Text>
+          <Text style={s.logoutText}>{t('onboarding.signout')}</Text>
         </TouchableOpacity>
       </View>
     </View>
