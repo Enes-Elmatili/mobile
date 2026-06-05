@@ -10,18 +10,20 @@ import {
   TouchableOpacity,
   Linking,
   ActivityIndicator,
-  Alert,
   Animated,
   StatusBar,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { translateRequestServiceRaw } from '@/lib/categoryLabel';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devLog, devWarn, devError } from '@/lib/logger';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { feedback } from '@/lib/feedback/feedback';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -77,13 +79,14 @@ export default function RequestTracking() {
   const router = useRouter();
   const { socket, joinRoom, leaveRoom } = useSocket();
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   const mapStyle = t.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
 
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [eta, setEta] = useState('Calcul en cours...');
+  const [eta, setEta] = useState(tr('mission_view.calculating'));
 
   // PIN state
   const [pinCode, setPinCode] = useState<string | null>(null);
@@ -125,14 +128,15 @@ export default function RequestTracking() {
       if (!TRACKABLE_STATUSES.includes(status)) {
         devWarn(`[TRACKING] Mission ${id} "${status}" — non trackable`);
         const messages: Record<string, { title: string; body: string }> = {
-          DONE:            { title: 'Mission terminée',        body: 'Cette mission a été complétée avec succès.' },
-          PENDING_PAYMENT: { title: 'Mission terminée',        body: 'Cette mission a été complétée avec succès.' },
-          CANCELLED:       { title: 'Mission annulée',         body: 'Cette mission a été annulée ou a expiré.' },
-          EXPIRED:         { title: 'Mission annulée',         body: 'Cette mission a été annulée ou a expiré.' },
-          PUBLISHED:       { title: 'Recherche en cours',      body: "Aucun prestataire n'a encore accepté cette mission." },
+          DONE:            { title: tr('ext.tracking_done_title'),       body: tr('ext.tracking_done_body') },
+          PENDING_PAYMENT: { title: tr('ext.tracking_done_title'),       body: tr('ext.tracking_done_body') },
+          CANCELLED:       { title: tr('ext.tracking_cancelled_title'),  body: tr('ext.tracking_cancelled_body') },
+          EXPIRED:         { title: tr('ext.tracking_cancelled_title'),  body: tr('ext.tracking_cancelled_body') },
+          PUBLISHED:       { title: tr('ext.tracking_published_title'),  body: tr('ext.tracking_published_body') },
         };
-        const msg = messages[status] || { title: 'Mission non disponible', body: `Statut: ${status}` };
-        Alert.alert(msg.title, msg.body, [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
+        const msg = messages[status] || { title: tr('missions.mission_unavailable'), body: `Statut: ${status}` };
+        feedback.info(msg.body);
+        router.replace('/(tabs)/dashboard');
         return;
       }
 
@@ -160,9 +164,8 @@ export default function RequestTracking() {
       }
     } catch (error) {
       devError('[TRACKING] Error loading request:', error);
-      Alert.alert('Erreur', 'Impossible de charger les détails de la mission', [
-        { text: 'Retour', onPress: () => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); } },
-      ]);
+      feedback.error('ext.tracking_load_error');
+      router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
     } finally {
       setLoading(false);
     }
@@ -203,23 +206,21 @@ export default function RequestTracking() {
     const handleStarted = (data: any) => {
       if (String(data.id || data.requestId) === String(id)) {
         setRequest((prev: any) => prev ? { ...prev, status: 'ONGOING' } : prev);
-        Alert.alert('Mission démarrée', 'Le prestataire est arrivé et a démarré la mission !');
+        feedback.info('ext.tracking_started_msg');
       }
     };
 
     const handleCompleted = (data: any) => {
       if (String(data.requestId) === String(id)) {
-        Alert.alert('Mission terminée', 'La mission a été complétée avec succès.', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
-        ]);
+        feedback.success('ext.tracking_completed_msg');
+        router.replace('/(tabs)/dashboard');
       }
     };
 
     const handleCancelled = (data: any) => {
       if (String(data.requestId || data.id) === String(id)) {
-        Alert.alert('Mission annulée', 'Cette mission a été annulée.', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
-        ]);
+        feedback.info('ext.tracking_cancelled_msg');
+        router.replace('/(tabs)/dashboard');
       }
     };
 
@@ -277,36 +278,35 @@ export default function RequestTracking() {
     if (request?.provider?.phone) {
       Linking.openURL(`tel:${request.provider.phone}`);
     } else {
-      Alert.alert('Numéro indisponible', "Le numéro du prestataire n'est pas disponible.");
+      feedback.error('ext.tracking_no_phone_msg');
     }
   };
 
-  const handleCancelRequest = () => {
+  const handleCancelRequest = async () => {
     const st = (request?.status || '').toUpperCase();
     if (st === 'ONGOING') {
-      Alert.alert('Annulation impossible', 'La mission est déjà en cours. Contactez le prestataire directement.');
+      feedback.error('ext.tracking_cancel_impossible_msg');
       return;
     }
-    Alert.alert('Annuler la mission', 'Êtes-vous sûr de vouloir annuler cette mission ?', [
-      { text: 'Non', style: 'cancel' },
-      {
-        text: 'Oui, annuler', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.post(`/requests/${id}/cancel`);
-            Alert.alert('Annulé', 'La mission a été annulée', [
-              { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') },
-            ]);
-          } catch (error: any) {
-            if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
-              await loadRequestDetails();
-            } else {
-              Alert.alert('Erreur', "Impossible d'annuler la mission");
-            }
-          }
-        },
-      },
-    ]);
+    const ok = await feedback.confirm({
+      titleKey: 'missions.cancel_track_title',
+      messageKey: 'missions.cancel_track_msg',
+      confirmKey: 'missions.yes_cancel',
+      cancelKey: 'common.no',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.post(`/requests/${id}/cancel`);
+      feedback.success('ext.tracking_cancelled_done_msg');
+      router.replace('/(tabs)/dashboard');
+    } catch (error: any) {
+      if (error?.data?.code === 'INVALID_STATE' || error?.status === 400) {
+        await loadRequestDetails();
+      } else {
+        feedback.error('mission_view.cancel_mission_failed');
+      }
+    }
   };
 
   // ── Dynamic styles ───────────────────────────────────────────────────────────
@@ -430,7 +430,7 @@ export default function RequestTracking() {
       <View style={s.loadingContainer}>
         <StatusBar barStyle={t.statusBar as any} />
         <ActivityIndicator size="large" color={t.accent} />
-        <Text style={s.loadingText}>Chargement...</Text>
+        <Text style={s.loadingText}>{tr('common.loading')}</Text>
       </View>
     );
   }
@@ -457,10 +457,10 @@ export default function RequestTracking() {
         initialRegion={{ ...clientLocation, latitudeDelta: 0.02, longitudeDelta: 0.02 }}
         showsUserLocation
       >
-        <Marker coordinate={clientLocation} title="Votre position" pinColor={t.accent} />
+        <Marker coordinate={clientLocation} title={tr('mission_view.your_position')} pinColor={t.accent} />
 
         {providerLocation && (
-          <Marker coordinate={providerLocation} title={request?.provider?.name || 'Prestataire'}>
+          <Marker coordinate={providerLocation} title={request?.provider?.name || tr('mission_view.provider')}>
             <Animated.View style={[s.providerMarker, { transform: [{ scale: pulseAnim }] }]}>
               <Feather name="truck" size={24} color={t.accentText} />
             </Animated.View>
@@ -478,11 +478,11 @@ export default function RequestTracking() {
         {/* ETA */}
         <View style={s.etaContainer}>
           <Text style={s.etaLabel}>
-            {status === 'ONGOING' ? 'Mission en cours' : 'Arrivée estimée'}
+            {status === 'ONGOING' ? tr('ext.tracking_mission_ongoing') : tr('ext.tracking_arrival_estimated')}
           </Text>
           <Text style={s.etaTime}>{eta}</Text>
           {!providerLocation && (
-            <Text style={s.etaSubLabel}>Temps estimé : {'< 30 min'}</Text>
+            <Text style={s.etaSubLabel}>{tr('ext.tracking_eta_sub')}</Text>
           )}
         </View>
 
@@ -506,13 +506,13 @@ export default function RequestTracking() {
 
         {/* Mission details */}
         <View style={s.missionDetails}>
-          <Text style={s.missionTitle}>{request?.serviceType}</Text>
+          <Text style={s.missionTitle}>{translateRequestServiceRaw(request)}</Text>
           <Text style={s.missionAddress}>{request?.address}</Text>
           <Text style={s.missionPrice}>
             {request?.price && request.price > 0
               ? formatEuros(request.price)
               : (request?.pricingMode === 'estimate' || request?.pricingMode === 'diagnostic')
-                ? 'Devis à définir'
+                ? tr('ext.tracking_quote_tbd')
                 : formatEuros(0)}
           </Text>
         </View>
@@ -522,9 +522,9 @@ export default function RequestTracking() {
           <View style={s.pinCard}>
             <View style={s.pinCardHeader}>
               <Feather name="key" size={20} color={t.text} />
-              <Text style={s.pinCardTitle}>Code PIN de vérification</Text>
+              <Text style={s.pinCardTitle}>{tr('ext.tracking_pin_title')}</Text>
             </View>
-            <Text style={s.pinCardSubtitle}>Communiquez ce code à votre prestataire</Text>
+            <Text style={s.pinCardSubtitle}>{tr('ext.tracking_pin_sub')}</Text>
             <View style={s.pinDigitsRow}>
               {pinCode.split('').map((digit, i) => (
                 <View key={i} style={s.pinDigitBox}>
@@ -539,14 +539,14 @@ export default function RequestTracking() {
         {(status === 'ACCEPTED' || status === 'ONGOING') && pinVerified && (
           <View style={s.verifiedBanner}>
             <Feather name="check-circle" size={18} color={COLORS.green} />
-            <Text style={s.verifiedBannerText}>Code PIN vérifié — la mission va démarrer</Text>
+            <Text style={s.verifiedBannerText}>{tr('ext.tracking_pin_verified')}</Text>
           </View>
         )}
 
         {/* Cancel (ACCEPTED only) */}
         {status === 'ACCEPTED' && (
           <TouchableOpacity style={s.cancelButton} onPress={handleCancelRequest} activeOpacity={0.7}>
-            <Text style={s.cancelButtonText}>Annuler la mission</Text>
+            <Text style={s.cancelButtonText}>{tr('missions.cancel')}</Text>
           </TouchableOpacity>
         )}
 
@@ -554,7 +554,7 @@ export default function RequestTracking() {
         {status === 'ONGOING' && (
           <View style={s.ongoingBanner}>
             <Feather name="check-circle" size={16} color={t.text} />
-            <Text style={s.ongoingBannerText}>Mission en cours — le prestataire est sur place</Text>
+            <Text style={s.ongoingBannerText}>{tr('mission_view.provider_on_site')}</Text>
           </View>
         )}
       </View>
