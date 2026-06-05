@@ -9,7 +9,6 @@ import {
   SafeAreaView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ScrollView,
   ActivityIndicator,
   Animated,
@@ -21,10 +20,12 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { translateRequestServiceRaw } from '@/lib/categoryLabel';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ============================================================================
@@ -164,8 +165,8 @@ export default function RatingScreen() {
       showSocketToast(t('offline.ratingQueued'), 'info');
       router.replace('/(tabs)/dashboard');
     },
-    onSuccess: () => router.replace('/(tabs)/dashboard'),
-    onError: (err) => Alert.alert(t('common.error'), err.message || t('rating.submit_error')),
+    onSuccess: () => { feedback.event('mission_complete'); router.replace('/(tabs)/dashboard'); },
+    onError: (err) => feedback.error(err.message || t('rating.submit_error')),
   });
 
   const slideUp = useRef(new Animated.Value(30)).current;
@@ -206,11 +207,11 @@ export default function RatingScreen() {
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      Alert.alert(t('rating.rating_required_title'), t('rating.rating_required_msg'));
+      feedback.error('rating.rating_required_msg');
       return;
     }
     if (!request?.providerId) {
-      Alert.alert(t('common.error'), t('rating.provider_not_found'));
+      feedback.error('rating.provider_not_found');
       return;
     }
 
@@ -284,7 +285,7 @@ export default function RatingScreen() {
           <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.bebas }]}>{providerName}</Text>
           {request?.serviceType && (
             <View style={[s.serviceTag, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[s.serviceTagText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{request.serviceType}</Text>
+              <Text style={[s.serviceTagText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{translateRequestServiceRaw(request)}</Text>
             </View>
           )}
         </Animated.View>

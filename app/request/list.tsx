@@ -7,18 +7,20 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   StatusBar,
 } from 'react-native';
 import { devError } from '@/lib/logger';
+import { feedback } from '@/lib/feedback/feedback';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 export default function RequestsListScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +34,7 @@ export default function RequestsListScreen() {
       setRequests(response.data || response || []);
     } catch (error) {
       devError('Requests load error:', error);
-      Alert.alert('Erreur', 'Impossible de charger les demandes.');
+      feedback.error('providers.load_error');
     } finally {
       setLoading(false);
     }
@@ -58,7 +60,7 @@ export default function RequestsListScreen() {
           {item.price && item.price > 0
             ? `${item.price}€`
             : ((item as any).pricingMode === 'estimate' || (item as any).pricingMode === 'diagnostic')
-              ? 'Devis'
+              ? t('dashboard.badge_quote')
               : '—'}
         </Text>
       </View>
@@ -81,7 +83,7 @@ export default function RequestsListScreen() {
         <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
           <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Toutes les requêtes</Text>
+        <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.list_all_requests')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -93,7 +95,7 @@ export default function RequestsListScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Feather name="file-text" size={64} color={theme.textDisabled} />
-            <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucune requête</Text>
+            <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.list_no_requests')}</Text>
           </View>
         }
       />

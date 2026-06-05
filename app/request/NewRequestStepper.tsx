@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   TextInput,
   Animated,
-  Alert,
   Platform,
   StatusBar,
   KeyboardAvoidingView,
@@ -1955,18 +1954,18 @@ export default function NewRequestStepper() {
                     <TouchableOpacity
                       style={s.v4Row}
                       activeOpacity={0.7}
-                      onPress={() => {
-                        const options = Platform.OS === 'ios'
-                          ? ['Carte bancaire', 'Apple Pay', t('common.cancel')]
-                          : ['Carte bancaire', 'Google Pay', t('common.cancel')];
-                        Alert.alert(t('stepper.payment_method_title'), t('stepper.payment_method_msg'), options.map((label, i) => ({
-                          text: label,
-                          style: i === options.length - 1 ? 'cancel' as const : 'default' as const,
-                          onPress: () => {
-                            if (i === 0) setPaymentMethod('card');
-                            else if (i === 1) setPaymentMethod(Platform.OS === 'ios' ? 'apple_pay' : 'google_pay');
-                          },
-                        })));
+                      onPress={async () => {
+                        const choice = await feedback.actionSheet({
+                          titleKey: 'stepper.payment_method_title',
+                          options: [
+                            { label: 'Carte bancaire' },
+                            { label: Platform.OS === 'ios' ? 'Apple Pay' : 'Google Pay' },
+                          ],
+                          cancelKey: 'common.cancel',
+                        });
+                        if (choice === null) return;
+                        if (choice === 0) setPaymentMethod('card');
+                        else if (choice === 1) setPaymentMethod(Platform.OS === 'ios' ? 'apple_pay' : 'google_pay');
                       }}
                     >
                       <Feather name="credit-card" size={16} color={theme.textSub as string} />

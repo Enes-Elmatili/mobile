@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Dimensions,
-  Animated, Easing, Platform, TouchableOpacity, Alert,
+  Animated, Easing, Platform, TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -264,29 +264,24 @@ export default function QuotePending() {
           </TouchableOpacity>
           <TouchableOpacity
             style={s.cancelBtn}
-            onPress={() => {
-              Alert.alert(
-                t('quote.pending_cancel_title'),
-                t('quote.pending_cancel_msg'),
-                [
-                  { text: t('quote.pending_cancel_no'), style: "cancel" },
-                  {
-                    text: t('quote.pending_cancel_yes'),
-                    style: "destructive",
-                    onPress: async () => {
-                      setCancelling(true);
-                      try {
-                        await api.post(`/requests/${id}/cancel`);
-                        feedback.haptic('warning');
-                        router.replace("/(tabs)/dashboard");
-                      } catch {
-                        feedback.error(t('quote.pending_cancel_fail'));
-                        setCancelling(false);
-                      }
-                    },
-                  },
-                ],
-              );
+            onPress={async () => {
+              const ok = await feedback.confirm({
+                titleKey: 'quote.pending_cancel_title',
+                messageKey: 'quote.pending_cancel_msg',
+                confirmKey: 'quote.pending_cancel_yes',
+                cancelKey: 'quote.pending_cancel_no',
+                destructive: true,
+              });
+              if (!ok) return;
+              setCancelling(true);
+              try {
+                await api.post(`/requests/${id}/cancel`);
+                feedback.haptic('warning');
+                router.replace("/(tabs)/dashboard");
+              } catch {
+                feedback.error(t('quote.pending_cancel_fail'));
+                setCancelling(false);
+              }
             }}
             disabled={cancelling}
             activeOpacity={0.7}

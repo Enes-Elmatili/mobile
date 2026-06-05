@@ -3,12 +3,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, StatusBar, Platform,
-  TouchableOpacity, ActivityIndicator, Alert,
+  TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStripe } from '@stripe/stripe-react-native';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
+import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
 import { Dimensions } from 'react-native';
@@ -59,6 +60,7 @@ function GridLines() {
 
 export default function ResumePayment() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -80,7 +82,7 @@ export default function ResumePayment() {
 
         // Guard: ownership + status
         if (!req || req.clientId !== user.id) {
-          Alert.alert('Accès refusé', 'Vous n\'êtes pas autorisé à accéder à cette page.');
+          feedback.error('ext.resume_unauth');
           router.replace('/(tabs)/dashboard');
           return;
         }
@@ -130,7 +132,7 @@ export default function ResumePayment() {
         if (!error && mountedRef.current) setPaymentReady(true);
       } catch (e: any) {
         devError('ResumePayment init error:', e);
-        Alert.alert('Erreur', 'Impossible de charger la page de paiement. Veuillez réessayer.');
+        feedback.error('ext.resume_load_failed');
         if (router.canGoBack()) router.back();
         else router.replace('/(tabs)/dashboard');
       } finally {
@@ -153,17 +155,14 @@ export default function ResumePayment() {
       }
     }
     // Paiement prélevé mais confirmation échouée → ne pas bloquer l'user
-    Alert.alert(
-      'Paiement reçu',
-      'Votre paiement a bien été pris en compte. Si votre demande ne s\'affiche pas immédiatement, attendez quelques secondes.',
-      [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }],
-    );
+    feedback.info('ext.resume_paid_sub');
+    router.replace('/(tabs)/dashboard');
     throw lastErr;
   };
 
   const handlePay = async () => {
     if (!paymentReady) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setPaying(true);
     try {
       const { error: presentError } = await presentPaymentSheet();
@@ -172,7 +171,7 @@ export default function ResumePayment() {
         return;
       }
       await confirmPaymentSuccess();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.event('payment_received');
       // Navigate to missionview or scheduled based on request
       const scheduledFor = request?.scheduledFor || request?.preferredTimeStart;
       const isScheduled = scheduledFor && new Date(scheduledFor) > new Date();
@@ -184,8 +183,8 @@ export default function ResumePayment() {
           address: request?.address || '',
           price: String(request?.price || ''),
           scheduledLabel: isScheduled
-            ? new Date(scheduledFor).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-            : 'Dès maintenant',
+            ? new Date(scheduledFor).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : t('ext.resume_now'),
           lat: String(request?.lat || ''),
           lng: String(request?.lng || ''),
         },
@@ -197,7 +196,7 @@ export default function ResumePayment() {
     }
   };
 
-  const serviceName = request?.serviceType || request?.category?.name || 'Service';
+  const serviceName = request?.serviceType || request?.category?.name || t('common.service');
   const price = request?.price ? formatEUR(parseFloat(request.price)) : null;
 
   return (
@@ -213,7 +212,7 @@ export default function ResumePayment() {
         >
           <Feather name="chevron-left" size={20} color="rgba(255,255,255,0.6)" />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>PAIEMENT</Text>
+        <Text style={s.headerTitle}>{t('ext.invoice_payment_label')}</Text>
         <View style={{ width: 20 }} />
       </View>
 
@@ -230,32 +229,32 @@ export default function ResumePayment() {
 
           {/* Title */}
           <Text style={s.title}>
-            FINALISER{'\n'}
-            <Text style={s.titleOutline}>LE PAIEMENT.</Text>
+            {t('ext.resume_finalize_title')}{'\n'}
+            <Text style={s.titleOutline}>{t('ext.resume_finalize_outline')}</Text>
           </Text>
 
           <Text style={s.subtitle}>
-            Votre demande est prête. Finalisez le paiement pour être mis en relation avec un prestataire.
+            {t('ext.resume_ready')}
           </Text>
 
           {/* Request info card */}
           <View style={s.card}>
             <View style={s.cardRow}>
               <Feather name="tool" size={15} color={C.grey} />
-              <Text style={s.cardLabel}>Service</Text>
+              <Text style={s.cardLabel}>{t('ext.invoice_service_fallback')}</Text>
               <Text style={s.cardValue} numberOfLines={1}>{serviceName}</Text>
             </View>
             {request?.address && (
               <View style={s.cardRow}>
                 <Feather name="map-pin" size={15} color={C.grey} />
-                <Text style={s.cardLabel}>Adresse</Text>
+                <Text style={s.cardLabel}>{t('common.address')}</Text>
                 <Text style={s.cardValue} numberOfLines={1}>{request.address}</Text>
               </View>
             )}
             {price && (
               <View style={[s.cardRow, s.priceRow]}>
                 <Feather name="dollar-sign" size={15} color={C.white} />
-                <Text style={[s.cardLabel, { color: C.white }]}>Montant</Text>
+                <Text style={[s.cardLabel, { color: C.white }]}>{t('common.amount')}</Text>
                 <Text style={s.priceValue}>{price}</Text>
               </View>
             )}
@@ -265,7 +264,7 @@ export default function ResumePayment() {
           <View style={s.infoCard}>
             <Feather name="shield" size={16} color={C.grey} style={{ marginTop: 1 }} />
             <Text style={s.infoText}>
-              Paiement sécurisé via Stripe. Votre prestataire sera notifié immédiatement après confirmation.
+              {t('ext.resume_secured')}
             </Text>
           </View>
         </View>
@@ -285,11 +284,11 @@ export default function ResumePayment() {
             ) : !paymentReady ? (
               <>
                 <ActivityIndicator size="small" color={C.bg} />
-                <Text style={s.btnPrimaryText}>CHARGEMENT...</Text>
+                <Text style={s.btnPrimaryText}>{t('ext.resume_loading')}</Text>
               </>
             ) : (
               <>
-                <Text style={s.btnPrimaryText}>PAYER MAINTENANT</Text>
+                <Text style={s.btnPrimaryText}>{t('ext.resume_pay_now')}</Text>
                 <View style={s.arrowPill}>
                   <Feather name="arrow-right" size={14} color={C.white} />
                 </View>
