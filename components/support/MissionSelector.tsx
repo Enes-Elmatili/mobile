@@ -6,6 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatEUR } from '@/lib/format';
@@ -29,7 +30,7 @@ interface MissionSelectorProps {
 const VISIBLE_COUNT_DEFAULT = 5;
 
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+  new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 const formatPrice = (price: number | null) => (!price ? '—' : formatEUR(price, 0));
 
@@ -40,6 +41,7 @@ function normalize(s: string): string {
 export default function MissionSelector({ missions, loading, onSelect, onOther }: MissionSelectorProps) {
   const theme = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
 
@@ -64,7 +66,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
       <View style={s.loadingWrap}>
         <ActivityIndicator size="small" color={theme.text} />
         <Text style={[s.loadingLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-          Chargement de vos missions…
+          {t('common.loading')}
         </Text>
       </View>
     );
@@ -79,7 +81,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Rechercher par service, adresse, ou n°"
+            placeholder={t('common.search')}
             placeholderTextColor={theme.textMuted}
             style={[s.searchInput, { color: theme.text, fontFamily: FONTS.sans }]}
             returnKeyType="search"
@@ -101,12 +103,12 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
             <Feather name={query ? 'search' : 'inbox'} size={20} color={theme.textMuted} />
           </View>
           <Text style={[s.emptyTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-            {query ? 'Aucun résultat' : 'Aucune mission récente'}
+            {query ? t('ext.support_no_results') : t('ext.support_no_missions')}
           </Text>
           <Text style={[s.emptyHint, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             {query
-              ? 'Essayez un autre terme ou choisissez « Question générale » ci-dessous.'
-              : 'Créez votre première demande pour pouvoir y associer un ticket support.'}
+              ? t('ext.support_search_other')
+              : t('ext.support_create_first')}
           </Text>
           {!query && (
             <TouchableOpacity
@@ -116,7 +118,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
             >
               <Feather name="plus" size={14} color={theme.bg} />
               <Text style={[s.emptyCtaText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
-                Nouvelle demande
+                {t('dashboard.new_request')}
               </Text>
             </TouchableOpacity>
           )}
@@ -133,7 +135,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
               activeOpacity={0.7}
             >
               <Text style={[s.showMoreText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
-                Voir {hiddenCount} mission{hiddenCount > 1 ? 's' : ''} de plus
+                {t('dashboard.see_all_more', { count: hiddenCount })}
               </Text>
               <Feather name="chevron-down" size={14} color={theme.textSub} />
             </TouchableOpacity>
@@ -145,7 +147,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
       <View style={{ marginTop: 6, gap: 10 }}>
         <View style={s.dividerRow}>
           <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
-          <Text style={[s.dividerText, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>OU</Text>
+          <Text style={[s.dividerText, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('ext.or')}</Text>
           <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
         </View>
         <TouchableOpacity
@@ -158,10 +160,10 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
           </View>
           <View style={s.otherBody}>
             <Text style={[s.otherTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Question générale
+              {t('ext.support_general_question')}
             </Text>
             <Text style={[s.otherSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-              Compte, facturation, autre sujet…
+              {t('ext.support_other_sub')}
             </Text>
           </View>
           <Feather name="chevron-right" size={16} color={theme.textMuted} />
@@ -178,6 +180,7 @@ function MissionCard({ mission, onPress, theme }: {
   onPress: () => void;
   theme: ReturnType<typeof useAppTheme>;
 }) {
+  const { t } = useTranslation();
   return (
     <TouchableOpacity
       style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
@@ -189,7 +192,7 @@ function MissionCard({ mission, onPress, theme }: {
       </View>
       <View style={s.cardBody}>
         <Text style={[s.cardTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-          {mission.serviceType || 'Mission'}
+          {mission.serviceType || t('missions.mission')}
         </Text>
         <View style={s.cardMetaRow}>
           <Text style={[s.cardMeta, { color: theme.textMuted, fontFamily: FONTS.mono }]} numberOfLines={1}>

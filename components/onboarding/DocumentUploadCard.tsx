@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { useTranslation } from "react-i18next";
 import type { DocumentRequirement, DocumentType } from "../../constants/kycRequirements";
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
@@ -25,6 +26,7 @@ interface DocumentUploadCardProps {
 }
 
 export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUpload }: DocumentUploadCardProps) {
+  const { t } = useTranslation();
   const isUploaded = !!uploadedUri;
 
   return (
@@ -48,12 +50,12 @@ export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUplo
           </Text>
           {requirement.required && !isUploaded && (
             <View style={styles.requiredBadge}>
-              <Text style={styles.requiredBadgeText}>Requis</Text>
+              <Text style={styles.requiredBadgeText}>{t('common.required')}</Text>
             </View>
           )}
           {isUploaded && (
             <View style={styles.doneBadge}>
-              <Text style={styles.doneBadgeText}>Téléversé</Text>
+              <Text style={styles.doneBadgeText}>{t('profile.uploaded')}</Text>
             </View>
           )}
         </View>

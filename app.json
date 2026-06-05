@@ -38,7 +38,8 @@
       "entitlements": {
         "com.apple.developer.in-app-payments": [
           "merchant.app.thefixed"
-        ]
+        ],
+        "com.apple.developer.usernotifications.time-sensitive": true
       }
     },
     "android": {

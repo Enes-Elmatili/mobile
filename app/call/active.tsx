@@ -7,6 +7,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useCall } from '@/lib/webrtc/CallContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
@@ -18,13 +19,13 @@ function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function getStatusLabel(state: string): string {
+function getStatusLabel(state: string, t: (k: string) => string): string {
   switch (state) {
-    case 'outgoing':   return 'Appel en cours...';
-    case 'incoming':   return 'Appel entrant...';
-    case 'connecting': return 'Connexion...';
-    case 'connected':  return 'En ligne';
-    case 'ended':      return 'Appel terminé';
+    case 'outgoing':   return t('ext.call_outgoing');
+    case 'incoming':   return t('ext.call_incoming');
+    case 'connecting': return t('ext.call_connecting');
+    case 'connected':  return t('ext.call_connected');
+    case 'ended':      return t('ext.call_ended');
     default:           return '';
   }
 }
@@ -58,6 +59,7 @@ export default function ActiveCallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const {
     callState, callInfo, isMuted, isSpeaker, callDuration,
     hangup, toggleMute, toggleSpeaker,
@@ -105,9 +107,9 @@ export default function ActiveCallScreen() {
           </View>
         </View>
 
-        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{callInfo?.remoteName || 'Inconnu'}</Text>
+        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{callInfo?.remoteName || t('ext.call_unknown')}</Text>
         <Text style={[cs.status, { color: theme.heroSub, fontFamily: isConnected ? FONTS.mono : FONTS.sans }]}>
-          {isConnected ? formatDuration(callDuration) : getStatusLabel(callState)}
+          {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, t)}
         </Text>
 
         {callInfo?.requestId && (
@@ -134,7 +136,7 @@ export default function ActiveCallScreen() {
               color={isMuted ? theme.heroBg : theme.heroText}
             />
             <Text style={[cs.controlLabel, { fontFamily: FONTS.sansMedium, color: theme.heroSub }, isMuted && { color: theme.heroBg }]}>
-              {isMuted ? 'Muet' : 'Micro'}
+              {isMuted ? t('ext.call_mute') : t('ext.call_mic')}
             </Text>
           </TouchableOpacity>
 

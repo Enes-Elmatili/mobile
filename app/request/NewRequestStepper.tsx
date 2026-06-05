@@ -874,7 +874,13 @@ export default function NewRequestStepper() {
   const calloutFee      = selectedSubcategory?.calloutFee || 0; // EUR
   const isFreeService   = pricingMode === 'free' || (basePrice === 0 && !['estimate', 'diagnostic'].includes(pricingMode));
   const isQuoteFlow     = pricingMode === 'estimate' || pricingMode === 'diagnostic';
-  const serviceName     = selectedSubcategory?.name  || selectedCategory?.name  || null;
+  // serviceName est passé en param URL aux écrans suivants (missionview, tracking).
+  // On le génère dans la langue active i18n via translateSubcategory + translateCategory
+  // pour que le titre s'affiche traduit (ex: "Druk bijvullen" en NL au lieu de
+  // "Regonflage pression chaudière" en FR).
+  const serviceName     = (selectedSubcategory ? translateSubcategory(i18nInstance.language, selectedSubcategory) : null)
+                        || (selectedCategory ? translateCategory(t, selectedCategory) : null)
+                        || null;
   const scheduledLabel  = scheduleMode === 'now'
     ? t('stepper.now')
     : (selectedDayIso && selectedTime

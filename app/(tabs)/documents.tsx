@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
@@ -91,6 +92,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
   invoice: Invoice; onPress: () => void;
   theme: ReturnType<typeof useAppTheme>;
 }) {
+  const { t, i18n } = useTranslation();
   const status = invoice.status?.toUpperCase();
   const isPaid = status === 'PAID';
   const isRefunded = status === 'REFUNDED';
@@ -99,12 +101,12 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const iconColor = isPaid ? COLORS.greenBrand : isRefunded ? '#999' : COLORS.orangeBrand;
   const pillBg = isPaid ? 'rgba(61,139,61,0.1)' : isRefunded ? theme.surface : 'rgba(232,120,58,0.1)';
   const pillColor = isPaid ? COLORS.greenBrand : isRefunded ? theme.textMuted : COLORS.orangeBrand;
-  const pillLabel = isPaid ? 'Réglée' : isRefunded ? 'Remboursé' : 'En attente';
+  const pillLabel = isPaid ? t('ext.invoice_pill_paid') : isRefunded ? t('ext.invoice_pill_refunded') : t('ext.invoice_pill_pending');
   const iconName = isPaid ? 'check-circle' : isRefunded ? 'refresh-cw' : 'clock';
 
   const number = invoice.number ? `#${invoice.number}` : `#INV-${String(invoice.id).slice(-4).toUpperCase()}`;
-  const date = new Date(invoice.issuedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-  const service = (invoice as any).request?.serviceType || 'Service';
+  const date = new Date(invoice.issuedAt).toLocaleDateString(i18n.language || 'fr-FR', { day: 'numeric', month: 'short' });
+  const service = (invoice as any).request?.serviceType || t('ext.invoice_service_default');
 
   return (
     <TouchableOpacity style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress} activeOpacity={0.85}>
@@ -153,6 +155,7 @@ const iv = StyleSheet.create({
 export default function Documents() {
   const theme = useAppTheme();
   const router = useRouter();
+  const { t, i18n } = useTranslation();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
@@ -263,9 +266,9 @@ export default function Documents() {
         <View>
           <Text style={[s.headerTitle, { color: theme.text }]}>DOCUMENTS</Text>
           <Text style={[s.headerSub, { color: theme.textMuted }]}>
-            {activeTab === 'factures' ? 'Factures et reçus'
-              : activeTab === 'devis' ? 'Devis et estimations'
-              : 'Demandes planifiées'}
+            {activeTab === 'factures' ? t('ext.documents_tab_invoices_sub')
+              : activeTab === 'devis' ? t('ext.documents_tab_quotes_sub')
+              : t('ext.documents_tab_scheduled_sub')}
           </Text>
         </View>
         <TouchableOpacity
@@ -281,9 +284,9 @@ export default function Documents() {
       <View style={[s.mainTabBar, { borderBottomColor: theme.borderLight }]}>
         {(['factures', 'devis', 'planifiees'] as Tab[]).map(tab => {
           const isActive = activeTab === tab;
-          const label = tab === 'factures' ? 'FACTURES'
-            : tab === 'devis' ? 'DEVIS'
-            : 'PLANIFIÉES';
+          const label = tab === 'factures' ? t('ext.documents_tab_invoices')
+            : tab === 'devis' ? t('ext.documents_tab_quotes')
+            : t('ext.documents_tab_scheduled');
           // Pas de badge sur Factures (le compte est déjà dans la SummaryCard).
           const count = tab === 'factures' ? 0
             : tab === 'devis' ? quoteRequests.length
@@ -321,7 +324,7 @@ export default function Documents() {
                 dark
                 icon="file-text"
                 value={String(totalCount)}
-                label="Factures"
+                label={t('ext.documents_summary_invoices')}
                 active={filter === 'all'}
                 onPress={() => setFilter('all')}
                 theme={theme}
@@ -329,7 +332,7 @@ export default function Documents() {
               <SummaryCard
                 icon="trending-up"
                 value={formatEURInt(totalEur)}
-                label="Total"
+                label={t('ext.documents_summary_total')}
                 active={filter === 'paid'}
                 onPress={() => cycleFilter('paid')}
                 theme={theme}
@@ -337,7 +340,7 @@ export default function Documents() {
               <SummaryCard
                 icon="clock"
                 value={pendingEur > 0 ? formatEURInt(pendingEur) : '0'}
-                label="En attente"
+                label={t('ext.documents_summary_pending')}
                 active={filter === 'pending'}
                 onPress={() => cycleFilter('pending')}
                 theme={theme}
@@ -351,12 +354,12 @@ export default function Documents() {
                   <Feather name="file-text" size={22} color={theme.textDisabled} />
                 </View>
                 <Text style={[s.emptyTitle, { color: theme.text }]}>
-                  {filter === 'all' ? 'Aucune facture' : filter === 'paid' ? 'Aucune facture réglée' : 'Aucune facture en attente'}
+                  {filter === 'all' ? t('ext.documents_empty_invoices_none') : filter === 'paid' ? t('ext.documents_empty_invoices_paid') : t('ext.documents_empty_invoices_pending')}
                 </Text>
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   {filter === 'all'
-                    ? 'Vos factures apparaîtront ici après chaque service terminé.'
-                    : 'Tapez sur la carte « Factures » pour voir toutes vos factures.'}
+                    ? t('ext.documents_empty_invoices_desc')
+                    : t('ext.documents_empty_invoices_filter_desc')}
                 </Text>
                 {filter === 'all' && (
                   <TouchableOpacity
@@ -365,7 +368,7 @@ export default function Documents() {
                     activeOpacity={0.85}
                   >
                     <Feather name="plus" size={14} color={theme.accentText} />
-                    <Text style={[s.emptyCtaText, { color: theme.accentText }]}>Commander un service</Text>
+                    <Text style={[s.emptyCtaText, { color: theme.accentText }]}>{t('ext.documents_order_cta')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -383,14 +386,14 @@ export default function Documents() {
             )}
 
             {/* Assistance card */}
-            <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>ASSISTANCE</Text>
+            <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>{t('ext.documents_assistance')}</Text>
             <TouchableOpacity style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
               <View style={s.assistIcon}>
                 <Feather name="message-circle" size={18} color="rgba(255,255,255,0.7)" />
               </View>
               <View style={s.assistBody}>
-                <Text style={s.assistTitle}>Un problème avec une facture ?</Text>
-                <Text style={s.assistSub}>Ouvrir un ticket · Support client</Text>
+                <Text style={s.assistTitle}>{t('ext.documents_invoice_issue_title')}</Text>
+                <Text style={s.assistSub}>{t('ext.documents_invoice_issue_sub')}</Text>
               </View>
               <View style={s.assistArrow}>
                 <Feather name="arrow-right" size={13} color="rgba(255,255,255,0.6)" />
@@ -423,7 +426,7 @@ export default function Documents() {
             ) : (
               <View style={s.invoiceList}>
                 {quoteRequests.map(req => {
-                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
+                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || t('ext.invoice_service_default');
                   const statusUp = req.status?.toUpperCase();
                   const isPendingPay = statusUp === 'PENDING_PAYMENT';
                   const isPending = statusUp === 'QUOTE_PENDING';
@@ -435,12 +438,12 @@ export default function Documents() {
                     : isAccepted || isOngoing ? COLORS.greenBrand
                     : isPendingPay ? COLORS.amber
                     : (theme.textMuted as string);
-                  const pillLabel = isPendingPay ? 'Paiement'
-                    : isPending ? 'Diagnostic'
-                    : isSent ? 'À examiner'
-                    : isAccepted ? 'Accepté'
-                    : isOngoing ? 'En cours'
-                    : 'En cours';
+                  const pillLabel = isPendingPay ? t('ext.documents_pill_payment')
+                    : isPending ? t('ext.documents_pill_diagnostic')
+                    : isSent ? t('ext.documents_pill_to_review')
+                    : isAccepted ? t('ext.documents_pill_accepted')
+                    : isOngoing ? t('ext.documents_pill_ongoing')
+                    : t('ext.documents_pill_ongoing');
                   const pillBg = `${pillTone}1A`;
                   const barColor = pillTone;
 
@@ -474,11 +477,11 @@ export default function Documents() {
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
                           {req.calloutFee != null && req.calloutFee > 0 && (
                             <View style={{ backgroundColor: 'rgba(61,139,61,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: COLORS.greenBrand }}>PAYÉ</Text>
+                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: COLORS.greenBrand }}>{t('ext.documents_pill_paid_tag')}</Text>
                             </View>
                           )}
                           <Text style={[iv.meta, { color: theme.textMuted }]}>
-                            {new Date(req.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                            {new Date(req.createdAt).toLocaleDateString(i18n.language || 'fr-FR', { day: 'numeric', month: 'short' })}
                           </Text>
                         </View>
                       </View>
@@ -506,9 +509,9 @@ export default function Documents() {
                 <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
                   <Feather name="calendar" size={22} color={theme.textDisabled} />
                 </View>
-                <Text style={[s.emptyTitle, { color: theme.text }]}>Aucune demande planifiée</Text>
+                <Text style={[s.emptyTitle, { color: theme.text }]}>{t('ext.documents_empty_scheduled_title')}</Text>
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
-                  Vos missions à venir apparaîtront ici. Vous serez notifié dès qu'un prestataire accepte.
+                  {t('ext.documents_empty_scheduled_desc')}
                 </Text>
                 <TouchableOpacity
                   style={[s.emptyCta, { backgroundColor: theme.accent }]}
@@ -516,13 +519,13 @@ export default function Documents() {
                   activeOpacity={0.85}
                 >
                   <Feather name="calendar" size={14} color={theme.accentText} />
-                  <Text style={[s.emptyCtaText, { color: theme.accentText }]}>Planifier une mission</Text>
+                  <Text style={[s.emptyCtaText, { color: theme.accentText }]}>{t('ext.documents_schedule_cta')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={s.invoiceList}>
                 {scheduledRequests.map(req => {
-                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || 'Service';
+                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || t('ext.invoice_service_default');
                   const isQuote = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
                   const statusUp = (req.status || '').toUpperCase();
                   const isOngoing = statusUp === 'ONGOING';
@@ -533,19 +536,19 @@ export default function Documents() {
                   // Date affichée : preferredTimeStart si défini, sinon createdAt (immédiates).
                   const dateSrc = req.preferredTimeStart || req.createdAt;
                   const d = dateSrc ? new Date(dateSrc) : null;
-                  const dayLabel = d ? d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
-                  const timeLabel = d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+                  const dayLabel = d ? d.toLocaleDateString(i18n.language || 'fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
+                  const timeLabel = d ? d.toLocaleTimeString(i18n.language || 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
 
                   const priceLabel = req.price && req.price > 0
                     ? formatEUR(req.price)
-                    : isQuote ? 'Devis' : '—';
+                    : isQuote ? t('ext.documents_pill_quote') : '—';
 
-                  const pillLabel = isOngoing ? 'En cours'
-                    : isAccepted ? 'Acceptée'
-                    : isPublished ? 'Recherche'
-                    : isPendingPay ? 'Paiement'
-                    : isQuote ? 'Devis'
-                    : 'Planifiée';
+                  const pillLabel = isOngoing ? t('ext.documents_pill_ongoing')
+                    : isAccepted ? t('ext.documents_pill_accepted_f')
+                    : isPublished ? t('ext.documents_pill_search')
+                    : isPendingPay ? t('ext.documents_pill_payment')
+                    : isQuote ? t('ext.documents_pill_quote')
+                    : t('ext.documents_pill_scheduled_f');
                   const pillTone = isOngoing || isAccepted ? COLORS.greenBrand
                     : isQuote ? COLORS.orangeBrand
                     : COLORS.amber;
@@ -604,7 +607,7 @@ export default function Documents() {
         requestStatus={selectedQuote?.status ?? ''}
         serviceName={
           selectedQuote
-            ? (selectedQuote.serviceType || selectedQuote.subcategory?.name || selectedQuote.category?.name || selectedQuote.title || 'Service')
+            ? (selectedQuote.serviceType || selectedQuote.subcategory?.name || selectedQuote.category?.name || selectedQuote.title || t('ext.invoice_service_default'))
             : ''
         }
         isVisible={!!selectedQuote}

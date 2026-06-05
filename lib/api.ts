@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { tokenStorage } from './storage';
 import { devLog, devWarn, devError } from './logger';
+import i18nInstance from './i18n';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 if (!API_BASE_URL) {
@@ -41,8 +42,16 @@ class ApiClient {
       devWarn('⚠️ API Request sent WITHOUT Token!');
     }
 
+    // Locale active du device (déduite par expo-localization au boot, modifiée
+    // si l'user change de langue système). On l'envoie au backend pour que
+    // les PDFs, emails et messages d'erreur sortent dans la bonne langue,
+    // SANS dépendre du champ User.language stocké en DB qui peut être obsolète.
+    const lang = (i18nInstance.language || 'fr').split('-')[0].toLowerCase();
+
     return {
       'Content-Type': 'application/json',
+      'Accept-Language': lang,
+      'X-Client-Lang': lang,
       ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
@@ -477,7 +486,10 @@ class ApiClient {
     getByRequest: (requestId: number) => this.request(`/invoices?requestId=${requestId}`),
     getPdfUrl: (id: string) => {
       const base = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
-      return `${base}/api/invoices/${id}/pdf`;
+      // Passe la langue active en query param : FileSystem.downloadAsync n'utilise
+      // pas les défauts ApiClient (c'est un download direct), donc on inline.
+      const lang = (i18nInstance.language || 'fr').split('-')[0].toLowerCase();
+      return `${base}/api/invoices/${id}/pdf?lang=${encodeURIComponent(lang)}`;
     },
   };
 

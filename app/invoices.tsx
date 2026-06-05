@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -15,13 +16,14 @@ import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR as formatEuros } from '@/lib/format';
 
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('fr-BE', {
+  new Date(d).toLocaleDateString(undefined, {
     day: 'numeric', month: 'short', year: 'numeric',
   });
 
 export default function InvoicesScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const isProvider = user?.roles?.includes('PROVIDER');
 
@@ -96,13 +98,13 @@ export default function InvoicesScreen() {
               color: isPaid ? COLORS.green : COLORS.amber,
               fontFamily: FONTS.sansMedium,
             }]}>
-              {isPaid ? 'Payé' : 'En attente'}
+              {isPaid ? t('ext.invoice_paid') : t('ext.invoice_pending')}
             </Text>
           </View>
         </View>
       </TouchableOpacity>
     );
-  }, [theme]);
+  }, [theme, t]);
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -148,9 +150,9 @@ export default function InvoicesScreen() {
           <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
             <Feather name="file-text" size={28} color={theme.textMuted} />
           </View>
-          <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucune facture</Text>
+          <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('wallet.empty')}</Text>
           <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            Vos factures apparaîtront ici après vos missions.
+            {t('ext.invoice_empty')}
           </Text>
         </View>
       ) : (

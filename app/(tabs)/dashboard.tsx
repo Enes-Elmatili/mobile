@@ -1371,7 +1371,7 @@ export default function Dashboard() {
               /* ── État idle : "Besoin d'un pro ?" ── */
               <View style={{ padding: 20 }}>
                 <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
-                  DISPONIBLE · 24/7
+                  {t('dashboard.available_24_7')}
                 </Text>
                 <Text style={{ fontFamily: FONTS.bebas, fontSize: 28, color: theme.heroText, letterSpacing: 0.4, marginBottom: 18 }}>
                   {t('dashboard.hero_title')}

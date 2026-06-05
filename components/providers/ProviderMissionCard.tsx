@@ -5,6 +5,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
+import { useTranslation } from 'react-i18next';
+import { translateCategory } from '@/lib/categoryLabel';
 
 const NET_RATE = 0.85;
 const TIMER_DURATION = 15;
@@ -57,6 +59,7 @@ interface ProviderMissionCardProps {
 
 export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMissionCardProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const slideUp   = useRef(new Animated.Value(400)).current;
   const timerAnim = useRef(new Animated.Value(1)).current;
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
@@ -85,7 +88,9 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
   }, []);
 
   const netPrice = Math.round(mission.price * NET_RATE);
-  const categoryName = mission.category?.name || mission.serviceType || 'Service';
+  const categoryName = mission.category
+    ? translateCategory(t, mission.category)
+    : (mission.serviceType || t('ext.invoice_service_fallback'));
   const categoryIcon = mission.category?.icon || getCategoryIcon(categoryName);
   const pricingMode = mission.subcategory?.pricingMode;
   const duration = mission.subcategory?.durationMinutes;
@@ -123,7 +128,7 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
               {mission.urgent && (
                 <View style={[s.pill, { backgroundColor: COLORS.red }]}>
                   <Feather name="zap" size={10} color="#FFF" />
-                  <Text style={s.pillTextWhite}>Urgent</Text>
+                  <Text style={s.pillTextWhite}>{t('provider.urgent')}</Text>
                 </View>
               )}
               {pricingMode && (

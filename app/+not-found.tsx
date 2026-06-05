@@ -1,19 +1,21 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Link } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 export default function NotFoundScreen() {
   const theme = useAppTheme();
+  const { t } = useTranslation();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <Feather name="alert-circle" size={80} color={COLORS.red} />
-      <Text style={[styles.title, { color: theme.text }]}>Page introuvable</Text>
-      <Text style={[styles.subtitle, { color: theme.textSub }]}>Cette page n&apos;existe pas</Text>
+      <Text style={[styles.title, { color: theme.text }]}>{t('ext.not_found_title')}</Text>
+      <Text style={[styles.subtitle, { color: theme.textSub }]}>{t('ext.not_found_sub')}</Text>
       <Link href="/(tabs)/dashboard" asChild>
         <TouchableOpacity style={[styles.button, { backgroundColor: theme.accent }]}>
-          <Text style={[styles.buttonText, { color: theme.accentText }]}>Retour à l&apos;accueil</Text>
+          <Text style={[styles.buttonText, { color: theme.accentText }]}>{t('ext.not_found_back')}</Text>
         </TouchableOpacity>
       </Link>
     </View>

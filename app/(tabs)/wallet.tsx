@@ -14,6 +14,7 @@ import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devError } from '@/lib/logger';
 import { formatEUR as fmtEur } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
 
 // --- Formatage ---
 const fromCents = (n: number) => n / 100;
@@ -55,11 +56,11 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 // --- Statut des retraits ---
-const WD_STATUS: Record<string, { label: string; color: string }> = {
-  PENDING:   { label: 'En attente', color: COLORS.amber },
-  APPROVED:  { label: 'Approuvé',   color: COLORS.green },
-  REJECTED:  { label: 'Refusé',     color: COLORS.red },
-  COMPLETED: { label: 'Effectué',   color: COLORS.green },
+const WD_STATUS_CFG: Record<string, { i18nKey: string; color: string }> = {
+  PENDING:   { i18nKey: 'ext.wallet_status_pending',   color: COLORS.amber },
+  APPROVED:  { i18nKey: 'ext.wallet_status_approved',  color: COLORS.green },
+  REJECTED:  { i18nKey: 'ext.wallet_status_rejected',  color: COLORS.red },
+  COMPLETED: { i18nKey: 'ext.wallet_status_completed', color: COLORS.green },
 };
 
 // --- Consolidation : fusionne HOLD+RELEASE d'une meme mission ---
@@ -117,11 +118,12 @@ function consolidateTxs(raw: any[]): ConsolidatedTx[] {
 
 // --- Ligne transaction ---
 function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
+  const { t: tr } = useTranslation();
   const cfg = {
-    released: { icon: 'check-circle' as const, iconColor: COLORS.green, badge: 'Libéré', badgeColor: COLORS.green, sign: '+' },
-    credit:   { icon: 'arrow-down' as const,   iconColor: COLORS.green, badge: 'Reçu',   badgeColor: COLORS.green, sign: '+' },
-    pending:  { icon: 'clock' as const,        iconColor: COLORS.amber, badge: 'En validation', badgeColor: COLORS.amber, sign: '' },
-    debit:    { icon: 'arrow-up' as const,     iconColor: COLORS.red, badge: 'Débité', badgeColor: COLORS.red, sign: '−' },
+    released: { icon: 'check-circle' as const, iconColor: COLORS.green, badge: tr('ext.wallet_tx_released'), badgeColor: COLORS.green, sign: '+' },
+    credit:   { icon: 'arrow-down' as const,   iconColor: COLORS.green, badge: tr('ext.wallet_tx_credit'),   badgeColor: COLORS.green, sign: '+' },
+    pending:  { icon: 'clock' as const,        iconColor: COLORS.amber, badge: tr('ext.wallet_tx_pending_validation'), badgeColor: COLORS.amber, sign: '' },
+    debit:    { icon: 'arrow-up' as const,     iconColor: COLORS.red,   badge: tr('ext.wallet_tx_debit'),    badgeColor: COLORS.red, sign: '−' },
   }[item.status];
 
   const isGain = item.status === 'released' || item.status === 'credit';
@@ -149,21 +151,22 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
 
 // --- Ligne retrait ---
 function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
-  const st = WD_STATUS[item.status] ?? WD_STATUS.PENDING;
+  const { t: tr } = useTranslation();
+  const st = WD_STATUS_CFG[item.status] ?? WD_STATUS_CFG.PENDING;
   return (
     <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
         <Feather name="credit-card" size={18} color={st.color} />
       </View>
       <View style={styles.txInfo}>
-        <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>Retrait</Text>
+        <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{tr('wallet.withdraw')}</Text>
         <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.createdAt)}</Text>
         {item.destination ? <Text style={[styles.txDate, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
       </View>
       <View style={styles.txRight}>
         <Text style={[styles.txAmount, { color: COLORS.red }]}>−{fmtEur(fromCents(item.amount))}</Text>
         <View style={[styles.txBadge, { backgroundColor: st.color + '18' }]}>
-          <Text style={[styles.txBadgeText, { color: st.color }]}>{st.label}</Text>
+          <Text style={[styles.txBadgeText, { color: st.color }]}>{tr(st.i18nKey)}</Text>
         </View>
       </View>
     </View>
@@ -185,6 +188,7 @@ export default function WalletTab() {
   const [stripeLoading, setStripeLoading] = useState(false);
   const [filter, setFilter]             = useState<Filter>('all');
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   const router = useRouter();
 
   const load = useCallback(async () => {
@@ -412,7 +416,7 @@ export default function WalletTab() {
         {!stripeReady && (
           <View style={styles.payoutNotice}>
             <Feather name="info" size={14} color={t.heroSub} />
-            <Text style={[styles.payoutNoticeText, { color: t.heroSubFaint }]}>Configurez Stripe pour recevoir vos virements.</Text>
+            <Text style={[styles.payoutNoticeText, { color: t.heroSubFaint }]}>{tr('wallet.configure_stripe')}</Text>
           </View>
         )}
       </View>

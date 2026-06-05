@@ -1,13 +1,13 @@
 /**
  * lib/i18n.ts — Initialisation de react-i18next
  *
- * - Détecte la langue du device via expo-localization
- * - Mappe vers fr / en (les seules locales bundlées actuellement)
- * - Fallback sur 'fr' si la langue du device n'est pas supportée
- * - Import side-effect dans app/_layout.tsx : import '@/lib/i18n'
+ * Langues supportées : fr, nl, en (cf. landing trilingue).
+ * Détection device via expo-localization :
+ *   - fr (fr-FR, fr-BE, fr-CA…) → fr
+ *   - nl (nl-NL, nl-BE)         → nl
+ *   - autre / non détectable     → en (fallback international)
  *
- * NL : pas encore traduit. Les devices NL retombent sur 'fr' (marché beta belge,
- * fr plus probable que en pour Ixelles). À étendre quand locales/nl.json sera fait.
+ * Import side-effect dans app/_layout.tsx : import '@/lib/i18n'
  *
  * Usage dans les composants :
  *   import { useTranslation } from 'react-i18next';
@@ -20,9 +20,10 @@ import { initReactI18next } from 'react-i18next';
 import * as Localization from 'expo-localization';
 
 import fr from '../locales/fr.json';
+import nl from '../locales/nl.json';
 import en from '../locales/en.json';
 
-const SUPPORTED = ['fr', 'en'] as const;
+const SUPPORTED = ['fr', 'nl', 'en'] as const;
 type Supported = typeof SUPPORTED[number];
 
 function pickDeviceLanguage(): Supported {
@@ -30,13 +31,12 @@ function pickDeviceLanguage(): Supported {
     const locales = Localization.getLocales();
     for (const loc of locales) {
       const code = (loc.languageCode || '').toLowerCase();
-      if (code === 'fr' || code === 'en') return code;
-      if (code === 'nl') return 'fr'; // marché belge, fr > en pour beta Ixelles
+      if (code === 'fr' || code === 'nl' || code === 'en') return code;
     }
   } catch {
     // ignore — fallback ci-dessous
   }
-  return 'fr';
+  return 'en';
 }
 
 i18n
@@ -44,10 +44,11 @@ i18n
   .init({
     resources: {
       fr: { translation: fr },
+      nl: { translation: nl },
       en: { translation: en },
     },
     lng: pickDeviceLanguage(),
-    fallbackLng: 'fr',
+    fallbackLng: 'en',
     interpolation: {
       escapeValue: false, // React Native échappe déjà
     },

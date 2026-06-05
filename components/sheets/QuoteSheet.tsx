@@ -10,6 +10,7 @@ import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -24,11 +25,12 @@ interface QuoteSheetProps {
 }
 
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+  new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
 export default function QuoteSheet({ requestId, requestStatus, serviceName, isVisible, onClose }: QuoteSheetProps) {
   const theme = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
 
@@ -134,18 +136,18 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               {/* Breakdown */}
               <View style={qs.sectionHeader}>
                 <Feather name="file-text" size={13} color={textMuted} />
-                <Text style={[qs.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>DÉTAIL</Text>
+                <Text style={[qs.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('quote.details').toUpperCase()}</Text>
               </View>
 
               <View style={qs.lineRow}>
-                <Text style={[qs.lineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>Main d'œuvre</Text>
+                <Text style={[qs.lineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>{t('missions.labor')}</Text>
                 <Text style={[qs.lineVal, { color: textPrimary, fontFamily: FONTS.mono }]}>{fmtEur(quote.laborAmount)}</Text>
               </View>
 
               {quote.partsAmount > 0 && (
                 <View style={{ gap: 2 }}>
                   <View style={qs.lineRow}>
-                    <Text style={[qs.lineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>Pièces / Matériel</Text>
+                    <Text style={[qs.lineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>{t('missions.parts_materials')}</Text>
                     <Text style={[qs.lineVal, { color: textPrimary, fontFamily: FONTS.mono }]}>{fmtEur(quote.partsAmount)}</Text>
                   </View>
                   {quote.partsDetail && (
@@ -157,13 +159,13 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               <View style={[qs.divider, { backgroundColor: borderColor, marginVertical: 10 }]} />
 
               <View style={qs.lineRow}>
-                <Text style={[qs.totalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>Total</Text>
+                <Text style={[qs.totalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>{t('missions.quote_total')}</Text>
                 <Text style={[qs.totalVal, { color: textPrimary, fontFamily: FONTS.bebas }]}>{fmtEur(quote.totalAmount)}</Text>
               </View>
 
               {quote.calloutPaid > 0 && (
                 <View style={qs.lineRow}>
-                  <Text style={[qs.lineLabel, { color: COLORS.green, fontFamily: FONTS.sans }]}>Acompte déjà payé</Text>
+                  <Text style={[qs.lineLabel, { color: COLORS.green, fontFamily: FONTS.sans }]}>{t('quote.deposit_paid')}</Text>
                   <Text style={[qs.lineVal, { color: COLORS.green, fontFamily: FONTS.mono }]}>-{fmtEur(quote.calloutPaid)}</Text>
                 </View>
               )}
@@ -171,7 +173,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               <View style={[qs.divider, { backgroundColor: borderColor, marginVertical: 10 }]} />
 
               <View style={qs.lineRow}>
-                <Text style={[qs.totalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>Reste à payer</Text>
+                <Text style={[qs.totalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>{t('quote.remaining_to_pay')}</Text>
                 <Text style={[qs.remainVal, { color: textPrimary, fontFamily: FONTS.bebas }]}>{fmtEur(quote.remainingAmount)}</Text>
               </View>
 
@@ -181,7 +183,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
                   <View style={[qs.divider, { backgroundColor: borderColor }]} />
                   <View style={qs.sectionHeader}>
                     <Feather name="message-circle" size={13} color={textMuted} />
-                    <Text style={[qs.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>NOTES DU PRESTATAIRE</Text>
+                    <Text style={[qs.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('missions.notes_for_client').toUpperCase()}</Text>
                   </View>
                   <Text style={[qs.notes, { color: textSecondary, fontFamily: FONTS.sansLight }]}>{quote.notes}</Text>
                 </>
@@ -196,13 +198,13 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
                     color={isAccepted ? COLORS.green : isSent ? COLORS.orangeBrand : textMuted}
                   />
                   <Text style={[qs.statusText, { color: isAccepted ? COLORS.green : isSent ? COLORS.orangeBrand : textMuted, fontFamily: FONTS.sansMedium }]}>
-                    {isAccepted ? 'Accepté' : isSent ? 'En attente de réponse' : 'Traitement en cours'}
+                    {isAccepted ? t('provider.mission_accepted') : isSent ? t('missions.waiting_response') : t('common.loading')}
                   </Text>
                 </View>
               </View>
             </>
           ) : (
-            <Text style={[qs.noQuote, { color: textMuted, fontFamily: FONTS.sans }]}>Aucun devis disponible</Text>
+            <Text style={[qs.noQuote, { color: textMuted, fontFamily: FONTS.sans }]}>{t('common.loading')}</Text>
           )}
 
           <View style={[qs.divider, { backgroundColor: borderColor }]} />
@@ -220,7 +222,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               >
                 <Feather name="check-circle" size={18} color={accentText} />
                 <Text style={[qs.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
-                  Voir et répondre au devis
+                  {t('dashboard.quote_action_review')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -280,9 +282,14 @@ const qs = StyleSheet.create({
   btnPrimary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, height: 55, borderRadius: 12,
+    // Raised tactile : top highlight + bottom chamfer + drop shadow.
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(255,255,255,0.45)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.18)',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 6 },
+      ios: { shadowColor: '#000', shadowOpacity: 0.32, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+      android: { elevation: 8 },
     }),
   },
   btnPrimaryText: { fontSize: 15 },

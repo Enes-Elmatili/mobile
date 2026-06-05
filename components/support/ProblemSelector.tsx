@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 export type Severity = 'low' | 'medium' | 'high';
@@ -25,114 +26,28 @@ interface ProblemSelectorProps {
   onSelect: (problem: ProblemOption) => void;
 }
 
-const PROBLEMS_BY_STATUS: Record<string, ProblemOption[]> = {
-  // Mission acceptée mais pas encore démarrée — provider en route ou en attente.
+type ProblemDef = { id: string; labelKey: string; hintKey: string; icon: string; severity: Severity; resolutionKey: string };
+
+const PROBLEMS_BY_STATUS: Record<string, ProblemDef[]> = {
   SEARCHING: [
-    {
-      id: 'provider_late',
-      label: 'Le prestataire est en retard',
-      hint: 'L\'heure de rendez-vous est dépassée',
-      icon: 'clock',
-      severity: 'medium',
-      resolution: 'Nous contactons le prestataire pour vous. S\'il ne répond pas sous 5 minutes, nous vous proposons un autre prestataire qualifié.',
-    },
-    {
-      id: 'cannot_find',
-      label: 'Je ne trouve pas le prestataire',
-      hint: 'Il n\'est pas à l\'adresse indiquée',
-      icon: 'search',
-      severity: 'medium',
-      resolution: 'Le prestataire a votre adresse exacte. Essayez la messagerie ou l\'appel direct depuis l\'écran de suivi. Sinon notre équipe intervient.',
-    },
-    {
-      id: 'want_cancel',
-      label: 'Je veux annuler la mission',
-      hint: 'Avant que le prestataire arrive',
-      icon: 'x-circle',
-      severity: 'low',
-      resolution: 'Vous pouvez annuler depuis l\'écran de suivi. Le remboursement est automatique sous 3-5 jours ouvrés selon votre moyen de paiement.',
-    },
+    { id: 'provider_late', labelKey: 'ext.support_problem_label_arrival', hintKey: 'ext.support_problem_hint_arrival', icon: 'clock', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_arrival' },
+    { id: 'cannot_find',   labelKey: 'ext.support_problem_label_lost',    hintKey: 'ext.support_problem_hint_lost',    icon: 'search', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_lost' },
+    { id: 'want_cancel',   labelKey: 'ext.support_problem_label_cancel',  hintKey: 'ext.support_problem_hint_cancel',  icon: 'x-circle', severity: 'low', resolutionKey: 'ext.support_problem_resolution_cancel' },
   ],
-  // Mission en cours d'exécution — prestataire sur place.
   IN_PROGRESS: [
-    {
-      id: 'security',
-      label: 'Problème de sécurité',
-      hint: 'Comportement inapproprié, danger, urgence',
-      icon: 'shield',
-      severity: 'high',
-      resolution: 'Votre sécurité est notre priorité absolue. Notre équipe est notifiée immédiatement et vous rappelle dans les minutes qui suivent.',
-    },
-    {
-      id: 'stop_mission',
-      label: 'Je veux arrêter la mission',
-      hint: 'Le travail ne se passe pas comme prévu',
-      icon: 'minus-circle',
-      severity: 'medium',
-      resolution: 'Notre support peut interrompre la mission en cours. Le prestataire sera notifié et un règlement équitable sera négocié pour le travail déjà réalisé.',
-    },
+    { id: 'security',      labelKey: 'ext.support_problem_label_security', hintKey: 'ext.support_problem_hint_security', icon: 'shield', severity: 'high', resolutionKey: 'ext.support_problem_resolution_security' },
+    { id: 'stop_mission',  labelKey: 'ext.support_problem_label_stop',     hintKey: 'ext.support_problem_hint_stop',     icon: 'minus-circle', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_stop' },
   ],
-  // Mission terminée.
   COMPLETED: [
-    {
-      id: 'unsatisfactory',
-      label: 'Le travail est insatisfaisant',
-      hint: 'Qualité, finitions, conformité',
-      icon: 'thumbs-down',
-      severity: 'medium',
-      resolution: 'Nous prenons la qualité très au sérieux. Décrivez le problème à notre équipe — elle peut organiser un retour du prestataire ou un geste commercial.',
-    },
-    {
-      id: 'damage',
-      label: 'Un dommage a été causé',
-      hint: 'Casse, dégât des eaux, autre',
-      icon: 'alert-triangle',
-      severity: 'high',
-      resolution: 'Investigation immédiate. Les photos avant/après sont examinées par notre équipe et notre assurance pro couvre les dégâts éligibles.',
-    },
-    {
-      id: 'payment_issue',
-      label: 'Problème de paiement',
-      hint: 'Montant, facture, prélèvement',
-      icon: 'credit-card',
-      severity: 'medium',
-      resolution: 'Notre équipe financière examine votre dossier. Tout remboursement éligible est traité sous 5 jours ouvrés.',
-    },
-    {
-      id: 'unknown_mission',
-      label: 'Je ne reconnais pas cette mission',
-      hint: 'Compte potentiellement compromis',
-      icon: 'alert-circle',
-      severity: 'high',
-      resolution: 'Sécurisation immédiate de votre compte. Vérification du paiement et investigation sur l\'origine de la mission.',
-    },
+    { id: 'unsatisfactory', labelKey: 'ext.support_problem_label_done_bad', hintKey: 'ext.support_problem_hint_done_bad', icon: 'thumbs-down', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_done_bad' },
+    { id: 'damage',         labelKey: 'ext.support_problem_label_damage',   hintKey: 'ext.support_problem_hint_damage',   icon: 'alert-triangle', severity: 'high', resolutionKey: 'ext.support_problem_resolution_damage' },
+    { id: 'payment_issue',  labelKey: 'ext.support_problem_label_payment',  hintKey: 'ext.support_problem_hint_payment',  icon: 'credit-card', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_payment' },
+    { id: 'unknown_mission',labelKey: 'ext.support_problem_label_unauth',   hintKey: 'ext.support_problem_hint_unauth',   icon: 'alert-circle', severity: 'high', resolutionKey: 'ext.support_problem_resolution_unauth' },
   ],
-  // Hors mission — questions générales.
   OTHER: [
-    {
-      id: 'account',
-      label: 'Problème de compte',
-      hint: 'Connexion, données, accès',
-      icon: 'user',
-      severity: 'medium',
-      resolution: 'Notre support peut investiguer votre compte, restaurer un accès ou corriger des données.',
-    },
-    {
-      id: 'invoice_question',
-      label: 'Question sur une facture',
-      hint: 'Téléchargement, contenu, TVA',
-      icon: 'file-text',
-      severity: 'low',
-      resolution: 'Vos factures sont disponibles dans Documents → Factures. Pour toute question spécifique, notre équipe peut vous aider.',
-    },
-    {
-      id: 'other',
-      label: 'Autre demande',
-      hint: 'Je ne trouve pas mon problème',
-      icon: 'message-circle',
-      severity: 'medium',
-      resolution: 'Décrivez votre situation à notre équipe. Nous vous répondons dans la journée ouvrée — souvent en moins d\'une heure.',
-    },
+    { id: 'account',          labelKey: 'ext.support_problem_label_account', hintKey: 'ext.support_problem_hint_account', icon: 'user', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_account' },
+    { id: 'invoice_question', labelKey: 'ext.support_problem_label_invoice', hintKey: 'ext.support_problem_hint_invoice', icon: 'file-text', severity: 'low', resolutionKey: 'ext.support_problem_resolution_invoice' },
+    { id: 'other',            labelKey: 'ext.support_problem_label_other',   hintKey: 'ext.support_problem_hint_other',   icon: 'message-circle', severity: 'medium', resolutionKey: 'ext.support_problem_resolution_other' },
   ],
 };
 
@@ -145,11 +60,11 @@ function mapStatusToKey(status: string | null): keyof typeof PROBLEMS_BY_STATUS 
   return 'OTHER';
 }
 
-const SEVERITY_LABEL: Record<Severity, string> = {
-  low: 'Auto-résolu',
-  medium: 'Support',
-  high: 'Urgent',
-};
+function severityLabel(sev: Severity, t: (k: string) => string) {
+  if (sev === 'high') return t('ext.support_sev_high');
+  if (sev === 'medium') return t('ext.support_sev_medium');
+  return t('ext.support_sev_low');
+}
 
 function severityColor(sev: Severity, theme: ReturnType<typeof useAppTheme>) {
   if (sev === 'high') return COLORS.red;
@@ -159,8 +74,17 @@ function severityColor(sev: Severity, theme: ReturnType<typeof useAppTheme>) {
 
 export default function ProblemSelector({ missionStatus, onSelect }: ProblemSelectorProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const key = mapStatusToKey(missionStatus);
-  const problems = PROBLEMS_BY_STATUS[key] || PROBLEMS_BY_STATUS.OTHER;
+  const defs = PROBLEMS_BY_STATUS[key] || PROBLEMS_BY_STATUS.OTHER;
+  const problems: ProblemOption[] = defs.map(d => ({
+    id: d.id,
+    label: t(d.labelKey),
+    hint: t(d.hintKey),
+    icon: d.icon,
+    severity: d.severity,
+    resolution: t(d.resolutionKey),
+  }));
 
   return (
     <View style={{ gap: 8 }}>
@@ -191,7 +115,7 @@ export default function ProblemSelector({ missionStatus, onSelect }: ProblemSele
             <View style={[s.sevPill, { backgroundColor: `${tone}1A` }]}>
               <View style={[s.sevDot, { backgroundColor: tone }]} />
               <Text style={[s.sevText, { color: tone, fontFamily: FONTS.monoMedium }]}>
-                {SEVERITY_LABEL[problem.severity]}
+                {severityLabel(problem.severity, t)}
               </Text>
             </View>
           </TouchableOpacity>

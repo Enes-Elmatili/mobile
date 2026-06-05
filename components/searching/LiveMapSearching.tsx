@@ -13,6 +13,7 @@ import Animated, {
   FadeInDown, FadeOut, LinearTransition,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
@@ -50,14 +51,14 @@ export interface LiveMapSearchingProps {
 }
 
 // Live "X s / X min" formatter — re-rendered every 10s via useNow().
-function timeAgo(ms: number, now: number): string {
+function timeAgo(ms: number, now: number, t: (k: string, opts?: any) => string): string {
   const diff = Math.max(0, Math.floor((now - ms) / 1000));
-  if (diff < 5) return "à l'instant";
-  if (diff < 60) return `il y a ${diff}s`;
+  if (diff < 5) return t('ext.searching_time_now');
+  if (diff < 60) return t('ext.searching_time_seconds', { s: diff });
   const mins = Math.floor(diff / 60);
-  if (mins < 60) return `il y a ${mins} min`;
+  if (mins < 60) return t('ext.searching_time_minutes', { m: mins });
   const hours = Math.floor(mins / 60);
-  return `il y a ${hours}h`;
+  return t('ext.searching_time_hours', { h: hours });
 }
 
 function useNow(tickMs: number = 10000): number {
@@ -232,6 +233,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
   );
 
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const { socket } = useSocket();
   const mapRef = useRef<MapView>(null);
   const timer = useCountdown(expiresAt);
@@ -282,19 +284,19 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
     setFeed([
       {
         id: 'seed-1',
-        text: isScheduled ? 'Mission planifiée — en attente de créneau' : 'Mission publiée sur le réseau',
+        text: isScheduled ? t('ext.searching_feed_seed_scheduled') : t('ext.searching_feed_seed_published'),
         createdAt: base - 8_000,
       },
       {
         id: 'seed-2',
         text: isScheduled
-          ? 'Nous activerons votre mission au bon moment'
-          : 'Recherche des prestataires disponibles',
+          ? t('ext.searching_feed_scheduled_sub')
+          : t('ext.searching_feed_searching_sub'),
         createdAt: base - 2_000,
         pulse: true,
       },
     ]);
-  }, [isScheduled]);
+  }, [isScheduled, t]);
 
   // Real socket: status updates → terminal lines appended to the feed.
   useEffect(() => {
@@ -307,12 +309,12 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
     const onStatusUpdated = (d: any) => {
       if (String(d?.requestId ?? d?.id) !== String(missionId)) return;
       const status = String(d?.status || '').toUpperCase();
-      if (status === 'ACCEPTED') push('Prestataire trouvé — mission acceptée', true);
-      else if (status === 'CANCELLED' || status === 'QUOTE_EXPIRED') push('Demande clôturée');
+      if (status === 'ACCEPTED') push(t('ext.searching_feed_provider_found'), true);
+      else if (status === 'CANCELLED' || status === 'QUOTE_EXPIRED') push(t('ext.searching_feed_closed'));
     };
     socket.on('request:statusUpdated', onStatusUpdated);
     return () => { socket.off('request:statusUpdated', onStatusUpdated); };
-  }, [socket, missionId]);
+  }, [socket, missionId, t]);
 
   // Simulated matching progress — no client-facing socket event broadcasts
   // the per-provider notification cadence today, so we surface a plausible
@@ -330,16 +332,16 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
         ].slice(0, 4);
       });
     const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(setTimeout(() => pushFeed('Un prestataire notifié'), 8_000));
-    timers.push(setTimeout(() => pushFeed('2 prestataires notifiés'), 20_000));
-    timers.push(setTimeout(() => pushFeed('3 prestataires notifiés'), 32_000));
+    timers.push(setTimeout(() => pushFeed(t('ext.searching_feed_one_notified')), 8_000));
+    timers.push(setTimeout(() => pushFeed(t('ext.searching_feed_n_notified', { n: 2 })), 20_000));
+    timers.push(setTimeout(() => pushFeed(t('ext.searching_feed_n_notified', { n: 3 })), 32_000));
     timers.push(setTimeout(() => {
-      pushFeed('Expansion du rayon de recherche');
+      pushFeed(t('ext.searching_feed_expansion'));
       setPhase('expanding');
     }, 45_000));
     timers.push(setTimeout(() => setPhase('widened'), 60_000));
     return () => { timers.forEach(clearTimeout); };
-  }, [isScheduled]);
+  }, [isScheduled, t]);
 
   // Smooth Circle radius transition on phase change (2000m → 3500m on
   // expansion). Uses setInterval at 50ms to cap map re-renders.
@@ -378,19 +380,19 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
   // the activity feed below. Duplicating it in the pill doubles the anxiety
   // on long waits. Scheduled missions bypass the phase machine entirely.
   const pillTitle = isScheduled
-    ? 'Mission planifiée'
+    ? t('ext.searching_pill_scheduled')
     : phase === 'searching'
-      ? 'Recherche en cours…'
+      ? t('ext.searching_pill_searching')
       : phase === 'expanding'
-        ? 'Expansion du rayon…'
-        : 'Recherche élargie';
+        ? t('ext.searching_pill_expanding')
+        : t('ext.searching_pill_widened');
   const pillSub = isScheduled
-    ? 'Un prestataire acceptera bientôt'
+    ? t('ext.searching_pill_scheduled_sub')
     : phase === 'searching'
-      ? 'Nous contactons les prestataires disponibles'
+      ? t('ext.searching_pill_searching_sub')
       : phase === 'expanding'
-        ? 'Recherche élargie autour de votre adresse'
-        : 'Un prestataire va répondre sous peu';
+        ? t('ext.searching_pill_expanding_sub')
+        : t('ext.searching_pill_widened_sub');
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
@@ -455,7 +457,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
             style={[s.iconBtn, { backgroundColor: theme.cardBg, shadowColor: theme.text }]}
             onPress={recenter}
             hitSlop={8}
-            accessibilityLabel="Recentrer"
+            accessibilityLabel={t('ext.searching_recenter')}
           >
             <Feather name="crosshair" size={18} color={theme.text} />
           </Pressable>
@@ -484,7 +486,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
               Mission · #{String(missionId).slice(-6).toUpperCase()}
             </Text>
             <Text style={[s.missionTitle, { color: theme.text, fontFamily: FONTS.bebas }]} numberOfLines={1}>
-              {missionTitle || 'Mission'}
+              {missionTitle || t('missions.mission')}
             </Text>
             <View style={s.metaRow}>
               {!!missionAddress && (
@@ -498,7 +500,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
               <View style={s.metaItem}>
                 <Feather name="clock" size={12} color={fgMuted} />
                 <Text style={[s.metaText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                  {missionWhen || 'Dès maintenant'}
+                  {missionWhen || t('ext.searching_now_default')}
                 </Text>
               </View>
               {priceLabel && (
@@ -512,7 +514,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
               {isQuote && !priceLabel && (
                 <View style={s.metaItem}>
                   <Feather name="file-text" size={12} color={COLORS.amber} />
-                  <Text style={[s.metaText, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>Devis</Text>
+                  <Text style={[s.metaText, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>{t('ext.searching_quote_short')}</Text>
                 </View>
               )}
             </View>
@@ -521,10 +523,10 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
           {/* Activité */}
           <View style={{ marginBottom: 16 }}>
             <View style={s.activityHead}>
-              <Text style={[s.kicker, { color: fgMuted, fontFamily: FONTS.mono }]}>Activité</Text>
+              <Text style={[s.kicker, { color: fgMuted, fontFamily: FONTS.mono }]}>{t('ext.searching_activity')}</Text>
               <View style={s.liveTag}>
                 <Blink period={1200}><View style={[s.liveDot, { backgroundColor: accent }]} /></Blink>
-                <Text style={[s.liveText, { color: accent, fontFamily: FONTS.sansMedium }]}>En direct</Text>
+                <Text style={[s.liveText, { color: accent, fontFamily: FONTS.sansMedium }]}>{t('ext.searching_live')}</Text>
               </View>
             </View>
             <View style={{ gap: 8 }}>
@@ -545,7 +547,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
                   )}
                   <Text style={[s.feedText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
                     {it.text}
-                    <Text style={[s.feedTime, { color: fgMuted, fontFamily: FONTS.mono }]}>  {timeAgo(it.createdAt, now)}</Text>
+                    <Text style={[s.feedTime, { color: fgMuted, fontFamily: FONTS.mono }]}>  {timeAgo(it.createdAt, now, t)}</Text>
                   </Text>
                 </Animated.View>
               ))}
@@ -557,7 +559,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
           <View style={s.reassurance}>
             <Feather name="shield" size={12} color={fgMuted} />
             <Text style={[s.reassuranceText, { color: fgMuted, fontFamily: FONTS.sans }]}>
-              Paiement sécurisé Stripe · débit à l'acceptation
+              {t('ext.searching_reassurance')}
             </Text>
           </View>
 
@@ -568,11 +570,11 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
             onPress={onCancel}
             disabled={cancelling}
             accessibilityRole="button"
-            accessibilityLabel="Annuler la recherche"
+            accessibilityLabel={t('ext.searching_cancel_search')}
             hitSlop={8}
           >
             <Text style={[s.cancelGhostText, { color: cancelling ? fgMuted : COLORS.red, fontFamily: FONTS.sansMedium }]}>
-              {cancelling ? 'Annulation…' : 'Annuler la recherche'}
+              {cancelling ? t('ext.searching_cancelling') : t('ext.searching_cancel_search')}
             </Text>
           </Pressable>
         </View>

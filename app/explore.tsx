@@ -178,10 +178,10 @@ export default function ExploreScreen() {
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="map-pin" size={52} color={theme.textDisabled} />
-        <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Localisation requise</Text>
-        <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Autorisez l'accès à votre position pour voir les prestataires proches.</Text>
+        <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('explore.location_error')}</Text>
+        <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.explore_location_denied_sub')}</Text>
         <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
-          <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Retour</Text>
+          <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );

@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 // ── Accordion Article ─────────────────────────────────────────────────────────
@@ -13,11 +14,12 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 function Article({ n, title, body }: { n: string; title: string; body: string }) {
   const [open, setOpen] = useState(false);
   const theme = useAppTheme();
+  const { t } = useTranslation();
   return (
     <View style={[s.article, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
       <TouchableOpacity style={s.articleHeader} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
         <View style={s.articleLeft}>
-          <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>Art. {n}</Text>
+          <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('ext.cgu_art')} {n}</Text>
           <Text style={[s.articleTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{title}</Text>
         </View>
         <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
@@ -101,6 +103,7 @@ const ARTICLES = [
 export default function CGUScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -109,18 +112,17 @@ export default function CGUScreen() {
         <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
           <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Conditions d'utilisation</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.cgu_title')}</Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         <View style={[s.introCard, { backgroundColor: theme.heroBg }]}>
-          <Text style={[s.introVersion, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>Version 1.0 — 15 mars 2026</Text>
-          <Text style={[s.introTitle, { color: theme.heroText, fontFamily: FONTS.bebas }]}>FIXED PLATEFORM SRL</Text>
+          <Text style={[s.introVersion, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>{t('ext.cgu_version')}</Text>
+          <Text style={[s.introTitle, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{t('ext.cgu_company')}</Text>
           <Text style={[s.introText, { color: theme.heroSub, fontFamily: FONTS.sans }]}>
-            Les présentes Conditions Générales d'Utilisation (CGU) régissent l'accès et l'utilisation de la plateforme FIXED, exploitée par FIXED PLATEFORM SRL, société à responsabilité limitée de droit belge.{'\n\n'}
-            FIXED agit exclusivement en qualité de plateforme d'intermédiation et n'est pas partie au contrat de prestation conclu entre le Client et le Prestataire.
+            {t('ext.cgu_intro')}
           </Text>
         </View>
 
@@ -129,7 +131,7 @@ export default function CGUScreen() {
         </View>
 
         <Text style={[s.footer, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>
-          FIXED PLATEFORM SRL · support@thefixed.app{'\n'}v1.0 — 15 mars 2026
+          {t('ext.cgu_footer')}
         </Text>
 
       </ScrollView>

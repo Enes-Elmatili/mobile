@@ -27,136 +27,43 @@ type FaqCategory = 'payments' | 'missions' | 'account' | 'providers';
 
 interface FaqItem { q: string; a: string; cat: FaqCategory }
 
-const FAQ_CLIENT: FaqItem[] = [
-  // Paiements
-  {
-    cat: 'payments',
-    q: 'Comment fonctionne le paiement ?',
-    a: 'Pour une mission à prix fixe, vous payez à la commande via Stripe (carte, Bancontact, Apple Pay, Google Pay). Pour une demande avec devis, seuls les frais de déplacement (29€ standard, 49€ urgent) sont prélevés à la commande — le reste est facturé après acceptation du devis.',
-  },
-  {
-    cat: 'payments',
-    q: 'Bancontact et Apple Pay sont-ils acceptés ?',
-    a: 'Oui, tous les moyens de paiement supportés par Stripe sont disponibles : carte, Bancontact, Apple Pay, Google Pay et Klarna selon le montant.',
-  },
-  {
-    cat: 'payments',
-    q: 'Comment se passe le remboursement si personne n\'accepte ma demande ?',
-    a: 'Si aucun prestataire ne valide votre demande dans le délai imparti (72h pour un devis), vous êtes automatiquement remboursé sur le moyen de paiement utilisé.',
-  },
-  // Missions
-  {
-    cat: 'missions',
-    q: 'Puis-je annuler une mission ?',
-    a: 'Oui, tant que la mission est en recherche ou récemment acceptée. Une fois le prestataire sur place ou la mission en cours, l\'annulation passe par le support pour gérer le partage des coûts.',
-  },
-  {
-    cat: 'missions',
-    q: 'Comment communiquer le code PIN au prestataire ?',
-    a: 'Le code PIN à 4 chiffres s\'affiche sur votre écran de suivi dès que le prestataire est en route. Communiquez-le verbalement à son arrivée — il le saisit dans son app pour démarrer la mission.',
-  },
-  {
-    cat: 'missions',
-    q: 'Que faire si mon prestataire est en retard ?',
-    a: 'Vous pouvez l\'appeler directement depuis l\'écran de suivi (bouton vert). En cas de problème, ouvrez la fiche mission via les "..." en haut et choisissez "Contacter le support".',
-  },
-  // Compte
-  {
-    cat: 'account',
-    q: 'Comment modifier mon adresse e-mail ?',
-    a: 'Cette modification n\'est pas encore en libre-service. Contactez le support via WhatsApp ou e-mail en précisant votre ancienne et nouvelle adresse.',
-  },
-  {
-    cat: 'account',
-    q: 'Mon compte a été suspendu, que faire ?',
-    a: 'Contactez immédiatement le support à support@thefixed.app en indiquant votre adresse e-mail. Notre équipe revient vers vous sous 24h ouvrables.',
-  },
-  {
-    cat: 'account',
-    q: 'Comment supprimer mon compte ?',
-    a: 'Rendez-vous dans Profil → Paramètres → Confidentialité → Supprimer mon compte. Conformément au RGPD, vos données sont supprimées sous 30 jours, à l\'exception des justificatifs comptables conservés 7 ans.',
-  },
-  // Prestataires (pour clients qui veulent devenir provider)
-  {
-    cat: 'providers',
-    q: 'Comment devenir prestataire FIXED ?',
-    a: 'Depuis votre profil, appuyez sur "Devenir prestataire" et complétez les 4 étapes : présentation, zone d\'intervention, catégories de services, soumission. Notre équipe valide votre dossier sous 48h.',
-  },
+// Translation-key blueprints — actual strings resolved at render time via t().
+const FAQ_CLIENT_KEYS: { cat: FaqCategory; n: number }[] = [
+  { cat: 'payments', n: 1 },
+  { cat: 'payments', n: 2 },
+  { cat: 'payments', n: 3 },
+  { cat: 'missions', n: 4 },
+  { cat: 'missions', n: 5 },
+  { cat: 'missions', n: 6 },
+  { cat: 'account',  n: 7 },
+  { cat: 'account',  n: 8 },
+  { cat: 'account',  n: 9 },
+  { cat: 'providers', n: 10 },
 ];
 
-const FAQ_PROVIDER: FaqItem[] = [
-  // Paiements (du point de vue provider)
-  {
-    cat: 'payments',
-    q: 'Quand suis-je payé pour mes missions ?',
-    a: 'Dès que la mission est marquée terminée et que le PIN client est vérifié, 80% du montant client est crédité sur votre wallet FIXED. Vous pouvez retirer vos gains à tout moment vers votre compte bancaire (versement sous 1 à 3 jours ouvrables).',
-  },
-  {
-    cat: 'payments',
-    q: 'Comment fonctionne la commission FIXED ?',
-    a: 'FIXED prélève 20% du prix client (formule Free). Avec l\'abonnement Pro (29€/mois) ou Pro+ (99,99€/mois), votre commission descend et vous accédez à plus d\'opportunités. Plus de détails dans Profil → Abonnement.',
-  },
-  {
-    cat: 'payments',
-    q: 'Que se passe-t-il si le client annule après mon déplacement ?',
-    a: 'Si la mission est en cours et que le client annule, vous êtes indemnisé via le partage de coûts géré par le support. Ouvrez un ticket avec le numéro de mission et la preuve du déplacement.',
-  },
-  // Missions (point de vue provider)
-  {
-    cat: 'missions',
-    q: 'Comment vérifier le code PIN du client ?',
-    a: 'À votre arrivée, demandez le code PIN à 4 chiffres au client. Saisissez-le dans l\'écran mission (étape 2) — la mission démarre automatiquement une fois validé.',
-  },
-  {
-    cat: 'missions',
-    q: 'Comment terminer une mission ?',
-    a: 'Prenez une photo "avant" (étape 3) à votre arrivée, puis une photo "après" à la fin. Appuyez ensuite sur "Terminer la mission" — vos gains sont crédités immédiatement.',
-  },
-  {
-    cat: 'missions',
-    q: 'Je n\'arrive pas à entrer dans une mission (PIN absent, client injoignable)…',
-    a: 'Ouvrez le menu "..." en haut de l\'écran mission et choisissez "Abandonner cette mission". Le support est notifié et vous pouvez reprendre votre activité.',
-  },
-  {
-    cat: 'missions',
-    q: 'Comment voir mes missions à venir ?',
-    a: 'L\'onglet Missions liste vos prochaines missions planifiées, vos missions actives et l\'historique. Filtrez par date pour planifier votre semaine.',
-  },
-  // Compte (provider)
-  {
-    cat: 'account',
-    q: 'Comment passer à l\'abonnement Pro / Pro+ ?',
-    a: 'Profil → Abonnement → Choisir un plan. Le passage est immédiat, et la commission baissée s\'applique dès votre prochaine mission acceptée.',
-  },
-  {
-    cat: 'account',
-    q: 'Comment modifier mes documents KYC ?',
-    a: 'Profil → Documents. Les documents rejetés peuvent être ré-uploadés, les documents approuvés peuvent être mis à jour avant expiration. Le support repasse en revue sous 24-48h.',
-  },
-  {
-    cat: 'account',
-    q: 'Mon profil prestataire est suspendu, pourquoi ?',
-    a: 'Suspension automatique en cas de notes basses répétées, documents expirés ou plainte client validée. Contactez le support via WhatsApp pour comprendre la cause et lever la suspension.',
-  },
-  // Prestataires — autres infos métier
-  {
-    cat: 'providers',
-    q: 'Comment fonctionne le matching des demandes ?',
-    a: 'Vous recevez les opportunités correspondant à vos catégories, votre zone et votre disponibilité. Les Pro+ ont priorité sur les missions urgentes. Activez la géoloc en arrière-plan pour ne rien manquer.',
-  },
-  {
-    cat: 'providers',
-    q: 'Pourquoi je ne reçois pas de notifications de nouvelles demandes ?',
-    a: 'Vérifiez : (1) Notifications activées dans les réglages iOS / Android, (2) Géolocalisation autorisée en arrière-plan, (3) Vous êtes en statut "Disponible" sur le dashboard, (4) Vos catégories et zone couvrent la mission. Si tout est OK, contactez le support.',
-  },
+const FAQ_PROVIDER_KEYS: { cat: FaqCategory; n: number }[] = [
+  { cat: 'payments', n: 1 },
+  { cat: 'payments', n: 2 },
+  { cat: 'payments', n: 3 },
+  { cat: 'missions', n: 4 },
+  { cat: 'missions', n: 5 },
+  { cat: 'missions', n: 6 },
+  { cat: 'missions', n: 7 },
+  { cat: 'account',  n: 8 },
+  { cat: 'account',  n: 9 },
+  { cat: 'account',  n: 10 },
+  { cat: 'providers', n: 11 },
+  { cat: 'providers', n: 12 },
 ];
 
-const CATEGORIES: { id: FaqCategory; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'payments',  label: 'Paiements',    icon: 'credit-card' },
-  { id: 'missions',  label: 'Missions',     icon: 'tool' },
-  { id: 'account',   label: 'Compte',       icon: 'user' },
-  { id: 'providers', label: 'Prestataires', icon: 'briefcase' },
-];
+const CATEGORY_ICONS: Record<FaqCategory, keyof typeof Feather.glyphMap> = {
+  payments: 'credit-card',
+  missions: 'tool',
+  account: 'user',
+  providers: 'briefcase',
+};
+
+const CATEGORY_ORDER: FaqCategory[] = ['payments', 'missions', 'account', 'providers'];
 
 // ── FAQ Item ──────────────────────────────────────────────────────────────────
 
@@ -207,7 +114,22 @@ export default function HelpScreen() {
   const theme = useAppTheme();
   const { user } = useAuth();
   const isProvider = !!user?.roles?.includes('PROVIDER');
-  const FAQ = isProvider ? FAQ_PROVIDER : FAQ_CLIENT;
+
+  const FAQ = useMemo<FaqItem[]>(() => {
+    const prefix = isProvider ? 'provider' : 'client';
+    const keys = isProvider ? FAQ_PROVIDER_KEYS : FAQ_CLIENT_KEYS;
+    return keys.map(({ cat, n }) => ({
+      cat,
+      q: t(`help.${prefix}_q${n}`),
+      a: t(`help.${prefix}_a${n}`),
+    }));
+  }, [isProvider, t]);
+
+  const CATEGORIES = useMemo(() => CATEGORY_ORDER.map((id) => ({
+    id,
+    label: t(`help.cat_${id}`),
+    icon: CATEGORY_ICONS[id],
+  })), [t]);
 
   const [query, setQuery] = useState('');
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -254,7 +176,7 @@ export default function HelpScreen() {
     return map;
   }, [filtered]);
 
-  const openEmail    = () => Linking.openURL('mailto:support@thefixed.app?subject=Support FIXED');
+  const openEmail    = () => Linking.openURL(`mailto:support@thefixed.app?subject=${encodeURIComponent(t('help.email_subject'))}`);
   const openWhatsApp = () => WebBrowser.openBrowserAsync(WHATSAPP_BETA_URL);
   const openMissionSupport = () => router.push('/support');
 
@@ -268,12 +190,12 @@ export default function HelpScreen() {
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.75}
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('help.back_label')}
         >
           <Feather name="chevron-left" size={20} color={theme.text} />
         </TouchableOpacity>
         <Text style={[s.headerLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-          AIDE & SUPPORT
+          {t('help.header')}
         </Text>
         <View style={{ width: 38 }} />
       </View>
@@ -283,13 +205,13 @@ export default function HelpScreen() {
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
         <View style={s.hero}>
           <Text style={[s.heroKicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-            ON EST LÀ POUR VOUS
+            {t('help.hero_kicker')}
           </Text>
           <Text style={[s.heroTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>
-            BESOIN D'AIDE ?
+            {t('help.hero_title')}
           </Text>
           <Text style={[s.heroSub, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            Recherchez votre question, ou écrivez-nous directement. Réponse en moins de 2h en moyenne.
+            {t('help.hero_sub')}
           </Text>
         </View>
 
@@ -304,10 +226,10 @@ export default function HelpScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[s.betaTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Beta — support prioritaire WhatsApp
+              {t('help.beta_title')}
             </Text>
             <Text style={[s.betaSub, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-              Réponse rapide pendant la phase de test
+              {t('help.beta_sub')}
             </Text>
           </View>
           <Feather name="arrow-up-right" size={16} color={theme.textMuted} />
@@ -318,7 +240,7 @@ export default function HelpScreen() {
           <Feather name="search" size={16} color={theme.textMuted} />
           <TextInput
             style={[s.searchInput, { color: theme.text, fontFamily: FONTS.sans }]}
-            placeholder="Rechercher une question…"
+            placeholder={t('help.search_placeholder')}
             placeholderTextColor={theme.textMuted}
             value={query}
             onChangeText={setQuery}
@@ -344,10 +266,10 @@ export default function HelpScreen() {
               <Feather name="alert-triangle" size={20} color="#EF4444" />
             </View>
             <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Problème avec{'\n'}une mission
+              {t('help.action_mission_title')}
             </Text>
             <Text style={[s.actionSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-              Diagnostic guidé →
+              {t('help.action_mission_sub')}
             </Text>
           </TouchableOpacity>
 
@@ -361,10 +283,10 @@ export default function HelpScreen() {
               <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
             </View>
             <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Contacter{'\n'}le support
+              {t('help.action_support_title')}
             </Text>
             <Text style={[s.actionSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-              WhatsApp →
+              {t('help.action_support_sub')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -374,7 +296,7 @@ export default function HelpScreen() {
           <View style={s.ticketsSection}>
             <View style={s.ticketsHeader}>
               <Text style={[s.ticketsLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-                MES TICKETS
+                {t('help.tickets_label')}
               </Text>
               <View style={[s.tabsRow, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <TouchableOpacity
@@ -383,7 +305,7 @@ export default function HelpScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[s.tabText, { color: ticketsTab === 'open' ? theme.text : theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-                    OUVERTS ({openTickets.length})
+                    {t('help.tickets_tab_open')} ({openTickets.length})
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -392,7 +314,7 @@ export default function HelpScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[s.tabText, { color: ticketsTab === 'closed' ? theme.text : theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-                    RÉSOLUS ({closedTickets.length})
+                    {t('help.tickets_tab_closed')} ({closedTickets.length})
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -401,7 +323,7 @@ export default function HelpScreen() {
             {visibleTickets.length === 0 ? (
               <View style={[s.ticketsEmpty, { borderColor: theme.borderLight }]}>
                 <Text style={[s.ticketsEmptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                  {ticketsTab === 'open' ? 'Aucun ticket ouvert.' : 'Aucun ticket résolu.'}
+                  {ticketsTab === 'open' ? t('help.tickets_empty_open') : t('help.tickets_empty_closed')}
                 </Text>
               </View>
             ) : (
@@ -409,12 +331,12 @@ export default function HelpScreen() {
                 {visibleTickets.map((ticket, i) => {
                   const isLast = i === visibleTickets.length - 1;
                   const isClosed = ticket.status === 'CLOSED';
-                  const statusLabel = ticket.status === 'OPEN' ? 'Ouvert'
-                    : ticket.status === 'IN_PROGRESS' ? 'En cours' : 'Résolu';
+                  const statusLabel = ticket.status === 'OPEN' ? t('help.ticket_status_open')
+                    : ticket.status === 'IN_PROGRESS' ? t('help.ticket_status_in_progress') : t('help.ticket_status_closed');
                   const dotColor = isClosed ? theme.textDisabled
                     : ticket.priority === 'HIGH' ? '#EF4444'
                     : COLORS.amber;
-                  const date = new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                  const date = new Date(ticket.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                   return (
                     <TouchableOpacity
                       key={ticket.id}
@@ -428,7 +350,7 @@ export default function HelpScreen() {
                           {ticket.title}
                         </Text>
                         <Text style={[s.ticketMeta, { color: theme.textMuted, fontFamily: FONTS.mono }]} numberOfLines={1}>
-                          {ticket.requestId ? `Mission #${ticket.requestId} · ` : ''}{date}
+                          {ticket.requestId ? `${t('help.ticket_mission_prefix')}${ticket.requestId} · ` : ''}{date}
                         </Text>
                       </View>
                       <View style={[s.ticketPill, isClosed
@@ -455,7 +377,7 @@ export default function HelpScreen() {
           <View style={[s.emptyFaq, { borderColor: theme.borderLight }]}>
             <Feather name="search" size={24} color={theme.textMuted} />
             <Text style={[s.emptyFaqText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-              Aucune question ne correspond. Contactez-nous via WhatsApp.
+              {t('help.empty_faq')}
             </Text>
           </View>
         ) : (
@@ -486,14 +408,14 @@ export default function HelpScreen() {
 
         <View style={s.contactSection}>
           <Text style={[s.contactSectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-            CONTACT DIRECT
+            {t('help.contact_section')}
           </Text>
 
           <TouchableOpacity style={s.contactRow} onPress={openEmail} activeOpacity={0.7}>
             <Feather name="mail" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
               <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>support@thefixed.app</Text>
-              <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>E-mail · réponse sous 24h ouvrables</Text>
+              <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('help.contact_email_sub')}</Text>
             </View>
             <Feather name="external-link" size={14} color={theme.textMuted} />
           </TouchableOpacity>
@@ -501,8 +423,8 @@ export default function HelpScreen() {
           <TouchableOpacity style={s.contactRow} onPress={openWhatsApp} activeOpacity={0.7}>
             <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
             <View style={{ flex: 1 }}>
-              <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>WhatsApp beta</Text>
-              <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Réponse moyenne en moins de 2h</Text>
+              <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('help.contact_whatsapp_title')}</Text>
+              <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('help.contact_whatsapp_sub')}</Text>
             </View>
             <Feather name="external-link" size={14} color={theme.textMuted} />
           </TouchableOpacity>
@@ -510,14 +432,14 @@ export default function HelpScreen() {
           <View style={s.contactRow}>
             <Feather name="clock" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
-              <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Lun – Ven · 9h – 18h CET</Text>
-              <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Urgences mission : 24/7 via WhatsApp</Text>
+              <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('help.contact_hours_title')}</Text>
+              <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('help.contact_hours_sub')}</Text>
             </View>
           </View>
         </View>
 
         <Text style={[s.version, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
-          FIXED v1.0.0 · Made in Brussels
+          {t('help.version')}
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -21,12 +21,14 @@ import { useInvoice } from '@/hooks/useInvoice';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { formatEUR, formatEURCents } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
 
 export default function EarningsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState<any>(null);
@@ -111,7 +113,7 @@ export default function EarningsScreen() {
   if (!request) {
     return (
       <View style={[s.loading, { backgroundColor: theme.surface }]}>
-        <Text style={[s.loadError, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Impossible de charger les détails</Text>
+        <Text style={[s.loadError, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.earnings_cant_load')}</Text>
       </View>
     );
   }
@@ -121,8 +123,8 @@ export default function EarningsScreen() {
   const net = Math.round((basePrice - commission) * 100) / 100;
 
   const rows = [
-    { label: 'Prix de la mission', value: formatEUR(basePrice), highlight: false },
-    { label: 'Commission (20%)', value: `-${formatEUR(commission)}`, highlight: false, negative: true },
+    { label: t('ext.earnings_mission_price'), value: formatEUR(basePrice), highlight: false },
+    { label: t('ext.earnings_commission'), value: `-${formatEUR(commission)}`, highlight: false, negative: true },
   ];
 
   return (
@@ -140,7 +142,7 @@ export default function EarningsScreen() {
           <Feather name="check" size={40} color={theme.heroText} />
         </Animated.View>
 
-        <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>Mission terminée</Text>
+        <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>{t('missions.done')}</Text>
 
         {/* Prix net = star */}
         <Animated.Text style={[s.heroPrice, {
@@ -152,7 +154,7 @@ export default function EarningsScreen() {
           {formatEUR(displayedPrice)}
         </Animated.Text>
 
-        <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>disponible sous 7 jours sur votre compte bancaire</Text>
+        <Text style={[s.heroSub, { color: theme.heroSubFaint, fontFamily: FONTS.sans }]}>{t('missions.payout_delay')}</Text>
       </View>
       </SafeAreaView>
 
@@ -161,7 +163,7 @@ export default function EarningsScreen() {
 
         {/* Calcul compact */}
         <View style={[s.calcCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[s.calcTitle, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Détail du paiement</Text>
+          <Text style={[s.calcTitle, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.earnings_payment_details')}</Text>
           {rows.map((row, i) => (
             <View key={i} style={[s.calcRow, i < rows.length - 1 && [s.calcRowBorder, { borderBottomColor: theme.border }]]}>
               <Text style={[s.calcLabel, { color: row.negative ? theme.textMuted : theme.textSub, fontFamily: FONTS.sans }]}>{row.label}</Text>
@@ -169,7 +171,7 @@ export default function EarningsScreen() {
             </View>
           ))}
           <View style={[s.calcTotal, { borderTopColor: theme.border }]}>
-            <Text style={[s.calcTotalLabel, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Total net</Text>
+            <Text style={[s.calcTotalLabel, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.earnings_total_net')}</Text>
             <Text style={[s.calcTotalValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{formatEUR(net)}</Text>
           </View>
         </View>
@@ -197,7 +199,7 @@ export default function EarningsScreen() {
           <View style={s.monthCardLeft}>
             <Feather name="trending-up" size={18} color={COLORS.green} />
             <View>
-              <Text style={[s.monthCardLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Gains ce mois</Text>
+              <Text style={[s.monthCardLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.earnings_month')}</Text>
               <Text style={[s.monthCardValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
                 {formatEURCents(monthEarnings)}
               </Text>
@@ -212,7 +214,7 @@ export default function EarningsScreen() {
           onPress={() => router.replace('/(tabs)/dashboard')}
           activeOpacity={0.88}
         >
-          <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Trouver ma prochaine mission</Text>
+          <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.find_next')}</Text>
           <Feather name="arrow-right" size={18} color={theme.accentText} />
         </TouchableOpacity>
 
@@ -223,7 +225,7 @@ export default function EarningsScreen() {
             activeOpacity={0.85}
           >
             <Feather name="file-text" size={16} color={theme.textSub} />
-            <Text style={[s.invoiceBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Voir la facture</Text>
+            <Text style={[s.invoiceBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('missions.view_invoice')}</Text>
           </TouchableOpacity>
         )}
 

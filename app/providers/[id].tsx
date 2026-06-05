@@ -16,6 +16,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { translateCategory } from '@/lib/categoryLabel';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -352,7 +353,7 @@ export default function ProviderDetailScreen() {
               <View style={s.chips}>
                 {provider.categories.map((cat: any) => (
                   <View key={cat.id} style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <Text style={[s.chipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{cat.name}</Text>
+                    <Text style={[s.chipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{translateCategory(t, cat)}</Text>
                   </View>
                 ))}
               </View>

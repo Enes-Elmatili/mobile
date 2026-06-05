@@ -11,6 +11,7 @@ import { Feather } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
@@ -33,6 +34,7 @@ function TabBarBackground() {
 export default function TabLayout() {
   const { user } = useAuth();
   const theme    = useAppTheme();
+  const { t } = useTranslation();
 
   // ── Stable boolean — ne change que si les rôles changent réellement ───────
   // useMemo évite de recalculer isProvider sur chaque re-render provoqué par
@@ -78,44 +80,44 @@ export default function TabLayout() {
   // l'effet re-dispatche → boucle. useMemo garantit une référence stable.
 
   const dashboardOptions = useMemo(() => ({
-    title: 'Accueil',
+    title: t('ext.tabs_home'),
     tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
       <Feather name="home" size={22} color={color} />,
-  }), []);
+  }), [t]);
 
   const opportunitiesOptions = useMemo(() => ({
-    title: 'Opportunités',
+    title: t('ext.tabs_opportunities'),
     href: null as null,
     tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
       <Feather name="compass" size={22} color={color} />,
-  }), []);
+  }), [t]);
 
   const missionsOptions = useMemo(() => ({
-    title: 'Missions',
+    title: t('ext.tabs_missions'),
     href: isProvider ? undefined : null,
     tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
       <Feather name="zap" size={22} color={color} />,
-  }), [isProvider]);
+  }), [isProvider, t]);
 
   const documentsOptions = useMemo(() => ({
-    title: 'Documents',
+    title: t('ext.tabs_documents'),
     href: isProvider ? null : undefined,
     tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
       <Feather name="file-text" size={22} color={color} />,
-  }), [isProvider]);
+  }), [isProvider, t]);
 
   const walletOptions = useMemo(() => ({
-    title: 'Gains',
+    title: t('ext.tabs_earnings'),
     href: isProvider ? undefined : null,
     tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
       <Feather name="credit-card" size={22} color={color} />,
-  }), [isProvider]);
+  }), [isProvider, t]);
 
   const profileOptions = useMemo(() => ({
-    title: 'Profil',
+    title: t('ext.tabs_profile'),
     tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
       <Feather name="user" size={22} color={color} />,
-  }), []);
+  }), [t]);
 
   const hiddenOptions = useMemo(() => ({ href: null as null }), []);
 
