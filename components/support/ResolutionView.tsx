@@ -9,7 +9,7 @@
 // l'URL — l'agent reçoit le contexte complet à l'ouverture.
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
@@ -112,7 +112,7 @@ export default function ResolutionView({
     const tel = `tel:${SUPPORT_CHANNELS.emergencyPhone.replace(/\s/g, '')}`;
     const can = await Linking.canOpenURL(tel);
     if (can) await Linking.openURL(tel);
-    else Alert.alert(t('ext.support_call_impossible'), t('ext.support_dial_manual', { phone: SUPPORT_CHANNELS.emergencyPhone }));
+    else feedback.error(t('ext.support_dial_manual', { phone: SUPPORT_CHANNELS.emergencyPhone }));
   }, [t]);
 
   const submit = useCallback(async () => {

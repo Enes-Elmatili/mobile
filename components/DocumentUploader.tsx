@@ -22,12 +22,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Platform, Image, Alert,
+  ActivityIndicator, Platform, Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useTranslation } from 'react-i18next';
+import { feedback } from '@/lib/feedback/feedback';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,11 +54,11 @@ interface DocumentUploaderProps {
 
 const CACHE_PREFIX = '@fixed:doc:';
 
-function statusLabel(status: DocStatus): string {
+function statusLabel(status: DocStatus, t: (k: string) => string): string {
   switch (status) {
-    case 'APPROVED': return 'Approuvé';
-    case 'REJECTED': return 'Rejeté';
-    case 'PENDING':  return 'En attente';
+    case 'APPROVED': return t('ext.doc_status_approved');
+    case 'REJECTED': return t('ext.doc_status_rejected');
+    case 'PENDING':  return t('ext.doc_status_pending');
     default:         return '';
   }
 }
@@ -81,6 +83,7 @@ export default function DocumentUploader({
   onUploaded,
 }: DocumentUploaderProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const cacheKey = `${CACHE_PREFIX}${docKey}`;
 
   const [uploading, setUploading]       = useState(false);
@@ -113,10 +116,7 @@ export default function DocumentUploader({
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       ImagePicker = require('expo-image-picker');
     } catch {
-      Alert.alert(
-        'Module manquant',
-        'expo-image-picker n\'est pas installé.\n\nExécutez : npx expo install expo-image-picker',
-      );
+      feedback.error('ext.doc_picker_missing_msg');
       return;
     }
 
@@ -125,26 +125,27 @@ export default function DocumentUploader({
     // Demander permissions
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission refusée', 'Accès à la galerie nécessaire pour envoyer vos documents.');
+      feedback.error('profile.gallery_denied');
       return;
     }
 
     // Choix : galerie ou appareil photo (PDF → toujours galerie)
     const shouldCamera = !acceptsPdfOnly;
 
-    const action = shouldCamera
-      ? await new Promise<'camera' | 'gallery' | 'cancel'>(resolve => {
-          Alert.alert(
-            'Choisir une source',
-            '',
-            [
-              { text: 'Appareil photo', onPress: () => resolve('camera') },
-              { text: 'Galerie',        onPress: () => resolve('gallery') },
-              { text: 'Annuler', style: 'cancel', onPress: () => resolve('cancel') },
-            ],
-          );
-        })
-      : 'gallery';
+    let action: 'camera' | 'gallery' | 'cancel';
+    if (shouldCamera) {
+      const idx = await feedback.actionSheet({
+        titleKey: 'ext.doc_picker_choose_source',
+        options: [
+          { labelKey: 'ext.doc_picker_camera' },
+          { labelKey: 'ext.doc_picker_gallery' },
+        ],
+        cancelKey: 'common.cancel',
+      });
+      action = idx === 0 ? 'camera' : idx === 1 ? 'gallery' : 'cancel';
+    } else {
+      action = 'gallery';
+    }
 
     if (action === 'cancel') return;
 
@@ -158,7 +159,7 @@ export default function DocumentUploader({
     if (action === 'camera') {
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (camPerm.status !== 'granted') {
-        Alert.alert('Permission refusée', 'Accès à la caméra nécessaire.');
+        feedback.error('profile.camera_denied');
         return;
       }
       result = await ImagePicker.launchCameraAsync(opts);
@@ -195,7 +196,7 @@ export default function DocumentUploader({
       await AsyncStorage.setItem(cacheKey, JSON.stringify(doc));
       onUploaded?.(doc);
     } catch (err: any) {
-      Alert.alert('Erreur upload', err?.message || 'Impossible d\'envoyer le document.');
+      feedback.error(err?.message || t('profile.upload_error'));
     } finally {
       setUploading(false);
     }
@@ -212,7 +213,7 @@ export default function DocumentUploader({
       <View style={s.header}>
         <View style={s.labelRow}>
           <Text style={[s.label, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={2}>{label}</Text>
-          {mandatory && <View style={[s.mandatoryBadge, { backgroundColor: theme.accent }]}><Text style={[s.mandatoryText, { color: theme.accentText }]}>Requis</Text></View>}
+          {mandatory && <View style={[s.mandatoryBadge, { backgroundColor: theme.accent }]}><Text style={[s.mandatoryText, { color: theme.accentText }]}>{t('common.required')}</Text></View>}
         </View>
         <Text style={[s.accepts, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{acceptsText(mimeTypes)}</Text>
       </View>
@@ -233,7 +234,7 @@ export default function DocumentUploader({
           {uploading ? (
             <View style={s.uploadingRow}>
               <ActivityIndicator size="small" color={theme.textSub} />
-              <Text style={[s.uploadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>Envoi en cours…</Text>
+              <Text style={[s.uploadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('profile.uploading')}</Text>
             </View>
           ) : hasDoc ? (
             <View style={s.doneRow}>
@@ -244,18 +245,18 @@ export default function DocumentUploader({
                   color={stText}
                 />
                 <Text style={[s.statusText, { color: stText, fontFamily: FONTS.sansMedium }]}>
-                  {statusLabel(uploaded?.status ?? null)}
+                  {statusLabel(uploaded?.status ?? null, t)}
                 </Text>
               </View>
               <TouchableOpacity onPress={pickAndUpload} style={s.replaceBtn}>
                 <Feather name="refresh-cw" size={13} color={theme.textMuted} />
-                <Text style={[s.replaceBtnText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Remplacer</Text>
+                <Text style={[s.replaceBtnText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('profile.replace_doc')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={[s.uploadBtn, { borderColor: theme.borderLight, backgroundColor: theme.surface }]} onPress={pickAndUpload} activeOpacity={0.75}>
               <Feather name="upload" size={18} color={theme.text} />
-              <Text style={[s.uploadBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Ajouter le document</Text>
+              <Text style={[s.uploadBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('profile.add_doc')}</Text>
             </TouchableOpacity>
           )}
         </View>

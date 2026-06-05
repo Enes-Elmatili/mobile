@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   Platform,
   Image,
-  Alert,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
@@ -28,7 +27,17 @@ import type { Invoice, InvoiceItem } from '@/hooks/useInvoice';
 import { api } from '@/lib/api';
 import { tokenStorage } from '@/lib/storage';
 import { devLog } from '@/lib/logger';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
+import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR as formatEuros } from '@/lib/format';
+
+// Locale BCP-47 dérivée de la langue i18n active. Évite les hardcodes
+// `fr-BE` qui forcent un format date FR même sur device NL/EN.
+const getLocale = () => {
+  const map: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB' };
+  return map[i18n.language] || 'fr-BE';
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -58,14 +67,14 @@ const PLATFORM_FEE_RATE = 0.15;
 // ─── Utils ──────────────────────────────────────────────────────────────────
 
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('fr-BE', {
+  new Date(d).toLocaleDateString(getLocale(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
 
 const fmtDateShort = (d: string) =>
-  new Date(d).toLocaleDateString('fr-BE', {
+  new Date(d).toLocaleDateString(getLocale(), {
     day: '2-digit',
     month: '2-digit',
   });
@@ -147,6 +156,7 @@ export default function InvoiceSheet({
   onNavigateToWallet,
 }: InvoiceSheetProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const isProvider = userRole === 'provider';
@@ -184,7 +194,7 @@ export default function InvoiceSheet({
       const subtotal = invoice.amount / (1 + TAX_RATE);
       return [
         {
-          label: serviceTitle || invoice.request?.serviceType || 'Service',
+          label: serviceTitle || invoice.request?.serviceType || t('ext.invoice_service_fallback'),
           quantity: 1,
           unitPrice: subtotal,
           total: subtotal,
@@ -238,8 +248,15 @@ export default function InvoiceSheet({
 
       devLog('📄 Downloading PDF:', url);
 
+      // Renforce le `?lang=` dans l'URL avec un header Accept-Language pour les
+      // intermédiaires (proxy/CDN) qui pourraient stripper les query params.
+      const lang = (i18n.language || 'fr').split('-')[0].toLowerCase();
       const downloadPromise = FileSystem.downloadAsync(url, fileUri, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'Accept-Language': lang,
+          'X-Client-Lang': lang,
+        },
       });
 
       // Timeout de 30s sur le téléchargement réseau
@@ -250,7 +267,7 @@ export default function InvoiceSheet({
       const result = await Promise.race([downloadPromise, timeoutPromise]);
 
       if (result.status !== 200) {
-        Alert.alert('Erreur', 'Impossible de télécharger la facture.');
+        feedback.error('common.error');
         return;
       }
 
@@ -258,16 +275,16 @@ export default function InvoiceSheet({
       if (canShare) {
         await Sharing.shareAsync(result.uri, {
           mimeType: 'application/pdf',
-          dialogTitle: 'Facture FIXED',
+          dialogTitle: t('ext.invoice_share_title'),
         }).catch(() => {
           // L'utilisateur a annulé le partage — pas une erreur
         });
       } else {
-        Alert.alert('Succès', 'Facture téléchargée.');
+        feedback.success('profile.invoice_downloaded');
       }
     } catch (e: any) {
       devLog('📄 PDF download failed:', e?.message);
-      Alert.alert('Erreur', 'Impossible de télécharger la facture.');
+      feedback.error('common.error');
     } finally {
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
       downloadingRef.current = false;
@@ -282,12 +299,12 @@ export default function InvoiceSheet({
     : `#FIXED-${String(invoice.id).slice(-5).toUpperCase()}`;
 
   const displayProviderName =
-    providerName || invoice.request?.provider?.name || 'Prestataire';
+    providerName || invoice.request?.provider?.name || t('ext.invoice_provider_fallback');
   const displayServiceTitle =
-    serviceTitle || invoice.request?.serviceType || 'Service';
+    serviceTitle || invoice.request?.serviceType || t('ext.invoice_service_fallback');
   const displayDate = missionDate || (invoice.issuedAt ? fmtDate(invoice.issuedAt) : '');
   const displayDateShort = invoice.issuedAt
-    ? new Date(invoice.issuedAt).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' })
+    ? new Date(invoice.issuedAt).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' })
     : '';
 
   // ── Status badges (shared between both views) ──
@@ -309,7 +326,7 @@ export default function InvoiceSheet({
           color={isPaid ? COLORS.green : COLORS.amber}
         />
         <Text style={[s.statusText, { color: isPaid ? COLORS.green : COLORS.amber, fontFamily: FONTS.sansMedium }]}>
-          {isPaid ? 'Payé' : 'En attente'}
+          {isPaid ? t('ext.invoice_status_paid') : t('ext.invoice_status_pending')}
         </Text>
       </View>
       <View style={[s.paymentMethodPill, { backgroundColor: surfaceBg }]}>
@@ -319,7 +336,7 @@ export default function InvoiceSheet({
           color={textMuted}
         />
         <Text style={[s.paymentMethodText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
-          {paymentMethod === 'card' ? 'Carte' : 'Espèces'}
+          {paymentMethod === 'card' ? t('ext.invoice_payment_card') : t('ext.invoice_payment_cash')}
         </Text>
       </View>
     </View>
@@ -350,7 +367,7 @@ export default function InvoiceSheet({
         <View style={s.totalsBlock}>
           <View style={s.totalLine}>
             <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
-              Total facturé
+              {t('ext.invoice_total_billed')}
             </Text>
             <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
               {formatEuros(total)}
@@ -363,7 +380,7 @@ export default function InvoiceSheet({
           <View style={s.netHeader}>
             <Feather name="credit-card" size={15} color={textMuted} />
             <Text style={[s.netLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
-              MONTANT NET REÇU
+              {t('ext.invoice_net_received')}
             </Text>
           </View>
           <View style={s.netRow}>
@@ -372,7 +389,7 @@ export default function InvoiceSheet({
                 {formatEuros(netEarnings)}
               </Text>
               <Text style={[s.netSub, { color: textMuted, fontFamily: FONTS.sans }]}>
-                Après commission FIXED ({Math.round(PLATFORM_FEE_RATE * 100)}%)
+                {t('ext.invoice_after_commission', { pct: Math.round(PLATFORM_FEE_RATE * 100) })}
               </Text>
             </View>
           </View>
@@ -380,7 +397,7 @@ export default function InvoiceSheet({
             <View style={[s.payoutBadge, { backgroundColor: theme.surface }]}>
               <Feather name="clock" size={12} color={textMuted} />
               <Text style={[s.payoutText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
-                Virement prévu le {payoutDate}
+                {t('ext.invoice_payout_scheduled', { date: payoutDate })}
               </Text>
             </View>
           )}
@@ -405,7 +422,7 @@ export default function InvoiceSheet({
               <Feather name="download" size={18} color={textSecondary} />
             )}
             <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
-              {downloading ? 'Téléchargement...' : 'Télécharger PDF'}
+              {downloading ? t('ext.invoice_downloading') : t('ext.invoice_download_pdf')}
             </Text>
           </TouchableOpacity>
 
@@ -415,7 +432,7 @@ export default function InvoiceSheet({
             activeOpacity={0.78}
           >
             <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
-              Fermer
+              {t('ext.invoice_close_btn')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -436,7 +453,7 @@ export default function InvoiceSheet({
           />
         </View>
         <View style={s.headerRight}>
-          <Text style={[s.invoiceLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>FACTURE</Text>
+          <Text style={[s.invoiceLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_label_label')}</Text>
           <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas }]}>
             {invoiceNumber}
           </Text>
@@ -479,7 +496,7 @@ export default function InvoiceSheet({
         {/* Line Items */}
         <View style={s.sectionHeader}>
           <Feather name="file-text" size={13} color={textMuted} />
-          <Text style={[s.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>DÉTAIL</Text>
+          <Text style={[s.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_detail_label')}</Text>
         </View>
 
         {items.map((item, i) => (
@@ -492,7 +509,7 @@ export default function InvoiceSheet({
         <View style={s.totalsBlock}>
           <View style={s.totalLine}>
             <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
-              Sous-total
+              {t('ext.invoice_subtotal')}
             </Text>
             <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
               {formatEuros(subtotal)}
@@ -500,7 +517,7 @@ export default function InvoiceSheet({
           </View>
           <View style={s.totalLine}>
             <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
-              TVA ({Math.round(taxRate * 100)}%)
+              {t('ext.invoice_vat', { pct: Math.round(taxRate * 100) })}
             </Text>
             <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
               {formatEuros(taxAmount)}
@@ -511,7 +528,7 @@ export default function InvoiceSheet({
 
           <View style={s.totalLine}>
             <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
-              Total
+              {t('ext.invoice_total')}
             </Text>
             <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
               {formatEuros(total)}
@@ -538,7 +555,7 @@ export default function InvoiceSheet({
               <Feather name="download" size={18} color={accentText} />
             )}
             <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
-              {downloading ? 'Téléchargement...' : 'Télécharger PDF'}
+              {downloading ? t('ext.invoice_downloading') : t('ext.invoice_download_pdf')}
             </Text>
           </TouchableOpacity>
 
@@ -548,7 +565,7 @@ export default function InvoiceSheet({
             activeOpacity={0.78}
           >
             <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
-              Fermer
+              {t('ext.invoice_close_btn')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -818,12 +835,17 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     height: 55,
     borderRadius: 12,
+    // Raised tactile : top highlight + bottom chamfer + drop shadow renforcée.
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(255,255,255,0.45)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.18)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.32,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
       },
       android: { elevation: 6 },
     }),

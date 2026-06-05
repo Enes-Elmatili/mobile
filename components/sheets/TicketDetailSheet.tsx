@@ -16,6 +16,8 @@ import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { feedback } from '@/lib/feedback/feedback';
 
 // ─── Grayscale map style (cohérent avec MissionView) ─────────────────────────
 const MAP_STYLE = [
@@ -43,17 +45,20 @@ interface TicketDetailSheetProps {
 // UTILS
 // ============================================================================
 
-const STATUS_CFG: Record<string, { label: string; icon: string; done?: boolean; active?: boolean }> = {
-  PENDING_PAYMENT: { label: 'Paiement en attente', icon: 'credit-card' },
-  PUBLISHED:       { label: 'Recherche en cours',  icon: 'radio',              active: true },
-  ACCEPTED:        { label: 'Confirmé',             icon: 'check-circle',      active: true },
-  ONGOING:         { label: 'En cours',             icon: 'zap',               active: true },
-  DONE:            { label: 'Terminé',              icon: 'check-circle',      done: true },
-  CANCELLED:       { label: 'Annulé',               icon: 'x-circle' },
+const STATUS_CFG: Record<string, { i18nKey: string; icon: string; done?: boolean; active?: boolean }> = {
+  PENDING_PAYMENT: { i18nKey: 'ext.ticket_status_payment_pending', icon: 'credit-card' },
+  PUBLISHED:       { i18nKey: 'ext.ticket_status_searching',       icon: 'radio',              active: true },
+  ACCEPTED:        { i18nKey: 'ext.ticket_status_accepted',        icon: 'check-circle',      active: true },
+  ONGOING:         { i18nKey: 'ext.ticket_status_ongoing',         icon: 'zap',               active: true },
+  DONE:            { i18nKey: 'ext.ticket_status_done',            icon: 'check-circle',      done: true },
+  CANCELLED:       { i18nKey: 'ext.ticket_status_cancelled',       icon: 'x-circle' },
 };
 
-const getStatus = (s?: string) =>
-  STATUS_CFG[s ?? ''] ?? { label: s ?? '—', icon: 'circle' };
+const getStatus = (s?: string, t?: (k: string) => string) => {
+  const cfg = STATUS_CFG[s ?? ''];
+  if (cfg) return { ...cfg, label: t ? t(cfg.i18nKey) : '' };
+  return { i18nKey: '', label: s ?? '—', icon: 'circle' };
+};
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -116,6 +121,7 @@ const sr = StyleSheet.create({
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose, onNavigateToOngoing }: TicketDetailSheetProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { initiateCall } = useCall();
@@ -167,7 +173,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
       });
       setTimeout(() => setRatingSubmitted(true), 400);
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message || 'Impossible de soumettre l\'évaluation.');
+      feedback.error(e?.message || 'Impossible de soumettre l\'évaluation.');
       setPendingRating(0);
     }
   };
@@ -180,7 +186,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         (inv: any) => inv.requestId === ticket.id || inv.requestId === Number(ticket.id)
       );
       if (!invoice) {
-        Alert.alert('Facture', 'Aucune facture disponible pour cette mission.');
+        feedback.info('Aucune facture disponible pour cette mission.');
         return;
       }
       const fileUrl: string | undefined = invoice.file?.url;
@@ -189,10 +195,10 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         const fullUrl = fileUrl.startsWith('http') ? fileUrl : `${base}${fileUrl}`;
         await Linking.openURL(fullUrl);
       } else {
-        Alert.alert('Facture', 'Le PDF n\'est pas encore disponible.');
+        feedback.info('Le PDF n\'est pas encore disponible.');
       }
     } catch {
-      Alert.alert('Erreur', 'Impossible de charger la facture.');
+      feedback.error('Impossible de charger la facture.');
     }
   };
 
@@ -207,10 +213,10 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
 
   const handleSupport = () => {
     const ref = String(ticket?.id || '').slice(-6).toUpperCase();
-    const subject = encodeURIComponent(`Problème avec la mission #${ref}`);
-    const body = encodeURIComponent(`Bonjour,\n\nJ'ai un problème avec ma mission référence #${ref}.\n\nDétails : `);
+    const subject = encodeURIComponent(t('ext.ticket_support_subject', { ref }));
+    const body = encodeURIComponent(t('ext.ticket_support_body', { ref }));
     Linking.openURL(`mailto:support@fixed.app?subject=${subject}&body=${body}`).catch(() => {
-      Alert.alert('Support', 'Contactez-nous à support@fixed.app');
+      feedback.info('support@fixed.app');
     });
   };
 
@@ -219,7 +225,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
       onClose();
       initiateCall({
         targetUserId: ticket.provider.userId,
-        targetName: ticket.provider.name || 'Prestataire',
+        targetName: ticket.provider.name || t('mission_view.provider'),
         requestId: String(ticket.id),
       });
     } else if (ticket?.provider?.phone) {
@@ -234,7 +240,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
       pathname: '/messages/[userId]',
       params: {
         userId: ticket.provider.userId,
-        name: ticket.provider.name || 'Prestataire',
+        name: ticket.provider.name || t('mission_view.provider'),
         requestId: String(ticket.id),
       },
     });
@@ -242,13 +248,13 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
 
   if (!isVisible || !ticket) return null;
 
-  const cfg          = getStatus(ticket.status);
+  const cfg          = getStatus(ticket.status, t);
   const ref          = String(ticket.id).slice(-6).toUpperCase();
   const hasCoords    = !!(ticket.lat && ticket.lng);
   const address      = ticket.address || '';
   const isDone       = ticket.status === 'DONE';
   const isOngoing    = ticket.status === 'ONGOING' || ticket.status === 'ACCEPTED';
-  const providerName = ticket.provider?.name || 'Prestataire';
+  const providerName = ticket.provider?.name || t('mission_view.provider');
   const hasRating    = ticket.clientRating != null;
   const showRatingBlock = isDone && !hasRating && !ratingSubmitted;
 
@@ -347,9 +353,9 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         {/* ── Header : Titre + Badge statut ───────────────────────────────── */}
         <View style={sd.header}>
           <View style={sd.headerLeft}>
-            <Text style={[sd.headerRef, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Réf. #{ref}</Text>
+            <Text style={[sd.headerRef, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.ticket_ref_prefix')} #{ref}</Text>
             <Text style={[sd.headerTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={2}>
-              {ticket.serviceType || ticket.title || 'Service'}
+              {ticket.serviceType || ticket.title || t('ext.ticket_service_default')}
             </Text>
           </View>
 
@@ -495,8 +501,8 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {showRatingBlock && (
             <>
               <View style={[sd.ratingBlock, { backgroundColor: theme.surfaceAlt }]}>
-                <Text style={[sd.ratingTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Comment s'est passée la mission ?</Text>
-                <Text style={[sd.ratingSubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Votre avis aide les autres utilisateurs.</Text>
+                <Text style={[sd.ratingTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('rating.rate_mission_title')}</Text>
+                <Text style={[sd.ratingSubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('rating.rate_mission_sub')}</Text>
                 <View style={sd.ratingStars}>
                   <StarRow rating={pendingRating} onRate={handleRate} starColor={theme.text} emptyColor={theme.borderLight} />
                 </View>
@@ -517,7 +523,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
             <>
               <View style={sd.ratingDone}>
                 <Feather name="check-circle" size={18} color={COLORS.green} />
-                <Text style={[sd.ratingDoneText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>Merci pour votre évaluation !</Text>
+                <Text style={[sd.ratingDoneText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>{t('rating.thank_you')}</Text>
               </View>
               <DividerLine />
             </>
@@ -654,7 +660,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                               await api.post(`/requests/${ticket.id}/cancel`);
                               onClose();
                             } catch (e: any) {
-                              Alert.alert('Erreur', e?.message || 'Impossible d\'annuler la mission.');
+                              Alert.alert(t('common.error'), e?.message || 'Impossible d\'annuler la mission.');
                             }
                           },
                         },
