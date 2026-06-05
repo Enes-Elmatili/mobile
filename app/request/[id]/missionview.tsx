@@ -6,15 +6,15 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Easing, Platform, Dimensions, StatusBar,
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
-  ActionSheetIOS, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
+import { translateRequestServiceRaw, translateCategoryRaw } from '@/lib/categoryLabel';
 import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useConversationUnread } from '@/lib/useConversationUnread';
@@ -532,15 +532,15 @@ export default function MissionView() {
   const { socket, joinRoom, leaveRoom } = useSocket();
   const { user: authUser } = useAuth();
 
+  const { t } = useTranslation();
   // Guard: id is required
   if (!id || !/^\d+$/.test(id)) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Mission introuvable</Text>
+        <Text>{t('mission_view.mission_not_found')}</Text>
       </SafeAreaView>
     );
   }
-  const { t } = useTranslation();
   const theme = useAppTheme();
   const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
@@ -688,7 +688,7 @@ export default function MissionView() {
       setPinCode(resolvedPin);
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    feedback.haptic('success');
     fetchPin(String(requestData.id)); // fallback si pinCode absent de la réponse
 
     // Fix : setPhase AVANT l'animation pour que la PIN card s'affiche immédiatement
@@ -748,19 +748,30 @@ export default function MissionView() {
           // Mission planifiée acceptée → récap, pas de tracking prématuré
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           router.replace({ pathname: '/request/[id]/scheduled', params: { id: String(id), mode: 'recap' } });
+        } else if (status === 'QUOTE_PENDING') {
+          // Provider est en train de préparer le devis → écran d'attente dédié.
+          // Stoppe le polling pour éviter de tourner indéfiniment depuis missionview
+          // (l'écran quote-pending gère son propre polling).
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          router.replace({ pathname: '/request/[id]/quote-pending', params: { id: String(id) } });
         } else if (status === 'QUOTE_SENT') {
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          feedback.haptic('success');
           router.replace({ pathname: '/request/[id]/quote-review', params: { id: String(id) } });
         } else if (status === 'QUOTE_REFUSED' || status === 'QUOTE_EXPIRED') {
           // Quote refused/expired — stop polling, redirect to dashboard
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+          feedback.haptic('warning');
           router.replace('/(tabs)/dashboard');
+        } else if (status === 'QUOTE_ACCEPTED') {
+          // Devis accepté → le backend va basculer vers ACCEPTED/ONGOING via socket
+          // ou prochaine itération. On stoppe juste le polling pour éviter une boucle
+          // infinie sur ce statut transitoire.
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         } else if (['CANCELLED', 'EXPIRED', 'COMPLETED', 'DONE'].includes(status)) {
           // Stop polling on terminal statuses
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+          feedback.haptic('error');
           router.replace('/(tabs)/dashboard');
         }
       } catch (e) { devError('[MissionView] poll:', e); }
@@ -845,10 +856,10 @@ export default function MissionView() {
       if (String(data.requestId) !== String(id)) return;
       const st = data.status?.toUpperCase();
       if (st === 'QUOTE_SENT') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        feedback.haptic('success');
         router.replace({ pathname: '/request/[id]/quote-review', params: { id: String(id) } });
       } else if (st === 'QUOTE_REFUSED' || st === 'QUOTE_EXPIRED') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        feedback.haptic('warning');
         router.replace('/(tabs)/dashboard');
       } else if (st === 'ONGOING') {
         // Quote accepted and paid — reload request data for tracking
@@ -863,7 +874,7 @@ export default function MissionView() {
       if (String(data.requestId) === String(id)) {
         if (isCompletionHandled(id)) return; // SocketContext a déjà pris la main
         markCompletionHandled(id);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        feedback.haptic('success');
         showToast(t('mission_view.mission_completed'), 'success');
         deferredNavTimers.push(setTimeout(() => router.replace({
           pathname: '/request/[id]/rating',
@@ -896,7 +907,7 @@ export default function MissionView() {
     const onPinVerified = (data: any) => {
       if (String(data.requestId) === String(id)) {
         setPinVerified(true);
-        showToast('Code PIN vérifié — mission en cours', 'success');
+        showToast(t('ext.missionview_pin_verified_toast'), 'success');
       }
     };
 
@@ -905,8 +916,8 @@ export default function MissionView() {
     // au tracking (PIN, position provider, request data partielle).
     const onReassigning = (data: any) => {
       if (String(data.requestId) !== String(id)) return;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-      showToast('Votre prestataire s\'est désisté. Recherche d\'un remplaçant…', 'info');
+      feedback.haptic('warning');
+      showToast(t('ext.missionview_reassigning_toast'), 'info');
       hasTransitionedRef.current = false;
       hasRealLocationRef.current = false;
       setPinCode(null);
@@ -972,7 +983,7 @@ export default function MissionView() {
     setCancelling(true);
     try {
       await api.post(`/requests/${id}/cancel`);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      feedback.haptic('warning');
       router.replace('/(tabs)/dashboard');
     } catch {
       showToast(t('mission_view.cancel_failed'), 'error');
@@ -983,19 +994,13 @@ export default function MissionView() {
 
   // ─── Annuler (TRACKING) ───────────────────────────────────────────────────
   // useCallback avec status en dep pour qu'openActionsMenu lise toujours la valeur fraîche.
-  // Le guard ONGOING est traité via Alert (pas toast) car le toast peut être invisible
-  // selon la pile UI active — un Alert garantit que le client voit l'explication.
-  const handleCancelTracking = useCallback(() => {
+  // Le guard ONGOING est traité via confirm (pas toast) car le toast peut être invisible
+  // selon la pile UI active — un confirm garantit que le client voit l'explication.
+  const handleCancelTracking = useCallback(async () => {
     const status = (request?.status || '').toUpperCase();
     if (status === 'ONGOING') {
-      Alert.alert(
-        'Mission en cours',
-        'La mission est déjà démarrée par le prestataire. Pour l\'annuler maintenant, contactez le support.',
-        [
-          { text: 'Fermer', style: 'cancel' },
-          { text: 'Contacter le support', onPress: () => router.push('/settings/help') },
-        ],
-      );
+      const ok = await feedback.confirm({ titleKey: 'missions.ongoing', messageKey: 'mission_view.mission_ongoing_contact', confirmKey: 'mission_view.contact_support', cancelKey: 'common.close' });
+      if (ok) router.push('/settings/help');
       return;
     }
     setCancelTrackModal(true);
@@ -1017,49 +1022,28 @@ export default function MissionView() {
           const res: any = await api.get(`/requests/${id}`);
           setRequest(res?.data || res);
         } catch { /* ignore */ }
-        Alert.alert(
-          'Annulation impossible',
-          'Le statut de la mission a changé. Si elle est désormais en cours, contactez le support pour l\'annuler.',
-          [
-            { text: 'OK', style: 'cancel' },
-            { text: 'Contacter le support', onPress: () => router.push('/settings/help') },
-          ],
-        );
+        const ok = await feedback.confirm({ titleKey: 'common.error', messageKey: 'mission_view.state_updated', confirmKey: 'mission_view.contact_support', cancelKey: 'common.close' });
+        if (ok) router.push('/settings/help');
       } else {
-        Alert.alert('Erreur', 'Impossible d\'annuler la mission. Réessayez ou contactez le support.');
+        feedback.error('mission_view.cancel_mission_failed');
       }
     }
   };
 
   // ─── Menu d'actions (ellipsis en haut à droite) ──────────────────────────
-  const openActionsMenu = useCallback(() => {
+  const openActionsMenu = useCallback(async () => {
     const goSupport = () => router.push('/settings/help');
 
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Annuler', 'Contacter le support', 'Annuler la mission'],
-          destructiveButtonIndex: 2,
-          cancelButtonIndex: 0,
-        },
-        (idx: number) => {
-          if (idx === 1) goSupport();
-          else if (idx === 2) handleCancelTracking();
-        },
-      );
-      return;
-    }
-
-    Alert.alert(
-      'Options',
-      undefined,
-      [
-        { text: 'Contacter le support', onPress: goSupport },
-        { text: 'Annuler la mission', style: 'destructive', onPress: handleCancelTracking },
-        { text: 'Fermer', style: 'cancel' },
+    const choice = await feedback.actionSheet({
+      titleKey: 'missions.options',
+      options: [
+        { labelKey: 'mission_view.contact_support' },
+        { labelKey: 'mission_view.cancel_mission', destructive: true },
       ],
-      { cancelable: true },
-    );
+      cancelKey: 'common.close',
+    });
+    if (choice === 0) goSupport();
+    else if (choice === 1) handleCancelTracking();
   }, [router, handleCancelTracking]);
 
   // ─── Actions communication ───────────────────────────────────────────────
@@ -1201,7 +1185,7 @@ export default function MissionView() {
               </View>
             </View>
 
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openActionsMenu} activeOpacity={0.8} accessibilityLabel="Options" accessibilityRole="button">
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openActionsMenu} activeOpacity={0.8} accessibilityLabel={t('missions.options')} accessibilityRole="button">
               <Feather name="more-horizontal" size={22} color={theme.text} />
             </TouchableOpacity>
           </SafeAreaView>
@@ -1216,7 +1200,7 @@ export default function MissionView() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(59,130,246,0.10)' }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.statusOngoing }} />
                 <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: COLORS.statusOngoing }}>
-                  {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : 'EN ROUTE'}
+                  {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : t('missions.status_en_route')}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1233,7 +1217,7 @@ export default function MissionView() {
                     {etaNum}
                   </Text>
                   <Text style={{ fontFamily: FONTS.bebas, fontSize: 16, color: theme.text, letterSpacing: 0.5, marginBottom: 8 }}>
-                    MIN AWAY
+                    {t('mission_view.min_away')}
                   </Text>
                 </View>
               ) : (
@@ -1243,7 +1227,7 @@ export default function MissionView() {
               )}
               <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }}>
                 {request?.provider
-                  ? `${providerFirstName(request.provider)} est à ${distance ? `${distance.toFixed(1)} km` : '...'} de chez vous`
+                  ? t('mission_view.distance_from_you', { name: providerFirstName(request.provider), distance: distance ? `${distance.toFixed(1)} km` : '...' })
                   : t('mission_view.provider_on_way')}
               </Text>
             </View>
@@ -1332,7 +1316,7 @@ export default function MissionView() {
                 <View style={pinStyles.card}>
                   <View style={pinStyles.header}>
                     <Feather name="key" size={14} color={theme.textMuted} />
-                    <Text style={[pinStyles.label, { color: theme.textMuted }]}>CODE PIN DE VÉRIFICATION</Text>
+                    <Text style={[pinStyles.label, { color: theme.textMuted }]}>{t('mission_view.pin_label_full')}</Text>
                   </View>
                   <View style={pinStyles.digitsRow}>
                     {pinCode.split('').map((digit, i) => (
@@ -1342,7 +1326,7 @@ export default function MissionView() {
                     ))}
                   </View>
                   <Text style={[pinStyles.hint, { color: theme.textSub }]}>
-                    Communiquez ce code au prestataire à son arrivée.
+                    {t('mission_view.pin_communicate')}
                   </Text>
                 </View>
               </>
@@ -1353,7 +1337,7 @@ export default function MissionView() {
                 <View style={[pinStyles.verified, { backgroundColor: 'rgba(61,139,61,0.10)' }]}>
                   <Feather name="check-circle" size={16} color={COLORS.greenBrand} />
                   <Text style={[pinStyles.verifiedText, { color: COLORS.greenBrand }]}>
-                    Code PIN vérifié — la mission a démarré
+                    {t('mission_view.pin_verified_started')}
                   </Text>
                 </View>
               </>
@@ -1366,19 +1350,19 @@ export default function MissionView() {
             {(() => {
               const priceNum = price ? parseFloat(String(price)) : NaN;
               const hasPrice = Number.isFinite(priceNum) && priceNum > 0;
-              const priceLabel = isQuoteMission && !hasPrice ? 'Devis' : (hasPrice ? Math.round(priceNum).toString() : '—');
+              const priceLabel = isQuoteMission && !hasPrice ? t('quote.short_label') : (hasPrice ? Math.round(priceNum).toString() : '—');
               const priceUnit = hasPrice ? '€' : '';
               return (
                 <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
                   <View style={{ flex: 1, paddingVertical: 4 }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>SERVICE</Text>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('mission_view.label_service')}</Text>
                     <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }} numberOfLines={1}>
-                      {(request?.category?.name || request?.serviceType || 'SERVICE').toUpperCase()}
+                      {(translateRequestServiceRaw(request) || translateCategoryRaw(request?.category) || t('mission_view.label_service')).toUpperCase()}
                     </Text>
                   </View>
                   <View style={{ width: 1, backgroundColor: theme.borderLight, marginHorizontal: 12 }} />
                   <View style={{ flex: 1, paddingVertical: 4 }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>MONTANT</Text>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('common.amount').toUpperCase()}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
                       <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }} numberOfLines={1}>{priceLabel}</Text>
                       {priceUnit ? <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>{priceUnit}</Text> : null}
@@ -1386,7 +1370,7 @@ export default function MissionView() {
                   </View>
                   <View style={{ width: 1, backgroundColor: theme.borderLight, marginHorizontal: 12 }} />
                   <View style={{ flex: 1, paddingVertical: 4 }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>DISTANCE</Text>
+                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('mission_view.label_distance')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
                       <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }}>{distance ? distance.toFixed(1) : '-'}</Text>
                       <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>km</Text>
@@ -1405,7 +1389,7 @@ export default function MissionView() {
       <ConfirmModal
         visible={cancelSearchModal}
         title={`${t('mission_view.cancel_search')} ?`}
-        message="Le remboursement sera traité sous 48h."
+        message={t('mission_view.cancel_search_msg')}
         confirmLabel={t('common.cancel')}
         cancelLabel={t('common.continue')}
         destructive
@@ -1415,9 +1399,9 @@ export default function MissionView() {
       <ConfirmModal
         visible={cancelTrackModal}
         title={`${t('mission_view.cancel_mission')} ?`}
-        message="Êtes-vous sûr de vouloir annuler ?"
+        message={t('mission_view.cancel_confirm_msg')}
         confirmLabel={t('missions.yes_cancel')}
-        cancelLabel="Non"
+        cancelLabel={t('common.no')}
         destructive
         onConfirm={doConfirmCancelTracking}
         onCancel={() => setCancelTrackModal(false)}

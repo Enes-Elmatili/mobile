@@ -7,11 +7,12 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TouchableOpacity, ScrollView, Linking, Alert, ActivityIndicator,
+  TouchableOpacity, ScrollView, Linking, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -37,6 +38,7 @@ export default function EarlyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
 
   const [mission, setMission] = useState<MissionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,37 +90,37 @@ export default function EarlyScreen() {
 
   const formattedDate = useMemo(() => {
     if (!mission?.preferredTimeStart) return '—';
-    return new Date(mission.preferredTimeStart).toLocaleDateString('fr-FR', {
+    return new Date(mission.preferredTimeStart).toLocaleDateString(undefined, {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
   }, [mission?.preferredTimeStart]);
 
   const formattedTime = useMemo(() => {
     if (!mission?.preferredTimeStart) return '';
-    return new Date(mission.preferredTimeStart).toLocaleTimeString('fr-FR', {
+    return new Date(mission.preferredTimeStart).toLocaleTimeString(undefined, {
       hour: '2-digit', minute: '2-digit',
     });
   }, [mission?.preferredTimeStart]);
 
   const handleNavigate = useCallback(() => {
     if (!mission?.lat || !mission?.lng) {
-      Alert.alert('Adresse indisponible', 'Coordonnées GPS manquantes pour cette mission.');
+      feedback.error('ext.early_no_address_sub');
       return;
     }
     const label = encodeURIComponent(mission.address || 'Mission FIXED');
     const url = `https://www.google.com/maps/dir/?api=1&destination=${mission.lat},${mission.lng}&destination_place_id=${label}`;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL(url).catch(() => Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application de navigation.'));
-  }, [mission]);
+    feedback.haptic('light');
+    Linking.openURL(url).catch(() => feedback.error('ext.early_navigation_failed'));
+  }, [mission, t]);
 
   const handleCallClient = useCallback(() => {
     const phone = mission?.client?.phone;
     if (!phone) {
-      Alert.alert('Numéro indisponible', 'Le client n\'a pas partagé son numéro.');
+      feedback.error('ext.early_no_phone_sub');
       return;
     }
     Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() => {});
-  }, [mission?.client?.phone]);
+  }, [mission?.client?.phone, t]);
 
   if (loading) {
     return (
@@ -135,14 +137,14 @@ export default function EarlyScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={32} color={theme.textMuted} />
         <Text style={[s.errorTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-          Mission introuvable
+          {t('missions.mission_unavailable')}
         </Text>
         <TouchableOpacity
           style={[s.errorBtn, { backgroundColor: theme.text }]}
           onPress={() => router.replace('/(tabs)/missions')}
           activeOpacity={0.85}
         >
-          <Text style={[s.errorBtnText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>Retour</Text>
+          <Text style={[s.errorBtnText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -163,8 +165,8 @@ export default function EarlyScreen() {
           <Feather name="chevron-left" size={20} color={theme.text} />
         </TouchableOpacity>
         <View style={s.headerCenter}>
-          <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>MISSION CONFIRMÉE</Text>
-          <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas }]}>À venir</Text>
+          <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('missions.mission').toUpperCase()}</Text>
+          <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas }]}>{t('missions.tab_upcoming')}</Text>
         </View>
         <View style={{ width: 38 }} />
       </View>
@@ -176,33 +178,33 @@ export default function EarlyScreen() {
             <Feather name="clock" size={28} color={theme.text} />
           </View>
 
-          <Text style={[s.heroLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>DÉMARRAGE PROGRAMMÉ</Text>
+          <Text style={[s.heroLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('missions.departure_planned').toUpperCase()}</Text>
 
           {countdown ? (
             <View style={s.countdownRow}>
               {countdown.days > 0 && (
-                <CountdownBlock value={countdown.days} unit={countdown.days > 1 ? 'JOURS' : 'JOUR'} theme={theme} />
+                <CountdownBlock value={countdown.days} unit={t(countdown.days > 1 ? 'ext.early_days_other' : 'ext.early_days_one')} theme={theme} />
               )}
               {(countdown.days > 0 || countdown.hours > 0) && (
-                <CountdownBlock value={countdown.hours} unit={countdown.hours > 1 ? 'HEURES' : 'HEURE'} theme={theme} />
+                <CountdownBlock value={countdown.hours} unit={t(countdown.hours > 1 ? 'ext.early_hours_other' : 'ext.early_hours_one')} theme={theme} />
               )}
-              <CountdownBlock value={countdown.mins} unit="MIN" theme={theme} />
+              <CountdownBlock value={countdown.mins} unit={t('ext.early_min')} theme={theme} />
             </View>
           ) : (
-            <Text style={[s.heroDate, { color: theme.text, fontFamily: FONTS.bebas }]}>BIENTÔT</Text>
+            <Text style={[s.heroDate, { color: theme.text, fontFamily: FONTS.bebas }]}>{t('ext.early_soon')}</Text>
           )}
 
           <Text style={[s.heroDate, { color: theme.text, fontFamily: FONTS.sansMedium, fontSize: 15, marginTop: 6 }]}>
             {formattedDate}
           </Text>
           <Text style={[s.heroTime, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            à {formattedTime}
+            {t('ext.early_at', { time: formattedTime })}
           </Text>
 
           <View style={[s.activationHint, { backgroundColor: theme.surface }]}>
             <Feather name="info" size={12} color={theme.textSub} />
             <Text style={[s.activationHintText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-              Démarrage possible {ACTIVATION_WINDOW_MIN} min avant l'heure
+              {t('ext.early_window', { min: ACTIVATION_WINDOW_MIN })}
             </Text>
           </View>
         </View>
@@ -210,12 +212,12 @@ export default function EarlyScreen() {
         {/* Mission summary */}
         <View style={[s.section, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-            DÉTAILS
+            {t('missions.mission_details').toUpperCase()}
           </Text>
           <View style={s.row}>
             <Feather name="tool" size={16} color={theme.textMuted} />
             <Text style={[s.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-              {mission.serviceType || mission.category?.name || 'Mission'}
+              {mission.serviceType || mission.category?.name || t('missions.mission')}
             </Text>
             {mission.price && mission.price > 0 ? (
               <Text style={[s.rowValue, { color: theme.text, fontFamily: FONTS.bebas }]}>
@@ -227,7 +229,7 @@ export default function EarlyScreen() {
           <View style={s.row}>
             <Feather name="map-pin" size={16} color={theme.textMuted} />
             <Text style={[s.rowText, { color: theme.text, fontFamily: FONTS.sans }]} numberOfLines={2}>
-              {mission.address || 'Adresse à confirmer'}
+              {mission.address || t('ext.early_address_tbc')}
             </Text>
           </View>
           {mission.client?.name && (
@@ -248,9 +250,9 @@ export default function EarlyScreen() {
                 <Feather name="home" size={16} color={theme.textMuted} />
                 <Text style={[s.rowText, { color: theme.text, fontFamily: FONTS.sans }]} numberOfLines={1}>
                   {[
-                    mission.client?.buildingType === 'apartment' ? 'Appartement' : mission.client?.buildingType === 'house' ? 'Maison' : mission.client?.buildingType,
-                    mission.client?.floor != null ? `Étage ${mission.client.floor}` : null,
-                    mission.client?.hasElevator != null ? (mission.client.hasElevator ? 'Ascenseur' : 'Sans ascenseur') : null,
+                    mission.client?.buildingType === 'apartment' ? t('ext.early_building_apartment') : mission.client?.buildingType === 'house' ? t('ext.early_building_house') : mission.client?.buildingType,
+                    mission.client?.floor != null ? t('ext.early_floor', { n: mission.client.floor }) : null,
+                    mission.client?.hasElevator != null ? (mission.client.hasElevator ? t('ext.early_elevator') : t('ext.early_no_elevator')) : null,
                   ].filter(Boolean).join(' · ')}
                 </Text>
               </View>
@@ -262,7 +264,7 @@ export default function EarlyScreen() {
         {mission.description ? (
           <View style={[s.section, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
             <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-              DESCRIPTION DU CLIENT
+              {t('ext.early_description_label')}
             </Text>
             <Text style={[s.descriptionText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
               {mission.description}
@@ -279,7 +281,7 @@ export default function EarlyScreen() {
           >
             <Feather name="navigation" size={16} color={theme.bg} />
             <Text style={[s.actionPrimaryText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
-              Itinéraire
+              {t('ext.early_itinerary')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -290,7 +292,7 @@ export default function EarlyScreen() {
           >
             <Feather name="phone" size={15} color={mission.client?.phone ? theme.text : theme.textMuted} />
             <Text style={[s.actionSecondaryText, { color: mission.client?.phone ? theme.text : theme.textMuted, fontFamily: FONTS.sansMedium }]}>
-              Appeler
+              {t('common.call')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -299,38 +301,34 @@ export default function EarlyScreen() {
         <View style={[s.reminder, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <Feather name="bell" size={14} color={theme.textSub} />
           <Text style={[s.reminderText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            Vous serez notifié 30 minutes avant le démarrage. Cet écran s'ouvrira automatiquement à temps.
+            {t('ext.early_notify')}
           </Text>
         </View>
 
         {/* Cancel */}
         <TouchableOpacity
           style={[s.refuseBtn, { borderColor: theme.borderLight }]}
-          onPress={() => {
-            Alert.alert(
-              'Refuser cette mission ?',
-              'Le client sera notifié et la mission sera renvoyée à d\'autres prestataires.',
-              [
-                { text: 'Garder la mission', style: 'cancel' },
-                {
-                  text: 'Refuser', style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await api.post(`/requests/${mission.id}/refuse`);
-                      router.replace('/(tabs)/missions');
-                    } catch (e: any) {
-                      Alert.alert('Erreur', e?.message || 'Impossible de refuser cette mission.');
-                    }
-                  },
-                },
-              ],
-            );
+          onPress={async () => {
+            const ok = await feedback.confirm({
+              titleKey: 'ext.missions_refuse',
+              messageKey: 'ext.early_cancel_msg',
+              confirmKey: 'ext.missions_refuse',
+              cancelKey: 'common.cancel',
+              destructive: true,
+            });
+            if (!ok) return;
+            try {
+              await api.post(`/requests/${mission.id}/refuse`);
+              router.replace('/(tabs)/missions');
+            } catch (e: any) {
+              feedback.error(e?.message || t('ext.early_refuse_failed'));
+            }
           }}
           activeOpacity={0.7}
         >
           <Feather name="x" size={14} color={COLORS.red} />
           <Text style={[s.refuseBtnText, { color: COLORS.red, fontFamily: FONTS.sansMedium }]}>
-            Refuser cette mission
+            {t('ext.missions_refuse')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

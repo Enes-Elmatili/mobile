@@ -12,12 +12,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  Animated, Easing, TouchableOpacity, ActivityIndicator, Alert,
+  Animated, Easing, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useSocket } from '@/lib/SocketContext';
 import { devError } from '@/lib/logger';
@@ -26,9 +27,9 @@ import { devError } from '@/lib/logger';
 function formatScheduled(iso?: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
-  const day = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return `${day} à ${time}`;
+  const day = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return `${day} ${time}`;
 }
 
 export default function ScheduledConfirmation() {
@@ -50,6 +51,7 @@ export default function ScheduledConfirmation() {
   const router = useRouter();
   const theme = useAppTheme();
   const { socket } = useSocket();
+  const { t } = useTranslation();
 
   // État local alimenté par params puis écrasé par l'API quand disponible
   const [serviceName, setServiceName] = useState<string>(params.serviceName || '');
@@ -74,7 +76,7 @@ export default function ScheduledConfirmation() {
       const r = res?.data || res;
       if (!r) return;
 
-      const srv = r.serviceType || r.subcategory?.name || r.category?.name || r.title || 'Service';
+      const srv = r.serviceType || r.subcategory?.name || r.category?.name || r.title || t('common.service');
       setServiceName(srv);
       setAddress(r.address || '');
       setScheduledLabel(formatScheduled(r.preferredTimeStart));
@@ -120,7 +122,7 @@ export default function ScheduledConfirmation() {
   // ── Animation d'entrée (mode confirmation uniquement) ──
   useEffect(() => {
     if (isRecapMode) return; // skip animation en recap
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    feedback.haptic('success');
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
@@ -136,7 +138,7 @@ export default function ScheduledConfirmation() {
     const handleAccepted = (data: any) => {
       const incomingId = String(data?.id ?? data?.requestId ?? '');
       if (incomingId !== String(id)) return;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      feedback.haptic('success');
       // Refetch — la logique dans fetchRequest décide si on reste sur le récap
       // (mission future) ou si on bascule vers missionview (mission en cours/passée).
       fetchRequest();
@@ -148,32 +150,25 @@ export default function ScheduledConfirmation() {
   }, [socket, id, fetchRequest]);
 
   // ── Action : annuler la demande ──
-  const handleCancel = () => {
-    Alert.alert(
-      'Annuler la demande',
-      isQuoteFlow
-        ? 'Votre demande de devis sera annulée et les frais de déplacement vous seront remboursés sous 3-5 jours ouvrés.'
-        : 'Votre demande sera annulée et le montant intégralement remboursé sous 3-5 jours ouvrés.',
-      [
-        { text: 'Non, garder', style: 'cancel' },
-        {
-          text: 'Oui, annuler',
-          style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              await api.post(`/requests/${id}/cancel`);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-              router.replace('/(tabs)/dashboard');
-            } catch (e: any) {
-              const msg = e?.response?.data?.message || e?.message || 'Impossible d\'annuler la demande';
-              Alert.alert('Erreur', msg);
-              setCancelling(false);
-            }
-          },
-        },
-      ],
-    );
+  const handleCancel = async () => {
+    const ok = await feedback.confirm({
+      titleKey: 'missions.cancel',
+      messageKey: isQuoteFlow ? 'ext.scheduled_cancel_quote' : 'ext.scheduled_cancel_msg',
+      confirmKey: 'missions.yes_cancel',
+      cancelKey: 'common.no',
+      destructive: true,
+    });
+    if (!ok) return;
+    setCancelling(true);
+    try {
+      await api.post(`/requests/${id}/cancel`);
+      feedback.haptic('warning');
+      router.replace('/(tabs)/dashboard');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || t('mission_view.cancel_mission_failed');
+      feedback.error(msg);
+      setCancelling(false);
+    }
   };
 
   if (loading && isRecapMode) {
@@ -199,16 +194,16 @@ export default function ScheduledConfirmation() {
 
         <Animated.View style={[st.content, { opacity: fadeAnim }]}>
           <Text style={[st.title, { color: theme.text, fontFamily: FONTS.bebas }]}>
-            {isRecapMode ? 'Ma demande planifiée' : 'Demande planifiée'}
+            {isRecapMode ? t('ext.scheduled_my_request') : t('ext.scheduled_request')}
           </Text>
           <Text style={[st.subtitle, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {isRecapMode
               ? (isQuoteFlow
-                  ? 'Un prestataire qualifié vous enverra un devis. Vous recevrez une notification dès qu\'il accepte.'
-                  : 'Les prestataires qualifiés peuvent consulter et accepter votre demande. Vous serez notifié dès qu\'un prestataire accepte.')
+                  ? t('ext.scheduled_recap_quote')
+                  : t('ext.scheduled_recap_fixed'))
               : (isQuoteFlow
-                  ? 'Votre demande de devis a bien été enregistrée. Un prestataire qualifié vous enverra un devis.'
-                  : 'Votre demande a bien été enregistrée. Les prestataires qualifiés pourront la consulter et l\'accepter.')}
+                  ? t('ext.scheduled_confirm_quote')
+                  : t('ext.scheduled_confirm_fixed'))}
           </Text>
 
           {/* Recap card */}
@@ -233,7 +228,7 @@ export default function ScheduledConfirmation() {
                 <View style={st.row}>
                   <Feather name="file-text" size={16} color={theme.textSub} />
                   <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sans }]}>
-                    {calloutFee ? `Frais de déplacement payés : ${calloutFee} €` : 'Prix à définir dans le devis'}
+                    {calloutFee ? t('ext.scheduled_fees_paid', { fee: calloutFee }) : t('ext.scheduled_price_tbd')}
                   </Text>
                 </View>
               </>
@@ -253,8 +248,8 @@ export default function ScheduledConfirmation() {
               <Feather name="check-circle" size={16} color={COLORS.greenBrand} />
               <Text style={[st.infoText, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>
                 {providerName
-                  ? `Confirmé par ${providerName}. Il interviendra à la date prévue.`
-                  : 'Confirmé par un prestataire. Il interviendra à la date prévue.'}
+                  ? t('ext.scheduled_confirmed_by', { name: providerName })
+                  : t('ext.scheduled_confirmed_by_generic')}
               </Text>
             </View>
           ) : (
@@ -262,8 +257,8 @@ export default function ScheduledConfirmation() {
               <Feather name="info" size={16} color={theme.textSub} />
               <Text style={[st.infoText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
                 {isRecapMode
-                  ? 'Vous serez notifié dès qu\'un prestataire accepte. La mission démarre à la date prévue.'
-                  : 'Vous recevrez une notification dès qu\'un prestataire accepte votre demande.'}
+                  ? t('ext.scheduled_waiting_quote')
+                  : t('ext.scheduled_waiting')}
               </Text>
             </View>
           )}
@@ -275,12 +270,12 @@ export default function ScheduledConfirmation() {
         <TouchableOpacity
           style={[st.btn, { backgroundColor: theme.accent }]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            feedback.haptic('light');
             router.replace('/(tabs)/dashboard');
           }}
           activeOpacity={0.85}
         >
-          <Text style={[st.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Retour à l'accueil</Text>
+          <Text style={[st.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('ext.scheduled_back_home')}</Text>
         </TouchableOpacity>
 
         {isRecapMode ? (
@@ -294,7 +289,7 @@ export default function ScheduledConfirmation() {
               <ActivityIndicator size="small" color={COLORS.red} />
             ) : (
               <Text style={[st.btnSecondaryText, { color: COLORS.red, fontFamily: FONTS.sansMedium }]}>
-                Annuler la demande
+                {t('missions.cancel')}
               </Text>
             )}
           </TouchableOpacity>
@@ -302,7 +297,7 @@ export default function ScheduledConfirmation() {
           <TouchableOpacity
             style={[st.btnSecondary, { borderColor: theme.border }]}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              feedback.haptic('light');
               // En mode confirmation, "Suivre la demande" route vers ce même écran
               // en mode recap (cohérence — le client reste dans le flux planifié
               // jusqu'à ce qu'un prestataire accepte, moment où le socket bascule
@@ -314,7 +309,7 @@ export default function ScheduledConfirmation() {
             }}
             activeOpacity={0.85}
           >
-            <Text style={[st.btnSecondaryText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Suivre la demande</Text>
+            <Text style={[st.btnSecondaryText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('dashboard.track_request')}</Text>
           </TouchableOpacity>
         )}
       </View>
