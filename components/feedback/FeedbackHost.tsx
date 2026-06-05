@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { useFeedbackStore } from '@/lib/feedback/store';
 import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { useSoundManager } from '@/hooks/useSoundManager';
-import { __setSoundPlayer } from '@/lib/feedback/feedback';
+import { __setSoundPlayer, __clearSoundPlayer } from '@/lib/feedback/feedback';
 import { Toast } from './Toast';
 import { CelebrationOverlay } from './CelebrationOverlay';
 import { ConfirmSheet } from './ConfirmSheet';
@@ -17,7 +17,7 @@ export function FeedbackHost() {
   const hydrate = useFeedbackPrefs((s) => s.hydrate);
 
   // Register the sound player into the singleton engine.
-  useEffect(() => { __setSoundPlayer(play); return () => __setSoundPlayer(null); }, [play]);
+  useEffect(() => { __setSoundPlayer(play); return () => __clearSoundPlayer(play); }, [play]);
 
   // Hydrate prefs + subscribe to OS reduce-motion.
   useEffect(() => {

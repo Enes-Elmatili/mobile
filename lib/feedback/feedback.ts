@@ -7,6 +7,9 @@ import { useFeedbackPrefs } from '../../stores/feedbackPrefs';
 // Sound player is registered at runtime by FeedbackHost (useSoundManager is a hook).
 let soundPlayer: ((key: SoundKey) => void) | null = null;
 export function __setSoundPlayer(fn: ((key: SoundKey) => void) | null) { soundPlayer = fn; }
+export function __clearSoundPlayer(fn: ((key: SoundKey) => void)) {
+  if (soundPlayer === fn) soundPlayer = null;
+}
 
 function fireHaptic(kind: HapticKind) {
   try {

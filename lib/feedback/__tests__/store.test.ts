@@ -46,3 +46,17 @@ test('setActionSheet / clearActionSheet', () => {
   s.clearActionSheet();
   expect(useFeedbackStore.getState().actionSheet).toBeNull();
 });
+
+test('setConfirm resolves a superseded pending confirm with false', () => {
+  let firstResolved: boolean | null = null;
+  useFeedbackStore.getState().setConfirm({ title: 'A', confirmLabel: 'ok', cancelLabel: 'no', destructive: false, resolve: (v) => { firstResolved = v; } });
+  useFeedbackStore.getState().setConfirm({ title: 'B', confirmLabel: 'ok', cancelLabel: 'no', destructive: false, resolve: () => {} });
+  expect(firstResolved).toBe(false);
+});
+
+test('setActionSheet resolves a superseded pending action sheet with null', () => {
+  let firstResolved: number | null | undefined = undefined;
+  useFeedbackStore.getState().setActionSheet({ options: [{ label: 'A' }], cancelLabel: 'c', resolve: (v) => { firstResolved = v; } });
+  useFeedbackStore.getState().setActionSheet({ options: [{ label: 'B' }], cancelLabel: 'c', resolve: () => {} });
+  expect(firstResolved).toBeNull();
+});

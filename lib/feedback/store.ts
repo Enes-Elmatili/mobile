@@ -51,8 +51,14 @@ export const useFeedbackStore = create<FeedbackStoreState>((set) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
   setCelebration: (c) => set({ celebration: c }),
   clearCelebration: () => set({ celebration: null }),
-  setConfirm: (c) => set({ confirm: c }),
+  setConfirm: (c) => set((s) => {
+    if (s.confirm) s.confirm.resolve(false);
+    return { confirm: c };
+  }),
   clearConfirm: () => set({ confirm: null }),
-  setActionSheet: (a) => set({ actionSheet: a }),
+  setActionSheet: (a) => set((s) => {
+    if (s.actionSheet) s.actionSheet.resolve(null);
+    return { actionSheet: a };
+  }),
   clearActionSheet: () => set({ actionSheet: null }),
 }));
