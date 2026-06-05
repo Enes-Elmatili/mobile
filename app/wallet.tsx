@@ -4,42 +4,44 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   FlatList, ActivityIndicator, Modal, TextInput,
-  KeyboardAvoidingView, Platform, Alert, RefreshControl,
+  KeyboardAvoidingView, Platform, RefreshControl,
   StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '../lib/api';
 import { devError } from '@/lib/logger';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR as fmtEur } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
 
 // ─── Formatage ────────────────────────────────────────────────────────────────
 // Le backend stocke les montants en centimes (entiers). On divise par 100 à l'affichage.
 const fromCents = (n: number) => n / 100;
 
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('fr-FR', {
+  new Date(d).toLocaleDateString(undefined, {
     day: 'numeric', month: 'short', year: 'numeric',
   });
 
 const fmtTime = (d: string) =>
-  new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  new Date(d).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
 // ─── Extraction du libellé depuis la référence ────────────────────────────────
-function parseTxLabel(type: string, reference?: string | null): string {
-  if (!reference) return type === 'CREDIT' ? 'Crédit' : 'Débit';
+function parseTxLabel(type: string, reference: string | null | undefined, t: (k: string) => string): string {
+  if (!reference) return type === 'CREDIT' ? t('ext.wallet_tx_credit') : t('ext.wallet_tx_debit');
 
   const ref = reference.toLowerCase();
 
   const missionMatch = reference.match(/request[_-](\d+)/i);
   if (missionMatch) return `Mission #${missionMatch[1]}`;
 
-  if (ref.includes('withdraw') || ref.includes('retrait')) return 'Retrait bancaire';
-  if (ref.includes('stripe_transfer')) return 'Virement mission';
-  if (ref.includes('subscription') || ref.includes('abonnement')) return 'Abonnement';
-  if (ref.includes('credit') && type === 'CREDIT') return 'Crédit manuel';
-  if (ref.includes('debit') && type === 'DEBIT') return 'Débit manuel';
+  if (ref.includes('withdraw') || ref.includes('retrait')) return t('ext.wallet_tx_withdraw');
+  if (ref.includes('stripe_transfer')) return t('ext.wallet_tx_transfer');
+  if (ref.includes('subscription') || ref.includes('abonnement')) return t('ext.wallet_tx_subscription');
+  if (ref.includes('credit') && type === 'CREDIT') return t('ext.wallet_tx_credit_manual');
+  if (ref.includes('debit') && type === 'DEBIT') return t('ext.wallet_tx_debit_manual');
 
   // Formatage lisible de la référence brute
   return reference
@@ -59,6 +61,7 @@ interface WithdrawModalProps {
 
 function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalProps) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [iban, setIban] = useState('');
   const [note, setNote] = useState('');
@@ -67,12 +70,12 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
   const handleSubmit = async () => {
     const amt = parseFloat(amount.replace(',', '.'));
     if (!Number.isFinite(amt) || amt <= 0) {
-      Alert.alert('Montant invalide', 'Entrez un montant valide.');
+      feedback.error('wallet.invalid_amount');
       return;
     }
     const balanceEur = fromCents(balance);
     if (amt > balanceEur) {
-      Alert.alert('Solde insuffisant', `Votre solde disponible est de ${fmtEur(balanceEur)}.`);
+      feedback.error(t('wallet.insufficient_balance'));
       return;
     }
     setLoading(true);
@@ -89,7 +92,7 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
       setNote('');
       onSuccess();
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message || 'Impossible d\'effectuer le retrait.');
+      feedback.error(e?.message || t('wallet.withdraw_error'));
     } finally {
       setLoading(false);
     }
@@ -101,13 +104,13 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
         <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={[wm.sheet, { backgroundColor: theme.cardBg }]}>
           <View style={[wm.handle, { backgroundColor: theme.border }]} />
-          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Retirer des fonds</Text>
-          <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Solde disponible : {fmtEur(fromCents(balance))}</Text>
+          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.wallet_withdraw_title')}</Text>
+          <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.wallet_available_balance')} : {fmtEur(fromCents(balance))}</Text>
 
-          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Montant (€)</Text>
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_amount_eur')}</Text>
           <TextInput
             style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
-            placeholder="Ex : 50,00"
+            placeholder={t('ext.wallet_amount_placeholder')}
             placeholderTextColor={theme.textMuted}
             value={amount}
             onChangeText={setAmount}
@@ -115,7 +118,7 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
             returnKeyType="next"
           />
 
-          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>IBAN (optionnel)</Text>
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_iban_optional')}</Text>
           <TextInput
             style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.mono }]}
             placeholder="BE12 3456 7890 1234"
@@ -126,10 +129,10 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
             returnKeyType="next"
           />
 
-          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Note (optionnelle)</Text>
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_note_optional')}</Text>
           <TextInput
             style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
-            placeholder="Référence virement..."
+            placeholder={t('ext.wallet_note_placeholder')}
             placeholderTextColor={theme.textMuted}
             value={note}
             onChangeText={setNote}
@@ -137,7 +140,7 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
           />
 
           <Text style={[wm.notice, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            Les retraits sont traités sous 2-3 jours ouvrés. Un administrateur validera votre demande.
+            {t('ext.wallet_withdraw_notice')}
           </Text>
 
           <TouchableOpacity
@@ -148,12 +151,12 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
           >
             {loading
               ? <ActivityIndicator color={theme.accentText} />
-              : <Text style={[wm.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Confirmer le retrait</Text>
+              : <Text style={[wm.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_confirm_withdraw')}</Text>
             }
           </TouchableOpacity>
 
           <TouchableOpacity style={wm.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={[wm.cancelText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Annuler</Text>
+            <Text style={[wm.cancelText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -188,8 +191,9 @@ const wm = StyleSheet.create({
 // ─── Ligne de transaction ──────────────────────────────────────────────────────
 function TxRow({ item }: { item: any }) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const isCredit = item.type === 'CREDIT';
-  const label    = parseTxLabel(item.type, item.reference);
+  const label    = parseTxLabel(item.type, item.reference, t);
 
   return (
     <View style={[tx.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
@@ -207,7 +211,7 @@ function TxRow({ item }: { item: any }) {
         <Text style={[tx.label, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{label}</Text>
         <Text style={[tx.date, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{fmtDate(item.createdAt)} · {fmtTime(item.createdAt)}</Text>
         {item.balanceAfter != null && (
-          <Text style={[tx.balance, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>Solde après : {fmtEur(fromCents(item.balanceAfter))}</Text>
+          <Text style={[tx.balance, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>{t('ext.wallet_balance_after')} : {fmtEur(fromCents(item.balanceAfter))}</Text>
         )}
       </View>
 
@@ -218,7 +222,7 @@ function TxRow({ item }: { item: any }) {
         </Text>
         <View style={[tx.badge, isCredit ? { backgroundColor: theme.isDark ? 'rgba(5,150,105,0.15)' : 'rgba(61,139,61,0.08)' } : { backgroundColor: theme.surface }]}>
           <Text style={[tx.badgeText, { fontFamily: FONTS.sansMedium }, isCredit ? { color: COLORS.green } : { color: theme.textMuted }]}>
-            {isCredit ? 'Reçu' : 'Débité'}
+            {isCredit ? t('ext.wallet_tx_received') : t('ext.wallet_tx_debited')}
           </Text>
         </View>
       </View>
@@ -253,6 +257,7 @@ const tx = StyleSheet.create({
 export default function Wallet() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
   const [balance,      setBalance]      = useState(0);
@@ -282,11 +287,8 @@ export default function Wallet() {
 
   const handleWithdrawSuccess = () => {
     setShowWithdraw(false);
-    Alert.alert(
-      'Demande envoyée',
-      'Votre demande de retrait a bien été enregistrée. Elle sera traitée sous 2-3 jours ouvrés.',
-      [{ text: 'OK', onPress: load }]
-    );
+    feedback.success('ext.wallet_request_sent_sub');
+    load();
   };
 
   if (loading) {
@@ -306,7 +308,7 @@ export default function Wallet() {
         <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Feather name="chevron-left" size={22} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Portefeuille</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_portfolio')}</Text>
         <TouchableOpacity onPress={onRefresh} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Feather name="refresh-cw" size={20} color={theme.textAlt} />
         </TouchableOpacity>
@@ -314,7 +316,7 @@ export default function Wallet() {
 
       {/* ── Solde héro ── */}
       <View style={[s.hero, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity }]}>
-        <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>Solde disponible</Text>
+        <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_available_balance')}</Text>
         <Text style={[s.heroAmount, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{fmtEur(fromCents(balance))}</Text>
 
         {/* Bouton retrait — call to action principal */}
@@ -325,7 +327,7 @@ export default function Wallet() {
           activeOpacity={0.85}
         >
           <Feather name="upload" size={18} color={theme.textAlt} />
-          <Text style={[s.withdrawBtnText, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Retirer les fonds</Text>
+          <Text style={[s.withdrawBtnText, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_withdraw_funds')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -341,14 +343,14 @@ export default function Wallet() {
         }
         ListHeaderComponent={
           <Text style={[s.listTitle, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
-            Transactions {transactions.length > 0 ? `(${transactions.length})` : ''}
+            {t('ext.wallet_transactions')} {transactions.length > 0 ? `(${transactions.length})` : ''}
           </Text>
         }
         ListEmptyComponent={
           <View style={s.empty}>
             <Feather name="credit-card" size={52} color={theme.textDisabled} />
-            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>Aucune transaction</Text>
-            <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Vos gains apparaitront ici une fois vos missions terminées.</Text>
+            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_no_transactions')}</Text>
+            <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.wallet_no_tx_sub')}</Text>
           </View>
         }
       />

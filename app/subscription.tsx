@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Alert,
   StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
@@ -40,12 +40,12 @@ const PLANS = [
     id: 'starter',
     name: 'Starter',
     price: 9.99,
-    priceLabel: '9,99 € / mois',
+    priceLabelKey: 'ext.subscription_starter_price',
     priceId: process.env.EXPO_PUBLIC_STRIPE_PRICE_STARTER || '',
-    features: [
-      'Jusqu\'à 10 missions / mois',
-      'Accès aux clients premium',
-      'Paiements rapides',
+    featureKeys: [
+      'ext.subscription_starter_f1',
+      'ext.subscription_starter_f2',
+      'ext.subscription_starter_f3',
     ],
     highlight: false,
   },
@@ -53,13 +53,13 @@ const PLANS = [
     id: 'pro',
     name: 'Pro',
     price: 24.99,
-    priceLabel: '24,99 € / mois',
+    priceLabelKey: 'ext.subscription_pro_price',
     priceId: process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO || '',
-    features: [
-      'Missions illimitées',
-      'Priorité dans les résultats',
-      'Badge "Pro" sur votre profil',
-      'Support dédié',
+    featureKeys: [
+      'ext.subscription_pro_f1',
+      'ext.subscription_pro_f2',
+      'ext.subscription_pro_f3',
+      'ext.subscription_pro_f4',
     ],
     highlight: true,
   },
@@ -67,13 +67,13 @@ const PLANS = [
     id: 'business',
     name: 'Business',
     price: 59.99,
-    priceLabel: '59,99 € / mois',
+    priceLabelKey: 'ext.subscription_business_price',
     priceId: process.env.EXPO_PUBLIC_STRIPE_PRICE_BUSINESS || '',
-    features: [
-      'Tout Pro +',
-      'Tableau de bord analytique',
-      'Accès API',
-      'Compte manager dédié',
+    featureKeys: [
+      'ext.subscription_business_f1',
+      'ext.subscription_business_f2',
+      'ext.subscription_business_f3',
+      'ext.subscription_business_f4',
     ],
     highlight: false,
   },
@@ -83,6 +83,7 @@ const PLANS = [
 
 function StatusChip({ status }: { status: string }) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const isActive = status === 'ACTIVE';
   return (
     <View style={[
@@ -97,7 +98,7 @@ function StatusChip({ status }: { status: string }) {
         chip.text,
         { color: isActive ? COLORS.green : theme.textMuted, fontFamily: FONTS.sansMedium },
       ]}>
-        {isActive ? 'Actif' : status === 'CANCELLED' ? 'Résilié' : 'En attente'}
+        {isActive ? t('ext.subscription_active') : status === 'CANCELLED' ? t('ext.subscription_cancelled_state') : t('ext.subscription_pending')}
       </Text>
     </View>
   );
@@ -123,6 +124,7 @@ function PlanCard({
   loading: boolean;
 }) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   return (
     <View style={[
       pl.card,
@@ -132,12 +134,12 @@ function PlanCard({
     ]}>
       {plan.highlight && !isCurrent && (
         <View style={[pl.badge, { backgroundColor: theme.accent }]}>
-          <Text style={[pl.badgeText, { color: theme.accentText, fontFamily: FONTS.mono }]}>Recommandé</Text>
+          <Text style={[pl.badgeText, { color: theme.accentText, fontFamily: FONTS.mono }]}>{t('ext.subscription_recommended')}</Text>
         </View>
       )}
       {isCurrent && (
         <View style={[pl.badge, { backgroundColor: theme.textSub }]}>
-          <Text style={[pl.badgeText, { fontFamily: FONTS.mono }]}>Plan actuel</Text>
+          <Text style={[pl.badgeText, { fontFamily: FONTS.mono }]}>{t('ext.subscription_current_plan')}</Text>
         </View>
       )}
       <View style={pl.top}>
@@ -145,15 +147,15 @@ function PlanCard({
           {plan.name}
         </Text>
         <Text style={[pl.price, { color: plan.highlight ? theme.heroSub : theme.textMuted, fontFamily: FONTS.bebas }]}>
-          {plan.priceLabel}
+          {t(plan.priceLabelKey)}
         </Text>
       </View>
       <View style={pl.features}>
-        {plan.features.map((f, i) => (
+        {plan.featureKeys.map((k, i) => (
           <View key={i} style={pl.featureRow}>
             <Feather name="check-circle" size={14} color={plan.highlight ? theme.accentText : COLORS.green} />
             <Text style={[pl.featureText, { color: plan.highlight ? theme.heroText : theme.textSub, fontFamily: FONTS.sans }]}>
-              {f}
+              {t(k)}
             </Text>
           </View>
         ))}
@@ -173,7 +175,7 @@ function PlanCard({
             <ActivityIndicator size="small" color={plan.highlight ? theme.accent : theme.accentText} />
           ) : (
             <Text style={[pl.btnText, { color: plan.highlight ? theme.accent : theme.accentText, fontFamily: FONTS.sansMedium }]}>
-              S'abonner
+              {t('ext.subscription_subscribe')}
             </Text>
           )}
         </TouchableOpacity>
@@ -247,7 +249,7 @@ export default function SubscriptionScreen() {
 
   const handleSubscribe = useCallback(async (priceId: string) => {
     if (!priceId) {
-      showSocketToast('Plan non disponible en mode test.', 'error');
+      showSocketToast(t('ext.subscription_unavailable'), 'error');
       return;
     }
     setSubscribing(true);
@@ -257,7 +259,7 @@ export default function SubscriptionScreen() {
         userId: user?.id,
       });
       const { url } = res?.data ?? res;
-      if (!url) throw new Error('URL Stripe manquante');
+      if (!url) throw new Error(t('ext.subscription_url_missing'));
       await WebBrowser.openBrowserAsync(url);
       // Rafraîchir après retour
       await loadSubscription();
@@ -268,31 +270,26 @@ export default function SubscriptionScreen() {
     }
   }, [user?.id, t, loadSubscription]);
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback(async () => {
     if (!subscription?.id) return;
-    Alert.alert(
-      t('subscription.cancel_title'),
-      t('subscription.cancel_confirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('subscription.cancel_confirm_btn'),
-          style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              await api.delete(`/subscription/${subscription.id}`);
-              showSocketToast(t('subscription.cancelled'), 'success');
-              setSubscription(prev => prev ? { ...prev, status: 'CANCELLED' } : null);
-            } catch (e: any) {
-              showSocketToast(e?.message || t('common.error'), 'error');
-            } finally {
-              setCancelling(false);
-            }
-          },
-        },
-      ]
-    );
+    const ok = await feedback.confirm({
+      titleKey: 'subscription.cancel_title',
+      messageKey: 'subscription.cancel_confirm',
+      confirmKey: 'subscription.cancel_confirm_btn',
+      cancelKey: 'common.cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+    setCancelling(true);
+    try {
+      await api.delete(`/subscription/${subscription.id}`);
+      showSocketToast(t('subscription.cancelled_msg'), 'success');
+      setSubscription(prev => prev ? { ...prev, status: 'CANCELLED' } : null);
+    } catch (e: any) {
+      showSocketToast(e?.message || t('common.error'), 'error');
+    } finally {
+      setCancelling(false);
+    }
   }, [subscription?.id, t]);
 
   if (loading) {
@@ -330,18 +327,18 @@ export default function SubscriptionScreen() {
           <View style={[s.currentCard, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
             <View style={s.currentRow}>
               <View>
-                <Text style={[s.currentLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>Abonnement actuel</Text>
+                <Text style={[s.currentLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('ext.subscription_actual')}</Text>
                 <Text style={[s.currentPlan, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{subscription.planName}</Text>
               </View>
               <StatusChip status={subscription.status} />
             </View>
             <View style={s.currentMeta}>
               <Text style={[s.currentMetaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                Depuis le {new Date(subscription.startDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {t('ext.subscription_since')} {new Date(subscription.startDate).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
               </Text>
               {subscription.endDate && (
                 <Text style={[s.currentMetaText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                  Fin le {new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {t('ext.subscription_end')} {new Date(subscription.endDate).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
                 </Text>
               )}
             </View>
@@ -362,12 +359,12 @@ export default function SubscriptionScreen() {
         ) : (
           <View style={[s.noPlanCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
             <Feather name="credit-card" size={36} color={theme.textVeryMuted} />
-            <Text style={[s.noPlanTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucun abonnement actif</Text>
-            <Text style={[s.noPlanSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Choisissez un plan pour accéder aux clients premium.</Text>
+            <Text style={[s.noPlanTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.subscription_no_active')}</Text>
+            <Text style={[s.noPlanSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.subscription_no_active_sub')}</Text>
           </View>
         )}
 
-        <Text style={[s.plansTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Nos plans</Text>
+        <Text style={[s.plansTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.subscription_our_plans')}</Text>
 
         {PLANS.map(plan => (
           <PlanCard
@@ -380,11 +377,11 @@ export default function SubscriptionScreen() {
         ))}
 
         <Text style={[s.legal, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-          En vous abonnant, vous acceptez nos {' '}
+          {t('ext.subscription_legal_prefix')} {' '}
           <Text style={[s.legalLink, { color: theme.textSub, fontFamily: FONTS.sansMedium }]} onPress={() => router.push('/settings/cgu' as any)}>
-            Conditions Générales
+            {t('ext.subscription_legal_link')}
           </Text>
-          . Les paiements sont sécurisés par Stripe.
+          {t('ext.subscription_legal_suffix')}
         </Text>
 
       </ScrollView>

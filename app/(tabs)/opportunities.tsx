@@ -5,14 +5,14 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, SafeAreaView, Animated, StatusBar,
-  ActivityIndicator, Alert, ScrollView,
+  ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 
 const NET_RATE = 0.80;
 
@@ -71,7 +71,7 @@ function OpportunityCard({
       Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }),
     ]).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     onAccept(item.id);
   };
 
@@ -168,7 +168,7 @@ export default function OpportunitiesScreen() {
       const data = res?.data ?? res;
       setOpportunities(Array.isArray(data) ? data : data?.data ?? []);
     } catch (e) {
-      Alert.alert('Erreur', 'Impossible de charger les opportunités.');
+      feedback.error('Impossible de charger les opportunités.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -206,7 +206,7 @@ export default function OpportunitiesScreen() {
     setAccepting(requestId);
     try {
       await api.post(`/requests/${requestId}/accept`);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
       // Retirer de la liste
       setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
       // Toujours vers MissionView (ongoing), peu importe pricingMode
@@ -217,10 +217,10 @@ export default function OpportunitiesScreen() {
       // ne surface pas le message technique du backend, juste un feedback doux.
       if (code === 'INVALID_STATE' || code === 'ALREADY_TAKEN') {
         setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
-        Alert.alert('Mission plus disponible', 'Cette mission vient d\'être prise ou n\'est plus active.');
+        feedback.error('Cette mission vient d\'être prise ou n\'est plus active.');
       } else {
         const msg = e?.response?.data?.message || e?.message || 'Erreur';
-        Alert.alert('Impossible', msg);
+        feedback.error(msg);
       }
     } finally {
       setAccepting(null);
@@ -232,7 +232,7 @@ export default function OpportunitiesScreen() {
       await api.post(`/requests/${requestId}/refuse`);
       // Also notify via socket for real-time tracking
       socket?.emit('request:decline', { requestId });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      feedback.haptic('light');
       setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
     } catch {
       // Silently remove from list even if API fails

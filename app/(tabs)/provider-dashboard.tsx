@@ -12,10 +12,9 @@ import {
   Easing,
   StatusBar,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
@@ -161,6 +160,7 @@ function IncomingJobCard({
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const slideUp    = useRef(new Animated.Value(400)).current;
@@ -236,7 +236,7 @@ function IncomingJobCard({
         {/* Timer row: "NOUVELLE MISSION" / "DERNIÈRE CHANCE" + ring */}
         <View style={jc.timerRow}>
           <Text style={[jc.newLabel, { color: expired ? COLORS.red : COLORS.amber }]}>
-            {expired ? 'DERNIÈRE CHANCE' : 'NOUVELLE MISSION'}
+            {expired ? t('provider.last_chance') : t('mission_sheet.new_mission')}
           </Text>
           {!expired && (
             <View style={jc.timerWrap}>
@@ -255,7 +255,7 @@ function IncomingJobCard({
           <View style={[jc.badge, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.2)' }]}>
             <Animated.View style={[jc.badgeDot, { opacity: badgePulse }]} />
             <Text style={jc.badgeText}>
-              {isQuote ? 'DEVIS — DIAGNOSTIC SUR PLACE' : 'PRIX FIXE'}
+              {isQuote ? t('provider.badge_quote') : t('provider.badge_fixed')}
             </Text>
           </View>
         </View>
@@ -271,7 +271,7 @@ function IncomingJobCard({
               <Feather name="map-pin" size={15} color={theme.textMuted} />
             </View>
             <View style={jc.infoContent}>
-              <Text style={[jc.infoLabel, { color: labelCol }]}>ADRESSE</Text>
+              <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.address_label')}</Text>
               <Text style={[jc.infoValue, { color: valueCol }]} numberOfLines={1}>
                 <Text style={{ color: boldCol, fontFamily: FONTS.sansMedium }}>{addrBold}</Text>
                 {addrRest}
@@ -291,7 +291,7 @@ function IncomingJobCard({
               <Feather name="user" size={15} color={theme.textMuted} />
             </View>
             <View style={jc.infoContent}>
-              <Text style={[jc.infoLabel, { color: labelCol }]}>CLIENT</Text>
+              <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.client_label')}</Text>
               <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]}>
                 {request.client.name}{request.client.city ? ` · ${request.client.city}` : ''}
               </Text>
@@ -305,8 +305,8 @@ function IncomingJobCard({
                 <Feather name="credit-card" size={15} color={COLORS.amber} />
               </View>
               <View style={jc.infoContent}>
-                <Text style={[jc.infoLabel, { color: labelCol }]}>FRAIS DE DÉPLACEMENT</Text>
-                <Text style={[jc.infoValue, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>Garanti à réception</Text>
+                <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.callout_fee_label')}</Text>
+                <Text style={[jc.infoValue, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>{t('provider.callout_guaranteed')}</Text>
               </View>
               {request.calloutFee != null && request.calloutFee > 0 && (
                 <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
@@ -320,8 +320,8 @@ function IncomingJobCard({
                 <Feather name="credit-card" size={15} color={COLORS.greenBrand} />
               </View>
               <View style={jc.infoContent}>
-                <Text style={[jc.infoLabel, { color: labelCol }]}>GAINS ESTIMÉS</Text>
-                <Text style={[jc.infoValue, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>Net après commission</Text>
+                <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.estimated_earnings')}</Text>
+                <Text style={[jc.infoValue, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>{t('provider.net_after_commission')}</Text>
               </View>
               <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
                 <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{netPrice} €</Text>
@@ -333,14 +333,14 @@ function IncomingJobCard({
         {/* CTA */}
         <View style={jc.ctaArea}>
           <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: ctaBg }]} onPress={onAccept} activeOpacity={0.85}>
-            <Text style={[jc.acceptText, { color: ctaText }]}>ACCEPTER</Text>
+            <Text style={[jc.acceptText, { color: ctaText }]}>{t('provider.accept').toUpperCase()}</Text>
             <Animated.View style={{ transform: [{ translateX: arrowAnim }] }}>
               <Feather name="arrow-right" size={18} color={ctaText} />
             </Animated.View>
           </TouchableOpacity>
           <TouchableOpacity style={jc.passBtn} onPress={onDecline} activeOpacity={0.7}>
             <Text style={[jc.passText, { color: expired ? COLORS.red : passCol }]}>
-              {expired ? 'REFUSER' : 'Passer'}
+              {expired ? t('missions.cancel').toUpperCase() : t('provider.decline')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -850,7 +850,7 @@ export default function ProviderDashboard() {
     const handleNewRequest = (data: any) => {
       const rid = String(data.requestId ?? data.id);
       if (declinedIdsRef.current.has(rid)) return; // already declined, ignore rebroadcast
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      feedback.haptic('warning');
       const lat = data.latitude ?? data.lat;
       const lng = data.longitude ?? data.lng;
       const req: IncomingRequest = {
@@ -910,7 +910,7 @@ export default function ProviderDashboard() {
     const next = !isOnline;
     isOnlineRef.current = next;
     setIsOnline(next);
-    Haptics.impactAsync(next ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    feedback.haptic(next ? 'medium' : 'light');
     if (socket) socket.emit('provider:set_status', { providerId: user.id, status: next ? 'READY' : 'OFFLINE' });
     if (!next) setIncomingRequests([]);
     if (next && location) {
@@ -925,7 +925,7 @@ export default function ProviderDashboard() {
     try {
       const res: any = await api.post(`/requests/${request.requestId}/accept`);
       if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        feedback.haptic('success');
         setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
 
         // Mission planifiée pour plus tard ? Pas de redirection vers /ongoing — la mission
@@ -935,25 +935,22 @@ export default function ProviderDashboard() {
         const isFutureScheduled = startTs != null && startTs > Date.now() + 30 * 60 * 1000;
 
         if (isFutureScheduled) {
-          Alert.alert(
-            'Mission acceptée',
-            'La mission est planifiée. Vous la retrouverez dans l\'onglet « À venir ». Vous serez notifié à l\'approche du rendez-vous.',
-          );
+          feedback.info('provider.mission_accepted_scheduled_msg');
         } else {
           router.replace(`/request/${request.requestId}/ongoing`);
         }
       } else {
-        throw new Error(res?.message || 'Erreur inconnue');
+        throw new Error(res?.message || t('common.error'));
       }
     } catch (err: any) {
       const code = err?.response?.data?.code || err?.data?.code;
       declinedIdsRef.current.add(request.requestId);
       setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
       if (code === 'INVALID_STATE' || code === 'ALREADY_TAKEN') {
-        Alert.alert('Mission plus disponible', 'Cette mission vient d\u2019être prise ou n\u2019est plus active.');
+        feedback.error('provider.mission_unavailable_msg');
       } else {
-        const msg = err?.message || err?.data?.message || 'Une erreur est survenue.';
-        Alert.alert('Impossible d\u2019accepter', msg);
+        const msg = err?.message || err?.data?.message || t('common.error');
+        feedback.error(msg);
       }
     }
   }, [user?.id, router]);
@@ -1128,14 +1125,14 @@ export default function ProviderDashboard() {
             onPress={() => router.push(`/request/${currentMission.id}/ongoing`)}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Reprendre la mission en cours"
+            accessibilityLabel={t('provider.resume_mission')}
           >
             <View style={[s.cmbDot, { backgroundColor: COLORS.greenBrand }]} />
             <Text style={[s.cmbLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-              EN COURS · #{currentMission.id}
+              {t('provider.mission_ongoing').toUpperCase()} · #{currentMission.id}
             </Text>
             <Text style={[s.cmbService, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-              {currentMission.serviceType || 'Mission'}
+              {currentMission.serviceType || t('missions.mission')}
             </Text>
             <Feather name="chevron-right" size={14} color={theme.textMuted} />
           </TouchableOpacity>

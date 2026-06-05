@@ -6,7 +6,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, SafeAreaView,
   Animated, Dimensions, Linking, Platform,
-  TextInput, ScrollView, Modal, Pressable, Alert,
+  TextInput, ScrollView, Modal, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -19,8 +19,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useSocket } from '@/lib/SocketContext';
 import { useCall } from '@/lib/webrtc/CallContext';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { translateCategory } from '@/lib/categoryLabel';
+import i18n from '@/lib/i18n';
+
+const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
+const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
 
 
 const { width } = Dimensions.get('window');
@@ -113,20 +119,22 @@ interface Opportunity {
   client: { name: string };
 }
 
-function formatScheduledDate(iso: string): { day: string; time: string; relative: string } {
+function formatScheduledDate(iso: string, tr?: (k: string, opts?: any) => string): { day: string; time: string; relative: string } {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const locale = getLocale();
 
-  const day = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const day = d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 
+  const T = tr || ((k: string) => k);
   let relative = '';
-  if (diffDays === 0) relative = "Aujourd'hui";
-  else if (diffDays === 1) relative = 'Demain';
-  else if (diffDays <= 7) relative = `Dans ${diffDays} jours`;
-  else relative = `Dans ${Math.ceil(diffDays / 7)} sem.`;
+  if (diffDays === 0) relative = T('stepper.today');
+  else if (diffDays === 1) relative = T('missions.tomorrow');
+  else if (diffDays <= 7) relative = T('missions.in_days', { n: diffDays });
+  else relative = T('missions.in_days', { n: diffDays });
 
   return { day, time, relative };
 }
@@ -138,12 +146,12 @@ function formatScheduledDate(iso: string): { day: string; time: string; relative
 
 const formatTime = (d?: string) => {
   if (!d) return null;
-  return new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
 };
 
 const formatMonthKey = (d?: string) => {
-  if (!d) return 'Inconnu';
-  return new Date(d).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
 };
 
 const isSameDay = (a: Date, b: Date) =>
@@ -151,17 +159,17 @@ const isSameDay = (a: Date, b: Date) =>
   a.getMonth()    === b.getMonth() &&
   a.getDate()     === b.getDate();
 
-const STATUS_CFG: Record<MissionStatus, { label: string; icon: string; active?: boolean; done?: boolean }> = {
-  PUBLISHED:       { label: 'Publie',            icon: 'radio',                    active: true },
-  ACCEPTED:        { label: 'Confirme',          icon: 'check-circle',             active: true },
-  ONGOING:         { label: 'En cours',          icon: 'zap',                      active: true },
-  DONE:            { label: 'Terminé',           icon: 'check-circle',             done: true },
-  CANCELLED:       { label: 'Annulé',            icon: 'x-circle' },
-  PENDING_PAYMENT: { label: 'Paiement',          icon: 'credit-card' },
-  EXPIRED:         { label: 'Expiré',            icon: 'clock' },
-  QUOTE_PENDING:   { label: 'Devis à envoyer',   icon: 'file-text',                active: true },
-  QUOTE_SENT:      { label: 'Devis envoyé',      icon: 'check-circle' },
-  QUOTE_ACCEPTED:  { label: 'Devis accepté',     icon: 'check-circle',             active: true },
+const STATUS_CFG: Record<MissionStatus, { labelKey: string; icon: string; active?: boolean; done?: boolean }> = {
+  PUBLISHED:       { labelKey: 'ext.missions_status_published',     icon: 'radio',                    active: true },
+  ACCEPTED:        { labelKey: 'ext.missions_status_accepted',      icon: 'check-circle',             active: true },
+  ONGOING:         { labelKey: 'ext.missions_status_ongoing',       icon: 'zap',                      active: true },
+  DONE:            { labelKey: 'ext.missions_status_done',          icon: 'check-circle',             done: true },
+  CANCELLED:       { labelKey: 'ext.missions_status_cancelled',     icon: 'x-circle' },
+  PENDING_PAYMENT: { labelKey: 'ext.missions_status_payment',       icon: 'credit-card' },
+  EXPIRED:         { labelKey: 'ext.missions_status_expired',       icon: 'clock' },
+  QUOTE_PENDING:   { labelKey: 'ext.missions_status_quote_pending', icon: 'file-text',                active: true },
+  QUOTE_SENT:      { labelKey: 'ext.missions_status_quote_sent',    icon: 'check-circle' },
+  QUOTE_ACCEPTED:  { labelKey: 'ext.missions_status_quote_accepted',icon: 'check-circle',             active: true },
 };
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -203,9 +211,12 @@ interface ConfirmModalProps {
 
 function ConfirmModal({
   visible, title, message,
-  confirmLabel = 'Confirmer', cancelLabel = 'Annuler',
+  confirmLabel, cancelLabel,
   onConfirm, onCancel,
 }: ConfirmModalProps) {
+  const { t: trI18n } = useTranslation();
+  const finalConfirm = confirmLabel ?? trI18n('common.confirm');
+  const finalCancel = cancelLabel ?? trI18n('common.cancel');
   const t = useAppTheme();
   const slideAnim = useRef(new Animated.Value(320)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -235,10 +246,10 @@ function ConfirmModal({
         {message ? <Text style={[cm.message, { color: t.textSub }]}>{message}</Text> : null}
         <View style={cm.actions}>
           <TouchableOpacity style={[cm.cancelBtn, { borderColor: t.border }]} onPress={onCancel} activeOpacity={0.75}>
-            <Text style={[cm.cancelLabel, { color: t.textSub }]}>{cancelLabel}</Text>
+            <Text style={[cm.cancelLabel, { color: t.textSub }]}>{finalCancel}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[cm.confirmBtn, { backgroundColor: t.accent }]} onPress={onConfirm} activeOpacity={0.75}>
-            <Text style={[cm.confirmLabel, { color: t.accentText }]}>{confirmLabel}</Text>
+            <Text style={[cm.confirmLabel, { color: t.accentText }]}>{finalConfirm}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -271,15 +282,19 @@ const cm = StyleSheet.create({
 // DAY PICKER
 // ============================================================================
 
-function buildDays(count = 10) {
-  const DAY_NAMES  = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+function buildDays(count = 10, tr?: (k: string) => string) {
+  const T = tr || ((k: string) => k);
+  const DAY_NAMES  = [
+    T('stepper.day_sun'), T('stepper.day_mon'), T('stepper.day_tue'),
+    T('stepper.day_wed'), T('stepper.day_thu'), T('stepper.day_fri'), T('stepper.day_sat'),
+  ];
   const result: { iso: string; dayName: string; dayNum: string; isToday: boolean }[] = [];
   for (let i = 0; i < count; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     result.push({
       iso:     d.toISOString().split('T')[0],
-      dayName: i === 0 ? 'Auj.' : DAY_NAMES[d.getDay()],
+      dayName: i === 0 ? T('stepper.today') : DAY_NAMES[d.getDay()],
       dayNum:  String(d.getDate()),
       isToday: i === 0,
     });
@@ -287,10 +302,10 @@ function buildDays(count = 10) {
   return result;
 }
 
-const DAYS = buildDays(10);
-
 function DayPicker({ selected, onSelect }: { selected: string | null; onSelect: (iso: string | null) => void }) {
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
+  const DAYS = useMemo(() => buildDays(10, tr), [tr]);
   return (
     <ScrollView
       horizontal
@@ -304,7 +319,7 @@ function DayPicker({ selected, onSelect }: { selected: string | null; onSelect: 
         onPress={() => onSelect(null)}
         activeOpacity={0.75}
       >
-        <Text style={[dp.chipLabel, { color: t.textSub }, selected === null && [dp.chipLabelSelected, { color: t.accentText }]]}>Tous</Text>
+        <Text style={[dp.chipLabel, { color: t.textSub }, selected === null && [dp.chipLabelSelected, { color: t.accentText }]]}>{tr('ext.missions_all')}</Text>
       </TouchableOpacity>
 
       {DAYS.map(day => {
@@ -351,6 +366,7 @@ const dp = StyleSheet.create({
 
 function EarningsBanner({ missions }: { missions: Mission[] }) {
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   const today   = new Date();
   const todayMs = missions.filter(m => {
     const d = m.scheduledAt || m.createdAt;
@@ -371,8 +387,8 @@ function EarningsBanner({ missions }: { missions: Mission[] }) {
         <Feather name="zap" size={14} color={t.textSub} />
         <Text style={[eb.text, { color: t.textSub }]}>
           {todayMs.length > 0
-            ? `${todayMs.length} mission${todayMs.length > 1 ? 's' : ''} aujourd'hui`
-            : 'Journee completee'}
+            ? `${todayMs.length} ${tr('missions.today_count')}`
+            : tr('missions.day_complete')}
         </Text>
       </View>
       {doneTodayEarnings > 0 && (
@@ -407,11 +423,12 @@ function MissionCard({
   onComplete: () => void;
 }) {
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   const cfg      = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const net      = mission.price * NET_RATE;
   const dateStr  = mission.scheduledAt || mission.createdAt;
   const time     = formatTime(dateStr);
-  const address  = mission.location?.address || mission.address || 'Adresse inconnue';
+  const address  = mission.location?.address || mission.address || tr('provider.unknown_address');
   const isActive = cfg.active ?? false;
   const canComplete = mission.status === 'ONGOING';
   const canNavigate = isActive && !!(mission.lat || mission.location?.lat);
@@ -459,7 +476,7 @@ function MissionCard({
         <View style={mc.footer}>
           <View style={[mc.badge, { backgroundColor: badgeBg }]}>
             <Feather name={cfg.icon as any} size={10} color={badgeColor} />
-            <Text style={[mc.badgeText, { color: badgeColor }]}>{cfg.label}</Text>
+            <Text style={[mc.badgeText, { color: badgeColor }]}>{tr(cfg.labelKey)}</Text>
           </View>
 
           <View style={mc.quickActions}>
@@ -566,12 +583,13 @@ const fb = StyleSheet.create({
 
 function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: () => void; dayEarnings?: number }) {
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   if (tab === 'history') {
     return (
       <View style={es.wrap}>
         <Feather name="clock" size={40} color={t.textMuted} />
-        <Text style={[es.title, { color: t.text }]}>Aucun historique</Text>
-        <Text style={[es.sub, { color: t.textMuted }]}>Vos missions terminees apparaitront ici.</Text>
+        <Text style={[es.title, { color: t.text }]}>{tr('missions.no_history')}</Text>
+        <Text style={[es.sub, { color: t.textMuted }]}>{tr('missions.history_appear_here')}</Text>
       </View>
     );
   }
@@ -583,8 +601,8 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
           <Feather name="check" size={32} color={t.accentText} />
         </View>
         <Text style={[es.heroAmount, { color: t.text }]}>+{formatEuros(dayEarnings)}</Text>
-        <Text style={[es.title, { color: t.text }]}>Journee completee</Text>
-        <Text style={[es.sub, { color: t.textMuted }]}>Excellent travail. Vos gains sont en cours de traitement.</Text>
+        <Text style={[es.title, { color: t.text }]}>{tr('missions.day_complete')}</Text>
+        <Text style={[es.sub, { color: t.textMuted }]}>{tr('missions.day_earnings_sub')}</Text>
       </View>
     );
   }
@@ -594,11 +612,11 @@ function EmptyState({ tab, onGoOnline, dayEarnings }: { tab: Tab; onGoOnline: ()
       <View style={[es.iconWrap, { backgroundColor: t.surface }]}>
         <Feather name="navigation" size={44} color={t.textMuted} />
       </View>
-      <Text style={[es.title, { color: t.text }]}>Aucune mission a venir</Text>
-      <Text style={[es.sub, { color: t.textMuted }]}>Passez en ligne pour commencer a recevoir des missions.</Text>
+      <Text style={[es.title, { color: t.text }]}>{tr('missions.no_upcoming')}</Text>
+      <Text style={[es.sub, { color: t.textMuted }]}>{tr('missions.go_online_sub')}</Text>
       <TouchableOpacity style={[es.cta, { backgroundColor: t.accent }]} onPress={onGoOnline} activeOpacity={0.85}>
         <View style={[es.ctaDot, { backgroundColor: t.accentText }]} />
-        <Text style={[es.ctaText, { color: t.accentText }]}>Passer en ligne</Text>
+        <Text style={[es.ctaText, { color: t.accentText }]}>{tr('missions.go_online_cta')}</Text>
         <Feather name="arrow-right" size={16} color={t.accentText} />
       </TouchableOpacity>
     </View>
@@ -632,8 +650,9 @@ function OpportunityCard({
   onDecline: (id: number) => void;
   accepting: number | null;
 }) {
+  const { t: tr } = useTranslation();
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const { day, time, relative } = formatScheduledDate(item.preferredTimeStart);
+  const { day, time, relative } = formatScheduledDate(item.preferredTimeStart, tr);
   const net = item.price ? (item.price * NET_RATE).toFixed(0) : null;
 
   const handlePress = () => {
@@ -641,12 +660,12 @@ function OpportunityCard({
       Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }),
     ]).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     onAccept(item.id);
   };
 
   const handleDecline = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     onDecline(item.id);
   };
 
@@ -656,7 +675,7 @@ function OpportunityCard({
         <View style={opp.cardHead}>
           <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
             <Feather name={getServiceIcon(item.category.name) as any} size={14} color={theme.text} />
-            <Text style={[opp.catBadgeText, { color: theme.text }]}>{item.category.name}</Text>
+            <Text style={[opp.catBadgeText, { color: theme.text }]}>{translateCategory(tr, item.category)}</Text>
           </View>
           <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
             <Text style={[opp.relText, { color: theme.textSub }]}>{relative}</Text>
@@ -689,7 +708,7 @@ function OpportunityCard({
           {net ? (
             <View>
               <Text style={[opp.priceNet, { color: theme.text }]}>{net} €</Text>
-              <Text style={[opp.priceLabel, { color: theme.textMuted }]}>net estime</Text>
+              <Text style={[opp.priceLabel, { color: theme.textMuted }]}>{tr('ext.missions_net_estimate')}</Text>
             </View>
           ) : (
             <View />
@@ -700,10 +719,10 @@ function OpportunityCard({
               onPress={handleDecline}
               disabled={accepting !== null}
               activeOpacity={0.7}
-              accessibilityLabel="Refuser"
+              accessibilityLabel={tr('ext.missions_refuse')}
             >
               <Feather name="x" size={18} color={theme.textSub} />
-              <Text style={[opp.declineText, { color: theme.textSub }]}>Refuser</Text>
+              <Text style={[opp.declineText, { color: theme.textSub }]}>{tr('ext.missions_refuse')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[opp.acceptBtn, { backgroundColor: theme.accent }]}
@@ -716,7 +735,7 @@ function OpportunityCard({
               ) : (
                 <>
                   <Feather name="check-circle" size={18} color={theme.accentText} />
-                  <Text style={[opp.acceptText, { color: theme.accentText }]}>Accepter</Text>
+                  <Text style={[opp.acceptText, { color: theme.accentText }]}>{tr('provider.accept')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -790,10 +809,11 @@ function TabBar({ tab, onChange, upcomingCount, opportunityCount }: {
   tab: Tab; onChange: (t: Tab) => void; upcomingCount: number; opportunityCount: number;
 }) {
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   const indicatorX = useRef(new Animated.Value(0)).current;
 
   const TAB_INDEX: Record<Tab, number> = { opportunities: 0, upcoming: 1, history: 2 };
-  const TAB_LABELS: Record<Tab, string> = { opportunities: 'Opportunites', upcoming: 'A venir', history: 'Historique' };
+  const TAB_LABELS: Record<Tab, string> = { opportunities: tr('missions.tab_opportunities'), upcoming: tr('missions.tab_upcoming'), history: tr('missions.tab_history') };
 
   useEffect(() => {
     Animated.spring(indicatorX, { toValue: TAB_INDEX[tab], tension: 220, friction: 22, useNativeDriver: false }).start();
@@ -844,6 +864,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   mission: Mission; onNavigate: () => void; onComplete: () => void; onViewFull: () => void;
 }) {
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { initiateCall } = useCall();
@@ -859,8 +880,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const createdAt   = mission.createdAt  ? new Date(mission.createdAt)  : null;
   const scheduledAt = mission.scheduledAt ? new Date(mission.scheduledAt) : null;
 
-  const fmtT = (d: Date | null) => d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
-  const fmtD = (d: Date | null) => d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '—';
+  const fmtT = (d: Date | null) => d ? d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmtD = (d: Date | null) => d ? d.toLocaleDateString(getLocale(), { day: 'numeric', month: 'long' }) : '—';
 
   const badgeBg    = cfg.done ? t.surface : cfg.active ? t.accent : t.surface;
   const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
@@ -891,13 +912,13 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           {/* Badge statut flottant */}
           <View style={[sd.mapStatusPill, { backgroundColor: badgeBg }]}>
             <Feather name={cfg.icon as any} size={10} color={badgeColor} />
-            <Text style={[sd.mapStatusText, { color: badgeColor }]}>{cfg.label}</Text>
+            <Text style={[sd.mapStatusText, { color: badgeColor }]}>{tr(cfg.labelKey)}</Text>
           </View>
         </View>
       ) : (
         <View style={[sd.mapFallback, { backgroundColor: t.surface }]}>
           <Feather name="map" size={24} color={t.textMuted} />
-          <Text style={[sd.mapFallbackText, { color: t.textMuted }]}>{address || 'Adresse non disponible'}</Text>
+          <Text style={[sd.mapFallbackText, { color: t.textMuted }]}>{address || tr('ext.missions_no_address')}</Text>
         </View>
       )}
 
@@ -916,16 +937,16 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {/* Gains */}
         <View style={[sd.earningsBlock, { backgroundColor: t.surfaceAlt }]}>
           <View>
-            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>Gain net</Text>
+            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('missions.net_gain')}</Text>
             {mission.price > 0 ? (
               <Text style={[sd.earningsNet, { color: t.text }]}>{formatEuros(net)}</Text>
             ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>Prix a confirmer</Text>
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>{tr('missions.price_tbd')}</Text>
             )}
           </View>
           <View style={[sd.earningsDivider, { backgroundColor: t.border }]} />
           <View>
-            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>Brut client</Text>
+            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('ext.missions_gross_client')}</Text>
             {mission.price > 0 ? (
               <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(mission.price)}</Text>
             ) : (
@@ -940,12 +961,12 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {/* Chronologie */}
         {(createdAt || scheduledAt) && (
           <>
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Chronologie</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('missions.timeline')}</Text>
             {createdAt && (
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Commande passee · {fmtD(createdAt)} · {fmtT(createdAt)}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>{tr('missions.order_placed')} · {fmtD(createdAt)} · {fmtT(createdAt)}</Text>
                 </View>
               </View>
             )}
@@ -953,7 +974,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.text} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Confirmée</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>{tr('missions.confirmed_action')}</Text>
                 </View>
               </View>
             )}
@@ -961,14 +982,14 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.textMuted} /></View>
                 <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>Depart prevu · {fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
+                  <Text style={[sd.infoValue, { color: t.text }]}>{tr('missions.departure_planned')} · {fmtD(scheduledAt)} · {fmtT(scheduledAt)}</Text>
                 </View>
               </View>
             )}
             <View style={sd.infoRow}>
               <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="circle" size={10} color={t.textMuted} /></View>
               <View style={sd.infoContent}>
-                <Text style={[sd.infoValue, { color: t.textMuted }]}>Terminée</Text>
+                <Text style={[sd.infoValue, { color: t.textMuted }]}>{tr('missions.finished_action')}</Text>
               </View>
             </View>
             <View style={[sd.sep, { backgroundColor: t.border }]} />
@@ -978,7 +999,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {/* Adresse + description */}
         {(address || mission.description) && (
           <>
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Details mission</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('missions.mission_details')}</Text>
             {address ? (
               <View style={sd.infoRow}>
                 <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="map-pin" size={12} color={t.textMuted} /></View>
@@ -1002,7 +1023,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
         {/* Client card */}
         {mission.client && (
           <>
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>Client</Text>
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('ext.missions_client')}</Text>
             <View style={sd.clientCard}>
               <ClientAvatar name={mission.client.name} size={44} />
               <View style={{ flex: 1 }}>
@@ -1056,7 +1077,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           <View style={sd.actionsBlock}>
             <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
               <Feather name="file-text" size={18} color={t.accentText} />
-              <Text style={[sd.navBtnText, { color: t.accentText }]}>Envoyer un devis</Text>
+              <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_send_quote')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1064,7 +1085,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           <View style={[sd.actionsBlock, { opacity: 0.6 }]}>
             <View style={[sd.navBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]}>
               <Feather name="clock" size={18} color={t.textMuted} />
-              <Text style={[sd.navBtnText, { color: t.textMuted }]}>En attente de réponse du client</Text>
+              <Text style={[sd.navBtnText, { color: t.textMuted }]}>{tr('missions.waiting_response')}</Text>
             </View>
           </View>
         )}
@@ -1072,7 +1093,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           <View style={sd.actionsBlock}>
             <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
               <Feather name="arrow-right" size={18} color={t.accentText} />
-              <Text style={[sd.navBtnText, { color: t.accentText }]}>Commencer la mission</Text>
+              <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_start_mission')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1081,7 +1102,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             {cfg.active && (
               <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
                 <Feather name="arrow-right" size={18} color={t.accentText} />
-                <Text style={[sd.navBtnText, { color: t.accentText }]}>Reprendre la mission</Text>
+                <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_resume_mission')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1161,6 +1182,7 @@ export default function Missions() {
   const [searchActive,    setSearchActive]    = useState(false);
   const [selectedDay,     setSelectedDay]     = useState<string | null>(null);
   const t = useAppTheme();
+  const { t: tr } = useTranslation();
 
   // Opportunity state
   const [opportunities,    setOpportunities]    = useState<Opportunity[]>([]);
@@ -1181,7 +1203,7 @@ export default function Missions() {
 
       const list: Mission[] = raw.map((r: any) => ({
         id:          String(r.id),
-        title:       r.serviceType || r.title || 'Mission',
+        title:       r.serviceType || r.title || tr('missions.mission'),
         serviceType: r.serviceType,
         description: r.description || '',
         price:       r.price || 0,
@@ -1198,7 +1220,7 @@ export default function Missions() {
       setMissions(list);
     } catch (e: any) {
       devError('Missions load error:', e);
-      setError('Erreur de chargement');
+      setError(tr('missions.load_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1222,17 +1244,17 @@ export default function Missions() {
     setAcceptingOpp(requestId);
     try {
       await api.post(`/requests/${requestId}/accept`);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
       setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
       await loadMissions();
     } catch (e: any) {
       const code = e?.response?.data?.code || e?.data?.code;
       if (code === 'INVALID_STATE' || code === 'ALREADY_TAKEN') {
         setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
-        Alert.alert('Mission plus disponible', 'Cette mission vient d\'être prise ou n\'est plus active.');
+        feedback.error('provider.mission_unavailable_msg');
       } else {
-        const msg = e?.response?.data?.message || e?.message || 'Erreur';
-        Alert.alert('Impossible', msg);
+        const msg = e?.response?.data?.message || e?.message || tr('common.error');
+        feedback.error(msg);
       }
     } finally {
       setAcceptingOpp(null);
@@ -1243,13 +1265,13 @@ export default function Missions() {
     // Remove immediately from local list (optimistic), then call backend to persist
     // the decline so the rebroadcast loop skips this provider for this request.
     setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     try {
       await api.post(`/requests/${requestId}/refuse`);
     } catch (e: any) {
       // Non-fatal: local state already updated. Just log for debugging.
-      const msg = e?.response?.data?.message || e?.message || 'Erreur';
-      Alert.alert('Refus enregistré localement', msg);
+      const msg = e?.response?.data?.message || e?.message || tr('common.error');
+      feedback.error(msg);
     }
   }, []);
 
@@ -1298,7 +1320,7 @@ export default function Missions() {
         const scheduled = new Date(m.scheduledAt!).getTime();
         if (now >= scheduled) {
           redirectedRef.current.add(m.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          feedback.haptic('success');
           router.replace({ pathname: '/request/[id]/ongoing', params: { id: m.id } });
           return;
         }
@@ -1325,7 +1347,7 @@ export default function Missions() {
 
   const historyFilterOptions = useMemo(() => {
     const months = new Set(historyMissions.map(m => formatMonthKey(m.createdAt)));
-    return [{ key: 'all', label: 'Tous' }, ...Array.from(months).map(m => ({ key: m, label: m }))];
+    return [{ key: 'all', label: tr('ext.missions_all') }, ...Array.from(months).map(m => ({ key: m, label: m }))];
   }, [historyMissions]);
 
   const filteredHistory = useMemo(() => {
@@ -1364,7 +1386,7 @@ export default function Missions() {
       const r   = raw?.data || raw;
       setSelectedMission({
         id:          String(r.id),
-        title:       r.serviceType || r.title || 'Mission',
+        title:       r.serviceType || r.title || tr('missions.mission'),
         serviceType: r.serviceType,
         description: r.description || '',
         price:       r.price || 0,
@@ -1463,10 +1485,10 @@ export default function Missions() {
           <View>
             {upcomingMissions.length > 0 && (
               <Text style={[s.headerSub, { color: t.textMuted }]}>
-                {upcomingMissions.length} MISSION{upcomingMissions.length > 1 ? 'S' : ''} À VENIR
+                {upcomingMissions.length} {tr('ext.missions_to_come_upper', { plural: upcomingMissions.length > 1 ? 'S' : '' })}
               </Text>
             )}
-            <Text style={[s.headerTitle, { color: t.text }]}>Missions</Text>
+            <Text style={[s.headerTitle, { color: t.text }]}>{tr('ext.missions_title')}</Text>
           </View>
           {!searchActive && (
             <TouchableOpacity
@@ -1484,7 +1506,7 @@ export default function Missions() {
             <Feather name="search" size={15} color={t.textMuted} style={{ marginLeft: 12 }} />
             <TextInput
               style={[s.searchInput, { color: t.text }]}
-              placeholder="Rechercher une mission..."
+              placeholder={tr('ext.missions_search_placeholder')}
               placeholderTextColor={t.textMuted}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -1512,9 +1534,9 @@ export default function Missions() {
         ) : opportunities.length === 0 ? (
           <View style={opp.emptyWrap}>
             <Feather name="search" size={48} color={t.textMuted} />
-            <Text style={[opp.emptyTitle, { color: t.text }]}>Aucune opportunite</Text>
+            <Text style={[opp.emptyTitle, { color: t.text }]}>{tr('ext.missions_no_opp_title')}</Text>
             <Text style={[opp.emptySub, { color: t.textSub }]}>
-              Les missions planifiees correspondant a vos competences apparaitront ici.
+              {tr('ext.missions_no_opp_sub')}
             </Text>
           </View>
         ) : (
@@ -1554,7 +1576,7 @@ export default function Missions() {
           <Feather name="alert-circle" size={15} color={t.text} />
           <Text style={[s.errorText, { color: t.text }]}>{error}</Text>
           <TouchableOpacity onPress={loadMissions}>
-            <Text style={[s.retryText, { color: t.text }]}>Réessayer</Text>
+            <Text style={[s.retryText, { color: t.text }]}>{tr('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1602,10 +1624,10 @@ export default function Missions() {
       {/* -- Modal confirmation "Terminer" -- */}
       <ConfirmModal
         visible={!!completeModal}
-        title="Terminer la mission ?"
-        message={completeModal ? `Confirmer la fin de "${completeModal.title}" ?` : undefined}
-        confirmLabel="Terminer"
-        cancelLabel="Pas encore"
+        title={tr('missions.complete_confirm') + ' ?'}
+        message={completeModal ? `${completeModal.title}` : undefined}
+        confirmLabel={tr('missions.complete_cta')}
+        cancelLabel={tr('common.cancel')}
         onConfirm={doConfirmComplete}
         onCancel={() => setCompleteModal(null)}
       />
