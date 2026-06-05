@@ -10,8 +10,6 @@ import {
   TouchableOpacity,
   Linking,
   ActivityIndicator,
-  ActionSheetIOS,
-  Alert,
   Platform,
   StatusBar,
   BackHandler,
@@ -34,12 +32,13 @@ import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import * as Haptics from 'expo-haptics';
+import { feedback } from '@/lib/feedback/feedback';
 import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { PulseDot } from '@/components/ui/PulseDot';
+import { useTranslation } from 'react-i18next';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -156,11 +155,11 @@ async function uploadMissionPhoto(
 
 type MissionStep = 1 | 2 | 3 | 4;
 
-const STEP_LABELS: Record<number, { title: string; icon: string }> = {
-  1: { title: 'Photo avant', icon: 'camera' },
-  2: { title: 'Code PIN', icon: 'key' },
-  3: { title: 'Envoyer le devis', icon: 'file-text' },
-  4: { title: 'Photo après & Terminer', icon: 'check-circle' },
+const STEP_LABELS_CFG: Record<number, { i18nKey: string; icon: string }> = {
+  1: { i18nKey: 'ext.ongoing_step1_title', icon: 'camera' },
+  2: { i18nKey: 'ext.ongoing_step2_title', icon: 'key' },
+  3: { i18nKey: 'ext.ongoing_step3_title', icon: 'file-text' },
+  4: { i18nKey: 'ext.ongoing_step4_title', icon: 'check-circle' },
 };
 
 function StepIndicator({ current, total, theme }: { current: number; total: number; theme: ReturnType<typeof useAppTheme> }) {
@@ -247,6 +246,7 @@ const ac = StyleSheet.create({
 export default function MissionOngoing() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { socket, joinRoom, leaveRoom } = useSocket();
   const { user: authUser } = useAuth();
   const theme = useAppTheme();
@@ -309,7 +309,8 @@ export default function MissionOngoing() {
 
       if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
         if (attempt < RETRY_MAX) { setLoading(true); await sleep(RETRY_DELAY); return loadRequest(attempt + 1); }
-        Alert.alert('Mission non disponible', "La mission n'a pas pu être confirmée.", [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }]);
+        feedback.error('missions.load_error');
+        router.replace('/(tabs)/dashboard');
         return;
       }
 
@@ -345,7 +346,8 @@ export default function MissionOngoing() {
         } catch { /* no quote yet */ }
       }
     } catch {
-      Alert.alert('Erreur', 'Impossible de charger la mission', [{ text: 'Retour', onPress: () => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); } }]);
+      feedback.error('missions.load_error');
+      router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
     } finally {
       setLoading(false);
     }
@@ -445,55 +447,46 @@ export default function MissionOngoing() {
 
   const handleCall = () => {
     if (request?.client?.phone) Linking.openURL(`tel:${request.client.phone}`);
-    else Alert.alert('Indisponible', "Le numéro du client n'est pas disponible.");
+    else feedback.error('mission_view.phone_unavailable');
   };
 
-  const openActionsMenu = useCallback(() => {
+  const openActionsMenu = useCallback(async () => {
     const goSupport = () => router.push('/settings/help');
     // Safety valve : si le provider est bloqué sur une mission anormale (pas de PIN,
-    // données manquantes...), il doit pouvoir sortir proprement. On confirme, on log
-    // un ticket support en background, et on retourne au dashboard. Le statut DB reste
-    // inchangé — l'admin (ou le script cleanupZombieMissions) fera le ménage côté serveur.
-    const abandonMission = () => {
-      Alert.alert(
-        'Abandonner cette mission ?',
-        'Utilisez cette option uniquement si la mission est anormale (code PIN absent, client injoignable, données manquantes). Le support sera notifié.',
-        [
-          { text: 'Garder la mission', style: 'cancel' },
-          {
-            text: 'Abandonner',
-            style: 'destructive',
-            onPress: () => {
-              // Best-effort backend notify (non bloquant)
-              api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' })
-                .catch(() => { /* ignored — fallback frontend-only escape */ });
-              router.replace('/(tabs)/dashboard');
-            },
-          },
-        ],
-        { cancelable: true }
-      );
+    // données manquantes...), il doit pouvoir sortir proprement. Le backend libère
+    // la mission (status → PUBLISHED, providerId → null) et reset le prestataire à
+    // ONLINE pour qu'il puisse recevoir d'autres missions immédiatement. Le client
+    // est notifié qu'on cherche un autre prestataire.
+    const abandonMission = async () => {
+      const ok = await feedback.confirm({
+        titleKey: 'missions.abandon_title',
+        messageKey: 'missions.abandon_msg',
+        confirmKey: 'missions.abandon_short',
+        cancelKey: 'missions.keep_mission',
+        destructive: true,
+      });
+      if (!ok) return;
+      // Optimiste : on rentre au dashboard sans attendre. Le backend traite
+      // l'abandon (release providerId + status PUBLISHED + provider ONLINE).
+      router.replace('/(tabs)/dashboard');
+      api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' })
+        .catch((err) => {
+          // Network down : la mission reste assignée DB-side. L'opérateur
+          // pourra réessayer ; le cron cleanupZombieMissions filet de sécurité.
+          console.warn('[abandon] backend release failed, will retry via cron', err?.message);
+        });
     };
 
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Annuler', 'Contacter le support', 'Abandonner cette mission'],
-          cancelButtonIndex: 0,
-          destructiveButtonIndex: 2,
-        },
-        (idx: number) => {
-          if (idx === 1) goSupport();
-          else if (idx === 2) abandonMission();
-        },
-      );
-      return;
-    }
-    Alert.alert('Options', undefined, [
-      { text: 'Contacter le support', onPress: goSupport },
-      { text: 'Abandonner cette mission', style: 'destructive', onPress: abandonMission },
-      { text: 'Fermer', style: 'cancel' },
-    ], { cancelable: true });
+    const choice = await feedback.actionSheet({
+      titleKey: 'missions.options',
+      options: [
+        { labelKey: 'mission_view.contact_support' },
+        { labelKey: 'missions.cancel', destructive: true },
+      ],
+      cancelKey: 'common.close',
+    });
+    if (choice === 0) goSupport();
+    else if (choice === 1) abandonMission();
   }, [router, id]);
 
   const handleNavigate = async () => {
@@ -518,17 +511,17 @@ export default function MissionOngoing() {
   const handleBeforePhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Permission requise', 'Autorisez la caméra.'); return; }
+      if (status !== 'granted') { feedback.error('profile.camera_denied'); return; }
       const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
       if (result.canceled || !result.assets?.[0]?.uri) return;
       setActionLoading(true);
       try {
         await uploadMissionPhoto(id!, 'before', result.assets[0].uri, myLocation);
         setBeforePhotoUploaded(true);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        feedback.haptic('success');
       } catch (err: any) {
         devError('[ONGOING] Before photo:', err);
-        Alert.alert('Erreur', err.message || "Impossible d'envoyer la photo.");
+        feedback.error(err.message || t('ext.ongoing_photo_send_fail'));
       } finally { setActionLoading(false); }
     } catch (err) { devError('[ONGOING] Camera:', err); }
   };
@@ -549,19 +542,19 @@ export default function MissionOngoing() {
       setPinVerified(true);
       // Backend auto-starts the mission on PIN verify
       setRequest((p: any) => ({ ...p, status: 'ONGOING' }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      feedback.haptic('success');
     } catch (error: any) {
       const code = error?.data?.code;
       if (code === 'PIN_INCORRECT') {
-        Alert.alert('Code incorrect', error.data?.message || 'Réessayez.');
+        feedback.error(error.data?.message || t('common.retry'));
         setPin('');
         pinInputRef.current?.focus();
       } else if (code === 'PIN_EXPIRED') {
-        Alert.alert('Code expiré', 'Le code PIN a expiré.');
+        feedback.error('ext.ongoing_pin_expired_msg');
       } else if (code === 'PIN_MAX_ATTEMPTS') {
-        Alert.alert('Trop de tentatives', 'Contactez le support.');
+        feedback.error('ext.ongoing_pin_max_msg');
       } else {
-        Alert.alert('Erreur', error.message || 'Impossible de vérifier le code.');
+        feedback.error(error.message || t('ext.ongoing_pin_verify_fail'));
       }
     } finally { setActionLoading(false); }
   };
@@ -570,47 +563,46 @@ export default function MissionOngoing() {
   const handleAfterPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Permission requise', 'Autorisez la caméra.'); return; }
+      if (status !== 'granted') { feedback.error('profile.camera_denied'); return; }
       const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
       if (result.canceled || !result.assets?.[0]?.uri) return;
       setActionLoading(true);
       try {
         await uploadMissionPhoto(id!, 'after', result.assets[0].uri, myLocation);
         setAfterPhotoUploaded(true);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        feedback.haptic('success');
       } catch (err: any) {
         devError('[ONGOING] After photo:', err);
-        Alert.alert('Erreur', err.message || "Impossible d'envoyer la photo.");
+        feedback.error(err.message || t('ext.ongoing_photo_send_fail'));
       } finally { setActionLoading(false); }
     } catch (err) { devError('[ONGOING] Camera:', err); }
   };
 
   // Step 5: Complete
-  const handleComplete = () => {
-    Alert.alert('Terminer la mission', 'Confirmer que la mission est terminée ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Confirmer',
-        onPress: async () => {
-          setActionLoading(true);
-          // Marquer AVANT l'await : le backend émet le socket request:completed
-          // avant de répondre HTTP, donc SocketContext reçoit l'event pendant
-          // que l'await est en cours. Sans mark préalable, SocketContext
-          // schedule sa propre nav 900ms et on se retrouve avec 2 mounts.
-          markCompletionHandled(id);
-          try {
-            const response = await api.post(`/requests/${id}/complete`);
-            if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            const earnings = response.earnings ?? (request?.price * 0.80);
-            router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id), earnings: String(earnings) } });
-          } catch (error: any) {
-            if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
-            else Alert.alert('Erreur', error.data?.message || error.message || 'Une erreur est survenue.');
-          } finally { setActionLoading(false); }
-        },
-      },
-    ]);
+  const handleComplete = async () => {
+    const ok = await feedback.confirm({
+      titleKey: 'ext.ongoing_complete_title',
+      messageKey: 'ext.ongoing_complete_msg',
+      confirmKey: 'common.confirm',
+      cancelKey: 'common.cancel',
+    });
+    if (!ok) return;
+    setActionLoading(true);
+    // Marquer AVANT l'await : le backend émet le socket request:completed
+    // avant de répondre HTTP, donc SocketContext reçoit l'event pendant
+    // que l'await est en cours. Sans mark préalable, SocketContext
+    // schedule sa propre nav 900ms et on se retrouve avec 2 mounts.
+    markCompletionHandled(id);
+    try {
+      const response = await api.post(`/requests/${id}/complete`);
+      if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
+      feedback.event('mission_complete');
+      const earnings = response.earnings ?? (request?.price * 0.80);
+      router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id), earnings: String(earnings) } });
+    } catch (error: any) {
+      if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
+      else feedback.error(error.data?.message || error.message || t('ext.ongoing_complete_generic_error'));
+    } finally { setActionLoading(false); }
   };
 
   // ─── Computed ─────────────────────────────────────────────────────────────
@@ -620,7 +612,7 @@ export default function MissionOngoing() {
       <View style={[s.loadingWrap, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={[s.loadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>Chargement de la mission...</Text>
+        <Text style={[s.loadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -645,7 +637,8 @@ export default function MissionOngoing() {
   else if (isQuoteMission && status === 'QUOTE_SENT') currentStep = 3; // devis envoyé, attente client
   else currentStep = isQuoteMission ? 4 : 3;                       // photo après + terminer
 
-  const stepInfo = isQuoteMission ? STEP_LABELS[currentStep] : STEP_LABELS[currentStep === 3 ? 4 : currentStep];
+  const stepInfoRaw = isQuoteMission ? STEP_LABELS_CFG[currentStep] : STEP_LABELS_CFG[currentStep === 3 ? 4 : currentStep];
+  const stepInfo = { title: t(stepInfoRaw.i18nKey), icon: stepInfoRaw.icon };
 
   // ═════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -685,7 +678,7 @@ export default function MissionOngoing() {
           style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.8}
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('common.back')}
           accessibilityRole="button"
         >
           <Feather name="chevron-left" size={22} color={theme.text} />
@@ -704,7 +697,7 @@ export default function MissionOngoing() {
           style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
           onPress={openActionsMenu}
           activeOpacity={0.8}
-          accessibilityLabel="Options"
+          accessibilityLabel={t('missions.options')}
           accessibilityRole="button"
         >
           <Feather name="more-horizontal" size={22} color={theme.text} />
@@ -729,10 +722,10 @@ export default function MissionOngoing() {
           {/* Status pill + LIVE · GPS — aligné sur missionview tracking */}
           {(() => {
             const statusLabel =
-              status === 'ONGOING' ? (afterPhotoUploaded ? 'CLÔTURE' : 'INTERVENTION') :
-              status === 'QUOTE_SENT' ? 'DEVIS ENVOYÉ' :
-              status === 'QUOTE_ACCEPTED' ? 'DEVIS ACCEPTÉ' :
-              'EN ROUTE';
+              status === 'ONGOING' ? (afterPhotoUploaded ? t('missions.status_closure') : t('missions.status_intervention')) :
+              status === 'QUOTE_SENT' ? t('missions.status_quote_sent_short') :
+              status === 'QUOTE_ACCEPTED' ? t('missions.status_quote_accepted_short') :
+              t('missions.status_en_route');
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(59,130,246,0.10)' }}>
@@ -759,7 +752,7 @@ export default function MissionOngoing() {
                 {inRoute ? (
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 }}>
                     <Text style={{ fontFamily: FONTS.bebas, fontSize: 52, color: theme.text, lineHeight: 52, letterSpacing: -1 }}>{etaMin}</Text>
-                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>MIN AWAY</Text>
+                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>{t('mission_view.min_away')}</Text>
                   </View>
                 ) : (
                   <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, color: theme.text, marginBottom: 2 }}>
@@ -767,7 +760,7 @@ export default function MissionOngoing() {
                   </Text>
                 )}
                 <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }} numberOfLines={1}>
-                  {request.client?.name || 'Client'}{distance ? ` · ${distance} de chez vous` : ''}
+                  {request.client?.name || t('provider.client')}{distance ? ` · ${t('missions.distance_from_you', { distance })}` : ''}
                 </Text>
               </View>
             );
@@ -781,12 +774,12 @@ export default function MissionOngoing() {
             <Avatar url={request.client?.avatarUrl} name={request.client?.name} size={40} />
             <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
-                {request.client?.name || 'Client'}
+                {request.client?.name || t('provider.client')}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Feather name="user" size={11} color={theme.textMuted} />
                 <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.textMuted, letterSpacing: 0.6 }}>
-                  CLIENT FIXED
+                  {t('provider.client').toUpperCase()} FIXED
                 </Text>
               </View>
             </View>
@@ -795,7 +788,7 @@ export default function MissionOngoing() {
                 style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center' }}
                 onPress={handleCall}
                 activeOpacity={0.75}
-                accessibilityLabel="Appeler le client"
+                accessibilityLabel={t('missions.call_client_a11y')}
               >
                 <Feather name="phone" size={16} color="#fff" />
               </TouchableOpacity>
@@ -809,7 +802,7 @@ export default function MissionOngoing() {
                   }
                 }}
                 activeOpacity={0.75}
-                accessibilityLabel="Envoyer un message"
+                accessibilityLabel={t('missions.send_message_a11y')}
               >
                 <Feather name="message-circle" size={16} color={theme.text} />
                 {unreadFromClient > 0 && (
@@ -830,7 +823,7 @@ export default function MissionOngoing() {
                 style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
                 onPress={handleNavigate}
                 activeOpacity={0.75}
-                accessibilityLabel="Itinéraire"
+                accessibilityLabel={t('missions.directions_a11y')}
               >
                 <Feather name="navigation" size={16} color={theme.text} />
               </TouchableOpacity>
@@ -853,7 +846,7 @@ export default function MissionOngoing() {
           {/* Step header — label étape + indicateur barres */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
             <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>
-              ÉTAPE {currentStep}/{totalSteps}
+              {t('ext.ongoing_step_label', { current: currentStep, total: totalSteps })}
             </Text>
             <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textSub }} numberOfLines={1}>
               {stepInfo.title.toUpperCase()}
@@ -865,7 +858,7 @@ export default function MissionOngoing() {
 
           {/* STEP 1: Before photo */}
           {currentStep === 1 && (
-            <ActionCard icon="camera" title="Photo avant intervention" subtitle="Prenez une photo de l'état actuel avant de commencer" theme={theme}>
+            <ActionCard icon="camera" title={t('missions.photo_before_title')} subtitle={t('missions.photo_before_sub')} theme={theme}>
               <TouchableOpacity
                 style={[s.primaryBtn, { backgroundColor: theme.accent }, actionLoading && s.btnDisabled]}
                 onPress={handleBeforePhoto}
@@ -875,7 +868,7 @@ export default function MissionOngoing() {
                 {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
                   <>
                     <Feather name="camera" size={20} color={theme.accentText} />
-                    <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Ouvrir la caméra</Text>
+                    <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.open_camera')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -915,7 +908,7 @@ export default function MissionOngoing() {
                   activeOpacity={0.75}
                 >
                   {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
-                    <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Vérifier le code</Text>
+                    <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.verify_code')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -924,22 +917,22 @@ export default function MissionOngoing() {
 
           {/* STEP 3 (quote only): Send or wait for quote */}
           {currentStep === 3 && isQuoteMission && !hasQuote && (
-            <ActionCard icon="file-text" title="Envoyer le devis" subtitle="Après votre diagnostic, envoyez le devis au client" theme={theme}>
+            <ActionCard icon="file-text" title={t('missions.send_quote_card_title')} subtitle={t('missions.send_quote_card_sub')} theme={theme}>
               <TouchableOpacity
                 style={[s.primaryBtn, { backgroundColor: theme.accent }]}
                 onPress={() => router.push({ pathname: '/request/[id]/send-quote', params: { id: String(id) } })}
                 activeOpacity={0.75}
               >
                 <Feather name="file-text" size={20} color={theme.accentText} />
-                <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Rédiger le devis</Text>
+                <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.write_quote')}</Text>
               </TouchableOpacity>
             </ActionCard>
           )}
           {currentStep === 3 && isQuoteMission && hasQuote && status === 'QUOTE_SENT' && (
-            <ActionCard icon="clock" title="Devis envoyé" subtitle="En attente de la réponse du client" theme={theme}>
+            <ActionCard icon="clock" title={t('missions.quote_sent_card_title')} subtitle={t('missions.waiting_response')} theme={theme}>
               <View style={[s.primaryBtn, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}>
                 <Feather name="check-circle" size={20} color={COLORS.green} />
-                <Text style={[s.primaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>En attente de réponse</Text>
+                <Text style={[s.primaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('missions.waiting_response')}</Text>
               </View>
             </ActionCard>
           )}
@@ -948,13 +941,13 @@ export default function MissionOngoing() {
           {((currentStep === 3 && !isQuoteMission) || currentStep === 4) && (
             <ActionCard
               icon={afterPhotoUploaded ? 'check-circle' : 'camera'}
-              title={afterPhotoUploaded ? 'Terminer la mission' : 'Photo après intervention'}
-              subtitle={afterPhotoUploaded ? 'Confirmez la fin de la prestation' : 'Prenez une photo du résultat final'}
+              title={afterPhotoUploaded ? t('ext.ongoing_complete_card_title') : t('ext.ongoing_after_card_title')}
+              subtitle={afterPhotoUploaded ? t('ext.ongoing_complete_card_sub') : t('ext.ongoing_after_card_sub')}
               theme={theme}
             >
               <View style={[s.ongoingBadge, { backgroundColor: theme.badgeDoneBg }]}>
                 <View style={[s.liveDot, { backgroundColor: COLORS.green }]} />
-                <Text style={[s.ongoingBadgeText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>Mission en cours</Text>
+                <Text style={[s.ongoingBadgeText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>{t('missions.ongoing')}</Text>
               </View>
 
               {!afterPhotoUploaded ? (
@@ -967,7 +960,7 @@ export default function MissionOngoing() {
                   {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
                     <>
                       <Feather name="camera" size={20} color={theme.accentText} />
-                      <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Ouvrir la caméra</Text>
+                      <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.open_camera')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -981,7 +974,7 @@ export default function MissionOngoing() {
                   {actionLoading ? <ActivityIndicator color={theme.bg} /> : (
                     <>
                       <Feather name="check-circle" size={20} color={theme.bg} />
-                      <Text style={[s.successBtnText, { fontFamily: FONTS.sansMedium, color: theme.bg }]}>Terminer la mission</Text>
+                      <Text style={[s.successBtnText, { fontFamily: FONTS.sansMedium, color: theme.bg }]}>{t('missions.complete_cta')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
