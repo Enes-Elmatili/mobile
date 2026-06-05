@@ -2,24 +2,26 @@
 import React, { useEffect, useState, useRef } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
-  TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput,
+  TouchableOpacity, ScrollView, ActivityIndicator, TextInput,
   Animated, Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useStripe } from "@stripe/stripe-react-native";
-import * as Haptics from "expo-haptics";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { PulseDot } from '@/components/ui/PulseDot';
 import { devError } from "@/lib/logger";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { formatEURCents as fmtEur } from "@/lib/format";
+import { useTranslation } from "react-i18next";
 
 export default function QuoteReview() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { user } = useAuth();
@@ -49,7 +51,7 @@ export default function QuoteReview() {
         const reqRes: any = await api.requests.get(String(id));
         const request = reqRes?.data || reqRes;
         if (!request || request.clientId !== user?.id) {
-          Alert.alert("Accès refusé", "Vous n'êtes pas autorisé à voir ce devis.");
+          feedback.error(t('quote.access_denied'));
           router.replace("/(tabs)/documents");
           return;
         }
@@ -74,7 +76,7 @@ export default function QuoteReview() {
 
   const handleAccept = async () => {
     if (!quote) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setAccepting(true);
     try {
       const res: any = await api.quotes.accept(quote.id);
@@ -90,7 +92,7 @@ export default function QuoteReview() {
 
         if (initError) {
           devError("Payment init error:", initError);
-          Alert.alert("Erreur", "Impossible d'initialiser le paiement. Réessayez.");
+          feedback.error(t('common.retry'));
           return;
         }
 
@@ -98,7 +100,7 @@ export default function QuoteReview() {
         if (presentError) {
           if (presentError.code !== "Canceled") {
             devError("Payment error:", presentError.message);
-            Alert.alert("Erreur", "Le paiement a échoué. Réessayez.");
+            feedback.error(t('common.retry'));
           }
           // Payment cancelled or failed — status NOT changed on backend, safe to return
           return;
@@ -111,7 +113,7 @@ export default function QuoteReview() {
         await api.quotes.confirmPayment(quoteId, res.paymentIntent.id);
       }
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.event('quote_accepted');
       router.replace({
         pathname: "/request/[id]/missionview",
         params: {
@@ -124,7 +126,7 @@ export default function QuoteReview() {
       });
     } catch (e: any) {
       devError("Accept quote error:", e);
-      Alert.alert("Erreur", e?.message || "Impossible d'accepter le devis");
+      feedback.error(e?.message || t('common.error'));
     } finally {
       setAccepting(false);
     }
@@ -132,15 +134,15 @@ export default function QuoteReview() {
 
   const handleRefuse = async () => {
     if (!quote) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setRefusing(true);
     try {
       await api.post(`/quotes/${quote.id}/refuse`, { reason: refuseReason || undefined });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      feedback.haptic('warning');
       router.replace("/(tabs)/dashboard");
     } catch (e: any) {
       devError("Refuse quote error:", e);
-      Alert.alert("Erreur", e?.message || "Impossible de refuser le devis");
+      feedback.error(e?.message || t('common.error'));
     } finally {
       setRefusing(false);
     }
@@ -162,9 +164,9 @@ export default function QuoteReview() {
       <View style={[s.root, s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="file-text" size={48} color={theme.textMuted} />
-        <Text style={[s.emptyText, { color: theme.textSub }]}>Aucun devis reçu pour le moment</Text>
+        <Text style={[s.emptyText, { color: theme.textSub }]}>{t('quote.empty_no_quote_yet')}</Text>
         <TouchableOpacity style={s.emptyBack} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
-          <Text style={[s.emptyBackText, { color: theme.text }]}>Retour</Text>
+          <Text style={[s.emptyBackText, { color: theme.text }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -187,7 +189,7 @@ export default function QuoteReview() {
           >
             <Feather name="chevron-left" size={18} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: theme.text }]}>DEVIS</Text>
+          <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.short_label').toUpperCase()}</Text>
           <View style={{ width: 36 }} />
         </View>
       </SafeAreaView>
@@ -206,17 +208,17 @@ export default function QuoteReview() {
               s.badgeText,
               { color: expired ? COLORS.red : theme.textSub },
             ]}>
-              {expired ? "Devis expiré" : "En attente de votre réponse"}
+              {expired ? t('quote.expired') : t('quote.awaiting_response')}
             </Text>
           </View>
 
           {/* Quote detail card */}
           <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[s.cardTitle, { color: theme.textMuted }]}>Détail du devis</Text>
+            <Text style={[s.cardTitle, { color: theme.textMuted }]}>{t('quote.details')}</Text>
 
             {/* Labor */}
             <View style={s.row}>
-              <Text style={[s.rowLabel, { color: theme.textSub }]}>{"Main d'œuvre"}</Text>
+              <Text style={[s.rowLabel, { color: theme.textSub }]}>{t('quote.labor')}</Text>
               <Text style={[s.rowValue, { color: theme.text }]}>{fmtEur(quote.laborAmount)}</Text>
             </View>
 
@@ -224,7 +226,7 @@ export default function QuoteReview() {
             {quote.partsAmount > 0 && (
               <View style={s.row}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.rowLabel, { color: theme.textSub }]}>Pièces / Matériel</Text>
+                  <Text style={[s.rowLabel, { color: theme.textSub }]}>{t('quote.parts_materials')}</Text>
                   {quote.partsDetail ? (
                     <Text style={[s.rowDetail, { color: theme.textMuted }]}>{quote.partsDetail}</Text>
                   ) : null}
@@ -238,14 +240,14 @@ export default function QuoteReview() {
 
             {/* Total */}
             <View style={s.row}>
-              <Text style={[s.rowTotalLabel, { color: theme.text }]}>Total</Text>
+              <Text style={[s.rowTotalLabel, { color: theme.text }]}>{t('ext.invoice_total')}</Text>
               <Text style={[s.rowTotalValue, { color: theme.text }]}>{fmtEur(quote.totalAmount)}</Text>
             </View>
 
             {/* Callout credit */}
             {quote.calloutPaid > 0 && (
               <View style={s.row}>
-                <Text style={[s.rowLabel, { color: COLORS.green }]}>Acompte déjà payé</Text>
+                <Text style={[s.rowLabel, { color: COLORS.green }]}>{t('quote.deposit_paid')}</Text>
                 <Text style={[s.rowValue, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)}</Text>
               </View>
             )}
@@ -255,7 +257,7 @@ export default function QuoteReview() {
 
             {/* Remaining */}
             <View style={s.row}>
-              <Text style={[s.rowFinalLabel, { color: theme.text }]}>Reste à payer</Text>
+              <Text style={[s.rowFinalLabel, { color: theme.text }]}>{t('quote.remaining_to_pay')}</Text>
               <Text style={[s.rowFinalValue, { color: theme.text }]}>{fmtEur(quote.remainingAmount)}</Text>
             </View>
           </View>
@@ -263,7 +265,7 @@ export default function QuoteReview() {
           {/* Notes */}
           {quote.notes ? (
             <View style={[s.notesCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[s.cardTitle, { color: theme.textMuted }]}>Notes du prestataire</Text>
+              <Text style={[s.cardTitle, { color: theme.textMuted }]}>{t('quote.notes_from_provider')}</Text>
               <Text style={[s.notesText, { color: theme.textSub }]}>{quote.notes}</Text>
             </View>
           ) : null}
@@ -272,19 +274,19 @@ export default function QuoteReview() {
           <View style={s.expiryRow}>
             <Feather name="clock" size={13} color={theme.textMuted} />
             <Text style={[s.expiryText, { color: theme.textMuted }]}>
-              {"Valable jusqu'au "}{new Date(quote.validUntil).toLocaleDateString("fr-FR", {
+              {t('quote.valid_until', { date: new Date(quote.validUntil).toLocaleDateString(undefined, {
                 day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
-              })}
+              }) })}
             </Text>
           </View>
 
           {/* Refuse reason input */}
           {showRefuseInput && (
             <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[s.cardTitle, { color: theme.textMuted }]}>Raison du refus (optionnel)</Text>
+              <Text style={[s.cardTitle, { color: theme.textMuted }]}>{t('quote.refuse_reason_label')}</Text>
               <TextInput
                 style={[s.refuseInput, { backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }]}
-                placeholder="Expliquez pourquoi..."
+                placeholder={t('quote.refuse_reason_placeholder')}
                 placeholderTextColor={theme.textMuted}
                 value={refuseReason}
                 onChangeText={setRefuseReason}
@@ -298,7 +300,7 @@ export default function QuoteReview() {
                   onPress={() => setShowRefuseInput(false)}
                   activeOpacity={0.75}
                 >
-                  <Text style={[s.refuseCancelText, { color: theme.textSub }]}>Annuler</Text>
+                  <Text style={[s.refuseCancelText, { color: theme.textSub }]}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[s.refuseConfirmBtn, refusing && { opacity: 0.5 }]}
@@ -309,7 +311,7 @@ export default function QuoteReview() {
                   {refusing ? (
                     <ActivityIndicator size="small" color={COLORS.alwaysWhite} />
                   ) : (
-                    <Text style={s.refuseConfirmText}>Confirmer le refus</Text>
+                    <Text style={s.refuseConfirmText}>{t('quote.confirm_refusal')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -329,7 +331,7 @@ export default function QuoteReview() {
               onPress={() => setShowRefuseInput(true)}
               activeOpacity={0.75}
             >
-              <Text style={[s.refuseBtnText, { color: theme.textSub }]}>Refuser</Text>
+              <Text style={[s.refuseBtnText, { color: theme.textSub }]}>{t('quote.refuse_quote')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -342,7 +344,7 @@ export default function QuoteReview() {
                 <ActivityIndicator size="small" color={theme.accentText} />
               ) : (
                 <>
-                  <Text style={[s.acceptBtnText, { color: theme.accentText }]}>ACCEPTER</Text>
+                  <Text style={[s.acceptBtnText, { color: theme.accentText }]}>{t('quote.accept_cta')}</Text>
                   <Text style={[s.acceptBtnPrice, { color: theme.accentText }]}>
                     {fmtEur(quote.remainingAmount)}
                   </Text>

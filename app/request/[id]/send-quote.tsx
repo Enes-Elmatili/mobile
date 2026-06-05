@@ -2,21 +2,23 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
-  TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert,
+  TouchableOpacity, ScrollView, TextInput, ActivityIndicator,
   KeyboardAvoidingView, Animated, Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { devError } from "@/lib/logger";
 import { formatEURCents as fmtEur } from "@/lib/format";
+import { useTranslation } from "react-i18next";
 
 export default function SendQuote() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [labor, setLabor] = useState("");
@@ -61,7 +63,7 @@ export default function SendQuote() {
 
   const handleSend = useCallback(async () => {
     if (!canSend || !id) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     setSending(true);
     try {
       await api.post(`/quotes/${id}`, {
@@ -69,15 +71,11 @@ export default function SendQuote() {
         partsAmount: partsCents,
         notes: notes || undefined,
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Devis envoyé",
-        "Le client va examiner votre devis. Vous serez notifié de sa réponse.",
-        [{ text: "OK", onPress: () => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); } }],
-      );
+      feedback.success(t('quote.sent_msg'));
+      router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
     } catch (e: any) {
       devError("Send quote error:", e);
-      Alert.alert("Erreur", e?.message || "Impossible d'envoyer le devis");
+      feedback.error(e?.message || t('common.error'));
     } finally {
       setSending(false);
     }
@@ -97,7 +95,7 @@ export default function SendQuote() {
           >
             <Feather name="chevron-left" size={18} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: theme.text }]}>ENVOYER UN DEVIS</Text>
+          <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.send_quote_title')}</Text>
           <View style={{ width: 36 }} />
         </View>
       </SafeAreaView>
@@ -110,7 +108,7 @@ export default function SendQuote() {
         >
           {/* Main d'oeuvre */}
           <View style={s.field}>
-            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>{"Main d'œuvre"}</Text>
+            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>{t('quote.labor')}</Text>
             <View style={[
               s.inputWrap,
               { backgroundColor: theme.surface, borderColor: theme.border },
@@ -132,7 +130,7 @@ export default function SendQuote() {
 
           {/* Pièces / Matériel */}
           <View style={s.field}>
-            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>Pièces / Matériel</Text>
+            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>{t('missions.parts_materials')}</Text>
             <View style={[
               s.inputWrap,
               { backgroundColor: theme.surface, borderColor: theme.border },
@@ -154,14 +152,14 @@ export default function SendQuote() {
 
           {/* Notes */}
           <View style={s.field}>
-            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>Notes pour le client</Text>
+            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>{t('missions.notes_for_client')}</Text>
             <TextInput
               style={[
                 s.notesInput,
                 { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
                 focused === "notes" && { borderColor: theme.borderLight },
               ]}
-              placeholder="Diagnostic, durée estimée, remarques…"
+              placeholder={t('quote.send_quote_notes_placeholder')}
               placeholderTextColor={theme.textMuted}
               value={notes}
               onChangeText={setNotes}
@@ -184,7 +182,7 @@ export default function SendQuote() {
               }],
             },
           ]}>
-            <Text style={[s.totalLabel, { color: theme.textMuted }]}>Total du devis</Text>
+            <Text style={[s.totalLabel, { color: theme.textMuted }]}>{t('missions.quote_total')}</Text>
             <View style={s.totalAmountRow}>
               <Text style={[s.totalInt, { color: theme.text }]}>{totalInt}</Text>
               <Text style={[s.totalDec, { color: theme.textSub }]}>{totalDec}</Text>
@@ -193,7 +191,7 @@ export default function SendQuote() {
               <View style={s.calloutNote}>
                 <View style={[s.calloutDot, { backgroundColor: COLORS.green }]} />
                 <Text style={[s.calloutText, { color: theme.textSub }]}>
-                  Frais de déplacement {fmtEur(calloutFee)} déjà encaissés
+                  {t('quote.send_quote_callout_paid', { fee: fmtEur(calloutFee) })}
                 </Text>
               </View>
             )}
@@ -223,13 +221,13 @@ export default function SendQuote() {
                 s.ctaText,
                 { color: canSend ? theme.accentText : theme.textMuted },
               ]}>
-                ENVOYER LE DEVIS
+                {t('quote.send_quote_cta')}
               </Text>
               <Text style={[
                 s.ctaSub,
                 { color: canSend ? theme.accentText : theme.textMuted },
               ]}>
-                {canSend ? `${fmtEur(totalCents)} à facturer` : "Saisissez un montant"}
+                {canSend ? t('quote.send_quote_amount_to_invoice', { amount: fmtEur(totalCents) }) : t('quote.send_quote_cta_disabled')}
               </Text>
             </View>
           )}

@@ -24,8 +24,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useStripe } from '@stripe/stripe-react-native';
-import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+import { feedback } from '@/lib/feedback/feedback';
+import { translateCategory, translateSubcategory } from '@/lib/categoryLabel';
+import i18nInstance from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -294,8 +296,10 @@ const ls = StyleSheet.create({
 // ─── Category Card ─────────────────────────────────────────────────────────────
 function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: boolean; dimmed?: boolean; onPress: () => void }) {
   const t     = useTheme();
+  const { t: tr } = useTranslation();
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
+  const label = translateCategory(tr, cat);
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: dimmed ? 0.25 : 1, duration: 250, useNativeDriver: true }).start();
@@ -306,7 +310,7 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
       Animated.timing(scale, { toValue: 0.96, duration: 60, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 220, friction: 8 }),
     ]).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     onPress();
   };
 
@@ -320,7 +324,7 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
         ]}
         onPress={handlePress}
         activeOpacity={1}
-        accessibilityLabel={cat.name}
+        accessibilityLabel={label}
         accessibilityRole="button"
       >
         <View style={[cc.iconWrap, { backgroundColor: t.surface }, selected && [cc.iconWrapSelected, { backgroundColor: t.accent }]]}>
@@ -331,7 +335,7 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
           />
         </View>
         <Text style={[cc.name, { color: t.text }, selected && cc.nameSelected]} numberOfLines={1}>
-          {cat.name}
+          {label}
         </Text>
         {selected
           ? <View style={[cc.selectedDot, { backgroundColor: t.text }]} />
@@ -383,7 +387,7 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
       Animated.timing(scale, { toValue: 0.98, duration: 60, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1,    duration: 80, useNativeDriver: true }),
     ]).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     onPress();
   };
 
@@ -429,7 +433,7 @@ function TimeSlot({ label, selected, onPress }: { label: string; selected: boole
       Animated.timing(scale, { toValue: 0.92, duration: 60, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }),
     ]).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     onPress();
   };
 
@@ -476,7 +480,7 @@ function DayChip({ day, date, month, selected, onPress }: {
   return (
     <TouchableOpacity
       style={dc.wrap}
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+      onPress={() => { feedback.haptic('light'); onPress(); }}
       activeOpacity={0.7}
       accessibilityLabel={`${day} ${date} ${month}`}
       accessibilityRole="button"
@@ -508,38 +512,90 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
   labelStyle?: object;
   glow?:       boolean;
 }) {
-  const t     = useTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  const t        = useTheme();
+  const scale    = useRef(new Animated.Value(1)).current;
+  const pressDim = useRef(new Animated.Value(0)).current;
 
-  const springIn  = () => { if (disabled || loading) return; Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start(); };
-  const springOut = () => { Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start(); };
+  const springIn = () => {
+    if (disabled || loading) return;
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }),
+      Animated.timing(pressDim, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+  };
+  const springOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }),
+      Animated.timing(pressDim, { toValue: 0, duration: 140, useNativeDriver: true }),
+    ]).start();
+  };
   const handlePress = () => {
     if (disabled || loading) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    feedback.haptic('medium');
     onPress();
   };
+
+  // Raised tactile : drop shadow constant + glow halo coloré quand glow=true.
+  const tactileShadow = disabled
+    ? null
+    : {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 8,
+      };
+  const glowHalo = glow && !disabled
+    ? {
+        shadowColor: t.accent as string,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.45,
+        shadowRadius: 18,
+        elevation: 10,
+      }
+    : null;
 
   return (
     <View style={[cta.wrap, { backgroundColor: t.ctaBg, borderTopColor: t.ctaBorder }, wrapStyle]}>
       <Animated.View style={[
         { transform: [{ scale }], borderRadius: 55 },
-        glow && !disabled && {
-          shadowColor: t.accent as string,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.45,
-          shadowRadius: 18,
-          elevation: 10,
-        },
+        tactileShadow,
+        glowHalo,
       ]}>
         <Pressable
           onPressIn={springIn}
           onPressOut={springOut}
           onPress={handlePress}
           disabled={disabled || loading}
-          style={[cta.btn, { backgroundColor: t.accent }, disabled && [cta.btnDisabled, { opacity: 0.4 }]]}
+          style={[
+            cta.btn,
+            {
+              backgroundColor: t.accent,
+              // Top highlight = lumière qui frappe le bord supérieur.
+              // Bottom chamfer = épaisseur visible du bouton.
+              borderTopWidth: 1.5,
+              borderTopColor: 'rgba(255,255,255,0.45)',
+              borderBottomWidth: 1,
+              borderBottomColor: 'rgba(0,0,0,0.18)',
+              overflow: 'hidden',
+            },
+            disabled && [cta.btnDisabled, { opacity: 0.4 }],
+          ]}
           accessibilityLabel={label}
           accessibilityRole="button"
         >
+          {/* Press dim overlay — assombrit légèrement la pill au press */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: '#000',
+                opacity: pressDim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
+                borderRadius: 55,
+              },
+            ]}
+          />
           {loading ? (
             <ActivityIndicator color={t.accentText as string} />
           ) : (
@@ -602,10 +658,11 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
   pricingMode: string;
   theme: ReturnType<typeof useTheme>;
 }) {
+  const { t } = useTranslation();
   const steps = [
-    { num: '1', title: 'Visite de diagnostic', sub: 'Le prestataire arrive et évalue les travaux' },
-    { num: '2', title: 'Devis envoyé',         sub: 'Vous recevez une estimation détaillée in-app' },
-    { num: '3', title: 'Vous choisissez',      sub: 'Acceptez ou refusez sans obligation' },
+    { num: '1', title: t('ext.stepper_quote_step1_title'), sub: t('ext.stepper_quote_step1_sub') },
+    { num: '2', title: t('ext.stepper_quote_step2_title'), sub: t('ext.stepper_quote_step2_sub') },
+    { num: '3', title: t('ext.stepper_quote_step3_title'), sub: t('ext.stepper_quote_step3_sub') },
   ];
 
   return (
@@ -655,7 +712,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
             </View>
 
             <TouchableOpacity style={[dim.closeBtn, { backgroundColor: theme.accent }]} onPress={onClose} activeOpacity={0.85} accessibilityRole="button">
-              <Text style={[dim.closeBtnText, { color: theme.accentText, fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 }]}>Compris</Text>
+              <Text style={[dim.closeBtnText, { color: theme.accentText, fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 }]}>{t('stepper.understood')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -769,9 +826,9 @@ export default function NewRequestStepper() {
       setSavedAddresses(prev => [created, ...prev]);
       setShowSaveSheet(false);
       setSaveLabel('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      feedback.haptic('success');
     } catch {
-      Alert.alert(t('common.error'), t('addresses.max_reached'));
+      feedback.error(t('addresses.max_reached'));
     } finally {
       setSaving(false);
     }
@@ -890,7 +947,7 @@ export default function NewRequestStepper() {
   };
 
   const goNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    feedback.haptic('medium');
     // Save access info to user profile when leaving Step 3.
     // ⚠️ accessNotes EXCLU volontairement : c'est une info per-mission (digicode,
     // instructions ponctuelles) qui n'a pas vocation à devenir un défaut profil.
@@ -908,7 +965,7 @@ export default function NewRequestStepper() {
     animateStep(() => setStep((p) => Math.min(p + 1, TOTAL_STEPS)));
   };
   const goBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     if (step === 1) {
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/dashboard');
@@ -1113,11 +1170,8 @@ export default function NewRequestStepper() {
     }
     if (!mountedRef.current) return;
     // Paiement déjà prélevé côté Stripe → ne pas laisser l'utilisateur bloqué
-    Alert.alert(
-      t('stepper.payment_received'),
-      t('stepper.payment_retry'),
-      [{ text: t('common.retry'), onPress: () => { if (mountedRef.current) confirmPaymentSuccess(rId).then(goToMissionView); } }],
-    );
+    feedback.info(t('stepper.payment_retry'));
+    if (mountedRef.current) confirmPaymentSuccess(rId).then(goToMissionView);
     throw lastErr;
   };
 
@@ -1165,7 +1219,7 @@ export default function NewRequestStepper() {
       // Service gratuit → pas de payment sheet, publication directe
       if (isFreeService) {
         await api.payments.success(String(requestId)).catch(() => {});
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        feedback.haptic('success');
         goToMissionView();
         return;
       }
@@ -1182,13 +1236,10 @@ export default function NewRequestStepper() {
           await api.post('/quotes/confirm-callout', { requestId });
         } catch (e: any) {
           devError('confirm-callout error:', e);
-          Alert.alert(
-            t('stepper.error_title') || 'Erreur',
-            t('stepper.callout_confirm_failed') || 'Impossible de confirmer le paiement. Réessayez.',
-          );
+          feedback.error(t('stepper.callout_confirm_failed') || 'Impossible de confirmer le paiement. Réessayez.');
           return;
         }
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        feedback.haptic('success');
         goToMissionView();
       } else {
         await confirmPaymentSuccess(requestId);
@@ -1203,7 +1254,7 @@ export default function NewRequestStepper() {
 
   const handleChangePayment = async () => {
     if (!paymentReady) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    feedback.haptic('light');
     await presentPaymentSheet();
   };
 
@@ -1302,7 +1353,7 @@ export default function NewRequestStepper() {
                       setLocationAllowed(allowed);
                       setAddressMissingNumber(!hasStreetNumber);
                       mapRef.current?.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.006, longitudeDelta: 0.006 });
-                      Haptics.notificationAsync(allowed && hasStreetNumber ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
+                      feedback.haptic(allowed && hasStreetNumber ? 'success' : 'error');
                     }
                   }}
                   query={{ key: GOOGLE_MAPS_API_KEY, language: 'fr', components: 'country:be', location: '50.8333,4.3333', radius: 15000, strictbounds: true }}
@@ -1393,7 +1444,7 @@ export default function NewRequestStepper() {
                           setAddressMissingNumber(false);
                           setShowAddrDropdown(false);
                           mapRef.current?.animateToRegion({ latitude: addr.lat, longitude: addr.lng, latitudeDelta: 0.006, longitudeDelta: 0.006 });
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          feedback.haptic('light');
                         }}
                         activeOpacity={0.7}
                         style={{
@@ -1426,7 +1477,7 @@ export default function NewRequestStepper() {
                 <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
                   <Feather name="alert-circle" size={16} color={COLORS.orangeBrand} />
                   <Text style={[s.addrText, { color: COLORS.orangeBrand, flex: 1 }]} numberOfLines={2}>
-                    {'Veuillez préciser le numéro d\'immeuble'}
+                    {t('ext.stepper_addr_missing_number')}
                   </Text>
                 </View>
               )}
@@ -1485,7 +1536,7 @@ export default function NewRequestStepper() {
                   }}
                 >
                   <Feather name="home" size={14} color={saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string)} />
-                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string) }}>Domicile</Text>
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string) }}>{t('addresses.label_home')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setSaveLabel('Bureau')}
@@ -1498,7 +1549,7 @@ export default function NewRequestStepper() {
                   }}
                 >
                   <Feather name="briefcase" size={14} color={saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string)} />
-                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string) }}>Bureau</Text>
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string) }}>{t('addresses.label_work')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setSaveLabel('Autre')}
@@ -1509,7 +1560,7 @@ export default function NewRequestStepper() {
                     borderWidth: 1, borderColor: saveLabel === 'Autre' ? (theme.accent as string) : (theme.surfaceBorder as string),
                   }}
                 >
-                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Autre' ? (theme.accentText as string) : (theme.text as string) }}>Autre</Text>
+                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Autre' ? (theme.accentText as string) : (theme.text as string) }}>{t('addresses.label_other')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1593,7 +1644,7 @@ export default function NewRequestStepper() {
                               {subs.map((sub: any) => (
                                 <SubChip
                                   key={sub.id}
-                                  label={sub.name}
+                                  label={translateSubcategory(i18nInstance.language, sub)}
                                   basePrice={sub.basePrice}
                                   priceMin={sub.priceMin}
                                   priceMax={sub.priceMax}
@@ -1655,7 +1706,7 @@ export default function NewRequestStepper() {
                 {/* Maintenant */}
                 <TouchableOpacity
                   style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'now' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setScheduleMode('now'); setSelectedDayIso(null); setSelectedTime(null); }}
+                  onPress={() => { feedback.haptic('medium'); setScheduleMode('now'); setSelectedDayIso(null); setSelectedTime(null); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
@@ -1667,7 +1718,7 @@ export default function NewRequestStepper() {
                 {/* Planifier */}
                 <TouchableOpacity
                   style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setScheduleMode('later'); }}
+                  onPress={() => { feedback.haptic('medium'); setScheduleMode('later'); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
@@ -1725,8 +1776,8 @@ export default function NewRequestStepper() {
                     <Feather name="home" size={16} color={theme.textSub as string} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[ai.headerTitle, { color: theme.text }]}>Infos d'accès</Text>
-                    <Text style={[ai.headerSub, { color: theme.textMuted }]}>Optionnel — facilite l'intervention</Text>
+                    <Text style={[ai.headerTitle, { color: theme.text }]}>{t('stepper.access_info_title')}</Text>
+                    <Text style={[ai.headerSub, { color: theme.textMuted }]}>{t('stepper.access_info_sub')}</Text>
                   </View>
                   <Feather name={accessExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textMuted as string} />
                 </TouchableOpacity>
@@ -1734,7 +1785,7 @@ export default function NewRequestStepper() {
                 {accessExpanded && (
                   <View style={ai.body}>
                     {/* Type de bâtiment */}
-                    <Text style={[ai.label, { color: theme.textMuted }]}>TYPE DE BÂTIMENT</Text>
+                    <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.building_type')}</Text>
                     <View style={ai.chipRow}>
                       {([
                         { key: 'apartment', label: 'Appartement', icon: 'layers' },
@@ -1760,7 +1811,7 @@ export default function NewRequestStepper() {
                     {/* Étage + Ascenseur */}
                     <View style={ai.inlineRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[ai.label, { color: theme.textMuted }]}>ÉTAGE</Text>
+                        <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.floor')}</Text>
                         <View style={[ai.inputWrap, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
                           <Feather name="arrow-up" size={14} color={theme.textMuted as string} />
                           <TextInput
@@ -1775,7 +1826,7 @@ export default function NewRequestStepper() {
                         </View>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[ai.label, { color: theme.textMuted }]}>ASCENSEUR</Text>
+                        <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.elevator')}</Text>
                         <View style={ai.chipRow}>
                           <TouchableOpacity
                             style={[ai.chip, { borderColor: hasElevator === true ? theme.accent : theme.surfaceBorder }, hasElevator === true && { backgroundColor: theme.accent }]}
@@ -1783,7 +1834,7 @@ export default function NewRequestStepper() {
                             activeOpacity={0.7}
                           >
                             <Feather name="check" size={14} color={hasElevator === true ? theme.accentText as string : theme.textSub as string} />
-                            <Text style={[ai.chipText, { color: hasElevator === true ? theme.accentText : theme.textSub }]}>Oui</Text>
+                            <Text style={[ai.chipText, { color: hasElevator === true ? theme.accentText : theme.textSub }]}>{t('common.yes')}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={[ai.chip, { borderColor: hasElevator === false ? theme.accent : theme.surfaceBorder }, hasElevator === false && { backgroundColor: theme.accent }]}
@@ -1791,14 +1842,14 @@ export default function NewRequestStepper() {
                             activeOpacity={0.7}
                           >
                             <Feather name="x" size={14} color={hasElevator === false ? theme.accentText as string : theme.textSub as string} />
-                            <Text style={[ai.chipText, { color: hasElevator === false ? theme.accentText : theme.textSub }]}>Non</Text>
+                            <Text style={[ai.chipText, { color: hasElevator === false ? theme.accentText : theme.textSub }]}>{t('common.no')}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
                     </View>
 
                     {/* Notes d'accès */}
-                    <Text style={[ai.label, { color: theme.textMuted }]}>INSTRUCTIONS D'ACCÈS</Text>
+                    <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.access_instructions')}</Text>
                     <View style={[ai.textareaWrap, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
                       <TextInput
                         style={[ai.textarea, { color: theme.text }]}
@@ -1813,7 +1864,7 @@ export default function NewRequestStepper() {
                     </View>
 
                     {/* Langue */}
-                    <Text style={[ai.label, { color: theme.textMuted }]}>LANGUE PRÉFÉRÉE</Text>
+                    <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.preferred_language')}</Text>
                     <View style={ai.chipRow}>
                       {([
                         { key: 'fr', label: 'Français' },
@@ -1906,9 +1957,9 @@ export default function NewRequestStepper() {
                       activeOpacity={0.7}
                       onPress={() => {
                         const options = Platform.OS === 'ios'
-                          ? ['Carte bancaire', 'Apple Pay', 'Annuler']
-                          : ['Carte bancaire', 'Google Pay', 'Annuler'];
-                        Alert.alert('Moyen de paiement', 'Choisissez votre moyen de paiement', options.map((label, i) => ({
+                          ? ['Carte bancaire', 'Apple Pay', t('common.cancel')]
+                          : ['Carte bancaire', 'Google Pay', t('common.cancel')];
+                        Alert.alert(t('stepper.payment_method_title'), t('stepper.payment_method_msg'), options.map((label, i) => ({
                           text: label,
                           style: i === options.length - 1 ? 'cancel' as const : 'default' as const,
                           onPress: () => {
@@ -1934,8 +1985,8 @@ export default function NewRequestStepper() {
                 <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder, marginTop: 16 }]}>
                   <Feather name="gift" size={18} color={theme.text as string} />
                   <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>Service gratuit</Text>
-                    <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>Aucun paiement requis.</Text>
+                    <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>{t('stepper.free_service')}</Text>
+                    <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>{t('stepper.no_payment_required')}</Text>
                   </View>
                 </View>
               ) : isQuoteFlow ? (
@@ -1944,16 +1995,16 @@ export default function NewRequestStepper() {
                   <View style={{ backgroundColor: theme.v4CardBg as string, borderRadius: 16, borderWidth: 1, borderColor: theme.surfaceBorder as string, padding: 16, gap: 10 }}>
                     {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }}>Estimation travaux</Text>
+                        <Text style={{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }}>{t('stepper.work_estimate')}</Text>
                         <Text style={{ fontSize: 13, fontFamily: FONTS.bebas, color: theme.textSub as string }}>{selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €</Text>
                       </View>
                     ) : null}
                     <View style={{ height: 1, backgroundColor: theme.surfaceBorder as string }} />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textMuted as string }}>À régler maintenant</Text>
+                      <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textMuted as string }}>{t('stepper.pay_now')}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                         <Feather name="check" size={8} color={COLORS.green} />
-                        <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: COLORS.green }}>Déduit si devis accepté</Text>
+                        <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: COLORS.green }}>{t('stepper.deducted_if_accepted')}</Text>
                       </View>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -1967,7 +2018,7 @@ export default function NewRequestStepper() {
                     onPress={() => setDevisModalVisible(true)} activeOpacity={0.7}
                   >
                     <Feather name="file-text" size={14} color={COLORS.amber} />
-                    <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>Comment fonctionne le devis ?</Text>
+                    <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>{t('stepper.how_quote_works')}</Text>
                     <Feather name="chevron-right" size={13} color={theme.textMuted as string} />
                   </TouchableOpacity>
                 </View>
@@ -1975,7 +2026,7 @@ export default function NewRequestStepper() {
                 <View style={{ marginTop: 16 }}>
                   <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 8 }}>MONTANT</Text>
                   <View style={{ backgroundColor: theme.v4CardBg as string, borderRadius: 16, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontFamily: FONTS.sans, fontSize: 14, color: theme.textSub as string }}>Total TTC</Text>
+                    <Text style={{ fontFamily: FONTS.sans, fontSize: 14, color: theme.textSub as string }}>{t('stepper.total_ttc')}</Text>
                     <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1, color: theme.text as string }}>{displayPrice.totalTVAC} €</Text>
                   </View>
                   <View style={[s.v4SecureRow, { marginTop: 8 }]}>

@@ -9,12 +9,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
+import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSocket } from "@/lib/SocketContext";
+import { useTranslation } from "react-i18next";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -40,6 +41,7 @@ function GridLines({ isDark }: { isDark: boolean }) {
 export default function QuotePending() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const { id, serviceName, address, calloutFee, pricingMode } = useLocalSearchParams<{
     id: string;
     serviceName?: string;
@@ -61,7 +63,7 @@ export default function QuotePending() {
         const res: any = await api.requests.get(String(id));
         const request = res?.data || res;
         if (!request || request.clientId !== user.id) {
-          Alert.alert("Accès refusé", "Vous n'êtes pas autorisé à accéder à cette page.");
+          feedback.error(t('quote.access_denied'));
           router.replace("/(tabs)/dashboard");
           return;
         }
@@ -82,7 +84,7 @@ export default function QuotePending() {
       if (String(data.requestId) !== String(id)) return;
       const st = data.status?.toUpperCase();
       if (st === "QUOTE_SENT") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        feedback.haptic('success');
         router.replace({ pathname: "/request/[id]/quote-review", params: { id: String(id) } });
       }
     };
@@ -99,7 +101,7 @@ export default function QuotePending() {
         if (res?.quotes?.length > 0) {
           setQuoteReceived(true);
           clearInterval(interval);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          feedback.haptic('success');
           router.replace({
             pathname: "/request/[id]/quote-review",
             params: { id },
@@ -171,24 +173,24 @@ export default function QuotePending() {
 
           {/* Title */}
           <Text style={[s.title, { color: theme.text }]}>
-            EN ATTENTE DE{"\n"}
+            {t('quote.pending_title')}{"\n"}
             <Text style={{ color: theme.textMuted }}>
-              {isDiagnostic ? "DIAGNOSTIC." : "DEVIS."}
+              {isDiagnostic ? t('quote.pending_title_diagnostic') : t('quote.pending_title_quote')}
             </Text>
           </Text>
 
           <Text style={[s.subtitle, { color: theme.textSub }]}>
             {isDiagnostic
-              ? "Le prestataire va se déplacer pour diagnostiquer le problème et vous enverra un devis détaillé."
-              : "Le prestataire va évaluer votre demande sur place et vous enverra un devis détaillé."}
+              ? t('quote.pending_subtitle_diagnostic')
+              : t('quote.pending_subtitle')}
           </Text>
 
           {/* Steps card */}
           <View style={[s.stepsCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             {[
-              { label: "Demande envoyée", done: true },
-              { label: `${isDiagnostic ? "Diagnostic" : "Visite"} ${calloutFee ? calloutFee + "€" : ""} payé`, done: true },
-              { label: "Devis en cours", done: false },
+              { label: t('quote.pending_step_sent'), done: true },
+              { label: (isDiagnostic ? t('quote.pending_step_paid_diagnostic', { fee: calloutFee ? calloutFee + '€' : '' }) : t('quote.pending_step_paid', { fee: calloutFee ? calloutFee + '€' : '' })).replace(/\s+/g, ' ').trim(), done: true },
+              { label: t('quote.pending_step_quote_progress'), done: false },
             ].map((step, i) => (
               <View key={i} style={s.stepRow}>
                 <View style={[
@@ -213,8 +215,8 @@ export default function QuotePending() {
           <View style={[s.infoCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <Feather name="info" size={16} color={theme.textMuted} style={{ marginTop: 1 }} />
             <Text style={[s.infoText, { color: theme.textMuted }]}>
-              Vous recevrez une notification dès que le devis sera prêt. Vous pourrez l'accepter ou le refuser.
-              {calloutFee ? ` Les ${calloutFee}€ seront déduits du total si vous acceptez.` : ""}
+              {t('quote.pending_info')}
+              {calloutFee ? t('quote.pending_info_callout_suffix', { fee: calloutFee }) : ""}
             </Text>
           </View>
 
@@ -240,7 +242,7 @@ export default function QuotePending() {
           <Animated.View style={{ opacity: pulseOp, alignItems: "center", marginTop: 16 }}>
             <View style={s.pulseDotRow}>
               <PulseDot size={5} />
-              <Text style={[s.eta, { color: theme.textVeryMuted }]}>Devis sous 72h maximum</Text>
+              <Text style={[s.eta, { color: theme.textVeryMuted }]}>{t('missions.quote_deadline_72h')}</Text>
             </View>
           </Animated.View>
         </View>
@@ -250,12 +252,12 @@ export default function QuotePending() {
           <TouchableOpacity
             style={[s.btnPrimary, { backgroundColor: theme.accent }]}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              feedback.haptic('medium');
               router.replace("/(tabs)/dashboard");
             }}
             activeOpacity={0.88}
           >
-            <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>RETOUR À L'ACCUEIL</Text>
+            <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>{t('dashboard.back_home')}</Text>
             <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
               <Feather name="arrow-right" size={14} color={theme.text} />
             </View>
@@ -264,21 +266,21 @@ export default function QuotePending() {
             style={s.cancelBtn}
             onPress={() => {
               Alert.alert(
-                "Annuler la demande",
-                "Votre acompte sera remboursé. Voulez-vous continuer ?",
+                t('quote.pending_cancel_title'),
+                t('quote.pending_cancel_msg'),
                 [
-                  { text: "Non", style: "cancel" },
+                  { text: t('quote.pending_cancel_no'), style: "cancel" },
                   {
-                    text: "Oui, annuler",
+                    text: t('quote.pending_cancel_yes'),
                     style: "destructive",
                     onPress: async () => {
                       setCancelling(true);
                       try {
                         await api.post(`/requests/${id}/cancel`);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        feedback.haptic('warning');
                         router.replace("/(tabs)/dashboard");
                       } catch {
-                        Alert.alert("Erreur", "Impossible d'annuler la demande.");
+                        feedback.error(t('quote.pending_cancel_fail'));
                         setCancelling(false);
                       }
                     },
@@ -290,7 +292,7 @@ export default function QuotePending() {
             activeOpacity={0.7}
           >
             <Text style={[s.cancelText, { color: COLORS.red }]}>
-              {cancelling ? "Annulation..." : "Annuler la demande de devis"}
+              {cancelling ? t('quote.pending_cancelling') : t('quote.pending_cancel_cta')}
             </Text>
           </TouchableOpacity>
         </View>
