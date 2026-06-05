@@ -21,7 +21,8 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import * as Haptics from 'expo-haptics';
+import { translateRequestServiceRaw, translateCategoryRaw } from '@/lib/categoryLabel';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
 import { useCall } from '../../lib/webrtc/CallContext';
@@ -48,8 +49,8 @@ import {
 // ─── Press feel constants (tier-1 haptic + opacity) ─────────────────────────
 const PRESS_PRIMARY   = 0.85;  // CTAs, cards, mission island
 const PRESS_SECONDARY = 0.7;   // Text links, icon buttons, list items
-const hapticLight  = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-const hapticMedium = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+const hapticLight  = () => feedback.haptic('light');
+const hapticMedium = () => feedback.haptic('medium');
 
 // ============================================================================
 // TYPES
@@ -98,11 +99,11 @@ const getStatusInfo = (status: string, t: (key: string) => string) => {
     PUBLISHED:       { label: t('dashboard.status_published'), icon: 'radio',        ledColor: COLORS.amber },
     ACCEPTED:        { label: t('dashboard.status_accepted'),  icon: 'check',        ledColor: COLORS.green },
     PENDING_PAYMENT: { label: t('dashboard.status_payment'),   icon: 'credit-card',  ledColor: COLORS.amber },
-    QUOTE_PENDING:   { label: 'Devis en cours',                icon: 'file-text',    ledColor: COLORS.amber },
-    QUOTE_SENT:      { label: 'Devis reçu',                   icon: 'file-text',    ledColor: COLORS.green },
-    QUOTE_ACCEPTED:  { label: 'Devis accepté',                icon: 'check-circle', ledColor: COLORS.green },
-    QUOTE_REFUSED:   { label: 'Devis refusé',                 icon: 'x-circle',     ledColor: COLORS.red },
-    QUOTE_EXPIRED:   { label: 'Devis expiré — remboursé',     icon: 'clock',        ledColor: COLORS.red },
+    QUOTE_PENDING:   { label: t('dashboard.status_quote_pending'),  icon: 'file-text',    ledColor: COLORS.amber },
+    QUOTE_SENT:      { label: t('dashboard.status_quote_sent'),     icon: 'file-text',    ledColor: COLORS.green },
+    QUOTE_ACCEPTED:  { label: t('dashboard.status_quote_accepted'), icon: 'check-circle', ledColor: COLORS.green },
+    QUOTE_REFUSED:   { label: t('dashboard.status_cancelled'),      icon: 'x-circle',     ledColor: COLORS.red },
+    QUOTE_EXPIRED:   { label: t('dashboard.status_quote_expired'),  icon: 'clock',        ledColor: COLORS.red },
     EXPIRED:         { label: t('dashboard.status_expired'),   icon: 'clock',        ledColor: COLORS.red },
   };
   return map[s] || { label: s, icon: 'help-circle', ledColor: COLORS.amber };
@@ -144,19 +145,22 @@ const CARD_WIDTH = 128;
 const CARD_HEIGHT = 138;
 const CARD_GAP = 10;
 
+// Le `label` est volontairement absent : on rend `t(`category.${key}`)` au moment
+// du render — comme ça la card s'affiche en NL / EN si le user a switché de langue.
 const SERVICE_CARDS = [
-  { key: 'plomberie',   label: 'Plomberie',   icon: 'droplet',  theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
-  { key: 'electricite', label: 'Électricité',  icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'electricite', providers: 5  },
-  { key: 'serrurerie',  label: 'Serrurerie',   icon: 'key',      theme: 'light' as const, led: COLORS.amber,  category: 'serrurerie',  providers: 2  },
-  { key: 'chauffage',   label: 'Chauffage',    icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'chauffage',   providers: 6  },
-  { key: 'bricolage',   label: 'Bricolage',    icon: 'tool',     theme: 'light' as const, led: COLORS.amber,  category: 'bricolage',   providers: 3  },
-  { key: 'peinture',    label: 'Peinture',     icon: 'edit-2',   theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
+  { key: 'plomberie',   icon: 'droplet',  theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
+  { key: 'electricite', icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'electricite', providers: 5  },
+  { key: 'serrurerie',  icon: 'key',      theme: 'light' as const, led: COLORS.amber,  category: 'serrurerie',  providers: 2  },
+  { key: 'chauffage',   icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'chauffage',   providers: 6  },
+  { key: 'bricolage',   icon: 'tool',     theme: 'light' as const, led: COLORS.amber,  category: 'bricolage',   providers: 3  },
+  { key: 'peinture',    icon: 'edit-2',   theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
 ];
 
 // Phase test : uniquement Plomberie et Serrurerie
 const LAUNCH_CARDS = SERVICE_CARDS.filter(c => c.key === 'plomberie' || c.key === 'serrurerie');
 
 function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => void; theme: AppTheme }) {
+  const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -169,10 +173,10 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
     <>
       {/* Section header */}
       <View style={runway.header}>
-        <Text style={[runway.headerTitle, { color: theme.textMuted }]}>SERVICES DISPONIBLES</Text>
+        <Text style={[runway.headerTitle, { color: theme.textMuted }]}>{t('dashboard.services_available')}</Text>
         <View style={runway.headerHint}>
           <Feather name="chevron-right" size={9} color={theme.textMuted} />
-          <Text style={[runway.headerHintText, { color: theme.textMuted }]}>glisser</Text>
+          <Text style={[runway.headerHintText, { color: theme.textMuted }]}>{t('dashboard.swipe_hint')}</Text>
         </View>
       </View>
 
@@ -232,7 +236,7 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
                 </View>
 
                 {/* Service name */}
-                <Text style={[runway.serviceName, { color: textColor }]}>{card.label}</Text>
+                <Text style={[runway.serviceName, { color: textColor }]}>{t(`category.${card.key}`, { defaultValue: card.key })}</Text>
 
                 {/* Bottom arrow */}
                 <View style={runway.cardBottom}>
@@ -428,7 +432,7 @@ function MissionIsland({
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <FixedStatusChip variant="ongoing" label={isOngoing ? 'EN COURS' : 'EN ROUTE'} t={theme} />
+            <FixedStatusChip variant="ongoing" label={isOngoing ? t('dashboard.status_ongoing').toUpperCase() : t('dashboard.provider_on_way').toUpperCase()} t={theme} />
             <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 0.8 }}>
               LIVE · GPS
             </Text>
@@ -448,7 +452,7 @@ function MissionIsland({
 
           {/* Service name */}
           <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.heroText, letterSpacing: 0.4 }} numberOfLines={1}>
-            {(activeMission.serviceType || activeMission.title || '').toUpperCase()}
+            {(translateRequestServiceRaw(activeMission as any) || activeMission.title || activeMission.serviceType || '').toUpperCase()}
           </Text>
 
           {/* Address */}
@@ -524,7 +528,7 @@ function MissionIsland({
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <FixedStatusChip variant="warning" label="RECHERCHE EN COURS" t={theme} />
+            <FixedStatusChip variant="warning" label={t('dashboard.search_in_progress').toUpperCase()} t={theme} />
             {secondsLeft !== null && (
               <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.heroSubFaint, letterSpacing: 0.5 }}>
                 {fmt(secondsLeft)}
@@ -534,7 +538,7 @@ function MissionIsland({
 
           {/* Service name — hero */}
           <Text style={{ fontFamily: FONTS.bebas, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
-            {(searchingMission.serviceType || searchingMission.title || '').toUpperCase()}
+            {(translateRequestServiceRaw(searchingMission as any) || searchingMission.title || searchingMission.serviceType || '').toUpperCase()}
           </Text>
 
           {/* Address */}
@@ -551,7 +555,7 @@ function MissionIsland({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
             <PulseDot size={8} color={COLORS.amber} />
             <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.heroSub, flex: 1 }}>
-              Recherche d'un prestataire près de chez vous...
+              {t('dashboard.searching_best_provider')}
             </Text>
             <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: theme.heroSubFaint, alignItems: 'center', justifyContent: 'center' }}>
               <Feather name="arrow-right" size={14} color={theme.heroSub} />
@@ -570,13 +574,13 @@ function MissionIsland({
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <FixedStatusChip variant={isQuoteSent ? 'done' : 'pending'} label={isQuoteSent ? 'DEVIS REÇU' : 'DEVIS EN COURS'} t={theme} />
+            <FixedStatusChip variant={isQuoteSent ? 'done' : 'pending'} label={isQuoteSent ? t('dashboard.status_quote_sent').toUpperCase() : t('dashboard.status_quote_pending').toUpperCase()} t={theme} />
             <Feather name="file-text" size={14} color={theme.heroSubFaint} />
           </View>
 
           {/* Service name — hero */}
           <Text style={{ fontFamily: FONTS.bebas, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
-            {(quoteMission.serviceType || quoteMission.title || '').toUpperCase()}
+            {(translateRequestServiceRaw(quoteMission as any) || quoteMission.title || quoteMission.serviceType || '').toUpperCase()}
           </Text>
 
           {/* Address */}
@@ -593,7 +597,7 @@ function MissionIsland({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
             <PulseDot size={8} color={isQuoteSent ? COLORS.green : COLORS.amber} />
             <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.heroSub, flex: 1 }}>
-              {isQuoteSent ? 'Consultez et répondez au devis' : 'En attente du prestataire'}
+              {isQuoteSent ? t('dashboard.quote_action_review') : t('dashboard.quote_action_waiting')}
             </Text>
             <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: theme.heroSubFaint, alignItems: 'center', justifyContent: 'center' }}>
               <Feather name="arrow-right" size={14} color={theme.heroSub} />
@@ -660,11 +664,21 @@ function ActivityItem({
   isLast: boolean;
   theme: AppTheme;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const localeMap: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
+  const locale = localeMap[i18n.language] || 'fr-FR';
   const status = getStatusInfo(request.status, t);
-  const serviceName = request.serviceType || request.category?.name || request.title;
+  // Affiche le nom localisé : subcategory.nameI18n[lang] (via translateRequestService),
+  // sinon traduit le slug de la catégorie. serviceType reste un fallback ultime mais
+  // c'est une snapshot FR au moment de la création — à n'utiliser que si rien d'autre.
+  const serviceName =
+    translateRequestServiceRaw(request as any) ||
+    translateCategoryRaw(request.category as any) ||
+    request.title ||
+    request.serviceType ||
+    '';
   const icon = getServiceIcon(serviceName);
-  const date = new Date(request.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const date = new Date(request.createdAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
   const statusKey = request.status?.toUpperCase();
   let badgeBg = theme.badgeDoneBg;
@@ -772,7 +786,15 @@ function UpcomingIslandCard({
   onPress: () => void;
   theme: AppTheme;
 }) {
-  const serviceName = request.serviceType || request.category?.name || request.title;
+  const { t, i18n } = useTranslation();
+  const localeMap: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
+  const locale = localeMap[i18n.language] || 'fr-FR';
+  const serviceName =
+    translateRequestServiceRaw(request as any) ||
+    translateCategoryRaw(request.category as any) ||
+    request.title ||
+    request.serviceType ||
+    '';
   const isQuote = request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
   const statusUp = (request.status || '').toUpperCase();
   const isAccepted = statusUp === 'ACCEPTED';
@@ -788,11 +810,11 @@ function UpcomingIslandCard({
                      scheduledDate.getFullYear() === tomorrow.getFullYear();
   const dayLabel = scheduledDate
     ? (isTomorrow
-        ? 'Demain'
-        : scheduledDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }))
+        ? t('dashboard.tomorrow')
+        : scheduledDate.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' }))
     : '';
   const timeLabel = scheduledDate
-    ? scheduledDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    ? scheduledDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
     : '';
 
   // Progress bar color: green if accepted, warm accent if waiting
@@ -817,7 +839,7 @@ function UpcomingIslandCard({
             : { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }
           ]}>
             <Text style={[uc.typeLabel, { color: isQuote ? COLORS.amber : theme.textMuted }]}>
-              {isQuote ? 'DEVIS' : 'PLANIFIÉE'}
+              {isQuote ? t('dashboard.badge_quote') : t('dashboard.badge_scheduled')}
             </Text>
           </View>
           <Text style={[uc.serviceName, { color: theme.text }]} numberOfLines={1}>
@@ -847,13 +869,13 @@ function UpcomingIslandCard({
           <View style={uc.statusBadge}>
             <View style={[uc.statusDot, { backgroundColor: COLORS.greenBrand }]} />
             <Text style={[uc.statusText, { color: COLORS.greenBrand }]}>
-              {request.provider?.name ? `${request.provider.name}` : 'Confirmé'}
+              {request.provider?.name ? `${request.provider.name}` : t('dashboard.confirmed')}
             </Text>
           </View>
         ) : (
           <View style={uc.statusBadge}>
             <View style={[uc.statusDot, { backgroundColor: theme.textMuted as string }]} />
-            <Text style={[uc.statusText, { color: theme.textMuted }]}>En attente</Text>
+            <Text style={[uc.statusText, { color: theme.textMuted }]}>{t('dashboard.status_pending')}</Text>
           </View>
         )}
       </View>
@@ -982,7 +1004,7 @@ const PREVIEW_COUNT = 3;
 const EXPANDED_COUNT = 6;
 
 export default function Dashboard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const { socket, unreadCount, unreadMessages } = useSocket();
@@ -1046,8 +1068,8 @@ export default function Dashboard() {
         address:        r.address || '',
         price:          String(r.price || ''),
         scheduledLabel: scheduledFor
-          ? new Date(scheduledFor).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-          : 'Dès maintenant',
+          ? new Date(scheduledFor).toLocaleString(({ fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' } as Record<string,string>)[i18n.language] || 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+          : t('common.now'),
         expiresAt: r.expiresAt || '',
         lat: String(r.lat || ''),
         lng: String(r.lng || ''),
@@ -1352,7 +1374,7 @@ export default function Dashboard() {
                   DISPONIBLE · 24/7
                 </Text>
                 <Text style={{ fontFamily: FONTS.bebas, fontSize: 28, color: theme.heroText, letterSpacing: 0.4, marginBottom: 18 }}>
-                  Besoin d'un pro ?
+                  {t('dashboard.hero_title')}
                 </Text>
                 <Pressable
                   onPressIn={() => { Animated.spring(ctaScale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start(); }}
@@ -1368,7 +1390,7 @@ export default function Dashboard() {
                   }]}>
                     <Feather name="plus" size={16} color={theme.heroText} />
                     <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.heroText }}>
-                      Nouvelle demande
+                      {t('dashboard.new_request')}
                     </Text>
                   </Animated.View>
                 </Pressable>
@@ -1381,7 +1403,7 @@ export default function Dashboard() {
         {upcomingRequests.length > 0 && (
           <>
             <View style={{ marginTop: 22 }}>
-              <FixedSectionHeader label="À VENIR" action={String(upcomingRequests.length)} t={theme} />
+              <FixedSectionHeader label={t('dashboard.upcoming')} action={String(upcomingRequests.length)} t={theme} />
             </View>
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {upcomingRequests.map((req) => (
@@ -1421,7 +1443,7 @@ export default function Dashboard() {
                 <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
                   <Feather name={card.icon as any} size={18} color={theme.text} />
                 </View>
-                <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>{card.label}</Text>
+                <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>{t(`category.${card.key}`, { defaultValue: card.key })}</Text>
                 <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.6, marginTop: 3 }}>
                   {card.providers} PROS
                 </Text>
@@ -1467,7 +1489,7 @@ export default function Dashboard() {
             activeOpacity={PRESS_SECONDARY}
           >
             <Text style={[s.seeAllText, { color: theme.textMuted }]}>
-              {showAllRequests ? t('dashboard.collapse') : 'Voir plus'}
+              {showAllRequests ? t('dashboard.collapse') : t('dashboard.see_more')}
             </Text>
             <Feather name={showAllRequests ? 'chevron-up' : 'chevron-down'} size={11} color={theme.textMuted} />
           </TouchableOpacity>
@@ -1491,7 +1513,7 @@ export default function Dashboard() {
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 50 }} />
           ) : selectedRequest ? (
             <>
-              <Text style={[s.sheetTitle, { color: theme.text }]}>{selectedRequest.title || selectedRequest.serviceType}</Text>
+              <Text style={[s.sheetTitle, { color: theme.text }]}>{translateRequestServiceRaw(selectedRequest)}</Text>
 
               <View style={[s.statusBadge, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <PulseDot size={6} color={getStatusInfo(selectedRequest.status, t).ledColor} />
@@ -1560,7 +1582,7 @@ export default function Dashboard() {
                       activeOpacity={PRESS_PRIMARY}
                     >
                       <Feather name="file-text" size={17} color={theme.accentText} />
-                      <Text style={[s.actionBtnText, { color: theme.accentText }]}>Voir la facture</Text>
+                      <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.view_invoice')}</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -1577,7 +1599,7 @@ export default function Dashboard() {
                     });
                   }}
                 >
-                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>Reprendre le paiement</Text>
+                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.resume_payment')}</Text>
                   <Feather name="credit-card" size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}
@@ -1597,7 +1619,7 @@ export default function Dashboard() {
                   }}
                 >
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>
-                    {selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'Voir le devis' : 'Suivre la demande'}
+                    {selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? t('dashboard.view_quote') : t('dashboard.track_request')}
                   </Text>
                   <Feather name={selectedRequest.status?.toUpperCase() === 'QUOTE_SENT' ? 'file-text' : 'clock'} size={17} color={theme.accentText} />
                 </TouchableOpacity>
@@ -1608,7 +1630,7 @@ export default function Dashboard() {
                   style={[s.actionBtn, { backgroundColor: theme.accent }]}
                   onPress={() => handleNavigateToMission(selectedRequest)}
                 >
-                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>Suivre l'intervention</Text>
+                  <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.track_intervention')}</Text>
                   <Feather name="navigation" size={17} color={theme.accentText} />
                 </TouchableOpacity>
               )}

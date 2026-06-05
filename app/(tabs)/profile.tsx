@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Alert,
   ScrollView,
   Platform,
   TextInput,
@@ -24,6 +23,8 @@ import { showSocketToast } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { translateCategory } from '@/lib/categoryLabel';
+import { feedback } from '@/lib/feedback/feedback';
 
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { toFeatherName } from '@/lib/iconMapper';
@@ -211,7 +212,7 @@ const ms = StyleSheet.create({
 
 export default function Profile() {
   const { user, signOut, refreshMe } = useAuth();
-  const { t }                        = useTranslation();
+  const { t, i18n }                  = useTranslation();
   const router = useRouter();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -345,7 +346,7 @@ export default function Profile() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      showSocketToast('Accès à la galerie refusé.', 'error');
+      showSocketToast(t('profile.gallery_denied'), 'error');
       return;
     }
 
@@ -400,7 +401,7 @@ export default function Profile() {
       await refreshMe();
       showSocketToast(t('common.success'), 'success');
     } catch {
-      showSocketToast(t('common.error') || 'Échec de l\'upload', 'error');
+      showSocketToast(t('profile.upload_error'), 'error');
     }
   }, [t]);
 
@@ -447,7 +448,7 @@ export default function Profile() {
         setEditProviderBio(prov?.description || '');
         setEditVatNumber(prov?.vatNumber || '');
       }).catch(() => {
-        showSocketToast('Erreur chargement des catégories', 'error');
+        showSocketToast(t('profile.categories_load_error'), 'error');
       }).finally(() => setCatsLoading(false));
     }
   };
@@ -460,7 +461,7 @@ export default function Profile() {
 
   const saveEditInfo = async () => {
     if (!isClientOnly && selectedCatIds.length === 0) {
-      showSocketToast('Sélectionnez au moins un service', 'error');
+      showSocketToast(t('profile.select_service_required'), 'error');
       return;
     }
     setSaving(true);
@@ -494,43 +495,42 @@ export default function Profile() {
 
   const savePassword = async () => {
     if (!currentPwd || !newPwd) {
-      showSocketToast('Remplissez tous les champs', 'error');
+      showSocketToast(t('auth.fill_all_fields'), 'error');
       return;
     }
     if (newPwd.length < 8) {
-      showSocketToast('Le mot de passe doit faire au moins 8 caractères', 'error');
+      showSocketToast(t('profile.pwd_min_length'), 'error');
       return;
     }
     if (newPwd !== confirmPwd) {
-      showSocketToast('Les mots de passe ne correspondent pas', 'error');
+      showSocketToast(t('profile.pwd_mismatch'), 'error');
       return;
     }
     setPwdSaving(true);
     try {
       await api.auth.changePassword(currentPwd, newPwd);
-      showSocketToast('Mot de passe modifié', 'success');
+      showSocketToast(t('profile.pwd_changed'), 'success');
       setCurrentPwd('');
       setNewPwd('');
       setConfirmPwd('');
     } catch (e: any) {
-      showSocketToast(e?.message || 'Erreur lors du changement de mot de passe', 'error');
+      showSocketToast(e?.message || t('profile.pwd_change_error'), 'error');
     } finally {
       setPwdSaving(false);
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(t('auth.logout'), t('auth.logout_confirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('profile.logout_destructive'),
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          router.replace('/(auth)/login');
-        },
-      },
-    ]);
+  const handleLogout = async () => {
+    const ok = await feedback.confirm({
+      titleKey: 'auth.logout',
+      messageKey: 'auth.logout_confirm',
+      confirmKey: 'profile.logout_destructive',
+      cancelKey: 'common.cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+    await signOut();
+    router.replace('/(auth)/login');
   };
 
   const renderBackdrop = useCallback(
@@ -543,19 +543,18 @@ export default function Profile() {
   const isClientOnly =
     user?.roles?.includes('CLIENT') && !user?.roles?.includes('PROVIDER');
 
-  const handleDeleteAddress = (id: number) => {
-    Alert.alert(t('addresses.delete_confirm'), '', [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'), style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.addresses.remove(id);
-            setSavedAddresses(prev => prev.filter(a => a.id !== id));
-          } catch {}
-        },
-      },
-    ]);
+  const handleDeleteAddress = async (id: number) => {
+    const ok = await feedback.confirm({
+      titleKey: 'addresses.delete_confirm',
+      confirmKey: 'common.delete',
+      cancelKey: 'common.cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.addresses.remove(id);
+      setSavedAddresses(prev => prev.filter(a => a.id !== id));
+    } catch {}
   };
 
   const accountItems: MenuItem[] = [
@@ -630,7 +629,7 @@ export default function Profile() {
       <View style={[s.header, { backgroundColor: theme.bg }]}>
         <View>
           <Text style={[s.headerGreeting, { color: theme.textMuted }]}>
-            MEMBRE FIXED DEPUIS {new Date((user as any)?.createdAt || Date.now()).getFullYear()}
+            {t('profile.member_since', { year: new Date((user as any)?.createdAt || Date.now()).getFullYear() })}
           </Text>
           <Text style={[s.headerTitle, { color: theme.text }]}>PROFIL</Text>
         </View>
@@ -660,7 +659,7 @@ export default function Profile() {
                 {isVerified && (
                   <View style={s.verifiedBadge}>
                     <Feather name="check" size={9} color={COLORS.greenBrand} />
-                    <Text style={s.verifiedBadgeText}>Vérifié</Text>
+                    <Text style={s.verifiedBadgeText}>{t('profile.verified')}</Text>
                   </View>
                 )}
               </View>
@@ -671,30 +670,30 @@ export default function Profile() {
           <View style={s.heroStrip}>
             <View style={s.stripItem}>
               <View style={s.stripIcon}><Feather name="calendar" size={13} color="rgba(255,255,255,0.4)" /></View>
-              <Text style={s.stripValue}>{new Date((user as any)?.createdAt || Date.now()).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}</Text>
-              <Text style={s.stripLabel}>Membre</Text>
+              <Text style={s.stripValue}>{new Date((user as any)?.createdAt || Date.now()).toLocaleDateString(({ fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' } as Record<string,string>)[i18n.language] || 'fr-FR', { month: 'short', year: 'numeric' })}</Text>
+              <Text style={s.stripLabel}>{t('profile.strip_member')}</Text>
             </View>
             <View style={s.stripItem}>
               <View style={s.stripIcon}><Feather name="credit-card" size={13} color="rgba(255,255,255,0.4)" /></View>
               <Text style={s.stripValue}>•••• 4242</Text>
-              <Text style={s.stripLabel}>Paiement</Text>
+              <Text style={s.stripLabel}>{t('profile.strip_payment')}</Text>
             </View>
             <View style={s.stripItem}>
               <View style={s.stripIcon}><Feather name="map-pin" size={13} color="rgba(255,255,255,0.4)" /></View>
-              <Text style={s.stripValue}>{(user as any)?.city || 'Bruxelles'}</Text>
-              <Text style={s.stripLabel}>Adresse</Text>
+              <Text style={s.stripValue}>{(user as any)?.city || t('profile.default_city')}</Text>
+              <Text style={s.stripLabel}>{t('profile.strip_address')}</Text>
             </View>
             <View style={s.stripItem}>
               <View style={[s.stripIcon, s.stripIconGreen]}><Feather name="shield" size={13} color={COLORS.green} /></View>
-              <Text style={[s.stripValue, { color: COLORS.green }]}>Actif</Text>
-              <Text style={s.stripLabel}>Statut</Text>
+              <Text style={[s.stripValue, { color: COLORS.green }]}>{t('profile.active')}</Text>
+              <Text style={s.stripLabel}>{t('profile.strip_status')}</Text>
             </View>
           </View>
         </View>
 
         {/* Menus */}
         <View style={s.sections}>
-          <MenuSection title="Mon compte" items={accountItems} />
+          <MenuSection title={t('profile.my_account')} items={accountItems} />
 
           {/* Mes adresses */}
           <View style={{ marginBottom: 16 }}>
@@ -712,7 +711,15 @@ export default function Profile() {
                         <Feather name="bookmark" size={16} color={theme.textMuted} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>{addr.label}</Text>
+                        {/* Labels standards stockés en FR en DB ("Domicile" / "Bureau" / "Autre")
+                            mais affichés dans la locale active. Custom labels ("Maman", "Chalet")
+                            restent inchangés via defaultValue. */}
+                        <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>
+                          {addr.label === 'Domicile' ? t('addresses.label_home')
+                            : addr.label === 'Bureau' ? t('addresses.label_work')
+                            : addr.label === 'Autre' ? t('addresses.label_other')
+                            : addr.label}
+                        </Text>
                         <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>{addr.address}</Text>
                       </View>
                       <TouchableOpacity onPress={() => handleDeleteAddress(addr.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -731,7 +738,7 @@ export default function Profile() {
             </View>
           </View>
 
-          <MenuSection title="Préférences" items={prefItems} />
+          <MenuSection title={t('profile.preferences')} items={prefItems} />
 
           {/* Support tickets — affiche les ouverts + CTA "Créer un ticket" toujours visible */}
           {(() => {
@@ -740,11 +747,11 @@ export default function Profile() {
             return (
               <View style={tk.wrap}>
                 <View style={tk.header}>
-                  <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>Support</Text>
+                  <Text style={[tk.sectionLabel, { color: theme.textMuted }]}>{t('profile.support')}</Text>
                   {openTickets.length > 0 && (
                     <View style={[tk.countBadge, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
                       <Text style={[tk.countBadgeText, { color: COLORS.amber }]}>
-                        {openTickets.length} ouvert{openTickets.length > 1 ? 's' : ''}
+                        {t('profile.tickets_open_count', { count: openTickets.length })}
                       </Text>
                     </View>
                   )}
@@ -752,8 +759,9 @@ export default function Profile() {
 
                 <View style={[tk.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
                   {openTickets.map((ticket: any, i: number) => {
-                    const statusLabel = ticket.status === 'OPEN' ? 'Ouvert' : 'En cours';
-                    const date = new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                    const statusLabel = ticket.status === 'OPEN' ? t('profile.ticket_open') : t('profile.ticket_in_progress');
+                    const localeMap: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
+                    const date = new Date(ticket.createdAt).toLocaleDateString(localeMap[i18n.language] || 'fr-FR', { day: 'numeric', month: 'short' });
                     return (
                       <TouchableOpacity
                         key={ticket.id}
@@ -765,7 +773,7 @@ export default function Profile() {
                         <View style={tk.info}>
                           <Text style={[tk.title, { color: theme.text }]} numberOfLines={1}>{ticket.title}</Text>
                           <Text style={[tk.meta, { color: theme.textMuted }]}>
-                            {ticket.requestId ? `Mission #${ticket.requestId} · ` : ''}{date}
+                            {ticket.requestId ? `${t('missions.mission')} #${ticket.requestId} · ` : ''}{date}
                           </Text>
                         </View>
                         <View style={tk.pillOrange}>
@@ -786,15 +794,15 @@ export default function Profile() {
                       <Feather name="plus" size={14} color={theme.textSub} />
                     </View>
                     <View style={tk.info}>
-                      <Text style={[tk.title, { color: theme.text }]}>Créer un ticket</Text>
-                      <Text style={[tk.meta, { color: theme.textMuted }]}>Diagnostic guidé · réponse en moins de 2h</Text>
+                      <Text style={[tk.title, { color: theme.text }]}>{t('profile.create_ticket')}</Text>
+                      <Text style={[tk.meta, { color: theme.textMuted }]}>{t('profile.ticket_sub')}</Text>
                     </View>
                     <Feather name="chevron-right" size={12} color={theme.textDisabled} />
                   </TouchableOpacity>
 
                   {hasMoreThanShown && (
                     <TouchableOpacity style={[tk.viewAll, { borderTopColor: theme.borderLight }]} onPress={() => router.push('/settings/help')} activeOpacity={0.6}>
-                      <Text style={[tk.viewAllText, { color: theme.textMuted }]}>Voir tous les tickets (résolus inclus)</Text>
+                      <Text style={[tk.viewAllText, { color: theme.textMuted }]}>{t('profile.view_all_tickets')}</Text>
                       <Feather name="chevron-right" size={11} color={theme.textMuted} />
                     </TouchableOpacity>
                   )}
@@ -823,7 +831,7 @@ export default function Profile() {
             >
               <Feather name="x" size={18} color={theme.textAlt} />
             </TouchableOpacity>
-            <Text style={[em.headerTitle, { color: theme.textAlt }]}>Mon compte</Text>
+            <Text style={[em.headerTitle, { color: theme.textAlt }]}>{t('profile.my_account')}</Text>
             <View style={{ width: 36 }} />
           </View>
 
@@ -915,7 +923,7 @@ export default function Profile() {
                   <Feather name="map-pin" size={16} color={theme.textSub} />
                 </View>
                 <View style={em.fieldBody}>
-                  <Text style={[em.fieldLabel, { color: theme.textMuted }]}>Ville</Text>
+                  <Text style={[em.fieldLabel, { color: theme.textMuted }]}>{t('profile.city_label')}</Text>
                   <TextInput
                     style={[em.fieldInput, { color: theme.textAlt }]}
                     value={editCity}
@@ -1048,7 +1056,7 @@ export default function Profile() {
                                   { color: sel ? theme.accentText : theme.textSub },
                                 ]}
                               >
-                                {cat.name}
+                                {translateCategory(t, cat)}
                               </Text>
                             </TouchableOpacity>
                           );
@@ -1091,12 +1099,12 @@ export default function Profile() {
                 >
                   <Text style={[em.saveBtnText, { color: disabled ? theme.textMuted : theme.accentText }]}>
                     {saving
-                      ? 'Sauvegarde…'
+                      ? t('common.saving')
                       : noProviderCats
-                        ? 'Sélectionnez au moins un service'
+                        ? t('profile.select_service_required')
                         : !baseDirty && isClientOnly
-                          ? 'Aucune modification'
-                          : 'Enregistrer les modifications'}
+                          ? t('profile.no_changes')
+                          : t('profile.save_changes')}
                   </Text>
                 </TouchableOpacity>
               );
@@ -1244,21 +1252,17 @@ export default function Profile() {
 
             {/* ── Suppression de compte (RGPD) — discret en bas ── */}
             <TouchableOpacity
-              onPress={() => {
-                Alert.alert(
-                  'Supprimer mon compte',
-                  'Cette action est irréversible. Vos données personnelles seront supprimées sous 30 jours, à l\'exception des justificatifs comptables conservés 7 ans (obligation légale).\n\nConfirmer la suppression ?',
-                  [
-                    { text: 'Annuler', style: 'cancel' },
-                    {
-                      text: 'Supprimer', style: 'destructive', onPress: () => {
-                        // TODO : appeler api.account.delete() quand l'endpoint existe
-                        showSocketToast('Demande envoyée — un email de confirmation suit.', 'info');
-                      },
-                    },
-                  ],
-                  { cancelable: true },
-                );
+              onPress={async () => {
+                const ok = await feedback.confirm({
+                  titleKey: 'ext.profile_delete_alert_title',
+                  messageKey: 'ext.profile_delete_alert_msg',
+                  confirmKey: 'settings.delete_account_btn',
+                  cancelKey: 'common.cancel',
+                  destructive: true,
+                });
+                if (!ok) return;
+                // TODO : appeler api.account.delete() quand l'endpoint existe
+                showSocketToast(t('ext.profile_delete_request_sent'), 'info');
               }}
               style={{ marginTop: 28, marginBottom: 8, paddingVertical: 12, alignItems: 'center' }}
               activeOpacity={0.6}
