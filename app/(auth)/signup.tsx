@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
-  Platform,
   Easing,
   StatusBar,
   ScrollView,
@@ -25,7 +24,6 @@ import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import { toFeatherName } from "@/lib/iconMapper";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
@@ -75,65 +73,7 @@ function GoogleLogo() {
   );
 }
 
-// ── Toast ────────────────────────────────────────────────────────────────────
-type ToastType = "error" | "success" | "info";
-interface ToastMsg {
-  id: number;
-  type: ToastType;
-  message: string;
-}
-
-function Toast({ msg, onDone }: { msg: ToastMsg; onDone: () => void }) {
-  const ty = useRef(new Animated.Value(-72)).current;
-  const op = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(ty, { toValue: 0, duration: 320, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
-      Animated.timing(op, { toValue: 1, duration: 280, useNativeDriver: true }),
-    ]).start();
-    const t = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(ty, { toValue: -72, duration: 260, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-        Animated.timing(op, { toValue: 0, duration: 200, useNativeDriver: true }),
-      ]).start(onDone);
-    }, 3200);
-    return () => clearTimeout(t);
-  }, []);
-  const icon = msg.type === "error" ? "x-circle" : msg.type === "success" ? "check-circle" : "info";
-  const color = msg.type === "error" ? COLORS.red : msg.type === "success" ? COLORS.greenBrand : authT.textOnDark;
-  return (
-    <Animated.View style={[ts.pill, { opacity: op, transform: [{ translateY: ty }] }]}>
-      <Feather name={icon as any} size={16} color={color} />
-      <Text style={ts.text}>{msg.message}</Text>
-    </Animated.View>
-  );
-}
-
-const ts = StyleSheet.create({
-  layer: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    zIndex: 9999,
-    gap: 8,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: alpha(authT.dark, 0.95),
-    borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.12),
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    gap: 10,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 10 },
-    }),
-  },
-  text: { fontFamily: FONTS.sansMedium, fontSize: 14, color: authT.textOnDark, flex: 1 },
-});
+type ToastType = "success" | "error" | "info";
 
 // ── Spinner ─────────────────────────────────────────────────────────────────
 function Spinner({ color = authT.textOnDark }: { color?: string }) {
@@ -216,7 +156,6 @@ type Phase = "identity" | "billing" | "zone" | "creating";
 // ── Signup screen ───────────────────────────────────────────────────────────
 export default function Signup() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { refreshMe, signIn } = useAuth();
   const { t } = useTranslation();
 
@@ -360,11 +299,8 @@ export default function Signup() {
   const [catsError, setCatsError] = useState(false);
 
   // Toast
-  const [msgs, setMsgs] = useState<ToastMsg[]>([]);
-  const counter = useRef(0);
   const showToast = useCallback((message: string, type: ToastType = "error") => {
-    const id = ++counter.current;
-    setMsgs((p) => [...p, { id, type, message }]);
+    feedback.toast(message, type);
   }, []);
 
   // Entrance
@@ -551,12 +487,6 @@ export default function Signup() {
 
   return (
     <AuthScreen variant="inverted" scrollable>
-      <View style={[ts.layer, { top: insets.top + 8 }]} pointerEvents="none">
-        {msgs.map((m) => (
-          <Toast key={m.id} msg={m} onDone={() => setMsgs((p) => p.filter((x) => x.id !== m.id))} />
-        ))}
-      </View>
-
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
         {/* Top row: back + step indicator */}
         <View style={s.topRow}>
