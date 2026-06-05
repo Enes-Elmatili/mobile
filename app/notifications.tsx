@@ -5,11 +5,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
   TouchableOpacity, ActivityIndicator, RefreshControl,
-  Platform, StatusBar, Alert,
+  Platform, StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
+import { feedback } from '@/lib/feedback/feedback';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -129,7 +130,7 @@ export default function NotificationsScreen() {
       setItems(data);
     } catch (e) {
       devError('[Notifications] load error:', e);
-      Alert.alert('Erreur', 'Impossible de charger les notifications.');
+      feedback.error('Impossible de charger les notifications.');
     } finally {
       setLoading(false);
       setRefreshing(false);

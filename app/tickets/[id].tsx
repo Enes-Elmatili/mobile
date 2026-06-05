@@ -5,14 +5,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, StatusBar, Alert, Linking,
+  TouchableOpacity, ActivityIndicator, StatusBar, Linking,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { api } from '@/lib/api';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 
@@ -48,12 +50,12 @@ interface Ticket {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function statusLabel(s: TicketStatus) {
-  return s === 'OPEN' ? 'Ouvert' : s === 'IN_PROGRESS' ? 'En cours' : 'Résolu';
+function statusLabel(s: TicketStatus, t: (k: string) => string) {
+  return s === 'OPEN' ? t('ext.ticket_status_open') : s === 'IN_PROGRESS' ? t('ext.ticket_status_in_progress') : t('ext.ticket_status_closed');
 }
 
-function priorityLabel(p: TicketPriority) {
-  return p === 'HIGH' ? 'Urgent' : p === 'MEDIUM' ? 'Standard' : 'Faible';
+function priorityLabel(p: TicketPriority, t: (k: string) => string) {
+  return p === 'HIGH' ? t('ext.ticket_priority_high') : p === 'MEDIUM' ? t('ext.ticket_priority_medium') : t('ext.ticket_priority_low');
 }
 
 function priorityColor(p: TicketPriority) {
@@ -70,47 +72,47 @@ function ticketRef(id: string) {
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function slaText(p: TicketPriority) {
-  return p === 'HIGH' ? 'Réponse sous 1h' : p === 'MEDIUM' ? 'Réponse sous 4h' : 'Réponse sous 24h';
+function slaText(p: TicketPriority, t: (k: string) => string) {
+  return p === 'HIGH' ? t('ext.ticket_sla_high') : p === 'MEDIUM' ? t('ext.ticket_sla_medium') : t('ext.ticket_sla_low');
 }
 
 // ── Event rendering helpers ──────────────────────────────────────────────────
 
-function eventLabel(ev: TicketEvent): string {
+function eventLabel(ev: TicketEvent, t: (k: string, opts?: any) => string): string {
   switch (ev.type) {
-    case 'CREATED': return 'Ticket créé';
-    case 'MESSAGE': return ev.payload?.fromAdmin ? 'Réponse de l\'équipe' : 'Votre message';
+    case 'CREATED': return t('ext.ticket_ev_created');
+    case 'MESSAGE': return ev.payload?.fromAdmin ? t('ext.ticket_ev_msg_team') : t('ext.ticket_ev_msg_you');
     case 'STATUS_CHANGED': {
       const to = ev.payload?.to;
-      return to === 'IN_PROGRESS' ? 'Pris en charge' : `Statut mis à jour : ${to}`;
+      return to === 'IN_PROGRESS' ? t('ext.ticket_ev_in_progress') : t('ext.ticket_ev_status_updated', { to });
     }
-    case 'PRIORITY_CHANGED': return `Priorité : ${ev.payload?.to ?? '—'}`;
-    case 'ASSIGNED': return 'Assigné à un agent';
-    case 'RESOLVED': return 'Marqué comme résolu';
-    case 'REOPENED': return 'Ticket rouvert';
+    case 'PRIORITY_CHANGED': return t('ext.ticket_ev_priority', { to: ev.payload?.to ?? '—' });
+    case 'ASSIGNED': return t('ext.ticket_ev_assigned');
+    case 'RESOLVED': return t('ext.ticket_ev_resolved');
+    case 'REOPENED': return t('ext.ticket_ev_reopened');
     default: return ev.type;
   }
 }
 
-function eventDetail(ev: TicketEvent, currentUserId?: string | null): string | null {
+function eventDetail(ev: TicketEvent, t: (k: string, opts?: any) => string, currentUserId?: string | null): string | null {
   switch (ev.type) {
     case 'CREATED':
       if (ev.payload?.source === 'support_escalation') {
-        return `Signalement envoyé via le diagnostic : ${ev.payload?.problemType ?? 'problème non précisé'}.`;
+        return t('ext.ticket_detail_escalation', { problem: ev.payload?.problemType ?? t('ext.ticket_detail_unknown_problem') });
       }
-      return 'Votre ticket a été enregistré et l\'équipe support notifiée.';
+      return t('ext.ticket_detail_created');
     case 'MESSAGE':
       return ev.payload?.content ?? null;
     case 'STATUS_CHANGED':
-      if (ev.payload?.to === 'IN_PROGRESS') return 'Un agent travaille sur votre demande.';
+      if (ev.payload?.to === 'IN_PROGRESS') return t('ext.ticket_detail_in_progress');
       return null;
     case 'RESOLVED':
-      return 'Si le problème persiste, ajoutez un message ci-dessous pour rouvrir le ticket.';
+      return t('ext.ticket_detail_resolved');
     case 'REOPENED':
-      return ev.payload?.reason === 'client_replied' ? 'Réouvert automatiquement suite à votre réponse.' : null;
+      return ev.payload?.reason === 'client_replied' ? t('ext.ticket_detail_reopened') : null;
     default:
       return null;
   }
@@ -138,6 +140,7 @@ function eventDot(ev: TicketEvent, currentUserId?: string | null): { color: stri
 export default function TicketDetailScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const { user: authUser } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -188,12 +191,12 @@ export default function TicketDetailScreen() {
       await api.tickets.addMessage(id, text);
       await load();
     } catch (err) {
-      Alert.alert('Erreur', 'Impossible d\'envoyer votre message.');
+      feedback.error('ext.ticket_msg_send_failed');
       setMessage(text);
     } finally {
       setSending(false);
     }
-  }, [id, message, sending, load]);
+  }, [id, message, sending, load, t]);
 
   const openWhatsApp = useCallback(() => {
     WebBrowser.openBrowserAsync(WHATSAPP_URL);
@@ -205,53 +208,45 @@ export default function TicketDetailScreen() {
     Linking.openURL(`mailto:support@thefixed.app?subject=${subject}`);
   }, [ticket]);
 
-  const markResolved = useCallback(() => {
+  const markResolved = useCallback(async () => {
     if (!ticket) return;
-    Alert.alert(
-      'Marquer comme résolu',
-      'Confirmez que votre problème est résolu. Vous pourrez rouvrir le ticket si besoin.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer', onPress: async () => {
-            setUpdating(true);
-            try {
-              await api.patch(`/tickets/${ticket.id}`, { status: 'CLOSED' });
-              await load();
-            } catch (err) {
-              Alert.alert('Erreur', 'Impossible de mettre à jour le ticket.');
-            } finally {
-              setUpdating(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [ticket, load]);
+    const ok = await feedback.confirm({
+      titleKey: 'ext.ticket_mark_resolved',
+      messageKey: 'ext.ticket_mark_resolved_msg',
+      confirmKey: 'common.confirm',
+      cancelKey: 'common.cancel',
+    });
+    if (!ok) return;
+    setUpdating(true);
+    try {
+      await api.patch(`/tickets/${ticket.id}`, { status: 'CLOSED' });
+      await load();
+    } catch (err) {
+      feedback.error('ext.ticket_update_failed');
+    } finally {
+      setUpdating(false);
+    }
+  }, [ticket, load, t]);
 
-  const reopen = useCallback(() => {
+  const reopen = useCallback(async () => {
     if (!ticket) return;
-    Alert.alert(
-      'Rouvrir le ticket',
-      'Le ticket sera marqué comme ouvert et l\'équipe support sera notifiée.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Rouvrir', onPress: async () => {
-            setUpdating(true);
-            try {
-              await api.patch(`/tickets/${ticket.id}`, { status: 'OPEN' });
-              await load();
-            } catch (err) {
-              Alert.alert('Erreur', 'Impossible de rouvrir le ticket.');
-            } finally {
-              setUpdating(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [ticket, load]);
+    const ok = await feedback.confirm({
+      titleKey: 'ext.ticket_reopen',
+      messageKey: 'ext.ticket_reopen_msg',
+      confirmKey: 'ext.ticket_reopen_btn',
+      cancelKey: 'common.cancel',
+    });
+    if (!ok) return;
+    setUpdating(true);
+    try {
+      await api.patch(`/tickets/${ticket.id}`, { status: 'OPEN' });
+      await load();
+    } catch (err) {
+      feedback.error('ext.ticket_reopen_failed');
+    } finally {
+      setUpdating(false);
+    }
+  }, [ticket, load, t]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -269,9 +264,9 @@ export default function TicketDetailScreen() {
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={36} color={theme.textMuted} />
-        <Text style={[s.errText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Ticket introuvable</Text>
+        <Text style={[s.errText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.ticket_not_found')}</Text>
         <TouchableOpacity onPress={() => router.back()} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-          <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Retour</Text>
+          <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -290,7 +285,7 @@ export default function TicketDetailScreen() {
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/settings/help'); }}
           activeOpacity={0.75}
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="chevron-left" size={20} color={theme.text} />
         </TouchableOpacity>
@@ -307,13 +302,13 @@ export default function TicketDetailScreen() {
           <View style={[s.pill, { backgroundColor: `${statusColor(ticket.status)}1A` }]}>
             <View style={[s.pillDot, { backgroundColor: statusColor(ticket.status) }]} />
             <Text style={[s.pillText, { color: statusColor(ticket.status), fontFamily: FONTS.monoMedium }]}>
-              {statusLabel(ticket.status).toUpperCase()}
+              {statusLabel(ticket.status, t).toUpperCase()}
             </Text>
           </View>
           <View style={[s.pill, { backgroundColor: `${priorityColor(ticket.priority)}1A` }]}>
             <Feather name="flag" size={11} color={priorityColor(ticket.priority)} />
             <Text style={[s.pillText, { color: priorityColor(ticket.priority), fontFamily: FONTS.monoMedium }]}>
-              {priorityLabel(ticket.priority).toUpperCase()}
+              {priorityLabel(ticket.priority, t).toUpperCase()}
             </Text>
           </View>
         </View>
@@ -323,8 +318,8 @@ export default function TicketDetailScreen() {
           {ticket.title.toUpperCase()}
         </Text>
         <Text style={[s.heroMeta, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
-          OUVERT LE {formatDateTime(ticket.createdAt).toUpperCase()}
-          {ticket.requestId ? ` · MISSION #${ticket.requestId}` : ''}
+          {t('ext.ticket_opened_on')} {formatDateTime(ticket.createdAt).toUpperCase()}
+          {ticket.requestId ? ` · ${t('ext.ticket_mission_hash')}${ticket.requestId}` : ''}
         </Text>
 
         {/* ── Mission link (si rattaché) ─────────────────────────────────── */}
@@ -336,7 +331,7 @@ export default function TicketDetailScreen() {
           >
             <Feather name="link" size={14} color={theme.textSub} />
             <Text style={[s.missionLinkText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              Ouvrir la mission #{ticket.requestId}
+              {t('ext.ticket_open_mission', { id: ticket.requestId })}
             </Text>
             <Feather name="arrow-up-right" size={14} color={theme.textMuted} />
           </TouchableOpacity>
@@ -345,7 +340,7 @@ export default function TicketDetailScreen() {
         {/* ── Description ─────────────────────────────────────────────── */}
         <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
         <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-          VOTRE SIGNALEMENT
+          {t('ext.ticket_your_report')}
         </Text>
         <Text style={[s.descText, { color: theme.text, fontFamily: FONTS.sans }]}>
           {ticket.description}
@@ -355,11 +350,11 @@ export default function TicketDetailScreen() {
         <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
         <View style={s.timelineHeader}>
           <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-            HISTORIQUE
+            {t('ext.ticket_history')}
           </Text>
           {!isClosed && (
             <Text style={[s.slaText, { color: theme.textSub, fontFamily: FONTS.mono }]}>
-              {slaText(ticket.priority)}
+              {slaText(ticket.priority, t)}
             </Text>
           )}
         </View>
@@ -370,7 +365,7 @@ export default function TicketDetailScreen() {
             const dot = eventDot(ev, authUser?.id);
             const isOwnMessage = ev.type === 'MESSAGE' && ev.authorId === authUser?.id;
             const isAdminMessage = ev.type === 'MESSAGE' && ev.payload?.fromAdmin;
-            const detail = eventDetail(ev, authUser?.id);
+            const detail = eventDetail(ev, t, authUser?.id);
             return (
               <View key={ev.id} style={s.tlRow}>
                 <View style={s.tlGutter}>
@@ -386,7 +381,7 @@ export default function TicketDetailScreen() {
                 <View style={s.tlBody}>
                   <View style={s.tlBodyHeader}>
                     <Text style={[s.tlLabel, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                      {eventLabel(ev)}
+                      {eventLabel(ev, t)}
                     </Text>
                     <Text style={[s.tlDate, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
                       {formatDateTime(ev.createdAt)}
@@ -421,7 +416,7 @@ export default function TicketDetailScreen() {
         <View style={[s.replyBox, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <TextInput
             style={[s.replyInput, { color: theme.text, fontFamily: FONTS.sans }]}
-            placeholder={isClosed ? 'Rouvrir avec un message…' : 'Ajouter un message…'}
+            placeholder={isClosed ? t('ext.ticket_reopen_placeholder') : t('ext.ticket_reply_placeholder')}
             placeholderTextColor={theme.textMuted}
             value={message}
             onChangeText={setMessage}
@@ -446,7 +441,7 @@ export default function TicketDetailScreen() {
         {/* ── Quick actions ───────────────────────────────────────────── */}
         <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
         <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-          CONTACTER LE SUPPORT
+          {t('ext.ticket_contact_support')}
         </Text>
 
         <View style={s.actionsCol}>
@@ -454,10 +449,10 @@ export default function TicketDetailScreen() {
             <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
             <View style={{ flex: 1 }}>
               <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                Continuer sur WhatsApp
+                {t('ext.ticket_continue_whatsapp')}
               </Text>
               <Text style={[s.actionSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                Réponse rapide pendant la beta
+                {t('ext.ticket_whatsapp_sub')}
               </Text>
             </View>
             <Feather name="arrow-up-right" size={14} color={theme.textMuted} />
@@ -467,10 +462,10 @@ export default function TicketDetailScreen() {
             <Feather name="mail" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
               <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                Répondre par e-mail
+                {t('ext.ticket_reply_email')}
               </Text>
               <Text style={[s.actionSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-                support@thefixed.app · sujet pré-rempli
+                {t('ext.ticket_email_sub')}
               </Text>
             </View>
             <Feather name="external-link" size={14} color={theme.textMuted} />
@@ -491,7 +486,7 @@ export default function TicketDetailScreen() {
               <>
                 <Feather name="rotate-ccw" size={16} color={theme.text} />
                 <Text style={[s.ctaText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                  Rouvrir le ticket
+                  {t('ext.ticket_reopen')}
                 </Text>
               </>
             )}
@@ -507,7 +502,7 @@ export default function TicketDetailScreen() {
               <>
                 <Feather name="check-circle" size={18} color={theme.accentText} />
                 <Text style={[s.ctaText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>
-                  Marquer comme résolu
+                  {t('ext.ticket_mark_resolved')}
                 </Text>
               </>
             )}

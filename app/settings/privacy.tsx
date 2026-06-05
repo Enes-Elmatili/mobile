@@ -2,12 +2,13 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, Platform, StatusBar,
+  TouchableOpacity, ActivityIndicator, Platform, StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { feedback } from '@/lib/feedback/feedback';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -33,29 +34,24 @@ export default function PrivacyScreen() {
   const theme = useAppTheme();
   const [deleting, setDeleting] = useState(false);
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Supprimer mon compte',
-      'Cette action est irréversible. Toutes vos données seront effacées définitivement.',
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: 'Supprimer définitivement',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await api.delete('/me');
-              await signOut();
-              router.replace('/(auth)/login');
-            } catch (e: any) {
-              showSocketToast(e?.message || t('common.error'), 'error');
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteAccount = async () => {
+    const ok = await feedback.confirm({
+      titleKey: 'ext.privacy_delete_account',
+      messageKey: 'ext.privacy_delete_confirm_msg',
+      confirmKey: 'ext.privacy_delete_definitive',
+      cancelKey: 'common.cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await api.delete('/me');
+      await signOut();
+      router.replace('/(auth)/login');
+    } catch (e: any) {
+      showSocketToast(e?.message || t('common.error'), 'error');
+      setDeleting(false);
+    }
   };
 
   return (
@@ -71,46 +67,36 @@ export default function PrivacyScreen() {
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        <Section title="Données collectées">
+        <Section title={t('ext.privacy_section_data')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            Fixed collecte uniquement les données nécessaires au bon fonctionnement du service :{'\n\n'}
-            • Informations d'identification (nom, email){'\n'}
-            • Données de localisation (uniquement lors d'une mission active){'\n'}
-            • Historique des missions et paiements{'\n'}
-            • Préférences de notification{'\n\n'}
-            Ces données ne sont jamais revendues à des tiers.
+            {t('ext.privacy_data_body')}
           </Text>
         </Section>
 
-        <Section title="Vos droits (RGPD)">
+        <Section title={t('ext.privacy_section_rights')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            Conformément au RGPD, vous disposez des droits suivants :{'\n\n'}
-            • Droit d'accès à vos données{'\n'}
-            • Droit de rectification{'\n'}
-            • Droit à l'effacement («droit à l'oubli»){'\n'}
-            • Droit à la portabilité{'\n\n'}
-            Pour exercer ces droits, contactez-nous à{' '}
+            {t('ext.privacy_rights_body')}{' '}
             <Text style={[s.link, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>privacy@fixed.app</Text>.
           </Text>
         </Section>
 
-        <Section title="Cookies et traceurs">
+        <Section title={t('ext.privacy_section_cookies')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            L'application utilise uniquement des cookies techniques essentiels (authentification, session). Aucun traceur publicitaire n'est utilisé.
+            {t('ext.privacy_cookies_body')}
           </Text>
         </Section>
 
-        <Section title="Conservation des données">
+        <Section title={t('ext.privacy_section_retention')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-            Vos données sont conservées pendant la durée de votre compte, puis 3 ans après sa fermeture à des fins légales. Les données de paiement sont conservées par Stripe conformément à la réglementation financière.
+            {t('ext.privacy_retention_body')}
           </Text>
         </Section>
 
         {/* Danger zone */}
         <View style={[s.dangerZone, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)', shadowOpacity: theme.shadowOpacity }]}>
-          <Text style={[s.dangerTitle, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>Zone dangereuse</Text>
+          <Text style={[s.dangerTitle, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>{t('ext.privacy_danger_zone')}</Text>
           <Text style={[s.dangerSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            La suppression de votre compte est définitive et irréversible.
+            {t('ext.privacy_danger_sub')}
           </Text>
           <TouchableOpacity
             style={[s.deleteBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)' }]}
@@ -122,7 +108,7 @@ export default function PrivacyScreen() {
               ? <ActivityIndicator size="small" color={COLORS.danger} />
               : <>
                   <Feather name="trash-2" size={16} color={COLORS.danger} />
-                  <Text style={[s.deleteBtnText, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>Supprimer mon compte</Text>
+                  <Text style={[s.deleteBtnText, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>{t('ext.privacy_delete_account')}</Text>
                 </>
             }
           </TouchableOpacity>

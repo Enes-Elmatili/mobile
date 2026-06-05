@@ -1,11 +1,12 @@
 // app/onboarding/documents.tsx — Upload documents KYC (dark design)
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
+import { feedback } from "@/lib/feedback/feedback";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { DocumentUploadCard } from "../../components/onboarding/DocumentUploadCard";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
@@ -68,7 +69,7 @@ export default function OnboardingDocuments() {
   const handleUpload = async (docType: DocumentType | string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Accès refusé", "Autorisez l'accès à la galerie pour téléverser vos documents.");
+      feedback.error("Autorisez l'accès à la galerie pour téléverser vos documents.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
@@ -84,7 +85,7 @@ export default function OnboardingDocuments() {
       setUploads(prev => ({ ...prev, [docType]: { uri: asset.uri, uploading: false } }));
     } catch (e: any) {
       setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: false } }));
-      Alert.alert("Échec du téléversement", e?.message || "Réessayez.");
+      feedback.error(e?.message || "Échec du téléversement. Réessayez.");
     }
   };
 

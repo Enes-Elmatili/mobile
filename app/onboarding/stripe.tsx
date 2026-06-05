@@ -1,12 +1,13 @@
 // app/onboarding/stripe.tsx — Stripe Connect (dark design)
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
+import { feedback } from "@/lib/feedback/feedback";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
@@ -84,9 +85,7 @@ export default function OnboardingStripe() {
       }
       // Stripe pas encore configuré (annulé ou incomplet)
     } catch (err: any) {
-      Alert.alert("Erreur Stripe", err?.message || "Impossible d'ouvrir la configuration. Vérifiez votre connexion.", [
-        { text: "Réessayer", onPress: handleConfigure },
-      ]);
+      feedback.error(err?.message || "Impossible d'ouvrir la configuration. Vérifiez votre connexion.");
     } finally {
       setLoading(false);
     }
