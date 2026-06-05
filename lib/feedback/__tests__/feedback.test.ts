@@ -71,3 +71,12 @@ test('success/info/error wrappers push the right toast type', () => {
   const types = useFeedbackStore.getState().toasts.map(t => t.type);
   expect(types).toEqual(['success', 'error']);
 });
+
+test('confirm accepts raw label strings', () => {
+  feedback.confirm({ title: 'Cancel mission', message: 'Sure?', confirm: 'Yes', cancel: 'No', destructive: true });
+  const c = useFeedbackStore.getState().confirm!;
+  expect(c.title).toBe('Cancel mission');
+  expect(c.confirmLabel).toBe('Yes');
+  expect(c.cancelLabel).toBe('No');
+  expect(c.destructive).toBe(true);
+});

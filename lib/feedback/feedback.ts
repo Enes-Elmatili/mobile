@@ -57,14 +57,20 @@ export const feedback = {
   info(messageKey: string)    { this.toast(messageKey, 'info'); },
   error(messageKey: string)   { this.haptic('error'); this.toast(messageKey, 'error'); },
 
-  confirm(opts: { titleKey: string; messageKey?: string; confirmKey: string; cancelKey: string; destructive?: boolean }): Promise<boolean> {
+  confirm(opts: {
+    titleKey?: string; title?: string;
+    messageKey?: string; message?: string;
+    confirmKey?: string; confirm?: string;
+    cancelKey?: string; cancel?: string;
+    destructive?: boolean;
+  }): Promise<boolean> {
     if (useFeedbackPrefs.getState().haptics) fireHaptic('warning');
     return new Promise<boolean>((resolve) => {
       useFeedbackStore.getState().setConfirm({
-        title: i18n.t(opts.titleKey),
-        message: opts.messageKey ? i18n.t(opts.messageKey) : undefined,
-        confirmLabel: i18n.t(opts.confirmKey),
-        cancelLabel: i18n.t(opts.cancelKey),
+        title: opts.title ?? (opts.titleKey ? i18n.t(opts.titleKey) : ''),
+        message: opts.message ?? (opts.messageKey ? i18n.t(opts.messageKey) : undefined),
+        confirmLabel: opts.confirm ?? (opts.confirmKey ? i18n.t(opts.confirmKey) : ''),
+        cancelLabel: opts.cancel ?? (opts.cancelKey ? i18n.t(opts.cancelKey) : ''),
         destructive: !!opts.destructive,
         resolve,
       });
