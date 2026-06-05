@@ -58,6 +58,13 @@ test('actionSheet resolves null on cancel', async () => {
   await expect(p).resolves.toBeNull();
 });
 
+test('actionSheet supports raw label (not translated)', () => {
+  feedback.actionSheet({ options: [{ label: 'Apple Pay' }, { labelKey: 'feedback.events.saved' }], cancelKey: 'c' });
+  const as = useFeedbackStore.getState().actionSheet!;
+  expect(as.options[0].label).toBe('Apple Pay');           // raw, untouched
+  expect(typeof as.options[1].label).toBe('string');        // labelKey resolved via i18n
+});
+
 test('success/info/error wrappers push the right toast type', () => {
   feedback.success('feedback.events.saved');
   feedback.error('feedback.events.error_generic');

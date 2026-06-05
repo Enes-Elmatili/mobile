@@ -71,12 +71,12 @@ export const feedback = {
     });
   },
 
-  actionSheet(opts: { titleKey?: string; options: { labelKey: string; destructive?: boolean }[]; cancelKey: string }): Promise<number | null> {
+  actionSheet(opts: { titleKey?: string; options: { labelKey?: string; label?: string; destructive?: boolean }[]; cancelKey: string }): Promise<number | null> {
     if (useFeedbackPrefs.getState().haptics) fireHaptic('selection');
     return new Promise<number | null>((resolve) => {
       useFeedbackStore.getState().setActionSheet({
         title: opts.titleKey ? i18n.t(opts.titleKey) : undefined,
-        options: opts.options.map((o) => ({ label: i18n.t(o.labelKey), destructive: o.destructive })),
+        options: opts.options.map((o) => ({ label: o.label ?? (o.labelKey ? i18n.t(o.labelKey) : ''), destructive: o.destructive })),
         cancelLabel: i18n.t(opts.cancelKey),
         resolve,
       });
