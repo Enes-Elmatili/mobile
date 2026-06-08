@@ -1,4 +1,15 @@
 {
+  "notifications": {
+    "title": "Notifications",
+    "mark_all_read": "Mark all read",
+    "empty_title": "No notifications",
+    "empty_subtitle": "Your notifications will appear here (new jobs, statuses, earnings…)",
+    "load_error": "Couldn't load notifications.",
+    "time_now": "Just now",
+    "time_min": "{{n}} min",
+    "time_hour": "{{n}} h",
+    "time_day": "{{n}} d"
+  },
   "common": {
     "cancel": "Cancel",
     "save": "Save",

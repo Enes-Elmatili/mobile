@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { devError } from '@/lib/logger';
@@ -18,11 +20,11 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 // ─── Formatage date relative ───────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60)  return 'À l\'instant';
-  if (diff < 3600) return `${Math.floor(diff / 60)} min`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)} j`;
-  return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if (diff < 60)  return i18n.t('notifications.time_now');
+  if (diff < 3600) return i18n.t('notifications.time_min', { n: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t('notifications.time_hour', { n: Math.floor(diff / 3600) });
+  if (diff < 604800) return i18n.t('notifications.time_day', { n: Math.floor(diff / 86400) });
+  return new Date(dateStr).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 }
 
 // ─── Icône selon le type ──────────────────────────────────────────────────────
@@ -116,6 +118,7 @@ function NotifRow({
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { clearUnread } = useSocket();
   const theme = useAppTheme();
 
@@ -130,7 +133,7 @@ export default function NotificationsScreen() {
       setItems(data);
     } catch (e) {
       devError('[Notifications] load error:', e);
-      feedback.error('Impossible de charger les notifications.');
+      feedback.error('notifications.load_error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -188,7 +191,7 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
 
         <View style={s.headerCenter}>
-          <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Notifications</Text>
+          <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('notifications.title')}</Text>
           {unreadCount > 0 && (
             <View style={[s.headerBadge, { backgroundColor: theme.accent }]}>
               <Text style={[s.headerBadgeText, { color: theme.accentText, fontFamily: FONTS.monoMedium }]}>{unreadCount}</Text>
@@ -198,7 +201,7 @@ export default function NotificationsScreen() {
 
         {unreadCount > 0 ? (
           <TouchableOpacity onPress={handleMarkAllRead} style={s.markAllBtn}>
-            <Text style={[s.markAllText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>Tout lire</Text>
+            <Text style={[s.markAllText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('notifications.mark_all_read')}</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ width: 60 }} />
@@ -223,9 +226,9 @@ export default function NotificationsScreen() {
             <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
               <Feather name="bell-off" size={36} color={theme.textMuted} />
             </View>
-            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.bebas }]}>Aucune notification</Text>
+            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.bebas }]}>{t('notifications.empty_title')}</Text>
             <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-              Vos notifications apparaîtront ici (nouvelles missions, statuts, gains…)
+              {t('notifications.empty_subtitle')}
             </Text>
           </View>
         }

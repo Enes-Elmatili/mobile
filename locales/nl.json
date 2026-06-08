@@ -1,4 +1,15 @@
 {
+  "notifications": {
+    "title": "Meldingen",
+    "mark_all_read": "Alles lezen",
+    "empty_title": "Geen meldingen",
+    "empty_subtitle": "Je meldingen verschijnen hier (nieuwe opdrachten, statussen, inkomsten…)",
+    "load_error": "Kan meldingen niet laden.",
+    "time_now": "Nu",
+    "time_min": "{{n}} min",
+    "time_hour": "{{n}} u",
+    "time_day": "{{n}} d"
+  },
   "common": {
     "cancel": "Annuleren",
     "save": "Opslaan",

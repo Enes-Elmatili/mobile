@@ -1,4 +1,15 @@
 {
+  "notifications": {
+    "title": "Notifications",
+    "mark_all_read": "Tout lire",
+    "empty_title": "Aucune notification",
+    "empty_subtitle": "Vos notifications apparaîtront ici (nouvelles missions, statuts, gains…)",
+    "load_error": "Impossible de charger les notifications.",
+    "time_now": "À l'instant",
+    "time_min": "{{n}} min",
+    "time_hour": "{{n}} h",
+    "time_day": "{{n}} j"
+  },
   "common": {
     "cancel": "Annuler",
     "save": "Enregistrer",
