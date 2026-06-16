@@ -16,6 +16,8 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Modal,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -194,6 +196,11 @@ function useTheme() {
     accentText:      t.accentText,
     statusBar:       t.statusBar,
     shadowOpacity:   t.shadowOpacity,
+    // Premium dark surface (carte noire Direction B — reste sombre dans les 2 thèmes)
+    heroBg:          t.heroBg,
+    heroText:        t.heroText,
+    heroSub:         t.heroSub,
+    heroSubFaint:    t.heroSubFaint,
   };
 }
 
@@ -501,7 +508,7 @@ const dc = StyleSheet.create({
 });
 
 // ─── Bottom CTA ────────────────────────────────────────────────────────────────
-function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelStyle, glow }: {
+function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelStyle, glow, sheen }: {
   label:       string;
   onPress:     () => void;
   disabled?:   boolean;
@@ -510,10 +517,12 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
   wrapStyle?:  object;
   labelStyle?: object;
   glow?:       boolean;
+  sheen?:      boolean;
 }) {
   const t        = useTheme();
   const scale    = useRef(new Animated.Value(1)).current;
   const pressDim = useRef(new Animated.Value(0)).current;
+  const [btnW, setBtnW] = useState(0);
 
   const springIn = () => {
     if (disabled || loading) return;
@@ -565,6 +574,7 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
           onPressIn={springIn}
           onPressOut={springOut}
           onPress={handlePress}
+          onLayout={(e) => setBtnW(e.nativeEvent.layout.width)}
           disabled={disabled || loading}
           style={[
             cta.btn,
@@ -595,6 +605,12 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
               },
             ]}
           />
+          {/* Reflet glissant — même composant/cadence que la carte prix (héro).
+              Pill claire en dark mode → opacité plus forte pour rester visible ;
+              pill sombre en light mode → 0.12 comme le héro. */}
+          {sheen && !disabled && !loading ? (
+            <BrandSheen width={btnW} opacity={t.isDark ? 0.85 : 0.12} />
+          ) : null}
           {loading ? (
             <ActivityIndicator color={t.accentText as string} />
           ) : (
@@ -746,6 +762,188 @@ const dim = StyleSheet.create({
   stepText:     { fontSize: 14, fontFamily: FONTS.sans, lineHeight: 20, paddingTop: 2 },
 });
 
+// ─── DIRECTION B · helpers + composants paiement ────────────────────────────────
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const stripEuro = (s: string) => String(s ?? '').replace(/\s*€\s*$/, '').trim();
+
+/** HT affiché = TTC − TVA (le mockup : 182,70 − 8,70 = 174,00). */
+function htEuros(dp: any): string {
+  const c = dp?.cents;
+  if (c && Number.isFinite(c.totalTVAC) && Number.isFinite(c.vat)) {
+    return formatEURCents(c.totalTVAC - c.vat);
+  }
+  const num = (x: any) => parseFloat(String(x ?? '0').replace(/\s/g, '').replace(',', '.')) || 0;
+  return formatEUR(Math.max(0, num(dp?.totalTVAC) - num(dp?.vat)));
+}
+
+/** Reflet animé qui balaie une surface (équivalent RN du keyframe fx-cardsheen).
+ *  Même géométrie/cadence partout ; `opacity` calibre l'intensité selon la surface
+ *  (carte sombre → 0.10 ; pill claire → plus fort pour rester visible). */
+function BrandSheen({ width, opacity = 0.1 }: { width: number; opacity?: number }) {
+  const x = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!width) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(x, { toValue: 1, duration: 1500, delay: 600, useNativeDriver: true }),
+        Animated.delay(4200),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [width]);
+  if (!width) return null;
+  const translateX = x.interpolate({ inputRange: [0, 1], outputRange: [-width * 0.7, width * 1.5] });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute', top: 0, bottom: 0, left: 0, width: width * 0.55,
+        transform: [{ translateX }, { skewX: '-18deg' }],
+      }}
+    >
+      <LinearGradient
+        colors={['transparent', `rgba(255,255,255,${opacity})`, 'transparent']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={StyleSheet.absoluteFill}
+      />
+    </Animated.View>
+  );
+}
+
+/** Carte noire premium : montant héros, filigrane FIXED, pied TVA/HT. */
+function AmountCardB({
+  theme, label, euros, footerLeft, footerRight,
+}: {
+  theme: any; label: string; euros: string;
+  footerLeft: React.ReactNode; footerRight?: React.ReactNode;
+}) {
+  return (
+    <View
+      style={{
+        position: 'relative', borderRadius: 26, overflow: 'hidden',
+        backgroundColor: theme.heroBg, padding: 22,
+        shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 18 }, elevation: 10,
+      }}
+    >
+      <LinearGradient
+        colors={['rgba(255,255,255,0.07)', 'transparent', 'rgba(0,0,0,0.22)']}
+        locations={[0, 0.5, 1]}
+        start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { borderRadius: 26, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }]}
+      />
+
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 12.5, letterSpacing: 1, textTransform: 'uppercase', color: theme.heroSub }}>{label}</Text>
+        <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 3, color: theme.heroSubFaint }}>FIXED</Text>
+      </View>
+
+      <Text style={{ fontFamily: FONTS.bebas, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText, marginTop: 12 }}>
+        {euros}<Text style={{ fontSize: 26, color: theme.heroSub }}> €</Text>
+      </Text>
+
+      <View style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1 }}>{footerLeft}</View>
+        {footerRight != null ? <View style={{ flexShrink: 0 }}>{footerRight}</View> : null}
+      </View>
+    </View>
+  );
+}
+
+/** Ligne récap en tuile-icône (Direction B). */
+function RecapTile({
+  theme, icon, title, sub, right, onPress,
+}: {
+  theme: any; icon: any; title: string; sub?: string;
+  right?: React.ReactNode; onPress?: () => void;
+}) {
+  const Wrap: any = onPress ? TouchableOpacity : View;
+  return (
+    <Wrap {...(onPress ? { onPress, activeOpacity: 0.7 } : {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 16 }}>
+      <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+        <Feather name={icon} size={17} color={theme.text as string} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 15, fontFamily: FONTS.sansMedium, color: theme.text as string }} numberOfLines={1}>{title}</Text>
+        {sub ? <Text style={{ fontSize: 12.5, fontFamily: FONTS.sans, color: theme.textSub as string, marginTop: 1 }} numberOfLines={1}>{sub}</Text> : null}
+      </View>
+      {right != null ? right : null}
+    </Wrap>
+  );
+}
+
+/** Sélecteur de moyen de paiement repliable, affordance MODIFIER (Direction B). */
+function PaymentRowCollapsible({
+  theme, t, value, onChange,
+}: {
+  theme: any; t: any; value: string; onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rot = useRef(new Animated.Value(0)).current;
+  const walletId = Platform.OS === 'ios' ? 'apple_pay' : 'google_pay';
+  const walletLabel = Platform.OS === 'ios' ? 'Apple Pay' : 'Google Pay';
+  const methods = [
+    { id: 'card', label: t('stepper.pay_card'), sub: 'Visa · Mastercard', icon: 'credit-card' as const },
+    { id: walletId, label: walletLabel, sub: t('stepper.instant'), icon: 'smartphone' as const },
+  ];
+  const current = methods.find((m) => m.id === value) || methods[0];
+
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(240, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
+    Animated.timing(rot, { toValue: open ? 0 : 1, duration: 240, useNativeDriver: true }).start();
+    setOpen(!open);
+  };
+
+  return (
+    <View>
+      <TouchableOpacity onPress={toggle} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 16 }}>
+        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+          <Feather name={current.icon} size={17} color={theme.text as string} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontSize: 15, fontFamily: FONTS.sansMedium, color: theme.text as string }} numberOfLines={1}>{current.label}</Text>
+          <Text style={{ fontSize: 12.5, fontFamily: FONTS.sans, color: theme.textSub as string, marginTop: 1 }} numberOfLines={1}>{current.sub}</Text>
+        </View>
+        <Text style={{ fontSize: 11.5, fontFamily: FONTS.mono, letterSpacing: 0.5, color: theme.textMuted as string }}>{t('stepper.modify')}</Text>
+        <Animated.View style={{ transform: [{ rotate: rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
+          <Feather name="chevron-down" size={15} color={theme.textMuted as string} />
+        </Animated.View>
+      </TouchableOpacity>
+
+      {open ? (
+        <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
+          {methods.map((m) => {
+            const active = m.id === value;
+            return (
+              <TouchableOpacity
+                key={m.id}
+                onPress={() => { feedback.haptic('selection'); onChange(m.id); toggle(); }}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 2, borderRadius: 13, backgroundColor: active ? theme.surface : 'transparent' }}
+              >
+                <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: active ? theme.accent : theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name={m.icon} size={14} color={(active ? theme.accentText : theme.text) as string} />
+                </View>
+                <Text style={{ flex: 1, fontSize: 14.5, fontFamily: FONTS.sansMedium, color: theme.text as string }}>{m.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: FONTS.sans, color: theme.textSub as string }}>{m.sub}</Text>
+                {active ? <Feather name="check" size={17} color={theme.text as string} /> : null}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 // ─── MAIN ──────────────────────────────────────────────────────────────────────
 export default function NewRequestStepper() {
   const router = useRouter();
@@ -856,6 +1054,8 @@ export default function NewRequestStepper() {
   const [buildingType,    setBuildingType]    = useState<string | null>((user as any)?.buildingType || null);
   const [floorNum,        setFloorNum]        = useState<string>((user as any)?.floor != null ? String((user as any).floor) : '');
   const [hasElevator,     setHasElevator]     = useState<boolean | null>((user as any)?.hasElevator ?? null);
+  // TVA : logement de +10 ans (cas du taux réduit 6%). Défaut true (bâti ancien majoritaire).
+  const [buildingOver10y, setBuildingOver10y] = useState<boolean>(true);
   // accessNotes (digicode/instructions) NE doit PAS être pré-rempli depuis User :
   // c'est une info contextuelle à chaque mission (code change, instructions ponctuelles,
   // « laisser au gardien », etc.). Re-saisie obligatoire à chaque demande pour éviter
@@ -874,6 +1074,14 @@ export default function NewRequestStepper() {
   const calloutFee      = selectedSubcategory?.calloutFee || 0; // EUR
   const isFreeService   = pricingMode === 'free' || (basePrice === 0 && !['estimate', 'diagnostic'].includes(pricingMode));
   const isQuoteFlow     = pricingMode === 'estimate' || pricingMode === 'diagnostic';
+
+  // ── TVA service : 6% rénovation (logement >=10 ans + usage privé) sinon 21% ──
+  // privateUse dérivé du type de bâtiment (bureau = usage pro → 21%).
+  // vatEligible : la serrurerie / le dépannage non immobilier reste à 21%.
+  const vatEligible = String(selectedCategory?.slug || '').toLowerCase() !== 'serrurerie'
+    && (selectedSubcategory?.isImmovableWork !== false);
+  const privateUse  = buildingType !== 'office';
+  const vatRate     = (vatEligible && buildingOver10y && privateUse) ? 0.06 : 0.21;
   // serviceName est passé en param URL aux écrans suivants (missionview, tracking).
   // On le génère dans la langue active i18n via translateSubcategory + translateCategory
   // pour que le titre s'affiche traduit (ex: "Druk bijvullen" en NL au lieu de
@@ -906,7 +1114,8 @@ export default function NewRequestStepper() {
     requestDate: new Date(requestDateIso),
     isFlat:      true,
     flatAmount:  basePrice,
-  }), [basePrice, isUrgent, requestDateIso]);
+    vatRate,
+  }), [basePrice, isUrgent, requestDateIso, vatRate]);
   const estimatedPrice  = parseFloat(priceDetails.totalTVAC);
   const urgencySurcharge = parseFloat(priceDetails.urgentFee);
   const step3Ready = scheduleMode === 'now' || (scheduleMode === 'later' && !!selectedDayIso && !!selectedTime);
@@ -1097,6 +1306,7 @@ export default function NewRequestStepper() {
           isUrgent,
           scheduledFor: scheduledFor || new Date().toISOString(),
           pricingMode,
+          ...(vatEligible ? { buildingOver10y, privateUse } : {}),
         });
         if (cancelled) return;
         setPricingToken(lockRes.pricingToken);
@@ -1769,6 +1979,38 @@ export default function NewRequestStepper() {
               )}
 
 
+              {/* ── TVA : âge du logement (détermine 6% vs 21%) ── */}
+              {vatEligible && (
+                <View style={{ marginTop: 24 }}>
+                  <View style={[ai.sep, { backgroundColor: theme.sep }]} />
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={[ai.headerTitle, { color: theme.text }]}>{t('stepper.vat_dwelling_title')}</Text>
+                    <Text style={[ai.headerSub, { color: theme.textMuted, marginBottom: 12 }]}>
+                      {vatRate === 0.06 ? t('stepper.vat_reduced_hint') : t('stepper.vat_standard_hint')}
+                    </Text>
+                    <View style={ai.chipRow}>
+                      {([
+                        { val: true,  label: t('stepper.vat_over10') },
+                        { val: false, label: t('stepper.vat_under10') },
+                      ] as const).map(opt => (
+                        <TouchableOpacity
+                          key={String(opt.val)}
+                          style={[
+                            ai.chip,
+                            { borderColor: buildingOver10y === opt.val ? theme.accent : theme.surfaceBorder },
+                            buildingOver10y === opt.val && { backgroundColor: theme.accent },
+                          ]}
+                          onPress={() => { feedback.haptic('light'); setBuildingOver10y(opt.val); }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[ai.chipText, { color: buildingOver10y === opt.val ? theme.accentText : theme.textSub }]}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              )}
+
               {/* ── Infos d'accès (collapsible) ── */}
               <View style={{ marginTop: 24 }}>
                 <View style={[ai.sep, { backgroundColor: theme.sep }]} />
@@ -1934,60 +2176,15 @@ export default function NewRequestStepper() {
               <View style={{ position: 'absolute', top: '45%', right: 20, width: 50, height: 50, borderRadius: 8, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.018)', transform: [{ rotate: '45deg' }] }} />
             </View>
 
-            <View style={[s.v4Body, { paddingHorizontal: 16 }]}>
+            <ScrollView
+              style={s.flex}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 16 }}
+              showsVerticalScrollIndicator={false}
+            >
 
-              {/* ── RÉCAPITULATIF ── */}
-              <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>RÉCAPITULATIF</Text>
-              <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
-                <View style={s.v4Row}>
-                  <Feather name="map-pin" size={16} color={theme.textSub as string} />
-                  <Text style={[s.v4Val, { color: theme.text }]} numberOfLines={1}>{location?.address?.split(',')[0]}</Text>
-                  <Text style={[s.v4Sub, { color: theme.textSub }]} numberOfLines={1}>{location?.address?.split(',').slice(1).join(',').trim()}</Text>
-                </View>
-                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                <View style={s.v4Row}>
-                  <Feather name={toFeatherName(toIoniconName(selectedCategory?.icon, 'construct-outline'), 'tool') as any} size={16} color={theme.textSub as string} />
-                  <Text style={[s.v4Val, { color: theme.text }]}>{serviceName}</Text>
-                </View>
-                <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                <View style={s.v4Row}>
-                  <Feather name="clock" size={16} color={theme.textSub as string} />
-                  <Text style={[s.v4Val, { color: theme.text }]}>{scheduledLabel}</Text>
-                </View>
-                {!isFreeService && (
-                  <>
-                    <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                    <TouchableOpacity
-                      style={s.v4Row}
-                      activeOpacity={0.7}
-                      onPress={async () => {
-                        const choice = await feedback.actionSheet({
-                          titleKey: 'stepper.payment_method_title',
-                          options: [
-                            { label: 'Carte bancaire' },
-                            { label: Platform.OS === 'ios' ? 'Apple Pay' : 'Google Pay' },
-                          ],
-                          cancelKey: 'common.cancel',
-                        });
-                        if (choice === null) return;
-                        if (choice === 0) setPaymentMethod('card');
-                        else if (choice === 1) setPaymentMethod(Platform.OS === 'ios' ? 'apple_pay' : 'google_pay');
-                      }}
-                    >
-                      <Feather name="credit-card" size={16} color={theme.textSub as string} />
-                      <Text style={[s.v4Val, { color: theme.text }]}>
-                        {paymentMethod === 'card' ? 'Carte bancaire' : paymentMethod === 'apple_pay' ? 'Apple Pay' : 'Google Pay'}
-                      </Text>
-                      <Feather name="chevron-down" size={14} color={theme.textMuted as string} />
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-
-
-              {/* ── MONTANT ── */}
+              {/* ── MONTANT (carte noire premium · Direction B) ── */}
               {isFreeService ? (
-                <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder, marginTop: 16 }]}>
+                <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
                   <Feather name="gift" size={18} color={theme.text as string} />
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>{t('stepper.free_service')}</Text>
@@ -1995,29 +2192,25 @@ export default function NewRequestStepper() {
                   </View>
                 </View>
               ) : isQuoteFlow ? (
-                <View style={{ gap: 10, marginTop: 16 }}>
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string }}>MONTANT</Text>
-                  <View style={{ backgroundColor: theme.v4CardBg as string, borderRadius: 16, borderWidth: 1, borderColor: theme.surfaceBorder as string, padding: 16, gap: 10 }}>
-                    {selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 13, fontFamily: FONTS.sans, color: theme.textMuted as string }}>{t('stepper.work_estimate')}</Text>
-                        <Text style={{ fontSize: 13, fontFamily: FONTS.bebas, color: theme.textSub as string }}>{selectedSubcategory.priceMin} – {selectedSubcategory.priceMax} €</Text>
-                      </View>
-                    ) : null}
-                    <View style={{ height: 1, backgroundColor: theme.surfaceBorder as string }} />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: theme.textMuted as string }}>{t('stepper.pay_now')}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                        <Feather name="check" size={8} color={COLORS.green} />
-                        <Text style={{ fontSize: 10, fontFamily: FONTS.sans, color: COLORS.green }}>{t('stepper.deducted_if_accepted')}</Text>
-                      </View>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 36, letterSpacing: 1, lineHeight: 36, color: theme.text as string }}>
-                        {Math.floor(calloutFee)}<Text style={{ fontSize: 18, color: theme.textSub as string }}>,{String(Math.round((calloutFee % 1) * 100)).padStart(2, '0')} €</Text>
+                <View style={{ gap: 12 }}>
+                  <AmountCardB
+                    theme={theme}
+                    label={t('stepper.pay_now')}
+                    euros={stripEuro(confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : formatEUR(calloutFee))}
+                    footerLeft={(
+                      <>
+                        <Feather name="check" size={13} color={COLORS.green} />
+                        <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub as string }} numberOfLines={1}>
+                          {t('stepper.deducted_if_accepted')}
+                        </Text>
+                      </>
+                    )}
+                    footerRight={selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
+                      <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.heroSubFaint as string }}>
+                        {selectedSubcategory.priceMin}–{selectedSubcategory.priceMax} €
                       </Text>
-                    </View>
-                  </View>
+                    ) : null}
+                  />
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
                     onPress={() => setDevisModalVisible(true)} activeOpacity={0.7}
@@ -2028,32 +2221,90 @@ export default function NewRequestStepper() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 8 }}>MONTANT</Text>
-                  <View style={{ backgroundColor: theme.v4CardBg as string, borderRadius: 16, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontFamily: FONTS.sans, fontSize: 14, color: theme.textSub as string }}>{t('stepper.total_ttc')}</Text>
-                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1, color: theme.text as string }}>{displayPrice.totalTVAC} €</Text>
-                  </View>
-                  <View style={[s.v4SecureRow, { marginTop: 8 }]}>
-                    <Feather name="lock" size={13} color={theme.textMuted as string} />
-                    <Text style={[s.v4Secure, { color: theme.textMuted }]}>{t('stepper.charge_after_validation')}</Text>
-                  </View>
+                <AmountCardB
+                  theme={theme}
+                  label={t('stepper.total_to_pay')}
+                  euros={(displayPrice as any).totalTVAC}
+                  footerLeft={(
+                    <>
+                      <Feather name="shield" size={13} color={theme.heroSubFaint as string} />
+                      <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub as string }} numberOfLines={1}>
+                        {(displayPrice as any).vatRate
+                          ? t('stepper.incl_vat', { pct: Math.round(Number((displayPrice as any).vatRate) * 100), amount: (displayPrice as any).vat })
+                          : t('stepper.total_ttc')}
+                      </Text>
+                    </>
+                  )}
+                  footerRight={(displayPrice as any).vatRate ? (
+                    <Text style={{ fontFamily: FONTS.mono, fontSize: 12.5, color: theme.heroSubFaint as string }}>
+                      {t('stepper.excl_vat_label')} {htEuros(displayPrice)}
+                    </Text>
+                  ) : null}
+                />
+              )}
+
+              {/* ── RÉCAPITULATIF (tuiles-icônes · Direction B) ── */}
+              <View>
+                <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>RÉCAPITULATIF</Text>
+                <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
+                  <RecapTile
+                    theme={theme}
+                    icon="map-pin"
+                    title={location?.address?.split(',')[0] || '—'}
+                    sub={location?.address?.split(',').slice(1).join(',').trim()}
+                  />
+                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+                  <RecapTile
+                    theme={theme}
+                    icon={toFeatherName(toIoniconName(selectedCategory?.icon, 'construct-outline'), 'tool') as any}
+                    title={serviceName || '—'}
+                  />
+                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+                  <RecapTile
+                    theme={theme}
+                    icon="clock"
+                    title={scheduledLabel || t('stepper.now')}
+                    right={isUrgent ? (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: theme.accent }}>
+                        <Text style={{ fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.5, color: theme.accentText as string }}>{t('provider.urgent')}</Text>
+                      </View>
+                    ) : undefined}
+                  />
+                  {!isFreeService && (
+                    <>
+                      <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+                      <PaymentRowCollapsible
+                        theme={theme}
+                        t={t}
+                        value={paymentMethod}
+                        onChange={(v) => setPaymentMethod(v as any)}
+                      />
+                    </>
+                  )}
+                </View>
+              </View>
+
+              {/* ── Réassurance ── */}
+              {!isFreeService && (
+                <View style={s.v4SecureRow}>
+                  <Feather name="lock" size={13} color={theme.textMuted as string} />
+                  <Text style={[s.v4Secure, { color: theme.textMuted }]}>{t('stepper.charge_after_validation')}</Text>
                 </View>
               )}
 
-            </View>
+            </ScrollView>
 
             {/* Footer CTA */}
             <BottomCTA
               label={isFreeService
-                ? 'Confirmer (gratuit)'
+                ? t('stepper.confirm_free')
                 : isQuoteFlow
-                  ? `Réserver · ${confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : calloutFee > 0 ? formatEUR(calloutFee) : '...'}`
+                  ? `${t('stepper.reserve')} · ${confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : calloutFee > 0 ? formatEUR(calloutFee) : '...'}`
                   : t('stepper.confirm_mission')}
               onPress={handlePay}
               disabled={loading || !paymentReady || !!pricingError}
               loading={loading}
-              glow
+              sheen
             />
           </View>
         )}

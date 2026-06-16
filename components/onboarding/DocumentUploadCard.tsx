@@ -1,142 +1,248 @@
-// components/onboarding/DocumentUploadCard.tsx — Carte d'upload KYC (dark design)
+// components/onboarding/DocumentUploadCard.tsx — Checklist KYC à statuts (dark design)
+// Redesign onboarding : chaque pièce affiche son état (envoyé / requis / refusé /
+// validé), une vignette, et le bouton Téléverser vit DANS la carte requise.
 import React from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { useTranslation } from "react-i18next";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { alpha } from "@/components/auth";
 import type { DocumentRequirement, DocumentType } from "../../constants/kycRequirements";
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
   white:   darkTokens.text,
   grey:    darkTokens.textMuted,
-  border:  "rgba(255,255,255,0.08)",
+  faint:   alpha(darkTokens.text, 0.3),
+  border:  alpha(darkTokens.text, 0.08),
   cardBg:  darkTokens.cardBg,
-  surface: "rgba(255,255,255,0.04)",
+  surface: alpha(darkTokens.text, 0.05),
   green:   COLORS.greenBrand,
+  amber:   COLORS.amber,
+  red:     COLORS.red,
 };
+
+export type DocServerStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 interface DocumentUploadCardProps {
   requirement: DocumentRequirement;
   uploadedUri: string | null;
   uploading?: boolean;
+  /** Statut renvoyé par le backend si le document existe déjà côté serveur */
+  serverStatus?: DocServerStatus | null;
+  rejectionReason?: string | null;
   onUpload: (type: DocumentType) => void;
 }
 
-export function DocumentUploadCard({ requirement, uploadedUri, uploading, onUpload }: DocumentUploadCardProps) {
+export function DocumentUploadCard({
+  requirement,
+  uploadedUri,
+  uploading,
+  serverStatus,
+  rejectionReason,
+  onUpload,
+}: DocumentUploadCardProps) {
   const { t } = useTranslation();
-  const isUploaded = !!uploadedUri;
+  // Libellés/descriptions traduits — fallback sur les constantes FR canoniques
+  const docLabel = t(`kyc.${requirement.type}_label`, { defaultValue: requirement.label });
+  const docDesc = t(`kyc.${requirement.type}_desc`, { defaultValue: requirement.description });
+  const rejected = serverStatus === "REJECTED" && !uploadedUri;
+  const approved = serverStatus === "APPROVED";
+  const sent = !rejected && (!!uploadedUri || serverStatus === "PENDING" || approved);
+  const needsUpload = !sent && !uploading;
+
+  const chip = approved
+    ? { label: t('onboarding.doc_chip_approved'), color: C.green, bg: alpha(C.green, 0.13) }
+    : rejected
+      ? { label: t('onboarding.doc_chip_refused'), color: C.red, bg: alpha(C.red, 0.13) }
+      : sent
+        ? { label: t('onboarding.doc_chip_sent'), color: C.green, bg: alpha(C.green, 0.13) }
+        : requirement.required
+          ? { label: t('onboarding.doc_chip_required'), color: C.amber, bg: alpha(C.amber, 0.13) }
+          : { label: t('onboarding.doc_chip_optional'), color: C.grey, bg: alpha(C.white, 0.07) };
+
+  const borderColor = rejected
+    ? alpha(C.red, 0.4)
+    : needsUpload && requirement.required
+      ? alpha(C.amber, 0.4)
+      : C.border;
 
   return (
-    <TouchableOpacity
-      style={[styles.docCard, isUploaded && styles.docCardDone]}
-      onPress={() => !isUploaded && !uploading && onUpload(requirement.type)}
-      disabled={isUploaded || uploading}
-      activeOpacity={0.7}
-    >
-      <View style={styles.docCardLeft}>
-        <Feather
-          name={isUploaded ? "check-circle" : "file-text"}
-          size={24}
-          color={isUploaded ? C.green : C.white}
-        />
-      </View>
-      <View style={styles.docCardContent}>
-        <View style={styles.docCardHeader}>
-          <Text style={[styles.docCardLabel, isUploaded && { color: C.grey }]} numberOfLines={2}>
-            {requirement.label}
+    <View style={[styles.docCard, { borderColor }]}>
+      <View style={styles.row}>
+        {/* Vignette */}
+        {sent ? (
+          <View style={styles.thumb}>
+            {uploadedUri ? (
+              <Image source={{ uri: uploadedUri }} style={styles.thumbImage} />
+            ) : (
+              <Feather name="file-text" size={17} color={C.grey} />
+            )}
+            <View style={styles.thumbBadge}>
+              <Feather name="check" size={9} color={darkTokens.bg} />
+            </View>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.thumbEmpty,
+              { borderColor: rejected ? alpha(C.red, 0.5) : requirement.required ? alpha(C.amber, 0.5) : alpha(C.white, 0.25) },
+            ]}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color={C.white} />
+            ) : (
+              <Feather
+                name="file-text"
+                size={17}
+                color={rejected ? C.red : requirement.required ? C.amber : C.grey}
+              />
+            )}
+          </View>
+        )}
+
+        {/* Texte */}
+        <View style={styles.content}>
+          <Text style={styles.label} numberOfLines={2}>{docLabel}</Text>
+          <Text style={styles.meta} numberOfLines={2}>
+            {rejected && rejectionReason ? rejectionReason : docDesc}
           </Text>
-          {requirement.required && !isUploaded && (
-            <View style={styles.requiredBadge}>
-              <Text style={styles.requiredBadgeText}>{t('common.required')}</Text>
-            </View>
-          )}
-          {isUploaded && (
-            <View style={styles.doneBadge}>
-              <Text style={styles.doneBadgeText}>{t('profile.uploaded')}</Text>
-            </View>
-          )}
         </View>
-        <Text style={styles.docCardDesc} numberOfLines={2}>{requirement.description}</Text>
+
+        {/* Chip statut */}
+        <View style={[styles.chip, { backgroundColor: chip.bg }]}>
+          <Text style={[styles.chipText, { color: chip.color }]}>{chip.label}</Text>
+        </View>
       </View>
-      {uploading ? (
-        <ActivityIndicator size="small" color={C.grey} />
-      ) : (
-        <Feather
-          name={isUploaded ? "check" : "upload"}
-          size={20}
-          color={isUploaded ? C.green : C.grey}
-        />
+
+      {/* Bouton téléverser intégré — uniquement quand la pièce manque */}
+      {(needsUpload || uploading || rejected) && !sent && (
+        <TouchableOpacity
+          style={styles.uploadBtn}
+          onPress={() => onUpload(requirement.type)}
+          disabled={uploading}
+          activeOpacity={0.7}
+        >
+          {uploading ? (
+            <>
+              <ActivityIndicator size="small" color={C.white} />
+              <Text style={styles.uploadBtnText}>{t('onboarding.doc_uploading')}</Text>
+            </>
+          ) : (
+            <>
+              <Feather name="upload" size={14} color={C.white} />
+              <Text style={styles.uploadBtnText}>{rejected ? t('onboarding.doc_reupload') : t('onboarding.doc_upload')}</Text>
+              <Text style={styles.uploadHint}>{t('onboarding.doc_hint')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   docCard: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: C.cardBg,
     borderWidth: 1,
-    borderColor: C.border,
     borderRadius: 18,
     padding: 16,
-    marginBottom: 10,
-    gap: 12,
+    marginBottom: 11,
   },
-  docCardDone: {
-    borderColor: "rgba(61,139,61,0.2)",
-    backgroundColor: "rgba(61,139,61,0.05)",
-  },
-  docCardLeft: {
-    width: 32,
-    alignItems: "center",
-  },
-  docCardContent: {
-    flex: 1,
-    gap: 4,
-  },
-  docCardHeader: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 13,
   },
-  docCardLabel: {
-    fontFamily: FONTS.sansMedium,
-    fontSize: 15,
-    color: C.white,
-    flexShrink: 1,
-  },
-  docCardDesc: {
-    fontFamily: FONTS.sansLight,
-    fontSize: 12,
-    lineHeight: 17,
-    color: C.grey,
-  },
-  requiredBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: C.border,
+  thumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 11,
     backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: alpha(darkTokens.text, 0.18),
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
   },
-  requiredBadgeText: {
+  thumbImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
+  },
+  thumbBadge: {
+    position: "absolute",
+    right: -4,
+    bottom: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: C.green,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: darkTokens.bg,
+  },
+  thumbEmpty: {
+    width: 44,
+    height: 44,
+    borderRadius: 11,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  content: {
+    flex: 1,
+    gap: 3,
+  },
+  label: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 14,
+    color: C.white,
+  },
+  meta: {
     fontFamily: FONTS.mono,
-    fontSize: 10,
-    color: C.grey,
+    fontSize: 9,
+    letterSpacing: 0.6,
+    lineHeight: 13,
+    color: C.faint,
+    textTransform: "uppercase",
   },
-  doneBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    backgroundColor: "rgba(61,139,61,0.1)",
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 100,
   },
-  doneBadgeText: {
+  chipText: {
     fontFamily: FONTS.mono,
-    fontSize: 10,
-    color: C.green,
+    fontSize: 8.5,
+    letterSpacing: 1.2,
+  },
+  uploadBtn: {
+    marginTop: 13,
+    height: 44,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    backgroundColor: alpha(darkTokens.text, 0.07),
+    borderWidth: 1,
+    borderColor: alpha(darkTokens.text, 0.2),
+  },
+  uploadBtnText: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 12,
+    color: C.white,
+  },
+  uploadHint: {
+    fontFamily: FONTS.mono,
+    fontSize: 8.5,
+    letterSpacing: 1,
+    color: C.faint,
   },
 });

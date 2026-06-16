@@ -231,6 +231,14 @@ export interface AppNotification {
   title: string;
   message: string;
   type: string;
+  data?: {
+    category?: string;
+    screen?: string;
+    type?: string;
+    requestId?: number | string;
+    disputeId?: string;
+    senderId?: string;
+  } | null;
   readAt?: string;
   createdAt: string;
 }

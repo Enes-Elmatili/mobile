@@ -112,7 +112,7 @@ async function registerForPushNotifications() {
   }
 }
 
-function handleNotificationNavigation(data: any) {
+export function handleNotificationNavigation(data: any) {
   if (!data) return;
   const { screen, type, requestId } = data;
   try {

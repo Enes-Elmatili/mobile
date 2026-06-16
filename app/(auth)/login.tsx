@@ -13,7 +13,7 @@ import {
 import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { useAuthRequest, ResponseType } from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { feedback } from "@/lib/feedback/feedback";
@@ -106,23 +106,18 @@ export default function Login() {
     feedback.toast(message, type);
   }, []);
 
-  // Google Auth
-  const googleRedirectUri = "https://auth.expo.io/@eneselmatili/fixed-app";
-  const googleDiscovery = {
-    authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenEndpoint: "https://oauth2.googleapis.com/token",
-    revocationEndpoint: "https://oauth2.googleapis.com/revoke",
-  };
-
-  const [googleRequest, googleResponse, googlePromptAsync] = useAuthRequest(
-    {
-      clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!,
-      redirectUri: googleRedirectUri,
-      scopes: ["openid", "profile", "email"],
-      responseType: ResponseType.Token,
-    },
-    googleDiscovery
-  );
+  // Google Auth — native PKCE auth-code flow via the Expo Google provider.
+  // Google's iOS/Android OAuth clients reject the implicit token flow (the old
+  // auth.expo.io proxy setup), so Google.useAuthRequest selects the right
+  // per-platform client, builds the native reverse-client-id redirect, runs
+  // PKCE, and returns an id_token that the backend verifies by audience.
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    scopes: ["openid", "profile", "email"],
+  });
 
   useEffect(() => {
     if (__DEV__ && googleRequest) {
@@ -134,15 +129,16 @@ export default function Login() {
     if (!googleResponse) return;
     if (__DEV__) console.log("[Google Auth] response type:", googleResponse.type);
     if (googleResponse.type === "success") {
-      const accessToken = googleResponse.params?.access_token;
-      if (accessToken) handleGoogleSignIn(accessToken);
+      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
+      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
     }
   }, [googleResponse]);
 
-  const handleGoogleSignIn = async (accessToken: string) => {
+  const handleGoogleSignIn = async (tokens: { idToken?: string; accessToken?: string }) => {
     setSocialLoading("google");
     try {
-      const res = await api.auth.google(accessToken);
+      const res = await api.auth.google(tokens);
       if (!res?.token) throw new Error();
       await signIn(res.token, res.missingFields ?? []);
       await refreshMe();

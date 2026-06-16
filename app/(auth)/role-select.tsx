@@ -15,7 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
@@ -33,12 +33,14 @@ function RoleCard({
   icon,
   title,
   subtitle,
+  meta,
   isSelected,
   onPress,
 }: {
   icon: keyof typeof Feather.glyphMap;
   title: string;
   subtitle: string;
+  meta?: string;
   isSelected: boolean;
   onPress: () => void;
 }) {
@@ -80,6 +82,7 @@ function RoleCard({
         <View style={s.cardText}>
           <Text style={s.cardTitle}>{title}</Text>
           <Text style={s.cardSub}>{subtitle}</Text>
+          {!!meta && <Text style={s.cardMeta}>{meta.toUpperCase()}</Text>}
         </View>
 
         <View style={[s.radio, isSelected && s.radioSelected]}>
@@ -183,9 +186,15 @@ export default function RoleSelect() {
             icon="tool"
             title={t('ext.role_provider')}
             subtitle={t('ext.role_provider_sub')}
+            meta={t('ext.role_provider_meta')}
             isSelected={selected === "PROVIDER"}
             onPress={() => select("PROVIDER")}
           />
+        </View>
+
+        <View style={s.switchNote}>
+          <Feather name="refresh-cw" size={11} color={alpha(authT.textOnDark, 0.3)} />
+          <Text style={s.switchNoteText}>{t('ext.role_switch_note').toUpperCase()}</Text>
         </View>
 
         <View style={s.spacer} />
@@ -280,6 +289,25 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: alpha(authT.textOnDark, 0.55),
     lineHeight: 17,
+  },
+  cardMeta: {
+    fontFamily: FONTS.mono,
+    fontSize: 8.5,
+    letterSpacing: 1.4,
+    color: COLORS.greenBrand,
+    marginTop: 5,
+  },
+  switchNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 14,
+  },
+  switchNoteText: {
+    fontFamily: FONTS.mono,
+    fontSize: 8.5,
+    letterSpacing: 1.3,
+    color: alpha(authT.textOnDark, 0.3),
   },
   radio: {
     width: 20,

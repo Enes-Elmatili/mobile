@@ -1,4 +1,6 @@
-// app/onboarding/documents.tsx — Upload documents KYC (dark design)
+// app/onboarding/documents.tsx — Checklist KYC à statuts (dark design)
+// Redesign onboarding : chaque pièce affiche son état, la progression est
+// matérialisée (barre + « X / N envoyés ») et le CTA désactivé explique pourquoi.
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -7,11 +9,13 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
 import { feedback } from "@/lib/feedback/feedback";
+import { useTranslation } from "react-i18next";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
-import { DocumentUploadCard } from "../../components/onboarding/DocumentUploadCard";
+import { DocumentUploadCard, type DocServerStatus } from "../../components/onboarding/DocumentUploadCard";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
 import { getRequiredDocuments, type DocumentRequirement, type DocumentType } from "../../constants/kycRequirements";
-import { FONTS, darkTokens } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
+import { alpha } from "@/components/auth";
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = { white: darkTokens.text, grey: darkTokens.textMuted };
@@ -24,10 +28,16 @@ interface UploadState {
   [type: string]: { uri: string | null; uploading: boolean };
 }
 
+interface ServerDocState {
+  [docKey: string]: { status: DocServerStatus; rejectionReason?: string | null };
+}
+
 export default function OnboardingDocuments() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [requirements, setRequirements] = useState<DocumentRequirement[]>([]);
   const [uploads, setUploads] = useState<UploadState>({});
+  const [serverDocs, setServerDocs] = useState<ServerDocState>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,6 +71,17 @@ export default function OnboardingDocuments() {
         );
       }
 
+      // Pièces déjà envoyées (retour sur l'écran, rejet admin…) — statut serveur
+      try {
+        const res: any = await api.providerDocs.list();
+        const docs: { docKey: string; status: string; rejectionReason?: string | null }[] = res?.documents ?? [];
+        const byKey: ServerDocState = {};
+        for (const d of docs) {
+          byKey[d.docKey] = { status: d.status as DocServerStatus, rejectionReason: d.rejectionReason };
+        }
+        setServerDocs(byKey);
+      } catch {}
+
       setUploads(initialState);
       setLoading(false);
     })();
@@ -69,7 +90,7 @@ export default function OnboardingDocuments() {
   const handleUpload = async (docType: DocumentType | string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      feedback.error("Autorisez l'accès à la galerie pour téléverser vos documents.");
+      feedback.error(t('onboarding.docs_perm_error'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
@@ -82,21 +103,37 @@ export default function OnboardingDocuments() {
       formData.append("file", { uri: asset.uri, name: asset.fileName || `${docType}_${Date.now()}.jpg`, type: asset.mimeType || "image/jpeg" } as any);
       formData.append("docKey", docType);
       await api.providerDocs.upload(formData);
+      feedback.success(t('onboarding.docs_sent_toast'));
       setUploads(prev => ({ ...prev, [docType]: { uri: asset.uri, uploading: false } }));
+      setServerDocs(prev => ({ ...prev, [docType]: { status: "PENDING" } }));
     } catch (e: any) {
       setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: false } }));
-      feedback.error(e?.message || "Échec du téléversement. Réessayez.");
+      feedback.error(e?.message || t('onboarding.docs_upload_error'));
     }
   };
 
-  const uploadedCount = Object.values(uploads).filter(u => u.uri).length;
+  const isSent = (type: string) => {
+    if (uploads[type]?.uri) return true;
+    const srv = serverDocs[type]?.status;
+    return srv === "PENDING" || srv === "APPROVED";
+  };
+
   const totalDocs = requirements.length;
+  const sentCount = requirements.filter(d => isSent(d.type)).length;
   const mandatoryDocs = requirements.filter(d => d.required);
-  const allMandatoryUploaded = mandatoryDocs.every(d => uploads[d.type]?.uri);
+  const allMandatorySent = mandatoryDocs.every(d => isSent(d.type));
+  const anyUploading = Object.values(uploads).some(u => u.uploading);
+  const progress = totalDocs > 0 ? sentCount / totalDocs : 0;
 
   if (loading) {
     return (
-      <OnboardingLayout currentStep={PROVIDER_FLOW.steps.DOCUMENTS} totalSteps={PROVIDER_FLOW.totalSteps} title={"Vos\ndocuments."} subtitle="Chargement des exigences...">
+      <OnboardingLayout
+        currentStep={PROVIDER_FLOW.steps.DOCUMENTS}
+        totalSteps={PROVIDER_FLOW.totalSteps}
+        stepLabel={t('onboarding.docs_step_label')}
+        title={t('onboarding.docs_title')}
+        subtitle={t('onboarding.docs_loading')}
+      >
         <View style={s.centered}><ActivityIndicator size="large" color={C.grey} /></View>
       </OnboardingLayout>
     );
@@ -106,19 +143,45 @@ export default function OnboardingDocuments() {
     <OnboardingLayout
       currentStep={PROVIDER_FLOW.steps.DOCUMENTS}
       totalSteps={PROVIDER_FLOW.totalSteps}
-      title={"Vos\ndocuments."}
-      subtitle="Téléversez vos justificatifs pour activer votre profil. Les documents requis sont marqués en orange."
-      cta={{ label: "Continuer", onPress: () => router.push("/onboarding/stripe"), disabled: !allMandatoryUploaded }}
+      stepLabel={t('onboarding.docs_step_label')}
+      title={t('onboarding.docs_title')}
+      subtitle={t('onboarding.docs_sub', { count: mandatoryDocs.length })}
+      cta={{
+        label: t('common.continue'),
+        onPress: () => router.push("/onboarding/stripe"),
+        disabled: !allMandatorySent || anyUploading,
+        sub: anyUploading
+          ? t('onboarding.docs_cta_uploading')
+          : !allMandatorySent
+            ? t('onboarding.docs_cta_missing')
+            : undefined,
+      }}
     >
-      <Text style={s.docProgress}>{uploadedCount} / {totalDocs} envoyé{uploadedCount > 1 ? "s" : ""}</Text>
+      {/* Progression */}
+      <View style={s.progressRow}>
+        <View style={s.progressTrack}>
+          <View style={[s.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+        </View>
+        <Text style={s.progressLabel}>
+          {t('onboarding.docs_progress', { count: sentCount, total: totalDocs })}
+        </Text>
+      </View>
 
       {requirements.map(req => (
-        <DocumentUploadCard key={req.type} requirement={req} uploadedUri={uploads[req.type]?.uri ?? null} uploading={uploads[req.type]?.uploading} onUpload={() => handleUpload(req.type)} />
+        <DocumentUploadCard
+          key={req.type}
+          requirement={req}
+          uploadedUri={uploads[req.type]?.uri ?? null}
+          uploading={uploads[req.type]?.uploading}
+          serverStatus={serverDocs[req.type]?.status ?? null}
+          rejectionReason={serverDocs[req.type]?.rejectionReason}
+          onUpload={() => handleUpload(req.type)}
+        />
       ))}
 
       <View style={s.securityNote}>
-        <Feather name="lock" size={12} color="rgba(255,255,255,0.2)" />
-        <Text style={s.securityText}>Documents chiffrés et stockés de façon sécurisée. Jamais partagés avec les clients.</Text>
+        <Feather name="lock" size={12} color={alpha(darkTokens.text, 0.2)} />
+        <Text style={s.securityText}>{t('onboarding.docs_security')}</Text>
       </View>
     </OnboardingLayout>
   );
@@ -126,7 +189,31 @@ export default function OnboardingDocuments() {
 
 const s = StyleSheet.create({
   centered: { alignItems: "center", paddingVertical: 40 },
-  docProgress: { fontFamily: FONTS.sans, fontSize: 13, color: C.grey, marginBottom: 20 },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: alpha(darkTokens.text, 0.12),
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: COLORS.greenBrand,
+  },
+  progressLabel: {
+    fontFamily: FONTS.mono,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: C.grey,
+    textTransform: "uppercase",
+  },
   securityNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
-  securityText: { fontFamily: FONTS.sansLight, fontSize: 11, color: "rgba(255,255,255,0.2)" },
+  securityText: { fontFamily: FONTS.sansLight, fontSize: 11, color: alpha(darkTokens.text, 0.2) },
 });

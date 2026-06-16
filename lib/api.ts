@@ -287,8 +287,8 @@ class ApiClient {
       }
       return result;
     },
-    google: async (accessToken: string) => {
-      const result = await this.post('/auth/google', { accessToken });
+    google: async (tokens: { idToken?: string; accessToken?: string }) => {
+      const result = await this.post('/auth/google', tokens);
       if (result.token) {
         await tokenStorage.setToken(result.token);
       }

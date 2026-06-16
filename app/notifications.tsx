@@ -16,6 +16,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import NotificationDetailSheet from '@/components/sheets/NotificationDetailSheet';
 
 // ─── Formatage date relative ───────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -45,15 +46,23 @@ interface NotifItem {
   type: string;
   readAt: string | null;
   createdAt: string;
+  data?: {
+    category?: string;
+    screen?: string;
+    type?: string;
+    requestId?: number | string;
+    disputeId?: string;
+    senderId?: string;
+  } | null;
 }
 
 function NotifRow({
   item,
-  onRead,
+  onOpen,
   onDelete,
 }: {
   item: NotifItem;
-  onRead: (id: string) => void;
+  onOpen: (item: NotifItem) => void;
   onDelete: (id: string) => void;
 }) {
   const theme = useAppTheme();
@@ -74,7 +83,7 @@ function NotifRow({
         },
         isUnread && { borderColor: theme.borderLight, backgroundColor: theme.surface },
       ]}
-      onPress={() => { if (isUnread) onRead(item.id); }}
+      onPress={() => onOpen(item)}
       activeOpacity={0.75}
     >
       {/* Dot non-lu */}
@@ -125,6 +134,7 @@ export default function NotificationsScreen() {
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
   const [items,        setItems]        = useState<NotifItem[]>([]);
+  const [selected,     setSelected]     = useState<NotifItem | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -151,6 +161,12 @@ export default function NotificationsScreen() {
   const handleRead = async (id: string) => {
     setItems(prev => prev.map(n => n.id === id ? { ...n, readAt: new Date().toISOString() } : n));
     try { await api.notifications.markAsRead(id); } catch { /* silent */ }
+  };
+
+  const handleOpen = (item: NotifItem) => {
+    feedback.haptic('selection');
+    setSelected(item);
+    if (!item.readAt) handleRead(item.id);
   };
 
   const handleMarkAllRead = async () => {
@@ -213,7 +229,7 @@ export default function NotificationsScreen() {
         data={items}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <NotifRow item={item} onRead={handleRead} onDelete={handleDelete} />
+          <NotifRow item={item} onOpen={handleOpen} onDelete={handleDelete} />
         )}
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
@@ -232,6 +248,12 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         }
+      />
+
+      <NotificationDetailSheet
+        notif={selected}
+        isVisible={!!selected}
+        onClose={() => setSelected(null)}
       />
     </SafeAreaView>
   );

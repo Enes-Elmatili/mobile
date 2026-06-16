@@ -17,7 +17,7 @@ import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { useAuthRequest, ResponseType } from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { feedback } from "@/lib/feedback/feedback";
@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import { toFeatherName } from "@/lib/iconMapper";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
+import { getRequiredDocuments } from "@/constants/kycRequirements";
 import Slider from "@react-native-community/slider";
 import {
   AuthScreen,
@@ -104,6 +105,7 @@ function Spinner({ color = authT.textOnDark }: { color?: string }) {
 
 // ── Password strength ───────────────────────────────────────────────────────
 function StrengthBar({ password }: { password: string }) {
+  const { t } = useTranslation();
   const checks = [
     password.length >= 8,
     /[A-Z]/.test(password),
@@ -112,7 +114,7 @@ function StrengthBar({ password }: { password: string }) {
   ];
   const score = checks.filter(Boolean).length;
   const barColors = [COLORS.red, COLORS.amber, COLORS.amber, COLORS.greenBrand];
-  const labels = ["Faible", "Moyen", "Bon", "Fort"];
+  const labels = [t('auth.su_strength_1'), t('auth.su_strength_2'), t('auth.su_strength_3'), t('auth.su_strength_4')];
   return (
     <View style={str.wrap}>
       <View style={str.barRow}>
@@ -168,34 +170,32 @@ export default function Signup() {
   const [phase, setPhase] = useState<Phase>("identity");
   const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
 
-  // Google Auth
-  const googleDiscovery = {
-    authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenEndpoint: "https://oauth2.googleapis.com/token",
-    revocationEndpoint: "https://oauth2.googleapis.com/revoke",
-  };
-  const [googleRequest, googleResponse, googlePromptAsync] = useAuthRequest(
-    {
-      clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!,
-      redirectUri: "https://auth.expo.io/@eneselmatili/fixed-app",
-      scopes: ["openid", "profile", "email"],
-      responseType: ResponseType.Token,
-    },
-    googleDiscovery
-  );
+  // Google Auth — native PKCE auth-code flow via the Expo Google provider.
+  // Google's iOS/Android OAuth clients reject the implicit token flow (the old
+  // auth.expo.io proxy setup), so Google.useAuthRequest selects the right
+  // per-platform client, builds the native reverse-client-id redirect, runs
+  // PKCE, and returns an id_token that the backend verifies by audience.
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    scopes: ["openid", "profile", "email"],
+  });
 
   useEffect(() => {
     if (!googleResponse) return;
     if (googleResponse.type === "success") {
-      const accessToken = googleResponse.params?.access_token;
-      if (accessToken) handleGoogleSignIn(accessToken);
+      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
+      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
     }
   }, [googleResponse]);
 
-  const handleGoogleSignIn = async (accessToken: string) => {
+  const handleGoogleSignIn = async (tokens: { idToken?: string; accessToken?: string }) => {
     setSocialLoading("google");
     try {
-      const res = await api.auth.google(accessToken);
+      const res = await api.auth.google(tokens);
       if (!res?.token) throw new Error();
       await signIn(res.token, res.missingFields ?? []);
       await refreshMe();
@@ -215,7 +215,7 @@ export default function Signup() {
       }
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
-      else showToast("Connexion impossible, réessaie");
+      else showToast(t('auth.su_err_social'));
     } finally {
       setSocialLoading(null);
     }
@@ -257,7 +257,7 @@ export default function Signup() {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
         // silent cancel
       } else if (e?.status === 409) showToast(e.data?.error || e.message);
-      else showToast("Connexion impossible, réessaie");
+      else showToast(t('auth.su_err_social'));
     } finally {
       setSocialLoading(null);
     }
@@ -328,7 +328,7 @@ export default function Signup() {
       .then((res: any) => setCategories(res?.data ?? res ?? []))
       .catch(() => {
         setCatsError(true);
-        showToast("Erreur de chargement des catégories");
+        showToast(t('auth.su_err_cats_load'));
       })
       .finally(() => setCatsLoading(false));
   }, []);
@@ -346,9 +346,9 @@ export default function Signup() {
   const goToBilling = () => {
     if (!canIdentity) {
       feedback.haptic('error');
-      if (!name.trim()) showToast("Entrez votre nom");
-      else if (!isEmailValid) showToast("Adresse mail invalide");
-      else showToast("Mot de passe trop court — 8 caractères min.");
+      if (!name.trim()) showToast(t('auth.su_err_name'));
+      else if (!isEmailValid) showToast(t('auth.su_err_email'));
+      else showToast(t('auth.su_err_pwd'));
       return;
     }
     feedback.haptic('light');
@@ -358,10 +358,10 @@ export default function Signup() {
 
   const validateBillingFields = (): boolean => {
     let valid = true;
-    if (!isPhoneValid) { setPhoneError("Numéro de téléphone invalide"); valid = false; } else setPhoneError("");
-    if (!isAddressValid) { setAddressError("Adresse trop courte — 3 caractères min."); valid = false; } else setAddressError("");
-    if (!isPostalCodeValid) { setPostalCodeError("Code postal invalide — 4 chiffres requis"); valid = false; } else setPostalCodeError("");
-    if (!isBillingCityValid) { setBillingCityError("Ville trop courte — 2 caractères min."); valid = false; } else setBillingCityError("");
+    if (!isPhoneValid) { setPhoneError(t('auth.su_err_phone')); valid = false; } else setPhoneError("");
+    if (!isAddressValid) { setAddressError(t('auth.su_err_address')); valid = false; } else setAddressError("");
+    if (!isPostalCodeValid) { setPostalCodeError(t('auth.su_err_postal')); valid = false; } else setPostalCodeError("");
+    if (!isBillingCityValid) { setBillingCityError(t('auth.su_err_city')); valid = false; } else setBillingCityError("");
     return valid;
   };
 
@@ -396,8 +396,8 @@ export default function Signup() {
   const createAccount = async () => {
     if (isProvider && !canZone) {
       feedback.haptic('error');
-      if (city.trim().length < 2) showToast("Entrez votre ville de base");
-      else showToast("Sélectionnez au moins un domaine");
+      if (city.trim().length < 2) showToast(t('auth.su_err_zone_city'));
+      else showToast(t('auth.su_err_zone_cats'));
       return;
     }
     if (!isProvider && !canBilling) return;
@@ -443,25 +443,28 @@ export default function Signup() {
       router.replace({ pathname: "/(auth)/verify-email", params: { email: email.trim().toLowerCase() } });
     } catch (err: any) {
       feedback.haptic('error');
-      showToast(err.message || "Échec de l'inscription");
+      showToast(err.message || t('auth.su_err_signup'));
       setPhase(isProvider ? "zone" : "billing");
     }
   };
 
-  // Progress
-  // CLIENT: identity(1) → billing(2) → creating
-  // PROVIDER: identity(1) → billing(2) → zone(3) → creating (totalSteps from flow covers verify/docs/stripe)
+  // Progress — stepper unifié 01→06 (provider) / 01→03 (client).
+  // identity(01) → billing/coordonnées(02) → zone/activité(03) ; la suite
+  // (vérification, documents, paiements) vit sur les écrans suivants.
   const flow = isProvider ? PROVIDER_FLOW : CLIENT_FLOW;
   const totalSteps = flow.totalSteps;
-  const stepNum = isProvider
-    ? phase === "identity"
-      ? PROVIDER_FLOW.steps.SIGNUP_ID
+  const stepNum =
+    phase === "identity"
+      ? flow.steps.IDENTITY
       : phase === "billing"
-        ? 2
-        : PROVIDER_FLOW.steps.ZONE
-    : phase === "identity"
-      ? 1
-      : CLIENT_FLOW.steps.REGISTER;
+        ? flow.steps.COORDS
+        : PROVIDER_FLOW.steps.ACTIVITY;
+  const phaseLabel =
+    phase === "identity"
+      ? t('auth.su_phase_identity')
+      : phase === "billing"
+        ? t('auth.su_phase_coords')
+        : t('auth.su_phase_activity');
 
   const isBusy = !!socialLoading;
 
@@ -480,10 +483,10 @@ export default function Signup() {
   // ── Headline per phase ──
   const headlineProps =
     phase === "billing"
-      ? { kicker: "INSCRIPTION", title: "VOS\n{accent}COORDONNÉES.{/accent}", subtitle: "Téléphone et adresse de facturation." }
+      ? { kicker: t('auth.su_kicker'), title: t('auth.su_coords_title'), subtitle: t('auth.su_coords_sub') }
       : isProvider && phase === "zone"
-        ? { kicker: "INSCRIPTION", title: "VOTRE\n{accent}ACTIVITÉ.{/accent}", subtitle: "Zone d'intervention et domaines d'expertise." }
-        : { kicker: "INSCRIPTION", title: "CRÉEZ VOTRE\n{accent}COMPTE.{/accent}", subtitle: "Opérationnel en moins d'une minute." };
+        ? { kicker: t('auth.su_kicker'), title: t('auth.su_activity_title'), subtitle: t('auth.su_activity_sub') }
+        : { kicker: t('auth.su_kicker'), title: t('auth.su_identity_title'), subtitle: t('auth.su_identity_sub') };
 
   return (
     <AuthScreen variant="inverted" scrollable>
@@ -492,13 +495,13 @@ export default function Signup() {
         <View style={s.topRow}>
           <AuthBackButton onPress={goBack} />
           <View style={s.stepIndicator}>
-            {Array.from({ length: isProvider ? totalSteps : 2 }).map((_, i) => (
+            {Array.from({ length: totalSteps }).map((_, i) => (
               <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
             ))}
             <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>{String(stepNum).padStart(2, "0")}</Text>
+              <Text style={s.stepLabelBold}>{phaseLabel} · {String(stepNum).padStart(2, "0")}</Text>
               {" / "}
-              {String(isProvider ? totalSteps : 2).padStart(2, "0")}
+              {String(totalSteps).padStart(2, "0")}
             </Text>
           </View>
         </View>
@@ -534,16 +537,16 @@ export default function Signup() {
 
             <View style={s.divider}>
               <View style={s.dividerLine} />
-              <Text style={s.dividerLabel}>OU</Text>
+              <Text style={s.dividerLabel}>{t('auth.su_or')}</Text>
               <View style={s.dividerLine} />
             </View>
 
             {/* Form */}
             <View style={s.form}>
               <AuthInput
-                label="Nom complet"
+                label={t('auth.su_name_label')}
                 icon="user"
-                placeholder="Prénom et nom"
+                placeholder={t('auth.su_name_placeholder')}
                 autoCapitalize="words"
                 maxLength={60}
                 returnKeyType="next"
@@ -553,9 +556,9 @@ export default function Signup() {
               />
               <AuthInput
                 inputRef={emailRef}
-                label="Adresse mail"
+                label={t('auth.su_email_label')}
                 icon="mail"
-                placeholder="votre@email.com"
+                placeholder={t('auth.su_email_placeholder')}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 returnKeyType="next"
@@ -565,9 +568,9 @@ export default function Signup() {
               />
               <AuthInput
                 inputRef={pwdRef}
-                label="Mot de passe"
+                label={t('auth.su_pwd_label')}
                 icon="lock"
-                placeholder="Minimum 8 caractères"
+                placeholder={t('auth.su_pwd_placeholder')}
                 secureTextEntry={!showPwd}
                 trailingIcon={showPwd ? "eye-off" : "eye"}
                 onTrailingPress={() => setShowPwd((p) => !p)}
@@ -583,8 +586,11 @@ export default function Signup() {
             <View style={s.cguRow}>
               <Feather name="shield" size={13} color={alpha(authT.textOnLight, 0.3)} style={{ marginTop: 1 }} />
               <Text style={s.cguText}>
-                En continuant, vous acceptez nos <Text style={s.cguLink}>CGU</Text> et notre{" "}
-                <Text style={s.cguLink}>Politique de confidentialité</Text>.
+                {t('auth.su_cgu_pre')}
+                <Text style={s.cguLink}>{t('auth.su_cgu_terms')}</Text>
+                {t('auth.su_cgu_mid')}
+                <Text style={s.cguLink}>{t('auth.su_cgu_privacy')}</Text>
+                {t('auth.su_cgu_post')}
               </Text>
             </View>
           </View>
@@ -610,6 +616,18 @@ export default function Signup() {
                 }}
                 error={addressError || undefined}
               />
+              {!!postalCode && !!billingCity && (
+                <View style={s.autofillRow}>
+                  <Feather name="zap" size={11} color={alpha(authT.textOnLight, 0.45)} />
+                  <Text style={s.autofillText}>
+                    {postalCode} {billingCity} — {t('auth.su_autofill_suffix')}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={s.cguRow}>
+              <Feather name="lock" size={13} color={alpha(authT.textOnLight, 0.3)} style={{ marginTop: 1 }} />
+              <Text style={s.cguText}>{t('auth.su_billing_note')}</Text>
             </View>
           </View>
         )}
@@ -618,7 +636,7 @@ export default function Signup() {
         {phase === "zone" && isProvider && (
           <View style={s.body}>
             <View>
-              <Text style={s.sectionLabel}>VILLE DE BASE</Text>
+              <Text style={s.sectionLabel}>{t('auth.su_zone_city')}</Text>
               <View style={s.cityDropdown}>
                 {CITY_OPTIONS.map((opt) => (
                   <TouchableOpacity
@@ -643,9 +661,18 @@ export default function Signup() {
             </View>
 
             <View>
-              <Text style={s.sectionLabel}>RAYON D'INTERVENTION</Text>
+              <Text style={s.sectionLabel}>{t('auth.su_zone_radius')}</Text>
               <View style={s.sliderWrap}>
-                <Text style={s.sliderValue}>{radius} km</Text>
+                <View style={s.sliderValueRow}>
+                  <Text style={s.sliderValue}>{radius} km</Text>
+                  <Text style={s.sliderAnnotation}>
+                    {radius <= 3
+                      ? t('auth.su_radius_near')
+                      : radius <= 8
+                        ? t('auth.su_radius_mid')
+                        : t('auth.su_radius_far')}
+                  </Text>
+                </View>
                 <Slider
                   minimumValue={1}
                   maximumValue={15}
@@ -665,7 +692,7 @@ export default function Signup() {
             </View>
 
             <View>
-              <Text style={s.sectionLabel}>VOS MÉTIERS</Text>
+              <Text style={s.sectionLabel}>{t('auth.su_zone_cats')}</Text>
               {catsLoading ? (
                 <View style={s.centered}>
                   <ActivityIndicator size="large" color={alpha(authT.textOnDark, 0.6)} />
@@ -673,7 +700,7 @@ export default function Signup() {
               ) : catsError && categories.length === 0 ? (
                 <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
                   <Feather name="refresh-cw" size={24} color={alpha(authT.textOnDark, 0.5)} />
-                  <Text style={s.retryText}>Réessayer</Text>
+                  <Text style={s.retryText}>{t('common.retry')}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={s.catGrid}>
@@ -703,8 +730,12 @@ export default function Signup() {
               )}
               {selectedCats.length > 0 && (
                 <Text style={s.catCount}>
-                  {selectedCats.length} service{selectedCats.length > 1 ? "s" : ""} sélectionné
-                  {selectedCats.length > 1 ? "s" : ""}
+                  {t('auth.su_cat_count', {
+                    count: selectedCats.length,
+                    docs: getRequiredDocuments(
+                      categories.filter((c) => selectedCats.includes(c.id)).map((c) => c.name)
+                    ).filter((d) => d.required).length,
+                  })}
                 </Text>
               )}
             </View>
@@ -715,13 +746,9 @@ export default function Signup() {
 
         <AuthCTA
           label={
-            phase === "identity"
-              ? "CONTINUER"
-              : phase === "billing" && isProvider
-                ? "CONTINUER"
-                : phase === "billing"
-                  ? "CRÉER MON COMPTE"
-                  : "CRÉER MON COMPTE"
+            phase === "identity" || (phase === "billing" && isProvider)
+              ? t('auth.su_continue')
+              : t('auth.su_create')
           }
           onPress={() => {
             if (phase === "identity") goToBilling();
@@ -737,8 +764,8 @@ export default function Signup() {
 
         {phase === "identity" && (
           <AuthLink
-            prefix="Déjà un compte ?"
-            action="Se connecter"
+            prefix={t('auth.su_already')}
+            action={t('auth.su_signin')}
             onPress={() => {
               feedback.haptic('light');
               router.push("/(auth)/login");
@@ -786,8 +813,8 @@ const s = StyleSheet.create({
     gap: 6,
   },
   stepBar: { height: 2, borderRadius: 2 },
-  stepBarActive: { width: 36, backgroundColor: authT.textOnDark },
-  stepBarInactive: { width: 20, backgroundColor: alpha(authT.textOnDark, 0.15) },
+  stepBarActive: { width: 22, backgroundColor: authT.textOnDark },
+  stepBarInactive: { width: 12, backgroundColor: alpha(authT.textOnDark, 0.15) },
   stepLabel: {
     fontFamily: FONTS.mono,
     fontSize: 10,
@@ -913,11 +940,24 @@ const s = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 12,
   },
+  sliderValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   sliderValue: {
     fontFamily: FONTS.bebas,
     fontSize: 28,
     color: authT.textOnDark,
     letterSpacing: 1.5,
+  },
+  sliderAnnotation: {
+    fontFamily: FONTS.mono,
+    fontSize: 8.5,
+    letterSpacing: 1.2,
+    color: alpha(authT.textOnDark, 0.4),
+    flexShrink: 1,
   },
   sliderLabels: {
     flexDirection: "row",
@@ -978,10 +1018,23 @@ const s = StyleSheet.create({
   },
   catCount: {
     fontFamily: FONTS.mono,
-    fontSize: 10,
+    fontSize: 9,
     color: alpha(authT.textOnLight, 0.6),
-    letterSpacing: 1,
-    marginTop: 8,
+    letterSpacing: 1.2,
+    marginTop: 10,
+  },
+
+  autofillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 2,
+  },
+  autofillText: {
+    fontFamily: FONTS.mono,
+    fontSize: 8.5,
+    letterSpacing: 1.2,
+    color: alpha(authT.textOnLight, 0.5),
   },
 
   spacer: { flex: 1, minHeight: 24 },

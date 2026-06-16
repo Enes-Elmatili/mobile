@@ -10,7 +10,9 @@ import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { feedback } from "@/lib/feedback/feedback";
+import { useTranslation } from "react-i18next";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
+import { alpha } from "@/components/auth";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -20,15 +22,15 @@ const C = {
   bg:          darkTokens.bg,
   white:       darkTokens.text,
   grey:        darkTokens.textMuted,
-  border:      "rgba(255,255,255,0.08)",
+  border:      alpha(darkTokens.text, 0.08),
   cardBg:      darkTokens.cardBg,
-  outlineText: "rgba(255,255,255,0.3)",
+  outlineText: alpha(darkTokens.text, 0.3),
 };
 
 function GridLines() {
   const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
   const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
-  const stroke = "rgba(255,255,255,0.025)";
+  const stroke = alpha(darkTokens.text, 0.025);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
@@ -55,6 +57,8 @@ interface Props {
   children: React.ReactNode;
   currentStep: number;
   totalSteps: number;
+  /** Libellé de phase affiché dans le stepper (ex. « DOCUMENTS · 05 / 06 ») */
+  stepLabel?: string;
   onBack?: () => void;
   showBack?: boolean;
   title: string;
@@ -64,6 +68,8 @@ interface Props {
     onPress: () => void;
     disabled?: boolean;
     loading?: boolean;
+    /** Explication affichée sous le bouton (ex. pourquoi il est désactivé) */
+    sub?: string;
   };
   secondaryCta?: {
     label: string;
@@ -75,6 +81,7 @@ export function OnboardingLayout({
   children,
   currentStep,
   totalSteps,
+  stepLabel,
   onBack,
   showBack = true,
   title,
@@ -82,6 +89,7 @@ export function OnboardingLayout({
   cta,
   secondaryCta,
 }: Props) {
+  const { t } = useTranslation();
   const canGoBack = router.canGoBack();
   const shouldShowBack = showBack && (!!onBack || canGoBack);
 
@@ -116,7 +124,7 @@ export function OnboardingLayout({
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
         <LinearGradient
-          colors={["rgba(255,255,255,0.025)", "transparent"]}
+          colors={[alpha(darkTokens.text, 0.025), "transparent"]}
           style={s.glowGradient}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
@@ -133,7 +141,7 @@ export function OnboardingLayout({
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
-              <Feather name="chevron-left" size={16} color="rgba(255,255,255,0.6)" />
+              <Feather name="chevron-left" size={16} color={alpha(darkTokens.text, 0.6)} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 36 }} />
@@ -144,7 +152,10 @@ export function OnboardingLayout({
               <View key={i} style={[s.stepBar, i < currentStep ? s.stepBarActive : s.stepBarInactive]} />
             ))}
             <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>{String(currentStep).padStart(2, "0")}</Text>
+              <Text style={s.stepLabelBold}>
+                {stepLabel ? `${stepLabel.toUpperCase()} · ` : ""}
+                {String(currentStep).padStart(2, "0")}
+              </Text>
               {" / "}
               {String(totalSteps).padStart(2, "0")}
             </Text>
@@ -181,7 +192,7 @@ export function OnboardingLayout({
               activeOpacity={0.82}
             >
               <Text style={s.btnPrimaryText}>
-                {cta.loading ? "CHARGEMENT..." : cta.label.toUpperCase()}
+                {cta.loading ? t('common.loading').toUpperCase() : cta.label.toUpperCase()}
               </Text>
               {!cta.loading && !cta.disabled && (
                 <View style={s.arrowPill}>
@@ -189,6 +200,10 @@ export function OnboardingLayout({
                 </View>
               )}
             </TouchableOpacity>
+
+            {!!cta.sub && (
+              <Text style={s.ctaSub}>{cta.sub.toUpperCase()}</Text>
+            )}
 
             {secondaryCta && (
               <TouchableOpacity
@@ -240,13 +255,13 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 6,
   },
   stepBar: { height: 2, borderRadius: 2 },
-  stepBarActive: { width: 36, backgroundColor: C.white },
-  stepBarInactive: { width: 20, backgroundColor: "rgba(255,255,255,0.12)" },
+  stepBarActive: { width: 22, backgroundColor: C.white },
+  stepBarInactive: { width: 12, backgroundColor: alpha(darkTokens.text, 0.12) },
   stepLabel: {
     fontFamily: FONTS.sans, fontSize: 10, letterSpacing: 2,
-    color: "rgba(255,255,255,0.25)", marginLeft: 4,
+    color: alpha(darkTokens.text, 0.25), marginLeft: 4,
   },
-  stepLabelBold: { color: "rgba(255,255,255,0.5)" },
+  stepLabelBold: { color: alpha(darkTokens.text, 0.5) },
 
   // Content
   scrollContent: {
@@ -279,11 +294,18 @@ const s = StyleSheet.create({
     width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,
     alignItems: "center", justifyContent: "center",
   },
+  ctaSub: {
+    fontFamily: FONTS.mono,
+    fontSize: 9.5,
+    letterSpacing: 1.4,
+    color: alpha(darkTokens.text, 0.3),
+    textAlign: "center",
+  },
   secondaryCta: { alignItems: "center", paddingVertical: 4 },
   secondaryCtaText: {
     fontFamily: FONTS.sansMedium, fontSize: 13,
     color: C.outlineText,
     textDecorationLine: "underline",
-    textDecorationColor: "rgba(255,255,255,0.12)",
+    textDecorationColor: alpha(darkTokens.text, 0.12),
   },
 });

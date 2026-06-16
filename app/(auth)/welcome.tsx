@@ -9,11 +9,13 @@ import {
   Easing,
 } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { FONTS } from "@/hooks/use-app-theme";
 import { feedback } from "@/lib/feedback/feedback";
 import { AuthScreen, AuthCTA, AuthLink, authT, alpha } from "@/components/auth";
 
 export default function Welcome() {
+  const { t } = useTranslation();
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(20)).current;
 
@@ -50,40 +52,40 @@ export default function Welcome() {
         <View style={{ flex: 1 }} />
 
         <Text style={s.headline}>
-          UN PRO{"\n"}
-          CHEZ <Text style={s.headlineAccent}>VOUS</Text>{"\n"}
-          MAINTENANT
+          {t('auth.welcome_l1')}{"\n"}
+          {t('auth.welcome_l2_prefix')}
+          <Text style={s.headlineAccent}>{t('auth.welcome_l2_accent')}</Text>{"\n"}
+          {t('auth.welcome_l3')}
         </Text>
 
-        <Text style={s.subhead}>
-          Réservé en quelques secondes. Payé en sécurité.
-        </Text>
+        <Text style={s.subhead}>{t('auth.welcome_sub')}</Text>
 
         <View style={{ flex: 1 }} />
 
         {/* 3-step editorial process */}
         <View style={s.steps}>
-          <View style={s.step}>
-            <Text style={s.stepNum}>01</Text>
-            <Text style={s.stepLabel}>CHOISIR</Text>
-          </View>
-          <View style={s.stepLine} />
-          <View style={s.step}>
-            <Text style={s.stepNum}>02</Text>
-            <Text style={s.stepLabel}>PAYER</Text>
-          </View>
-          <View style={s.stepLine} />
-          <View style={s.step}>
-            <Text style={s.stepNum}>03</Text>
-            <Text style={s.stepLabel}>RÉGLER</Text>
-          </View>
+          {[t('auth.welcome_step1'), t('auth.welcome_step2'), t('auth.welcome_step3')].map((label, i) => (
+            <React.Fragment key={label}>
+              {i > 0 && <View style={s.stepLine} />}
+              <View style={s.step}>
+                <Text style={s.stepNum}>{String(i + 1).padStart(2, "0")}</Text>
+                <Text style={s.stepLabel}>{label}</Text>
+              </View>
+            </React.Fragment>
+          ))}
         </View>
 
         <View style={s.hairline} />
 
-        <AuthCTA label="COMMENCER" onPress={handlePrimary} variant="standard" />
+        <AuthCTA label={t('auth.welcome_cta')} onPress={handlePrimary} variant="standard" />
 
-        <AuthLink prefix="Déjà membre ?" action="Se connecter" onPress={handleSignIn} onDark />
+        <AuthLink prefix={t('auth.welcome_already')} action={t('auth.welcome_signin')} onPress={handleSignIn} onDark />
+
+        <Pressable onPress={handlePrimary} style={s.proRow} hitSlop={8}>
+          <Text style={s.proText}>
+            {t('auth.welcome_pro_q')} <Text style={s.proLink}>{t('auth.welcome_pro_link')}</Text>
+          </Text>
+        </Pressable>
       </Animated.View>
     </AuthScreen>
   );
@@ -153,5 +155,22 @@ const s = StyleSheet.create({
     backgroundColor: alpha(authT.textOnDark, 0.12),
     marginHorizontal: -22,
     marginBottom: 20,
+  },
+
+  // Lien prestataire (zone sombre)
+  proRow: {
+    alignItems: "center",
+    marginTop: 12,
+  },
+  proText: {
+    fontFamily: FONTS.mono,
+    fontSize: 9.5,
+    letterSpacing: 1.6,
+    color: alpha(authT.textOnDark, 0.3),
+  },
+  proLink: {
+    color: alpha(authT.textOnDark, 0.55),
+    textDecorationLine: "underline",
+    textDecorationColor: alpha(authT.textOnDark, 0.3),
   },
 });

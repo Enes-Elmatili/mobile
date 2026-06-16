@@ -1,8 +1,12 @@
-// app/(auth)/verify-email.tsx — verify email (inverted gradient)
-import React, { useEffect, useRef, useState } from "react";
+// app/(auth)/verify-email.tsx — vérification par code OTP 6 chiffres (inverted gradient)
+// Redesign onboarding : le lien email devient un code saisi sur place, validé
+// automatiquement à la saisie. Le polling /auth/me reste en fallback pour le
+// chemin "clic sur le lien" des anciens emails.
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   Animated,
@@ -15,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/lib/api";
 import { feedback } from "@/lib/feedback/feedback";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useTranslation } from "react-i18next";
 import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
 import {
@@ -26,54 +31,40 @@ import {
 } from "@/components/auth";
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
+const CODE_LENGTH = 6;
+const RESEND_COOLDOWN_S = 30;
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const router = useRouter();
   const { refreshMe, signOut } = useAuth();
+  const { t } = useTranslation();
 
+  const [code, setCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
+  const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_S);
   const [verified, setVerified] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
+
+  const inputRef = useRef<TextInput>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const verifiedRef = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(ROLE_INTENT_KEY).then(setRole);
   }, []);
 
+  // Countdown renvoi
   useEffect(() => {
-    let cancelled = false;
-    pollRef.current = setInterval(async () => {
-      if (cancelled) return;
-      try {
-        const res = await api.get("/auth/me");
-        if (res?.user?.emailVerified && !cancelled) {
-          if (pollRef.current) clearInterval(pollRef.current);
-          setVerified(true);
-          refreshMe().catch(() => {});
-        }
-      } catch {}
-    }, 4000);
-    return () => {
-      cancelled = true;
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [cooldown > 0]);
 
-  const handleResend = async () => {
-    setResending(true);
-    try {
-      await api.post("/auth/resend-verification");
-      setResent(true);
-    } catch {} finally {
-      setResending(false);
-    }
-  };
-
-  const handleContinue = async () => {
-    feedback.haptic('medium');
+  const handleContinue = useCallback(async () => {
     let detectedRole = await AsyncStorage.getItem(ROLE_INTENT_KEY);
     if (!detectedRole) {
       try {
@@ -88,12 +79,110 @@ export default function VerifyEmail() {
       await AsyncStorage.removeItem("onboarding_data").catch(() => {});
       router.replace("/(tabs)/dashboard");
     }
+  }, [router]);
+
+  const markVerified = useCallback(() => {
+    if (verifiedRef.current) return;
+    verifiedRef.current = true;
+    if (pollRef.current) clearInterval(pollRef.current);
+    setVerified(true);
+    setErrorMsg(null);
+    feedback.haptic("success");
+    refreshMe().catch(() => {});
+    // Validation automatique → on enchaîne sans demander de tap supplémentaire
+    setTimeout(() => { handleContinue(); }, 1100);
+  }, [handleContinue, refreshMe]);
+
+  // Fallback : l'utilisateur a cliqué le lien dans l'email
+  useEffect(() => {
+    let cancelled = false;
+    pollRef.current = setInterval(async () => {
+      if (cancelled || verifiedRef.current) return;
+      try {
+        const res = await api.get("/auth/me");
+        if (res?.user?.emailVerified && !cancelled) markVerified();
+      } catch {}
+    }, 4000);
+    return () => {
+      cancelled = true;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Shake (erreur de code)
+  const shakeX = useRef(new Animated.Value(0)).current;
+  const runShake = useCallback(() => {
+    shakeX.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeX, { toValue: -8, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: 7, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: -5, duration: 55, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: 3, duration: 55, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  }, [shakeX]);
+
+  const submitCode = useCallback(async (value: string) => {
+    if (submitting || verifiedRef.current) return;
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      await api.post("/auth/verify-email", { code: value });
+      markVerified();
+    } catch (e: any) {
+      feedback.haptic("error");
+      runShake();
+      const reason = e?.data?.reason;
+      const remaining = e?.data?.attemptsRemaining;
+      if (reason === "EXPIRED" || reason === "NO_CODE") {
+        setErrorMsg(t('auth.ve_err_expired'));
+      } else if (reason === "LOCKED") {
+        setErrorMsg(t('auth.ve_err_locked'));
+      } else if (typeof remaining === "number") {
+        setErrorMsg(
+          remaining > 0
+            ? t('auth.ve_err_wrong', { count: remaining })
+            : t('auth.ve_err_wrong_none')
+        );
+      } else {
+        setErrorMsg(e?.data?.error || e?.message || t('auth.ve_err_generic'));
+      }
+      // Le champ se vide automatiquement, prêt pour une nouvelle saisie
+      setCode("");
+      setTimeout(() => inputRef.current?.focus(), 250);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [markVerified, runShake, submitting]);
+
+  const onChangeCode = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, CODE_LENGTH);
+    setCode(digits);
+    if (errorMsg) setErrorMsg(null);
+    if (digits.length === CODE_LENGTH) submitCode(digits);
   };
 
-  const stepNum = role === "PROVIDER"
-    ? PROVIDER_FLOW.steps.VERIFY_EMAIL
-    : CLIENT_FLOW.steps.VERIFY_EMAIL;
-  const totalSteps = role === "PROVIDER" ? PROVIDER_FLOW.totalSteps : CLIENT_FLOW.totalSteps;
+  const handleResend = async () => {
+    if (resending || cooldown > 0) return;
+    setResending(true);
+    try {
+      await api.post("/auth/resend-verification");
+      feedback.success(t('auth.ve_resent'));
+      setCooldown(RESEND_COOLDOWN_S);
+      setCode("");
+      setErrorMsg(null);
+      inputRef.current?.focus();
+    } catch (e: any) {
+      feedback.error(e?.data?.error || t('auth.ve_resend_fail'));
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const flow = role === "PROVIDER" ? PROVIDER_FLOW : CLIENT_FLOW;
+  const stepNum = flow.steps.VERIFY_EMAIL;
+  const totalSteps = flow.totalSteps;
 
   // Entrance animation
   const fade = useRef(new Animated.Value(0)).current;
@@ -105,7 +194,7 @@ export default function VerifyEmail() {
     ]).start();
   }, [fade, slide]);
 
-  // Pulsing dot for "checking" state
+  // Pulsing dot (en attente de code) + curseur clignotant
   const pulseOp = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (verified) return;
@@ -119,6 +208,21 @@ export default function VerifyEmail() {
     return () => anim.stop();
   }, [verified]);
 
+  const blinkOp = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blinkOp, { toValue: 0, duration: 0, delay: 600, useNativeDriver: true }),
+        Animated.timing(blinkOp, { toValue: 1, duration: 0, delay: 500, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  const fmtCooldown = `00:${String(cooldown).padStart(2, "0")}`;
+  const focusedIndex = Math.min(code.length, CODE_LENGTH - 1);
+
   return (
     <AuthScreen variant="inverted">
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
@@ -129,7 +233,7 @@ export default function VerifyEmail() {
               <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
             ))}
             <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>{String(stepNum).padStart(2, "0")}</Text>
+              <Text style={s.stepLabelBold}>{t('auth.ve_label')} · {String(stepNum).padStart(2, "0")}</Text>
               {" / "}
               {String(totalSteps).padStart(2, "0")}
             </Text>
@@ -137,22 +241,22 @@ export default function VerifyEmail() {
         </View>
 
         {/* Icon */}
-        <View style={[s.iconWrap, verified && s.iconWrapVerified]}>
+        <View style={[s.iconWrap, verified && s.iconWrapVerified, !!errorMsg && s.iconWrapError]}>
           <Feather
             name={verified ? "check-circle" : "mail"}
-            size={34}
+            size={30}
             color={verified ? COLORS.greenBrand : authT.textOnDark}
           />
-          {!verified && <Animated.View style={[s.iconDot, { opacity: pulseOp }]} />}
+          {!verified && (
+            <Animated.View
+              style={[s.iconDot, { opacity: pulseOp }, !!errorMsg && { backgroundColor: COLORS.red }]}
+            />
+          )}
         </View>
 
         <AuthHeadline
-          kicker={verified ? "CONFIRMATION" : "VÉRIFICATION"}
-          title={
-            verified
-              ? "EMAIL\n{accent}VÉRIFIÉ !{/accent}"
-              : "VÉRIFIEZ\n{accent}VOTRE EMAIL.{/accent}"
-          }
+          kicker={verified ? t('auth.ve_label_ok') : t('auth.ve_label')}
+          title={verified ? t('auth.ve_title_ok') : t('auth.ve_title')}
           align="left"
         />
 
@@ -160,51 +264,111 @@ export default function VerifyEmail() {
         <View style={s.body}>
           <Text style={s.subtitle}>
             {verified ? (
-              "Votre adresse email a été confirmée avec succès."
+              t('auth.ve_sub_ok')
             ) : (
               <>
-                {"Un lien a été envoyé à\n"}
-                <Text style={s.emailText}>{email || "votre adresse email"}</Text>
+                {t('auth.ve_sub') + "\n"}
+                <Text style={s.emailText}>{email || t('auth.ve_sub_fallback')}</Text>
               </>
             )}
           </Text>
 
           {!verified && (
             <>
-              <View style={s.infoCard}>
-                <Feather name="info" size={16} color={alpha(authT.textOnDark, 0.55)} style={{ marginTop: 1 }} />
-                <Text style={s.infoText}>
-                  Cliquez sur le lien dans l'email pour activer votre compte. Le lien expire dans 48 heures.
-                </Text>
-              </View>
-
+              {/* OTP boxes + champ caché */}
               <TouchableOpacity
-                style={[s.resendBtn, (resending || resent) && s.resendBtnDisabled]}
-                onPress={handleResend}
-                disabled={resending || resent}
-                activeOpacity={0.7}
+                activeOpacity={1}
+                onPress={() => inputRef.current?.focus()}
+                accessibilityLabel={t('auth.ve_a11y')}
               >
-                {resending ? (
-                  <ActivityIndicator size="small" color={authT.textOnDark} />
-                ) : resent ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Feather name="check" size={14} color={alpha(authT.textOnDark, 0.55)} />
-                    <Text style={[s.resendText, { color: alpha(authT.textOnDark, 0.55) }]}>Email renvoyé</Text>
-                  </View>
-                ) : (
-                  <Text style={s.resendText}>Renvoyer le lien</Text>
-                )}
+                <Animated.View style={[s.otpRow, { transform: [{ translateX: shakeX }] }]}>
+                  {Array.from({ length: CODE_LENGTH }).map((_, i) => {
+                    const char = code[i] ?? "";
+                    const isFocus = inputFocused && i === focusedIndex && !submitting;
+                    return (
+                      <View
+                        key={i}
+                        style={[
+                          s.otpBox,
+                          !!char && s.otpBoxFilled,
+                          isFocus && s.otpBoxFocus,
+                          !!errorMsg && s.otpBoxError,
+                        ]}
+                      >
+                        {char ? (
+                          <Text style={[s.otpChar, !!errorMsg && s.otpCharError]}>{char}</Text>
+                        ) : isFocus ? (
+                          <Animated.View style={[s.otpCursor, { opacity: blinkOp }]} />
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </Animated.View>
               </TouchableOpacity>
+              <TextInput
+                ref={inputRef}
+                value={code}
+                onChangeText={onChangeCode}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                maxLength={CODE_LENGTH}
+                autoFocus
+                caretHidden
+                style={s.hiddenInput}
+                editable={!submitting && !verified}
+              />
+
+              {/* Erreur */}
+              {!!errorMsg && (
+                <View style={s.errorRow}>
+                  <Feather name="x" size={14} color={COLORS.red} />
+                  <Text style={s.errorText}>{errorMsg}</Text>
+                </View>
+              )}
+
+              {/* Renvoi + validation auto */}
+              <View style={s.metaRow}>
+                {cooldown > 0 ? (
+                  <Text style={s.metaFaint}>{t('auth.ve_resend_in', { time: fmtCooldown })}</Text>
+                ) : (
+                  <TouchableOpacity onPress={handleResend} disabled={resending} activeOpacity={0.7}>
+                    {resending ? (
+                      <ActivityIndicator size="small" color={alpha(authT.textOnDark, 0.6)} />
+                    ) : (
+                      <Text style={s.metaLink}>{t('auth.ve_resend_cta')}</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                <View style={s.metaRight}>
+                  {submitting ? (
+                    <ActivityIndicator size="small" color={alpha(authT.textOnDark, 0.55)} />
+                  ) : (
+                    <Feather name="zap" size={11} color={alpha(authT.textOnDark, 0.55)} />
+                  )}
+                  <Text style={s.metaMuted}>{t('auth.ve_auto')}</Text>
+                </View>
+              </View>
             </>
           )}
         </View>
 
         <View style={s.spacer} />
 
+        {!verified && (
+          <View style={s.hintRow}>
+            <Feather name="mail" size={12} color={alpha(authT.textOnLight, 0.4)} style={{ marginTop: 1 }} />
+            <Text style={s.hintText}>{t('auth.ve_hint')}</Text>
+          </View>
+        )}
+
         <AuthCTA
-          label="CONTINUER"
-          onPress={handleContinue}
-          disabled={!verified}
+          label={verified ? t('auth.ve_continue') : t('auth.ve_verify')}
+          onPress={() => (verified ? handleContinue() : submitCode(code))}
+          loading={submitting}
+          disabled={!verified && code.length < CODE_LENGTH}
         />
 
         <TouchableOpacity
@@ -217,7 +381,7 @@ export default function VerifyEmail() {
           style={s.logoutLink}
         >
           <Feather name="log-out" size={14} color={alpha(authT.textOnLight, 0.5)} />
-          <Text style={s.logoutText}>Se déconnecter</Text>
+          <Text style={s.logoutText}>{t('onboarding.signout')}</Text>
         </TouchableOpacity>
       </Animated.View>
     </AuthScreen>
@@ -235,48 +399,51 @@ const s = StyleSheet.create({
   },
   stepIndicator: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepBar: { height: 2, borderRadius: 2 },
-  stepBarActive: { width: 36, backgroundColor: authT.textOnDark },
-  stepBarInactive: { width: 20, backgroundColor: alpha(authT.textOnDark, 0.15) },
+  stepBarActive: { width: 24, backgroundColor: authT.textOnDark },
+  stepBarInactive: { width: 14, backgroundColor: alpha(authT.textOnDark, 0.15) },
   stepLabel: {
     fontFamily: FONTS.mono,
     fontSize: 10,
-    letterSpacing: 2,
+    letterSpacing: 1.5,
     color: alpha(authT.textOnDark, 0.3),
     marginLeft: 4,
   },
   stepLabelBold: { color: alpha(authT.textOnDark, 0.6) },
 
   iconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     borderWidth: 1.5,
     borderColor: alpha(authT.textOnDark, 0.14),
     backgroundColor: alpha(authT.dark, 0.85),
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-start",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   iconWrapVerified: {
     backgroundColor: alpha(COLORS.greenBrand, 0.12),
     borderColor: alpha(COLORS.greenBrand, 0.35),
   },
+  iconWrapError: {
+    borderColor: alpha(COLORS.red, 0.4),
+  },
   iconDot: {
     position: "absolute",
     bottom: -5,
     right: -5,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: COLORS.amber,
     borderWidth: 2.5,
     borderColor: authT.dark,
   },
 
   body: {
-    paddingTop: 18,
-    gap: 18,
+    paddingTop: 16,
+    gap: 16,
   },
   subtitle: {
     fontFamily: FONTS.sans,
@@ -289,44 +456,113 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: authT.textOnDark,
   },
-  infoCard: {
+
+  otpRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+    gap: 8,
+  },
+  otpBox: {
+    flex: 1,
+    height: 62,
+    borderRadius: 14,
     backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.14),
-    borderRadius: 16,
-    padding: 14,
-  },
-  infoText: {
-    flex: 1,
-    fontFamily: FONTS.sans,
-    fontSize: 13,
-    lineHeight: 20,
-    color: alpha(authT.textOnDark, 0.55),
-  },
-  resendBtn: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    backgroundColor: alpha(authT.dark, 0.6),
-    borderColor: alpha(authT.textOnDark, 0.2),
+    borderColor: alpha(authT.textOnDark, 0.16),
     alignItems: "center",
     justifyContent: "center",
   },
-  resendBtnDisabled: {
-    backgroundColor: alpha(authT.dark, 0.4),
-    borderColor: alpha(authT.textOnDark, 0.1),
+  otpBoxFilled: {
+    borderColor: alpha(authT.textOnDark, 0.35),
   },
-  resendText: {
-    fontFamily: FONTS.sansMedium,
-    fontSize: 13,
-    letterSpacing: 0.5,
+  otpBoxFocus: {
+    borderWidth: 1.5,
+    borderColor: alpha(authT.textOnDark, 0.65),
+  },
+  otpBoxError: {
+    backgroundColor: alpha(COLORS.red, 0.08),
+    borderWidth: 1.5,
+    borderColor: alpha(COLORS.red, 0.65),
+  },
+  otpChar: {
+    fontFamily: FONTS.bebas,
+    fontSize: 28,
     color: authT.textOnDark,
+    transform: [{ translateY: 1 }],
+  },
+  otpCharError: {
+    color: COLORS.red,
+  },
+  otpCursor: {
+    width: 1.5,
+    height: 24,
+    backgroundColor: authT.textOnDark,
+  },
+  hiddenInput: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: FONTS.sansMedium,
+    fontSize: 12.5,
+    color: COLORS.red,
+  },
+
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 2,
+  },
+  metaFaint: {
+    fontFamily: FONTS.mono,
+    fontSize: 9.5,
+    letterSpacing: 1.6,
+    color: alpha(authT.textOnDark, 0.35),
+  },
+  metaLink: {
+    fontFamily: FONTS.mono,
+    fontSize: 9.5,
+    letterSpacing: 1.6,
+    color: authT.textOnDark,
+    textDecorationLine: "underline",
+    textDecorationColor: alpha(authT.textOnDark, 0.4),
+  },
+  metaRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  metaMuted: {
+    fontFamily: FONTS.mono,
+    fontSize: 9.5,
+    letterSpacing: 1.6,
+    color: alpha(authT.textOnDark, 0.55),
   },
 
   spacer: { flex: 1, minHeight: 24 },
+
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 14,
+  },
+  hintText: {
+    flex: 1,
+    fontFamily: FONTS.sans,
+    fontSize: 11,
+    lineHeight: 16,
+    color: alpha(authT.textOnLight, 0.55),
+  },
 
   logoutLink: {
     flexDirection: "row",
@@ -335,6 +571,7 @@ const s = StyleSheet.create({
     gap: 8,
     paddingVertical: 6,
     paddingBottom: 4,
+    marginTop: 10,
   },
   logoutText: {
     fontFamily: FONTS.sans,
