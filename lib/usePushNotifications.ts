@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { api } from './api';
@@ -103,7 +104,15 @@ async function registerForPushNotifications() {
   }
 
   try {
-    const { data: token } = await Notifications.getExpoPushTokenAsync();
+    // En build EAS production, getExpoPushTokenAsync() doit recevoir le projectId
+    // explicitement — sinon la résolution auto échoue et le token n'est pas généré
+    // (donc aucune push possible, écran verrouillé ou non).
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      (Constants as any).easConfig?.projectId;
+    const { data: token } = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
     devLog('[Push] Token obtenu:', token);
     await syncTokenWithBackend(token);
   } catch (e: any) {
