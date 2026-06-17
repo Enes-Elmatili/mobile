@@ -125,84 +125,91 @@ export function handleNotificationNavigation(data: any) {
   if (!data) return;
   const { screen, type, requestId, category } = data;
   try {
-    // "Voir la mission" (notif in-app, category 'mission') → tableau de bord, où
-    // la mission apparaît avec son statut/infos. JAMAIS l'écran opérationnel de
-    // recherche/tracking (missionview), qui n'est qu'un outil de suivi en direct.
-    if (category === 'mission') {
-      router.replace('/(tabs)/dashboard');
-      return;
+    // ───────────────────────────────────────────────────────────────────────
+    // Règle de cohérence : un CTA de notification mène à un écran d'INFO ou
+    // d'ACTION (dashboard, factures, devis, note, support, espace prestataire),
+    // JAMAIS à l'écran opérationnel de recherche/tracking (missionview). Celui-ci
+    // reste réservé aux deep-links push d'une mission EN DIRECT (étape 3).
+    // ───────────────────────────────────────────────────────────────────────
+
+    // 1) Notifs in-app : routées par CATÉGORIE (toujours présente sur ces notifs).
+    switch (category) {
+      case 'mission':         // prestataire trouvé / mission démarrée / terminée / abandon
+      case 'mission_update':  // mission annulée / réassignée
+      case 'dispute':         // litige (pas d'écran dédié → la mission est sur le dashboard)
+        router.replace('/(tabs)/dashboard');
+        return;
+      case 'rating':
+        if (requestId) { router.push({ pathname: '/request/[id]/rating', params: { id: requestId } }); return; }
+        router.replace('/(tabs)/dashboard');
+        return;
+      case 'refund':
+        router.push('/(tabs)/documents'); // facture passée en "Remboursé" = la preuve
+        return;
+      case 'support':
+        router.push('/support');
+        return;
     }
 
-    // Handle by explicit screen name first
+    // 2) Push sans catégorie : routés par TYPE (cohérents quel que soit le screen).
+    switch (type) {
+      case 'dispute_opened':
+      case 'dispute_resolved':
+        router.replace('/(tabs)/dashboard');
+        return;
+      case 'support_escalation':
+        router.push('/support');
+        return;
+      case 'refund':
+        router.push('/(tabs)/documents');
+        return;
+      case 'quote_received':            // CLIENT : son devis est prêt → écran de revue
+        if (requestId) { router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } }); return; }
+        router.replace('/(tabs)/dashboard');
+        return;
+      case 'quote_accepted':            // PRESTATAIRE : devis accepté/refusé → son espace
+      case 'quote_refused':
+      case 'new_request':               // PRESTATAIRE : nouvelle mission/opportunité
+      case 'new_opportunity':
+      case 'preferred_request':
+      case 'preferred_opportunity':
+        router.replace('/(tabs)/provider-dashboard');
+        return;
+      case 'kyc_status':                // PRESTATAIRE : statut de validation du dossier
+        router.replace('/onboarding/provider/pending');
+        return;
+    }
+
+    // 3) Deep-link push d'une mission EN DIRECT (prestataire en route, mission
+    //    démarrée, abandon) → suivi opérationnel autorisé ici uniquement.
     switch (screen) {
       case 'MissionView':
-        router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
+        if (requestId) { router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } }); return; }
+        router.replace('/(tabs)/dashboard');
         return;
       case 'QuoteReview':
-        router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } });
+        if (requestId) router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } });
+        else router.replace('/(tabs)/dashboard');
         return;
       case 'Rating':
-        router.push({ pathname: '/request/[id]/rating', params: { id: requestId } });
+        if (requestId) router.push({ pathname: '/request/[id]/rating', params: { id: requestId } });
+        else router.replace('/(tabs)/dashboard');
         return;
       case 'Messages':
-        // Optionally deep-link directly into the conversation if a senderId was
-        // attached to the push payload, otherwise land on the inbox.
-        if (data.senderId) {
-          router.push({ pathname: '/messages/[userId]', params: { userId: String(data.senderId) } });
-        } else {
-          router.push('/messages');
-        }
+        // Deep-link direct dans la conversation si senderId fourni, sinon l'inbox.
+        if (data.senderId) router.push({ pathname: '/messages/[userId]', params: { userId: String(data.senderId) } });
+        else router.push('/messages');
         return;
       case 'Dashboard':
         router.replace('/(tabs)/dashboard');
         return;
       case 'Documents':
-        // Onglet Factures : la facture passée en "Remboursé" est la preuve du
-        // remboursement. On y envoie le client plutôt que sur la mission (qui,
-        // pour une demande terminée, affiche la carte "recherche en cours").
         router.push('/(tabs)/documents');
         return;
     }
 
-    // Handle by notification type (from matching/backend push)
-    switch (type) {
-      case 'new_request':
-        // Provider received a new mission → go to provider dashboard (not client missionview)
-        router.replace('/(tabs)/provider-dashboard');
-        return;
-      case 'quote_received':
-        if (requestId) router.push({ pathname: '/request/[id]/quote-review', params: { id: requestId } });
-        return;
-      case 'quote_accepted':
-      case 'quote_refused':
-        if (requestId) router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
-        return;
-      case 'kyc_status':
-        router.replace('/onboarding/provider/pending');
-        return;
-      case 'dispute_opened':
-      case 'dispute_resolved':
-        // Pour les litiges : on ouvre la mission concernée (info + contexte)
-        // plutôt qu'une simple liste de notifs vide de sens.
-        if (requestId) {
-          router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
-        } else {
-          router.push('/notifications');
-        }
-        return;
-      case 'refund':
-        // Notif de remboursement → onglet Factures, où la demande apparaît en
-        // "Remboursé" (la preuve du remboursement). On NE renvoie PAS vers
-        // missionview : pour une demande terminée, il affiche la carte
-        // "recherche en cours de prestataire" — ce qui était le bug remonté.
-        router.push('/(tabs)/documents');
-        return;
-    }
-
-    // Fallback: if we have a requestId but no type/screen, go to missionview
-    if (requestId) {
-      router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
-    }
+    // 4) Fallback : écran d'info sûr, jamais l'écran opérationnel.
+    router.replace('/(tabs)/dashboard');
   } catch (e: any) {
     devWarn('[Push] Navigation error:', e?.message);
   }
