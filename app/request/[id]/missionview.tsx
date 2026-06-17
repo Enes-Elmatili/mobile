@@ -6,6 +6,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Easing, Platform, Dimensions, StatusBar,
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -50,7 +51,7 @@ function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: s
 }
 
 // ─── Phase de la page ────────────────────────────────────────────────────────
-type Phase = 'SEARCHING' | 'TRACKING';
+type Phase = 'LOADING' | 'SEARCHING' | 'TRACKING';
 
 // ─── Params ──────────────────────────────────────────────────────────────────
 interface MissionParams {
@@ -487,7 +488,11 @@ export default function MissionView() {
   const mapRef = useRef<MapView>(null);
 
   // ─── Phase state ─────────────────────────────────────────────────────────
-  const [phase, setPhase] = useState<Phase>('SEARCHING');
+  // Démarre en LOADING : on ne connaît pas encore le statut réel de la demande.
+  // Tant qu'on n'a pas confirmé qu'elle est PUBLISHED (recherche en cours), on
+  // n'affiche PAS la "searching view" — sinon une notif vers une mission
+  // terminée/devis/annulée fait clignoter à tort l'écran de recherche.
+  const [phase, setPhase] = useState<Phase>('LOADING');
   const phaseAnim = useRef(new Animated.Value(0)).current; // 0 = searching, 1 = tracking
   const hasTransitionedRef = useRef(false); // guard anti-double-transition
 
@@ -666,7 +671,7 @@ export default function MissionView() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pinPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    if (!id || phase !== 'SEARCHING') return;
+    if (!id || (phase !== 'SEARCHING' && phase !== 'LOADING')) return;
     const poll = async () => {
       try {
         const res = await api.get(`/requests/${id}`);
@@ -705,15 +710,22 @@ export default function MissionView() {
           feedback.haptic('warning');
           router.replace('/(tabs)/dashboard');
         } else if (status === 'QUOTE_ACCEPTED') {
-          // Devis accepté → le backend va basculer vers ACCEPTED/ONGOING via socket
-          // ou prochaine itération. On stoppe juste le polling pour éviter une boucle
-          // infinie sur ce statut transitoire.
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          // Devis accepté → le backend bascule vers ACCEPTED/ONGOING. On GARDE le
+          // polling actif (loader) jusqu'à la transition, sinon on resterait bloqué
+          // sur un écran de chargement (ou pire, sur la searching view).
         } else if (['CANCELLED', 'EXPIRED', 'COMPLETED', 'DONE'].includes(status)) {
           // Stop polling on terminal statuses
           if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
           feedback.haptic('error');
           router.replace('/(tabs)/dashboard');
+        } else if (status === 'PUBLISHED') {
+          // Demande encore en recherche de prestataire → c'est le SEUL cas où la
+          // searching view est légitime. On y bascule depuis LOADING.
+          if (phase !== 'SEARCHING') setPhase('SEARCHING');
+        } else if (status === 'PENDING_PAYMENT') {
+          // Paiement pas finalisé → reprise paiement, pas la carte de recherche.
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          router.replace({ pathname: '/request/[id]/resume-payment', params: { id: String(id) } });
         }
       } catch (e) { devError('[MissionView] poll:', e); }
     };
@@ -1044,9 +1056,17 @@ export default function MissionView() {
     <View style={s.root}>
       <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
 
-      {/* ── CARTE ── rendue uniquement hors SEARCHING (l'overlay LiveMapSearching
+      {/* ── LOADING ── statut pas encore connu : loader neutre, surtout PAS la
+          searching view (qui ne vaut que pour une demande en recherche) ── */}
+      {phase === 'LOADING' && (
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }]}>
+          <ActivityIndicator size="large" color={theme.accent} />
+        </View>
+      )}
+
+      {/* ── CARTE ── rendue uniquement en TRACKING (l'overlay LiveMapSearching
           porte sa propre carte pour éviter un double MapView) ── */}
-      {phase !== 'SEARCHING' && (
+      {phase === 'TRACKING' && (
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
