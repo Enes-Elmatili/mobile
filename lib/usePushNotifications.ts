@@ -123,8 +123,16 @@ async function registerForPushNotifications() {
 
 export function handleNotificationNavigation(data: any) {
   if (!data) return;
-  const { screen, type, requestId } = data;
+  const { screen, type, requestId, category } = data;
   try {
+    // "Voir la mission" (notif in-app, category 'mission') → tableau de bord, où
+    // la mission apparaît avec son statut/infos. JAMAIS l'écran opérationnel de
+    // recherche/tracking (missionview), qui n'est qu'un outil de suivi en direct.
+    if (category === 'mission') {
+      router.replace('/(tabs)/dashboard');
+      return;
+    }
+
     // Handle by explicit screen name first
     switch (screen) {
       case 'MissionView':
