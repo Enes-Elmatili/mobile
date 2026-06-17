@@ -187,13 +187,17 @@ export default function OpportunitiesScreen() {
     const handleClaimed = (requestId: number) => {
       setOpportunities((prev) => prev.filter((o) => o.id !== requestId));
     };
+    // Client a annulé → retirer la carte (payload objet { id, ... })
+    const handleCancelled = (data: any) => handleClaimed(data?.id ?? data);
     socket.on('new_opportunity', handleNew);
     socket.on('new_request', handleNew);
     socket.on('request:claimed', handleClaimed);
+    socket.on('request:cancelled', handleCancelled);
     return () => {
       socket.off('new_opportunity', handleNew);
       socket.off('new_request', handleNew);
       socket.off('request:claimed', handleClaimed);
+      socket.off('request:cancelled', handleCancelled);
     };
   }, [socket, fetchOpportunities]);
 

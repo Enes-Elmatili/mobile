@@ -139,7 +139,8 @@ export default function PendingValidation() {
   const { signOut, user, refreshMe } = useAuth();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "suspended">("pending");
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "suspended" | "banned">("pending");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [stripeConnected, setStripeConnected] = useState(false);
   const [documents, setDocuments] = useState<DocStatus[]>([]);
   const stripeConnectedRef = useRef(false);
@@ -177,10 +178,16 @@ export default function PendingValidation() {
         setTimeout(() => router.replace("/(tabs)/provider-dashboard"), 2500);
         return true;
       } else if (validationRes?.providerStatus === "REJECTED") {
+        setRejectionReason(validationRes?.rejectionReason ?? null);
         setStatus("rejected");
         return true;
       } else if (validationRes?.providerStatus === "SUSPENDED") {
+        setRejectionReason(validationRes?.rejectionReason ?? null);
         setStatus("suspended");
+        return true;
+      } else if (validationRes?.providerStatus === "BANNED") {
+        setRejectionReason(validationRes?.rejectionReason ?? null);
+        setStatus("banned");
         return true;
       }
     } catch {}
@@ -207,9 +214,17 @@ export default function PendingValidation() {
         feedback.haptic('success');
         setTimeout(() => router.replace('/(tabs)/provider-dashboard'), 2500);
       } else if (data.validationStatus === 'REJECTED') {
+        setRejectionReason(data.rejectionReason ?? null);
         setStatus('rejected');
       } else if (data.validationStatus === 'SUSPENDED') {
+        setRejectionReason(data.rejectionReason ?? null);
         setStatus('suspended');
+      } else if (data.validationStatus === 'BANNED') {
+        setRejectionReason(data.rejectionReason ?? null);
+        setStatus('banned');
+      } else if (data.validationStatus === 'PENDING') {
+        setRejectionReason(null);
+        setStatus('pending');
       }
     };
     socket.on('provider:validation_updated', handler);
@@ -540,6 +555,12 @@ export default function PendingValidation() {
               <Text style={s.titleOutline}>{t('onboarding.rejected_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>{t('onboarding.rejected_sub')}</Text>
+            {!!rejectionReason && (
+              <View style={s.reasonCard}>
+                <Text style={s.reasonLabel}>{t('onboarding.rejected_reason_label')}</Text>
+                <Text style={s.reasonText}>{rejectionReason}</Text>
+              </View>
+            )}
             <TouchableOpacity
               style={s.stripeCta}
               onPress={() => {
@@ -566,6 +587,12 @@ export default function PendingValidation() {
               <Text style={s.titleOutline}>{t('onboarding.suspended_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>{t('onboarding.suspended_sub')}</Text>
+            {!!rejectionReason && (
+              <View style={s.reasonCard}>
+                <Text style={s.reasonLabel}>{t('onboarding.status_reason_label')}</Text>
+                <Text style={s.reasonText}>{rejectionReason}</Text>
+              </View>
+            )}
             <TouchableOpacity
               style={s.stripeCta}
               onPress={() => {
@@ -575,6 +602,38 @@ export default function PendingValidation() {
               activeOpacity={0.9}
             >
               <Text style={s.stripeCtaText}>{t('onboarding.suspended_cta')}</Text>
+              <View style={s.arrowPill}>
+                <Feather name="arrow-right" size={14} color={C.white} />
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {status === "banned" && (
+          <>
+            <View style={s.iconCircle}>
+              <Feather name="slash" size={40} color={C.red} />
+            </View>
+            <Text style={s.title}>
+              {t('onboarding.banned_title_l1')}{"\n"}
+              <Text style={s.titleOutline}>{t('onboarding.banned_title_l2')}</Text>
+            </Text>
+            <Text style={s.subtitle}>{t('onboarding.banned_sub')}</Text>
+            {!!rejectionReason && (
+              <View style={s.reasonCard}>
+                <Text style={s.reasonLabel}>{t('onboarding.status_reason_label')}</Text>
+                <Text style={s.reasonText}>{rejectionReason}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={s.stripeCta}
+              onPress={() => {
+                feedback.haptic('medium');
+                router.push("/support");
+              }}
+              activeOpacity={0.9}
+            >
+              <Text style={s.stripeCtaText}>{t('onboarding.banned_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
@@ -676,6 +735,20 @@ const s = StyleSheet.create({
   subtitle: {
     fontFamily: FONTS.sansLight, fontSize: 15, color: C.grey,
     textAlign: "center", lineHeight: 22, paddingHorizontal: 8,
+  },
+
+  // Motif de refus (affiché au prestataire pour qu'il sache quoi corriger)
+  reasonCard: {
+    width: "100%", backgroundColor: C.cardBg,
+    borderWidth: 1, borderColor: alpha(COLORS.red, 0.3),
+    borderRadius: 16, padding: 16, gap: 6, marginTop: 4,
+  },
+  reasonLabel: {
+    fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.8,
+    color: C.red, textTransform: "uppercase",
+  },
+  reasonText: {
+    fontFamily: FONTS.sans, fontSize: 14, color: C.white, lineHeight: 20,
   },
 
   // Timeline

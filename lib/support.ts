@@ -2,9 +2,9 @@
 // Single source of truth for contact channels, response SLAs, and ticket helpers.
 
 export const SUPPORT_CHANNELS = {
-  whatsappNumber: '32492123456', // E.164 sans +
+  whatsappNumber: '32478061330', // E.164 sans + (0478 06 13 30)
   whatsappFallback: 'https://wa.me/message/SXNKDKILPEFMO1',
-  emergencyPhone: '+32492123456',
+  emergencyPhone: '+32478061330',
   email: 'support@thefixed.app',
   helpCenterUrl: 'https://thefixed.app/help',
 };

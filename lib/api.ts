@@ -371,7 +371,7 @@ class ApiClient {
     me: () => this.request('/providers/me'),
     register: (data: any) => this.post('/providers/register', data),
     updateMe: (data: any) => this.patch('/providers/me', data),
-    validationStatus: () => this.request<{ providerStatus: string }>('/providers/me/validation-status'),
+    validationStatus: () => this.request<{ providerStatus: string; rejectionReason?: string | null }>('/providers/me/validation-status'),
   };
 
   // ==================== PROVIDER DOCUMENTS ====================

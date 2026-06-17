@@ -1286,13 +1286,21 @@ export default function Missions() {
       const idNum = typeof requestId === 'string' ? Number(requestId) : requestId;
       setOpportunities((prev) => prev.filter((o) => o.id !== idNum));
     };
+    // Client a annulé → retirer l'opportunité ET rafraîchir les missions
+    // actives (cas d'une mission déjà acceptée puis annulée).
+    const handleCancelled = (data: any) => {
+      handleClaimed(data?.id ?? data);
+      loadMissions();
+    };
     socket.on('new_opportunity', handleOpp);
     socket.on('request:statusUpdated', handleStatus);
     socket.on('request:claimed', handleClaimed);
+    socket.on('request:cancelled', handleCancelled);
     return () => {
       socket.off('new_opportunity', handleOpp);
       socket.off('request:statusUpdated', handleStatus);
       socket.off('request:claimed', handleClaimed);
+      socket.off('request:cancelled', handleCancelled);
     };
   }, [socket, fetchOpportunities, loadMissions]);
 

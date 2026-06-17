@@ -148,6 +148,12 @@ export function handleNotificationNavigation(data: any) {
       case 'Dashboard':
         router.replace('/(tabs)/dashboard');
         return;
+      case 'Documents':
+        // Onglet Factures : la facture passée en "Remboursé" est la preuve du
+        // remboursement. On y envoie le client plutôt que sur la mission (qui,
+        // pour une demande terminée, affiche la carte "recherche en cours").
+        router.push('/(tabs)/documents');
+        return;
     }
 
     // Handle by notification type (from matching/backend push)
@@ -177,12 +183,11 @@ export function handleNotificationNavigation(data: any) {
         }
         return;
       case 'refund':
-        // Notif de remboursement → écran de la demande (info utile : statut, montant)
-        if (requestId) {
-          router.push({ pathname: '/request/[id]/missionview', params: { id: requestId } });
-        } else {
-          router.push('/notifications');
-        }
+        // Notif de remboursement → onglet Factures, où la demande apparaît en
+        // "Remboursé" (la preuve du remboursement). On NE renvoie PAS vers
+        // missionview : pour une demande terminée, il affiche la carte
+        // "recherche en cours de prestataire" — ce qui était le bug remonté.
+        router.push('/(tabs)/documents');
         return;
     }
 

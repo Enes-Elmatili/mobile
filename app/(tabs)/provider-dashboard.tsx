@@ -881,6 +881,9 @@ export default function ProviderDashboard() {
     const removeRequest = (id: string | number) =>
       setIncomingRequests(prev => prev.filter(r => r.requestId !== String(id)));
 
+    // Client a annulé → retirer la carte (payload objet { id, ... })
+    const handleCancelled = (data: any) => removeRequest(data?.id ?? data);
+
     const handleStatusUpdate = (data: { providerId: string; status: string }) => {
       if (data.providerId === user.id) {
         const online = ['ONLINE', 'READY'].includes(data.status);
@@ -893,6 +896,7 @@ export default function ProviderDashboard() {
     socket.on('new_request',            handleNewRequest);
     socket.on('request:claimed',        removeRequest);
     socket.on('request:expired',        removeRequest);
+    socket.on('request:cancelled',      handleCancelled);
     socket.on('provider:status_update', handleStatusUpdate);
 
     return () => {
@@ -900,6 +904,7 @@ export default function ProviderDashboard() {
       socket.off('new_request',            handleNewRequest);
       socket.off('request:claimed',        removeRequest);
       socket.off('request:expired',        removeRequest);
+      socket.off('request:cancelled',      handleCancelled);
       socket.off('provider:status_update', handleStatusUpdate);
     };
   }, [socket, user?.id, fetchIncomingQueue]);
