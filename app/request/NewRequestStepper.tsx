@@ -736,6 +736,79 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
   );
 }
 
+/** Bottom sheet de saisie d'un code promo (offre de lancement). */
+function PromoSheet({
+  visible, onClose, onApply, applying, theme,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onApply: (code: string) => void;
+  applying: boolean;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  const { t } = useTranslation();
+  const [code, setCode] = useState('');
+
+  // Reset le champ à chaque ouverture.
+  useEffect(() => { if (visible) setCode(''); }, [visible]);
+
+  const canApply = code.trim().length >= 3 && !applying;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
+        <Pressable onPress={() => {}}>
+          <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24, paddingHorizontal: 24 }]}>
+            <View style={dim.titleRow}>
+              <View style={[dim.iconWrap, { backgroundColor: 'rgba(21,193,110,0.15)', borderColor: 'rgba(21,193,110,0.3)' }]}>
+                <Feather name="tag" size={20} color={COLORS.green} />
+              </View>
+              <Text style={[dim.title, { color: theme.text }]}>{t('stepper.promo_title') || 'Code promo'}</Text>
+            </View>
+            <Text style={[dim.subtitle, { color: theme.textSub, marginTop: 8 }]}>
+              {t('stepper.promo_subtitle') || 'Saisissez votre code pour bénéficier de l’offre.'}
+            </Text>
+
+            <TextInput
+              value={code}
+              onChangeText={(v) => setCode(v.toUpperCase())}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoFocus
+              editable={!applying}
+              placeholder="LAUNCH25"
+              placeholderTextColor={theme.textMuted as string}
+              onSubmitEditing={() => canApply && onApply(code)}
+              returnKeyType="done"
+              style={{
+                marginTop: 20, height: 56, borderRadius: 16, paddingHorizontal: 18,
+                backgroundColor: theme.surface as string, borderWidth: 1, borderColor: theme.surfaceBorder as string,
+                fontFamily: FONTS.mono, fontSize: 18, letterSpacing: 2, color: theme.text as string,
+              }}
+            />
+
+            <TouchableOpacity
+              style={[dim.closeBtn, { backgroundColor: canApply ? theme.accent : (theme.surface as string), marginHorizontal: 0, marginTop: 18, opacity: canApply ? 1 : 0.6 }]}
+              onPress={() => canApply && onApply(code)}
+              activeOpacity={0.85}
+              disabled={!canApply}
+              accessibilityRole="button"
+            >
+              {applying ? (
+                <ActivityIndicator color={theme.accentText as string} />
+              ) : (
+                <Text style={{ color: (canApply ? theme.accentText : theme.textMuted) as string, fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 }}>
+                  {t('stepper.promo_apply') || 'APPLIQUER'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const dim = StyleSheet.create({
   sheet:        { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 36, paddingTop: 14 },
   handle:       { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 28, backgroundColor: 'rgba(255,255,255,0.15)' },
@@ -814,12 +887,14 @@ function BrandSheen({ width, opacity = 0.1 }: { width: number; opacity?: number 
   );
 }
 
-/** Carte noire premium : montant héros, filigrane FIXED, pied TVA/HT. */
+/** Carte noire premium : montant héros, filigrane FIXED, pied TVA/HT.
+ *  `original` (montant barré) + `savings` (pill verte) → état remise promo. */
 function AmountCardB({
-  theme, label, euros, footerLeft, footerRight,
+  theme, label, euros, footerLeft, footerRight, original, savings,
 }: {
   theme: any; label: string; euros: string;
   footerLeft: React.ReactNode; footerRight?: React.ReactNode;
+  original?: string; savings?: string;
 }) {
   return (
     <View
@@ -843,12 +918,26 @@ function AmountCardB({
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 12.5, letterSpacing: 1, textTransform: 'uppercase', color: theme.heroSub }}>{label}</Text>
-        <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 3, color: theme.heroSubFaint }}>FIXED</Text>
+        {savings ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(21,193,110,0.16)', borderWidth: 1, borderColor: 'rgba(21,193,110,0.4)' }}>
+            <Feather name="tag" size={11} color={COLORS.green} />
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.5, color: COLORS.green }}>{savings}</Text>
+          </View>
+        ) : (
+          <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 3, color: theme.heroSubFaint }}>FIXED</Text>
+        )}
       </View>
 
-      <Text style={{ fontFamily: FONTS.bebas, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText, marginTop: 12 }}>
-        {euros}<Text style={{ fontSize: 26, color: theme.heroSub }}> €</Text>
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+        <Text style={{ fontFamily: FONTS.bebas, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText }}>
+          {euros}<Text style={{ fontSize: 26, color: theme.heroSub }}> €</Text>
+        </Text>
+        {original ? (
+          <Text style={{ fontFamily: FONTS.mono, fontSize: 17, color: theme.heroSubFaint, textDecorationLine: 'line-through' }}>
+            {original} €
+          </Text>
+        ) : null}
+      </View>
 
       <View style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1 }}>{footerLeft}</View>
@@ -1200,6 +1289,14 @@ export default function NewRequestStepper() {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
   const [confirmedCalloutCents, setConfirmedCalloutCents] = useState<number | null>(null);
 
+  // ── Code promo / offre de lancement (mode prix fixe — beta) ──
+  // appliedPromo = remise validée 100% serveur (jamais le montant saisi côté app).
+  // Le backend supporte aussi CALLOUT_COVERED (mode estimate), mais l'UI promo n'est
+  // exposée que sur le flow fixe (seul actif en beta) ; estimate suivra au go-live devis.
+  const [promoSheetVisible, setPromoSheetVisible] = useState(false);
+  const [promoApplying,     setPromoApplying]     = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountCents: number; nominalCents: number } | null>(null);
+
   // Reset prix/paiement quand l'utilisateur change de service
   useEffect(() => {
     setServerPrice(null);
@@ -1207,11 +1304,19 @@ export default function NewRequestStepper() {
     setPricingToken(null);
     setRequestId(null);
     setConfirmedCalloutCents(null);
+    setAppliedPromo(null);
   }, [subcategoryId, categoryId]);
 
   // Prix affiché = prix serveur (si disponible) ou estimation client
   const displayPrice = serverPrice || priceDetails;
   const displayTotal = parseFloat(displayPrice.totalTVAC);
+
+  // ── Montants remisés (offre de lancement, mode fixe) ──
+  // Source de vérité = appliedPromo (validé serveur). Fallbacks défensifs.
+  const nominalCentsFixed = appliedPromo?.nominalCents ?? Math.round(displayTotal * 100);
+  const discountedCentsFixed = appliedPromo
+    ? Math.max(0, nominalCentsFixed - appliedPromo.discountCents)
+    : nominalCentsFixed;
 
   // Snapshot des infos d'accès pour cette mission spécifique (évite que les
   // missions partagent toutes les mêmes valeurs via User.* qui sert de défaut).
@@ -1424,6 +1529,58 @@ export default function NewRequestStepper() {
           lng:            String(location?.lng  ?? ''),
         },
       });
+    }
+  };
+
+  // (Ré)initialise la feuille de paiement prix-fixe avec/sans code promo.
+  // code=null → plein tarif. Ne consomme JAMAIS le code (brûlé au paiement réussi
+  // seulement). Validation + remise 100% serveur. /setup est idempotent/rejouable.
+  const refreshFixedSheet = async (code: string | null) => {
+    if (!requestId) return;
+    setPromoApplying(true);
+    try {
+      const res: any = await api.payments.setup(requestId, code || undefined);
+      const clientSecret = res.paymentIntentClientSecret || res.setupIntentClientSecret;
+      const { error } = await initPaymentSheet({
+        merchantDisplayName:        'Fixed',
+        paymentIntentClientSecret:  clientSecret,
+        customerEphemeralKeySecret: res.ephemeralKey,
+        customerId:                 res.customer,
+        applePay:  { merchantCountryCode: 'BE' },
+        googlePay: { merchantCountryCode: 'BE', testEnv: false },
+        paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
+      });
+      if (error) throw new Error(error.message);
+      setAppliedPromo(
+        res.promo
+          ? { code: res.promo.code, discountCents: res.promo.discountCents, nominalCents: res.promo.nominalCents }
+          : null
+      );
+      setPaymentReady(true);
+    } finally {
+      setPromoApplying(false);
+    }
+  };
+
+  const applyPromo = async (raw: string) => {
+    const code = raw.trim();
+    if (!code || !requestId) return;
+    try {
+      await refreshFixedSheet(code);
+      feedback.haptic('success');
+      setPromoSheetVisible(false);
+    } catch (e: any) {
+      // e.message = message FR renvoyé par le backend (PROMO_INVALID, _TOO_SMALL, _ALREADY_USED…)
+      feedback.error(e?.message || t('stepper.promo_invalid') || 'Code promo invalide.');
+    }
+  };
+
+  const removePromo = async () => {
+    feedback.haptic('light');
+    try {
+      await refreshFixedSheet(null);
+    } catch (e: any) {
+      devError('removePromo error:', e);
     }
   };
 
@@ -2224,7 +2381,9 @@ export default function NewRequestStepper() {
                 <AmountCardB
                   theme={theme}
                   label={t('stepper.total_to_pay')}
-                  euros={(displayPrice as any).totalTVAC}
+                  euros={appliedPromo ? stripEuro(formatEURCents(discountedCentsFixed)) : (displayPrice as any).totalTVAC}
+                  original={appliedPromo ? stripEuro(formatEURCents(nominalCentsFixed)) : undefined}
+                  savings={appliedPromo ? `−${stripEuro(formatEURCents(appliedPromo.discountCents))} €` : undefined}
                   footerLeft={(
                     <>
                       <Feather name="shield" size={13} color={theme.heroSubFaint as string} />
@@ -2281,6 +2440,41 @@ export default function NewRequestStepper() {
                       />
                     </>
                   )}
+
+                  {/* ── Code promo (mode fixe — beta) ── */}
+                  {!isFreeService && !isQuoteFlow && (
+                    <>
+                      <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+                      {appliedPromo ? (
+                        <RecapTile
+                          theme={theme}
+                          icon="tag"
+                          title={appliedPromo.code}
+                          sub={`${t('stepper.promo_applied') || 'Offre appliquée'} · −${stripEuro(formatEURCents(appliedPromo.discountCents))} €`}
+                          right={(
+                            <TouchableOpacity
+                              onPress={removePromo}
+                              disabled={promoApplying}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              accessibilityRole="button"
+                            >
+                              {promoApplying
+                                ? <ActivityIndicator size="small" color={theme.textMuted as string} />
+                                : <Feather name="x" size={18} color={theme.textMuted as string} />}
+                            </TouchableOpacity>
+                          )}
+                        />
+                      ) : (
+                        <RecapTile
+                          theme={theme}
+                          icon="tag"
+                          title={t('stepper.promo_add') || 'Ajouter un code promo'}
+                          onPress={() => { feedback.haptic('light'); setPromoSheetVisible(true); }}
+                          right={<Feather name="chevron-right" size={16} color={theme.textMuted as string} />}
+                        />
+                      )}
+                    </>
+                  )}
                 </View>
               </View>
 
@@ -2314,6 +2508,13 @@ export default function NewRequestStepper() {
         visible={devisModalVisible}
         onClose={() => setDevisModalVisible(false)}
         pricingMode={pricingMode}
+        theme={theme}
+      />
+      <PromoSheet
+        visible={promoSheetVisible}
+        onClose={() => { if (!promoApplying) setPromoSheetVisible(false); }}
+        onApply={applyPromo}
+        applying={promoApplying}
         theme={theme}
       />
     </SafeAreaView>

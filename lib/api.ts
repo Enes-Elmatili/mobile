@@ -510,10 +510,14 @@ class ApiClient {
     // acceptance and refunds via cron if no provider accepts within the TTL.
     // Response shape: { paymentIntentClientSecret, setupIntentClientSecret (alias,
     // deprecated), ephemeralKey, customer, amount, currency, flow }.
-    setup: async (requestId: string) => {
+    // promoCode optionnel : remise validée 100% serveur (mode fixed → FIXED_DISCOUNT).
+    // Le backend renvoie en plus `promo: { code, discountCents, nominalCents }` et un
+    // PaymentIntent au montant déjà remisé. /setup ne consomme PAS le code (rejouable) :
+    // il n'est brûlé qu'au paiement réussi (/payments/success).
+    setup: async (requestId: string, promoCode?: string) => {
       const token = await tokenStorage.getToken();
       if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
-      return this.post('/payments/setup', { requestId });
+      return this.post('/payments/setup', { requestId, ...(promoCode ? { promoCode } : {}) });
     },
     // Legacy — kept for rollback during transition. Will be removed once setup is confirmed stable.
     intent: async (requestId: string) => {
@@ -568,8 +572,10 @@ class ApiClient {
       this.post(`/quotes/${quoteId}/confirm-payment`, paymentIntentId ? { paymentIntentId } : undefined),
     refuse: (quoteId: number, reason?: string) =>
       this.post(`/quotes/${quoteId}/refuse`, { reason }),
-    calloutPayment: (requestId: string | number) =>
-      this.post('/quotes/callout-payment', { requestId }),
+    // promoCode optionnel : CALLOUT_COVERED → FIXED offre le déplacement. Le backend
+    // renvoie alors { covered: true, clientSecret: null, amount: 0 } (aucun paiement).
+    calloutPayment: (requestId: string | number, promoCode?: string) =>
+      this.post('/quotes/callout-payment', { requestId, ...(promoCode ? { promoCode } : {}) }),
   };
 
   connect = {
