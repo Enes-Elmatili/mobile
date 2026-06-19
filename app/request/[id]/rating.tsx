@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { translateRequestServiceRaw } from '@/lib/categoryLabel';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
+import { resolveRequestDestination, navigateToDestination } from '@/lib/requestDestination';
 import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
 import { feedback } from '@/lib/feedback/feedback';
@@ -191,7 +192,19 @@ export default function RatingScreen() {
   const loadRequest = async () => {
     try {
       const response = await api.get(`/requests/${id}`);
-      setRequest(response.data || response);
+      const req = response.data || response;
+
+      // Garde-fou : on ne note que si la mission est terminée ET pas déjà notée.
+      // Une notif "noter le prestataire" tapée tard ne doit jamais ré-ouvrir un
+      // formulaire vierge ou mener à un écran périmé → on re-route par état.
+      const status = (req?.status || '').toUpperCase();
+      if (req?.reviewExists || (status && status !== 'DONE')) {
+        if (req?.reviewExists) showSocketToast(t('rating.already_rated'), 'info');
+        navigateToDestination({ ...resolveRequestDestination(req), replace: true });
+        return;
+      }
+
+      setRequest(req);
     } catch (error) {
       devError('Error loading request:', error);
     } finally {

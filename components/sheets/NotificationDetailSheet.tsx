@@ -4,9 +4,9 @@
 // action utile (espace / support). Les notifs in-app n'ont qu'une sévérité
 // (info/success/warning/error) : la guidance et l'action en découlent.
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, ActivityIndicator,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,10 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { handleNotificationNavigation } from '@/lib/usePushNotifications';
+import {
+  classifyNotification, resolveRequestById, navigateToDestination, refundDestination,
+  type RequestDestination,
+} from '@/lib/requestDestination';
 
 export interface NotifData {
   category?: string;
@@ -36,19 +40,6 @@ export interface NotifDetail {
   readAt: string | null;
   createdAt: string;
   data?: NotifData | null;
-}
-
-// CTA contextuel dérivé de la catégorie portée par la notif (null = fallback espace)
-function notificationCta(data: NotifData | null | undefined, t: any): { label: string; icon: any } | null {
-  switch (data?.category) {
-    case 'mission':        return { label: t('notifications.cta_view_mission'), icon: 'briefcase' };
-    case 'rating':         return { label: t('notifications.cta_rate'), icon: 'star' };
-    case 'refund':         return { label: t('notifications.cta_view_refund'), icon: 'rotate-ccw' };
-    case 'dispute':        return { label: t('notifications.cta_view_dispute'), icon: 'alert-octagon' };
-    case 'support':        return { label: t('notifications.contact_support'), icon: 'life-buoy' };
-    case 'mission_update': return { label: t('notifications.cta_view_requests'), icon: 'grid' };
-    default:               return null;
-  }
 }
 
 // ─── Config par sévérité ────────────────────────────────────────────────────
@@ -98,6 +89,10 @@ export default function NotificationDetailSheet({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const [resolving, setResolving] = useState(false);
+  // CTA résolu contre l'état COURANT de la demande (libellé + icône + destination
+  // déjà calculée). null = pas de CTA contextuel → bouton "Aller à mon espace".
+  const [ctaState, setCtaState] = useState<{ label: string; icon: string; dest?: RequestDestination } | null>(null);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -105,17 +100,44 @@ export default function NotificationDetailSheet({
     ), [],
   );
 
+  // À l'ouverture, on RE-RÉSOUT le CTA contre l'état réel de la demande pour que
+  // le libellé soit honnête ("Voir la facture" plutôt que "Voir la mission" sur
+  // une mission notée) et que le tap soit instantané (destination déjà calculée).
+  useEffect(() => {
+    if (!notif) return;
+    let cancelled = false;
+    const intent = classifyNotification(notif.data);
+
+    if (intent.kind === 'support') {
+      setCtaState({ label: t('notifications.contact_support'), icon: 'life-buoy' });
+    } else if (intent.kind === 'opportunity') {
+      setCtaState({ label: t('notifications.cta_view_opportunities'), icon: 'compass' });
+    } else if (intent.kind === 'refund') {
+      const d = refundDestination(intent.requestId);
+      setCtaState({ label: t(`notifications.${d.ctaKey}`), icon: d.icon, dest: d });
+    } else if (intent.kind === 'client-request' || intent.kind === 'provider-request') {
+      setResolving(true);
+      setCtaState({ label: t('notifications.go_to_space'), icon: 'grid' }); // neutre le temps du fetch
+      resolveRequestById(intent.requestId, { provider: intent.kind === 'provider-request' })
+        .then(d => { if (!cancelled) setCtaState({ label: t(`notifications.${d.ctaKey}`), icon: d.icon, dest: d }); })
+        .finally(() => { if (!cancelled) setResolving(false); });
+    } else {
+      setCtaState(null); // kyc / écran / fallback → bouton "Aller à mon espace"
+    }
+    return () => { cancelled = true; };
+  }, [notif?.id]);
+
   if (!isVisible || !notif) return null;
 
   const sev = severityConfig(notif.type, theme);
   const isWarn = notif.type === 'warning' || notif.type === 'error';
-  const cta = notificationCta(notif.data, t);
 
-  // CTA contextuel : route via le routeur deep-link partagé (même logique que les push)
+  // Tap : la destination est déjà résolue (calculée à l'ouverture) → navigation
+  // instantanée, sans re-fetch. Fallback sur le routeur partagé si encore en cours.
   const goContextual = () => {
     feedback.haptic('selection');
     onClose();
-    if (notif.data?.category === 'support') { router.push('/support'); return; }
+    if (ctaState?.dest) { navigateToDestination(ctaState.dest); return; }
     handleNotificationNavigation(notif.data);
   };
 
@@ -178,15 +200,22 @@ export default function NotificationDetailSheet({
           {/* Actions */}
           <View style={s.actions}>
             <TouchableOpacity
-              style={[s.cta, { backgroundColor: theme.accent }]}
-              onPress={cta ? goContextual : goToSpace}
+              style={[s.cta, { backgroundColor: theme.accent }, resolving && { opacity: 0.7 }]}
+              onPress={ctaState ? goContextual : goToSpace}
               activeOpacity={0.85}
+              disabled={resolving}
             >
-              <Feather name={cta ? cta.icon : 'grid'} size={18} color={theme.accentText} />
-              <Text style={[s.ctaText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-                {cta ? cta.label : t('notifications.go_to_space')}
-              </Text>
-              <Feather name="arrow-right" size={18} color={theme.accentText} />
+              {resolving ? (
+                <ActivityIndicator size="small" color={theme.accentText} style={s.ctaSpinner} />
+              ) : (
+                <>
+                  <Feather name={(ctaState?.icon as any) ?? 'grid'} size={18} color={theme.accentText} />
+                  <Text style={[s.ctaText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
+                    {ctaState?.label ?? t('notifications.go_to_space')}
+                  </Text>
+                  <Feather name="arrow-right" size={18} color={theme.accentText} />
+                </>
+              )}
             </TouchableOpacity>
 
             {isWarn && notif.data?.category !== 'support' && (
@@ -242,6 +271,7 @@ const s = StyleSheet.create({
   // ── Actions ──
   actions:      { marginTop: 30, gap: 10 },
   cta:          { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 17, paddingHorizontal: 18 },
+  ctaSpinner:   { height: 21 },
   ctaText:      { flex: 1, fontSize: 15.5 },
   ctaGhost:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, paddingVertical: 15, borderWidth: 1.5, backgroundColor: 'transparent' },
   ctaGhostText: { fontSize: 14.5 },

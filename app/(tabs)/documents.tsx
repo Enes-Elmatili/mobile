@@ -6,7 +6,7 @@ import {
   SafeAreaView, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -167,6 +167,11 @@ export default function Documents() {
   const [filter, setFilter] = useState<Filter>('all');
   const [activeTab, setActiveTab] = useState<Tab>('factures');
 
+  // Deep-link "preuve de remboursement" : une notif refund ouvre directement la
+  // facture de la demande concernée (passée en "Remboursé"), pas l'onglet brut.
+  const { openRequestId } = useLocalSearchParams<{ openRequestId?: string }>();
+  const openedRef = useRef<string | null>(null);
+
   // Statuts terminaux communs aux deux onglets (Devis + Planifiées).
   const TERMINAL_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
 
@@ -230,6 +235,17 @@ export default function Documents() {
     }
   }, [load]));
   const onRefresh = () => { lastFetchRef.current = 0; setRefreshing(true); load(); };
+
+  // Une fois les factures chargées, ouvre celle ciblée par le deep-link refund.
+  useEffect(() => {
+    if (!openRequestId || openedRef.current === openRequestId || invoices.length === 0) return;
+    const target = invoices.find(inv => String(inv.requestId) === String(openRequestId));
+    if (target) {
+      openedRef.current = openRequestId;
+      setActiveTab('factures');
+      setSelectedInvoice(target);
+    }
+  }, [openRequestId, invoices]);
 
   // Stats
   const totalCount = invoices.length;
