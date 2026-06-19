@@ -572,9 +572,11 @@ export default function Profile() {
             onPress: () => router.push('/messages'),
           },
           {
+            // Prestataire → écran Formules (grille des paliers, GET /api/tiers).
+            // PAS /subscription (= FIXED Pass CLIENT). Ligne déjà provider-only (!isClientOnly).
             icon: 'credit-card' as string, iconColor: theme.textSub, iconBg: theme.surface,
             label: t('profile.subscription'), sublabel: t('profile.subscription_sub'),
-            onPress: () => router.push('/subscription'),
+            onPress: () => router.push('/formules'),
           },
         ]
       : []),
