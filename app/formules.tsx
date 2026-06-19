@@ -1,12 +1,13 @@
-// app/formules.tsx — Écran "Formules" PRESTATAIRE (graphite premium).
+// app/formules.tsx — Écran "Formules" PRESTATAIRE (graphite premium, carrousel animé).
 //
-// SOURCE UNIQUE DONNÉES : GET /api/tiers (aucune grille en dur → zéro drift money).
-// SOURCE UNIQUE COULEURS : tokens GRAPHITE de @/hooks/use-app-theme (aucun hex en
-// dur ici). Commission & plafond rendus depuis leurs champs DÉDIÉS (commissionRate,
-// missionCap), jamais depuis les perks. NE touche PAS app/subscription.tsx (client).
+// SOURCE UNIQUE DONNÉES : GET /api/tiers (zéro grille en dur).
+// SOURCE UNIQUE COULEURS : tokens GRAPHITE de @/hooks/use-app-theme (zéro hex en dur).
+// Carrousel scroll-driven : la carte CENTRÉE est mise en avant (scale + halo + opacité
+// pleine), les voisines s'effacent → chaque palier devient désirable à son tour (pas
+// seulement Pro). Haptics via le moteur feedback (jamais Haptics en direct).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   StatusBar, Dimensions, Animated, Easing, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -14,9 +15,9 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { api } from '@/lib/api';
+import { feedback } from '@/lib/feedback/feedback';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
 
-// Géométrie des dégradés (≈165° / 180° approximés en points RN — pas des couleurs).
 const A165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
 const A180 = { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
 const AHORIZ = { start: { x: 0, y: 0 }, end: { x: 1, y: 0 } };
@@ -30,6 +31,7 @@ interface TiersResponse { subscriptionsEnabled: boolean; currentTier: string | n
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = Math.min(SCREEN_W - 48, 360);
 const CARD_GAP = 16;
+const ITEM = CARD_W + CARD_GAP;
 
 const priceLabel = (cents: number) => (cents === 0 ? 'Gratuit' : `${(cents / 100).toFixed(2).replace('.', ',')} €`);
 const commissionLabel = (rate: number) => `${Math.round(rate * 100)} % de commission`;
@@ -66,7 +68,11 @@ function Skeleton() {
 }
 
 // ── Carte palier ──────────────────────────────────────────────────────────────
-function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCurrent: boolean; subscriptionsEnabled: boolean }) {
+// haloOpacity : Animated.Value pilotée par le scroll → le halo glow apparaît quand
+// la carte est centrée (vaut pour TOUTES les cartes, pas seulement Pro).
+function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity }: {
+  tier: Tier; isCurrent: boolean; subscriptionsEnabled: boolean; haloOpacity: Animated.AnimatedInterpolation<number>;
+}) {
   const pro = tier.recommended;
 
   const Body = (
@@ -114,7 +120,7 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCur
 
       {subscriptionsEnabled ? (
         !isCurrent ? (
-          <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap}>
+          <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={() => feedback.haptic('light')}>
             <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
               <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Choisir {tier.label}</Text>
             </LinearGradient>
@@ -132,31 +138,34 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCur
     </>
   );
 
-  if (pro) {
-    return (
-      <View style={{ width: CARD_W }}>
-        <Svg width={'100%' as any} height={'100%' as any} style={s.halo} pointerEvents="none">
+  return (
+    <View style={{ width: CARD_W }}>
+      {/* Halo radial qui suit le focus (toutes les cartes) */}
+      <Animated.View style={[s.halo, { opacity: haloOpacity }]} pointerEvents="none">
+        <Svg width={'100%' as any} height={'100%' as any}>
           <Defs>
-            <RadialGradient id="halo" cx="50%" cy="34%" rx="55%" ry="42%">
-              <Stop offset="0" stopColor={G.halo} stopOpacity="0.30" />
+            <RadialGradient id={`halo-${tier.tier}`} cx="50%" cy="34%" rx="55%" ry="42%">
+              <Stop offset="0" stopColor={G.halo} stopOpacity="0.32" />
               <Stop offset="1" stopColor={G.halo} stopOpacity="0" />
             </RadialGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#halo)" />
+          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#halo-${tier.tier})`} />
         </Svg>
+      </Animated.View>
+
+      {pro ? (
         <LinearGradient colors={G.gradProBorder} start={A165.start} end={A165.end} style={s.cardOuterPro}>
           <LinearGradient colors={G.gradProCard} start={A165.start} end={A165.end} style={[s.cardInner, s.cardInnerPro]}>
             {Body}
           </LinearGradient>
         </LinearGradient>
-      </View>
-    );
-  }
-  return (
-    <View style={[s.cardOuter, { width: CARD_W }]}>
-      <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1 }]}>
-        {Body}
-      </LinearGradient>
+      ) : (
+        <View style={s.cardOuter}>
+          <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1 }]}>
+            {Body}
+          </LinearGradient>
+        </View>
+      )}
     </View>
   );
 }
@@ -167,21 +176,23 @@ export default function FormulesScreen() {
   const [data, setData] = useState<TiersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [page, setPage] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const pageRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true); setError(false);
     try {
       const res = await api.get<TiersResponse>('/tiers');
-      const payload = (res as any)?.data ?? res;
-      setData(payload);
-      const recoIdx = payload?.tiers?.findIndex((t: Tier) => t.recommended) ?? -1;
-      if (recoIdx > 0) setPage(recoIdx);
+      setData((res as any)?.data ?? res);
     } catch { setError(true); } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const onScroll = (e: any) => setPage(Math.round(e.nativeEvent.contentOffset.x / (CARD_W + CARD_GAP)));
+  // Snap → haptic de sélection (uniquement au changement de carte).
+  const onMomentumEnd = (e: any) => {
+    const p = Math.round(e.nativeEvent.contentOffset.x / ITEM);
+    if (p !== pageRef.current) { pageRef.current = p; feedback.haptic('selection'); }
+  };
 
   return (
     <View style={s.root}>
@@ -192,7 +203,7 @@ export default function FormulesScreen() {
         <View style={[s.header, { borderBottomColor: G.border }]}>
           <TouchableOpacity
             style={[s.backBtn, { backgroundColor: G.scrim }]}
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/provider-dashboard' as any))}
+            onPress={() => { feedback.haptic('light'); router.canGoBack() ? router.back() : router.replace('/(tabs)/provider-dashboard' as any); }}
             activeOpacity={0.7}
           >
             <Feather name="arrow-left" size={20} color={G.textPrimary} />
@@ -214,7 +225,7 @@ export default function FormulesScreen() {
           <View style={s.center}>
             <Feather name="wifi-off" size={36} color={G.textVeryMuted} />
             <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>Impossible de charger les formules</Text>
-            <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={load}>
+            <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={() => { feedback.haptic('light'); load(); }}>
               <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={[s.cta, s.retry]}>
                 <Feather name="refresh-cw" size={15} color={G.onAccent} />
                 <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
@@ -223,26 +234,40 @@ export default function FormulesScreen() {
           </View>
         ) : (
           <>
-            <ScrollView
+            <Animated.ScrollView
               horizontal showsHorizontalScrollIndicator={false}
-              snapToInterval={CARD_W + CARD_GAP} decelerationRate="fast"
+              snapToInterval={ITEM} decelerationRate="fast"
+              scrollEventThrottle={16}
               contentContainerStyle={s.carouselContent}
-              onMomentumScrollEnd={onScroll}
-              contentOffset={{ x: page * (CARD_W + CARD_GAP), y: 0 }}
+              onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
+              onMomentumScrollEnd={onMomentumEnd}
             >
-              {data?.tiers.map((t) => (
-                <TierCard key={t.tier} tier={t} isCurrent={t.tier === data.currentTier} subscriptionsEnabled={data.subscriptionsEnabled} />
-              ))}
-            </ScrollView>
+              {data?.tiers.map((t, i) => {
+                const inputRange = [(i - 1) * ITEM, i * ITEM, (i + 1) * ITEM];
+                const scale = scrollX.interpolate({ inputRange, outputRange: [0.93, 1, 0.93], extrapolate: 'clamp' });
+                const opacity = scrollX.interpolate({ inputRange, outputRange: [0.6, 1, 0.6], extrapolate: 'clamp' });
+                const translateY = scrollX.interpolate({ inputRange, outputRange: [12, 0, 12], extrapolate: 'clamp' });
+                const haloOpacity = scrollX.interpolate({ inputRange, outputRange: [0, 1, 0], extrapolate: 'clamp' });
+                return (
+                  <Animated.View key={t.tier} style={{ transform: [{ scale }, { translateY }], opacity }}>
+                    <TierCard tier={t} isCurrent={t.tier === data.currentTier} subscriptionsEnabled={data.subscriptionsEnabled} haloOpacity={haloOpacity} />
+                  </Animated.View>
+                );
+              })}
+            </Animated.ScrollView>
 
+            {/* Pagination — point actif élargi en dégradé */}
             <View style={s.dots}>
-              {data?.tiers.map((t, i) => (
-                i === page ? (
-                  <LinearGradient key={t.tier} colors={G.gradCta} start={AHORIZ.start} end={AHORIZ.end} style={[s.dot, { width: 20 }]} />
-                ) : (
-                  <View key={t.tier} style={[s.dot, { width: 7, backgroundColor: G.border }]} />
-                )
-              ))}
+              {data?.tiers.map((t, i) => {
+                const inputRange = [(i - 1) * ITEM, i * ITEM, (i + 1) * ITEM];
+                const dotW = scrollX.interpolate({ inputRange, outputRange: [7, 22, 7], extrapolate: 'clamp' });
+                const dotO = scrollX.interpolate({ inputRange, outputRange: [0.35, 1, 0.35], extrapolate: 'clamp' });
+                return (
+                  <Animated.View key={t.tier} style={[s.dotWrap, { width: dotW, opacity: dotO }]}>
+                    <LinearGradient colors={G.gradCta} start={AHORIZ.start} end={AHORIZ.end} style={s.dotFill} />
+                  </Animated.View>
+                );
+              })}
             </View>
           </>
         )}
@@ -268,7 +293,7 @@ const s = StyleSheet.create({
   bannerSub: { fontSize: 14, lineHeight: 19 },
 
   carouselRow: { flexDirection: 'row', gap: CARD_GAP, paddingHorizontal: 24, paddingTop: 16 },
-  carouselContent: { paddingHorizontal: 24, paddingVertical: 16, gap: CARD_GAP },
+  carouselContent: { paddingHorizontal: 24, paddingVertical: 20, gap: CARD_GAP, alignItems: 'flex-start' },
 
   cardOuter: {
     borderRadius: 22,
@@ -313,7 +338,8 @@ const s = StyleSheet.create({
   retry: { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingVertical: 12 },
 
   dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingBottom: 24, paddingTop: 4 },
-  dot: { height: 7, borderRadius: 4 },
+  dotWrap: { height: 7, borderRadius: 4, overflow: 'hidden' },
+  dotFill: { flex: 1 },
 
   errorTitle: { fontSize: 16, textAlign: 'center' },
 });

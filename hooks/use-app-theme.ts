@@ -156,15 +156,16 @@ export const alpha = (hex: string, a: number) => {
 // alpha), jamais réécrits. Surfaces élevées (graphite, pas noir aplati) ; verts
 // brand éclaircis DARK-ONLY (COLORS.greenBrand reste canonique sur fond clair).
 const GBASE = {
-  // Échelle graphite (clair → profond)
-  s1: '#30353D', s2: '#262B32', s3: '#222730', s4: '#1A1E25', s5: '#161A20',
-  line: '#3C424A',
-  // Surface carte recommandée (graphite teinté vert, clair → profond)
-  p1: '#1E3026', p2: '#18271E', p3: '#16231B',
+  // Échelle graphite NEUTRE-CHAUD (R≥G≥B) — pas de teinte bleue ; aligné sur la
+  // famille neutre de l'app (darkTokens #0A0A0A… / off-white chaud #F4F4F2).
+  s1: '#2E2D2B', s2: '#262523', s3: '#201F1D', s4: '#1A1918', s5: '#151413',
+  line: '#3A3936',
+  // Surface carte recommandée (graphite teinté vert — intentionnel pour Pro)
+  p1: '#1E2A22', p2: '#18221C', p3: '#152019',
   // Verts brand (dark)
   green: '#34C56C', greenHi: '#3FCF77', greenMid: '#1F8A4C', greenLo: '#1C8146', greenDeep: '#0C3A22',
-  // Encre (texte)
-  ink: '#F4F4F2', ink2: '#AEB4BE', ink3: '#7C828C', ink4: '#565C66',
+  // Encre (texte) — gris chauds neutres, pas bleutés
+  ink: '#F4F4F2', ink2: '#ADABA5', ink3: '#807E77', ink4: '#57554E',
   shadow: '#000000',
 } as const;
 
