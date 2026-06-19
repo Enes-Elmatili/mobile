@@ -1,14 +1,9 @@
 // app/formules.tsx — Écran "Formules" PRESTATAIRE (graphite premium).
 //
-// SOURCE UNIQUE : toutes les données de palier viennent de GET /api/tiers (backend).
-// Aucune grille en dur → zéro drift avec le money-source (config/tiers.js).
-// Commission & plafond rendus depuis leurs champs DÉDIÉS (commissionRate, missionCap),
-// jamais depuis les perks marketing.
-//
-// DESIGN : palette "graphite premium" validée (pas de noir aplati). Surfaces en
-// dégradé, halo vert radial derrière la carte recommandée, bordure dégradée, CTA/
-// dots/séparateurs en dégradé. Vert éclairci #34C56C/#3FCF77 (dark-only ; #1F8A4C
-// reste le vert canonique sur fond clair). NE touche PAS app/subscription.tsx (client).
+// SOURCE UNIQUE DONNÉES : GET /api/tiers (aucune grille en dur → zéro drift money).
+// SOURCE UNIQUE COULEURS : tokens GRAPHITE de @/hooks/use-app-theme (aucun hex en
+// dur ici). Commission & plafond rendus depuis leurs champs DÉDIÉS (commissionRate,
+// missionCap), jamais depuis les perks. NE touche PAS app/subscription.tsx (client).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
@@ -19,27 +14,12 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { api } from '@/lib/api';
-import { FONTS } from '@/hooks/use-app-theme';
+import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
 
-// ── Palette graphite premium (tokens exacts validés) ──────────────────────────
-const FP = {
-  bg: ['#222730', '#1a1e25', '#161a20'] as const,            // fond écran (180deg)
-  cardStd: ['#30353d', '#262b32', '#222730'] as const,        // carte standard (165deg)
-  cardPro: ['#1e3026', '#18271e', '#16231b'] as const,        // surface Pro (165deg)
-  proBorder: ['#3FCF77', '#1F8A4C', '#0c3a22'] as const,      // bordure dégradée Pro
-  cta: ['#34C56C', '#1C8146'] as const,                       // CTA actif (180deg)
-  greenBright: '#34C56C',
-  greenLight: '#3FCF77',
-  borderStd: '#3c424a',
-  insetTop: 'rgba(255,255,255,0.06)',
-  textPrimary: '#F4F4F2',
-  textSecondary: '#AEB4BE',
-  textMuted: '#7C828C',
-  textVeryMuted: '#565c66',
-};
-// Approximation 165° (haut-légèrement-gauche → bas-légèrement-droite) pour RN.
-const G165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
-const G180 = { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
+// Géométrie des dégradés (≈165° / 180° approximés en points RN — pas des couleurs).
+const A165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
+const A180 = { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
+const AHORIZ = { start: { x: 0, y: 0 }, end: { x: 1, y: 0 } };
 
 interface Tier {
   tier: string; label: string; monthlyPriceCents: number; commissionRate: number;
@@ -55,15 +35,8 @@ const priceLabel = (cents: number) => (cents === 0 ? 'Gratuit' : `${(cents / 100
 const commissionLabel = (rate: number) => `${Math.round(rate * 100)} % de commission`;
 const capLabel = (cap: number | null) => (cap === null ? 'Missions illimitées' : `${cap} missions / mois`);
 
-// Séparateur en dégradé (transparent → bord → transparent).
 function GradientRule() {
-  return (
-    <LinearGradient
-      colors={['transparent', FP.borderStd, 'transparent']}
-      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-      style={s.rule}
-    />
-  );
+  return <LinearGradient colors={['transparent', G.border, 'transparent']} start={AHORIZ.start} end={AHORIZ.end} style={s.rule} />;
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -81,9 +54,9 @@ function Skeleton() {
     <View style={s.carouselRow}>
       {[0, 1].map((i) => (
         <Animated.View key={i} style={[s.cardOuter, { width: CARD_W, opacity: pulse }]}>
-          <LinearGradient colors={FP.cardStd} start={G165.start} end={G165.end} style={[s.cardInner, { borderColor: FP.borderStd, gap: 14 }]}>
+          <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1, gap: 14 }]}>
             {[120, 90, 200, 200, 200].map((w, k) => (
-              <View key={k} style={{ width: w, height: k < 2 ? 30 : 14, borderRadius: 7, backgroundColor: '#3a4048' }} />
+              <View key={k} style={{ width: w, height: k < 2 ? 30 : 14, borderRadius: 7, backgroundColor: G.skeleton }} />
             ))}
           </LinearGradient>
         </Animated.View>
@@ -98,44 +71,43 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCur
 
   const Body = (
     <>
-      {/* highlight inset haut */}
-      <View pointerEvents="none" style={[s.insetTop, { backgroundColor: FP.insetTop }]} />
+      <View pointerEvents="none" style={[s.insetTop, { backgroundColor: G.insetTop }]} />
 
       <View style={s.badgeRow}>
         {pro && (
-          <LinearGradient colors={FP.cta} start={G180.start} end={G180.end} style={s.badge}>
-            <Text style={[s.badgeText, { color: '#0A0A0A', fontFamily: FONTS.mono }]}>RECOMMANDÉ</Text>
+          <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.badge}>
+            <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>RECOMMANDÉ</Text>
           </LinearGradient>
         )}
         {isCurrent && (
-          <View style={[s.badge, { backgroundColor: FP.textPrimary }]}>
-            <Text style={[s.badgeText, { color: '#0A0A0A', fontFamily: FONTS.mono }]}>PALIER ACTUEL</Text>
+          <View style={[s.badge, { backgroundColor: G.textPrimary }]}>
+            <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>PALIER ACTUEL</Text>
           </View>
         )}
       </View>
 
-      <Text style={[s.tierLabel, { color: FP.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
+      <Text style={[s.tierLabel, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
       <View style={s.priceRow}>
-        <Text style={[s.price, { color: FP.textPrimary, fontFamily: FONTS.bebas }]}>{priceLabel(tier.monthlyPriceCents)}</Text>
-        {tier.monthlyPriceCents > 0 && <Text style={[s.priceSuffix, { color: FP.textMuted, fontFamily: FONTS.sans }]}>/ mois</Text>}
+        <Text style={[s.price, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{priceLabel(tier.monthlyPriceCents)}</Text>
+        {tier.monthlyPriceCents > 0 && <Text style={[s.priceSuffix, { color: G.textMuted, fontFamily: FONTS.sans }]}>/ mois</Text>}
       </View>
 
       <GradientRule />
       <View style={s.factRow}>
-        <Feather name="percent" size={14} color={FP.greenLight} />
-        <Text style={[s.factText, { color: FP.textSecondary, fontFamily: FONTS.sansMedium }]}>{commissionLabel(tier.commissionRate)}</Text>
+        <Feather name="percent" size={14} color={G.greenLight} />
+        <Text style={[s.factText, { color: G.textSecondary, fontFamily: FONTS.sansMedium }]}>{commissionLabel(tier.commissionRate)}</Text>
       </View>
       <View style={s.factRow}>
-        <Feather name="briefcase" size={14} color={FP.textMuted} />
-        <Text style={[s.factText, { color: FP.textSecondary, fontFamily: FONTS.sansMedium }]}>{capLabel(tier.missionCap)}</Text>
+        <Feather name="briefcase" size={14} color={G.textMuted} />
+        <Text style={[s.factText, { color: G.textSecondary, fontFamily: FONTS.sansMedium }]}>{capLabel(tier.missionCap)}</Text>
       </View>
       <GradientRule />
 
       <View style={s.perks}>
         {tier.perks.map((p, i) => (
           <View key={i} style={s.perkRow}>
-            <Feather name="check" size={15} color={FP.greenBright} />
-            <Text style={[s.perkText, { color: FP.textSecondary, fontFamily: FONTS.sans }]}>{p}</Text>
+            <Feather name="check" size={15} color={G.green} />
+            <Text style={[s.perkText, { color: G.textSecondary, fontFamily: FONTS.sans }]}>{p}</Text>
           </View>
         ))}
       </View>
@@ -143,18 +115,18 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCur
       {subscriptionsEnabled ? (
         !isCurrent ? (
           <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap}>
-            <LinearGradient colors={FP.cta} start={G180.start} end={G180.end} style={s.cta}>
-              <Text style={[s.ctaText, { color: '#0A0A0A', fontFamily: FONTS.sansMedium }]}>Choisir {tier.label}</Text>
+            <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
+              <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Choisir {tier.label}</Text>
             </LinearGradient>
           </TouchableOpacity>
         ) : (
-          <View style={[s.cta, s.ctaGhost, { borderColor: FP.borderStd }]}>
-            <Text style={[s.ctaText, { color: FP.textMuted, fontFamily: FONTS.sansMedium }]}>Votre formule</Text>
+          <View style={[s.cta, s.ctaGhost, { borderColor: G.border }]}>
+            <Text style={[s.ctaText, { color: G.textMuted, fontFamily: FONTS.sansMedium }]}>Votre formule</Text>
           </View>
         )
       ) : (
-        <View style={[s.cta, s.ctaGhost, { borderColor: FP.borderStd }]}>
-          <Text style={[s.ctaText, { color: FP.textMuted, fontFamily: FONTS.sansMedium }]}>Bientôt disponible</Text>
+        <View style={[s.cta, s.ctaGhost, { borderColor: G.border }]}>
+          <Text style={[s.ctaText, { color: G.textMuted, fontFamily: FONTS.sansMedium }]}>Bientôt disponible</Text>
         </View>
       )}
     </>
@@ -163,19 +135,17 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCur
   if (pro) {
     return (
       <View style={{ width: CARD_W }}>
-        {/* Halo vert radial derrière la carte recommandée */}
         <Svg width={'100%' as any} height={'100%' as any} style={s.halo} pointerEvents="none">
           <Defs>
             <RadialGradient id="halo" cx="50%" cy="34%" rx="55%" ry="42%">
-              <Stop offset="0" stopColor={FP.greenBright} stopOpacity="0.30" />
-              <Stop offset="1" stopColor={FP.greenBright} stopOpacity="0" />
+              <Stop offset="0" stopColor={G.halo} stopOpacity="0.30" />
+              <Stop offset="1" stopColor={G.halo} stopOpacity="0" />
             </RadialGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#halo)" />
         </Svg>
-        {/* Bordure dégradée */}
-        <LinearGradient colors={FP.proBorder} start={G165.start} end={G165.end} style={s.cardOuterPro}>
-          <LinearGradient colors={FP.cardPro} start={G165.start} end={G165.end} style={[s.cardInner, s.cardInnerPro]}>
+        <LinearGradient colors={G.gradProBorder} start={A165.start} end={A165.end} style={s.cardOuterPro}>
+          <LinearGradient colors={G.gradProCard} start={A165.start} end={A165.end} style={[s.cardInner, s.cardInnerPro]}>
             {Body}
           </LinearGradient>
         </LinearGradient>
@@ -184,7 +154,7 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled }: { tier: Tier; isCur
   }
   return (
     <View style={[s.cardOuter, { width: CARD_W }]}>
-      <LinearGradient colors={FP.cardStd} start={G165.start} end={G165.end} style={[s.cardInner, { borderColor: FP.borderStd, borderWidth: 1 }]}>
+      <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1 }]}>
         {Body}
       </LinearGradient>
     </View>
@@ -215,27 +185,26 @@ export default function FormulesScreen() {
 
   return (
     <View style={s.root}>
-      {/* Fond graphite en dégradé (180deg) */}
-      <LinearGradient colors={FP.bg} start={G180.start} end={G180.end} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={G.gradBg} start={A180.start} end={A180.end} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={s.safe}>
         <StatusBar barStyle="light-content" />
 
-        <View style={[s.header, { borderBottomColor: FP.borderStd }]}>
+        <View style={[s.header, { borderBottomColor: G.border }]}>
           <TouchableOpacity
-            style={[s.backBtn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}
+            style={[s.backBtn, { backgroundColor: G.scrim }]}
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/provider-dashboard' as any))}
             activeOpacity={0.7}
           >
-            <Feather name="arrow-left" size={20} color={FP.textPrimary} />
+            <Feather name="arrow-left" size={20} color={G.textPrimary} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: FP.textPrimary, fontFamily: FONTS.bebas }]}>FORMULES</Text>
+          <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>FORMULES</Text>
           <View style={{ width: 38 }} />
         </View>
 
         {!loading && !error && (
           <View style={s.banner}>
-            <Text style={[s.bannerTitle, { color: FP.textPrimary, fontFamily: FONTS.bebas }]}>Gagnez plus, gardez plus</Text>
-            <Text style={[s.bannerSub, { color: FP.textMuted, fontFamily: FONTS.sans }]}>Plus votre formule monte, plus votre commission baisse.</Text>
+            <Text style={[s.bannerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>Gagnez plus, gardez plus</Text>
+            <Text style={[s.bannerSub, { color: G.textMuted, fontFamily: FONTS.sans }]}>Plus votre formule monte, plus votre commission baisse.</Text>
           </View>
         )}
 
@@ -243,12 +212,12 @@ export default function FormulesScreen() {
           <Skeleton />
         ) : error ? (
           <View style={s.center}>
-            <Feather name="wifi-off" size={36} color={FP.textVeryMuted} />
-            <Text style={[s.errorTitle, { color: FP.textPrimary, fontFamily: FONTS.sansMedium }]}>Impossible de charger les formules</Text>
+            <Feather name="wifi-off" size={36} color={G.textVeryMuted} />
+            <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>Impossible de charger les formules</Text>
             <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={load}>
-              <LinearGradient colors={FP.cta} start={G180.start} end={G180.end} style={[s.cta, s.retry]}>
-                <Feather name="refresh-cw" size={15} color="#0A0A0A" />
-                <Text style={[s.ctaText, { color: '#0A0A0A', fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
+              <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={[s.cta, s.retry]}>
+                <Feather name="refresh-cw" size={15} color={G.onAccent} />
+                <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -269,9 +238,9 @@ export default function FormulesScreen() {
             <View style={s.dots}>
               {data?.tiers.map((t, i) => (
                 i === page ? (
-                  <LinearGradient key={t.tier} colors={FP.cta} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[s.dot, { width: 20 }]} />
+                  <LinearGradient key={t.tier} colors={G.gradCta} start={AHORIZ.start} end={AHORIZ.end} style={[s.dot, { width: 20 }]} />
                 ) : (
-                  <View key={t.tier} style={[s.dot, { width: 7, backgroundColor: FP.borderStd }]} />
+                  <View key={t.tier} style={[s.dot, { width: 7, backgroundColor: G.border }]} />
                 )
               ))}
             </View>
@@ -283,7 +252,7 @@ export default function FormulesScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#161a20' },
+  root: { flex: 1, backgroundColor: G.gradBg[2] },
   safe: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
 
@@ -301,18 +270,17 @@ const s = StyleSheet.create({
   carouselRow: { flexDirection: 'row', gap: CARD_GAP, paddingHorizontal: 24, paddingTop: 16 },
   carouselContent: { paddingHorizontal: 24, paddingVertical: 16, gap: CARD_GAP },
 
-  // carte standard : wrapper ombré + surface dégradée
   cardOuter: {
     borderRadius: 22,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
+      ios: { shadowColor: G.shadow, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
       android: { elevation: 5 },
     }),
   },
   cardOuterPro: {
-    borderRadius: 22, padding: 2, // épaisseur de la bordure dégradée
+    borderRadius: 22, padding: 2,
     ...Platform.select({
-      ios: { shadowColor: '#0c3a22', shadowOpacity: 0.5, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
+      ios: { shadowColor: G.gradProBorder[2], shadowOpacity: 0.5, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
       android: { elevation: 8 },
     }),
   },

@@ -141,6 +141,34 @@ function buildTheme(isDark: boolean): ThemeTokens {
   };
 }
 
+// ── Premium graphite palette ───────────────────────────────────────────────
+// Surfaces ÉLEVÉES (graphite, pas noir aplati) pour les écrans premium (Formules…).
+// Source de vérité UNIQUE de ces valeurs — les écrans LISENT ces tokens, ne
+// hardcodent JAMAIS de hex. Dégradés multi-stops (pour expo-linear-gradient) +
+// accents verts éclaircis DARK-ONLY (COLORS.greenBrand reste canonique sur fond clair).
+export const GRAPHITE = {
+  // Dégradés (LinearGradient `colors`)
+  gradBg:        ['#222730', '#1A1E25', '#161A20'], // fond écran (180°)
+  gradCard:      ['#30353D', '#262B32', '#222730'], // carte standard (165°)
+  gradProCard:   ['#1E3026', '#18271E', '#16231B'], // surface carte recommandée (165°)
+  gradProBorder: ['#3FCF77', '#1F8A4C', '#0C3A22'], // bordure dégradée Pro
+  gradCta:       ['#34C56C', '#1C8146'],            // CTA actif (180°)
+  // Couleurs plates
+  green:        '#34C56C', // accent vert éclairci (checks, halo, dot actif)
+  greenLight:   '#3FCF77', // highlight vert
+  halo:         '#34C56C', // couleur du halo radial derrière la carte Pro
+  border:       '#3C424A',
+  insetTop:     'rgba(255,255,255,0.06)', // highlight inset haut de carte
+  scrim:        'rgba(255,255,255,0.06)', // fond bouton discret (back)
+  skeleton:     '#3A4048',
+  shadow:       '#000000', // ombre portée carte standard
+  onAccent:     '#0A0A0A', // texte sur surface verte
+  textPrimary:  '#F4F4F2',
+  textSecondary:'#AEB4BE',
+  textMuted:    '#7C828C',
+  textVeryMuted:'#565C66',
+} as const;
+
 // ── Frozen snapshots for forced-mode components ────────────────────────────
 export const darkTokens  = buildTheme(true);
 export const lightTokens = buildTheme(false);
