@@ -141,32 +141,58 @@ function buildTheme(isDark: boolean): ThemeTokens {
   };
 }
 
-// ── Premium graphite palette ───────────────────────────────────────────────
-// Surfaces ÉLEVÉES (graphite, pas noir aplati) pour les écrans premium (Formules…).
-// Source de vérité UNIQUE de ces valeurs — les écrans LISENT ces tokens, ne
-// hardcodent JAMAIS de hex. Dégradés multi-stops (pour expo-linear-gradient) +
-// accents verts éclaircis DARK-ONLY (COLORS.greenBrand reste canonique sur fond clair).
+// ── alpha() — dérive des overlays rgba depuis un token hex canonique ────────
+// (même helper que components/auth/tokens.ts : aucun rgba littéral dans le code).
+export const alpha = (hex: string, a: number) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+};
+
+// ── Premium graphite — BASE CANONIQUE ──────────────────────────────────────
+// Source UNIQUE des hex graphite (échelle nommée, comme darkTokens). C'est le SEUL
+// endroit où ces hex existent ; gradients + overlays sont DÉRIVÉS plus bas (réf +
+// alpha), jamais réécrits. Surfaces élevées (graphite, pas noir aplati) ; verts
+// brand éclaircis DARK-ONLY (COLORS.greenBrand reste canonique sur fond clair).
+const GBASE = {
+  // Échelle graphite (clair → profond)
+  s1: '#30353D', s2: '#262B32', s3: '#222730', s4: '#1A1E25', s5: '#161A20',
+  line: '#3C424A',
+  // Surface carte recommandée (graphite teinté vert, clair → profond)
+  p1: '#1E3026', p2: '#18271E', p3: '#16231B',
+  // Verts brand (dark)
+  green: '#34C56C', greenHi: '#3FCF77', greenMid: '#1F8A4C', greenLo: '#1C8146', greenDeep: '#0C3A22',
+  // Encre (texte)
+  ink: '#F4F4F2', ink2: '#AEB4BE', ink3: '#7C828C', ink4: '#565C66',
+  shadow: '#000000',
+} as const;
+
+// ── Premium graphite — DÉRIVÉ ──────────────────────────────────────────────
+// Les écrans LISENT GRAPHITE uniquement. Dégradés = références à GBASE ; overlays
+// = alpha(GBASE.*) → zéro hex/rgba en dur ni dupliqué côté écran ET côté tokens.
 export const GRAPHITE = {
-  // Dégradés (LinearGradient `colors`)
-  gradBg:        ['#222730', '#1A1E25', '#161A20'], // fond écran (180°)
-  gradCard:      ['#30353D', '#262B32', '#222730'], // carte standard (165°)
-  gradProCard:   ['#1E3026', '#18271E', '#16231B'], // surface carte recommandée (165°)
-  gradProBorder: ['#3FCF77', '#1F8A4C', '#0C3A22'], // bordure dégradée Pro
-  gradCta:       ['#34C56C', '#1C8146'],            // CTA actif (180°)
-  // Couleurs plates
-  green:        '#34C56C', // accent vert éclairci (checks, halo, dot actif)
-  greenLight:   '#3FCF77', // highlight vert
-  halo:         '#34C56C', // couleur du halo radial derrière la carte Pro
-  border:       '#3C424A',
-  insetTop:     'rgba(255,255,255,0.06)', // highlight inset haut de carte
-  scrim:        'rgba(255,255,255,0.06)', // fond bouton discret (back)
-  skeleton:     '#3A4048',
-  shadow:       '#000000', // ombre portée carte standard
-  onAccent:     '#0A0A0A', // texte sur surface verte
-  textPrimary:  '#F4F4F2',
-  textSecondary:'#AEB4BE',
-  textMuted:    '#7C828C',
-  textVeryMuted:'#565C66',
+  // Dégradés (références à la base — expo-linear-gradient `colors`)
+  gradBg:        [GBASE.s3, GBASE.s4, GBASE.s5],          // fond écran (180°)
+  gradCard:      [GBASE.s1, GBASE.s2, GBASE.s3],          // carte standard (165°)
+  gradProCard:   [GBASE.p1, GBASE.p2, GBASE.p3],          // surface carte recommandée
+  gradProBorder: [GBASE.greenHi, GBASE.greenMid, GBASE.greenDeep], // bordure dégradée Pro
+  gradCta:       [GBASE.green, GBASE.greenLo],            // CTA actif (180°)
+  // Couleurs (références)
+  green:        GBASE.green,
+  greenLight:   GBASE.greenHi,
+  halo:         GBASE.green,
+  border:       GBASE.line,
+  skeleton:     GBASE.line,
+  shadow:       GBASE.shadow,
+  onAccent:     GBASE.s5,
+  textPrimary:  GBASE.ink,
+  textSecondary:GBASE.ink2,
+  textMuted:    GBASE.ink3,
+  textVeryMuted:GBASE.ink4,
+  // Overlays (dérivés via alpha — aucun rgba littéral)
+  insetTop:     alpha(GBASE.ink, 0.06), // highlight inset haut de carte
+  scrim:        alpha(GBASE.ink, 0.06), // fond bouton discret (back)
 } as const;
 
 // ── Frozen snapshots for forced-mode components ────────────────────────────
