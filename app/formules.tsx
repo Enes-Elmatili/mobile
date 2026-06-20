@@ -14,14 +14,10 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
+import { useStripe } from '@stripe/stripe-react-native';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
-
-// Permet à la session Checkout de se terminer proprement au retour deep-link.
-WebBrowser.maybeCompleteAuthSession();
 
 const A165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
 const A180 = { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
@@ -189,6 +185,7 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity, onChoose
 // ── Écran ─────────────────────────────────────────────────────────────────────
 export default function FormulesScreen() {
   const router = useRouter();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [data, setData] = useState<TiersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -205,31 +202,43 @@ export default function FormulesScreen() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // Souscription d'un palier : Checkout Stripe (mode subscription) ouvert dans un
-  // navigateur in-app, retour via deep link fixed://formules. Le palier ACTIF est
-  // posé par le webhook Stripe (asynchrone) → au retour "success" on rafraîchit
-  // /tiers (le currentTier peut mettre quelques secondes à basculer).
+  // Souscription d'un palier — expérience NATIVE (Stripe PaymentSheet, pas de
+  // navigateur). Le backend crée une Subscription `default_incomplete` ; on pilote
+  // sa 1re facture (PaymentIntent) via le PaymentSheet. Au paiement, l'abonnement
+  // passe `active` → webhook → palier ACTIF (asynchrone) → on rafraîchit /tiers.
   const handleChoose = useCallback(async (tier: string) => {
     if (choosingTier) return;
     setChoosingTier(tier);
     try {
-      const returnUrl = Linking.createURL('formules');
-      const res: any = await api.subscription.createCheckoutSession(tier, returnUrl);
-      if (!res?.url) throw new Error("Impossible de démarrer l'abonnement.");
-      const result = await WebBrowser.openAuthSessionAsync(res.url, returnUrl);
-      if (result.type === 'success' && result.url?.includes('status=success')) {
-        feedback.success('Abonnement en cours d’activation…');
-        await load();
-      } else if (result.type === 'success' && result.url?.includes('status=cancel')) {
-        feedback.haptic('light'); // annulation explicite — pas d'erreur
+      const res: any = await api.subscription.createSubscription(tier);
+      if (!res?.paymentIntentClientSecret) throw new Error("Impossible de démarrer l'abonnement.");
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'Fixed',
+        paymentIntentClientSecret: res.paymentIntentClientSecret,
+        customerEphemeralKeySecret: res.ephemeralKey,
+        customerId: res.customerId,
+        applePay: { merchantCountryCode: 'BE' },
+        googlePay: { merchantCountryCode: 'BE', testEnv: false },
+      });
+      if (initError) throw new Error(initError.message);
+
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) {
+        // 'Canceled' = l'utilisateur a fermé la feuille → pas une erreur.
+        if (presentError.code !== 'Canceled') feedback.error(presentError.message);
+        return;
       }
+
+      feedback.success('Abonnement activé !');
+      await load(); // le palier ACTIF peut mettre quelques secondes (webhook)
     } catch (e: any) {
       // e.message = message FR du backend (TIER_NOT_CONFIGURED, SUBSCRIPTIONS_DISABLED…)
       feedback.error(e?.message || "Impossible de démarrer l'abonnement.");
     } finally {
       setChoosingTier(null);
     }
-  }, [choosingTier, load]);
+  }, [choosingTier, load, initPaymentSheet, presentPaymentSheet]);
 
   // Snap → haptic de sélection (uniquement au changement de carte).
   const onMomentumEnd = (e: any) => {

@@ -544,9 +544,14 @@ class ApiClient {
     get: () => this.request('/subscription'),
     create: (plan: string) => this.post('/subscription', { plan }),
     cancel: () => this.delete('/subscription'),
-    // Abonnement presta : crée une session Stripe Checkout pour un PALIER (la clé
-    // stable, ex. "PRO"). Le backend dérive le prix + l'identité côté serveur et
-    // renvoie { id, url }. returnUrl = deep link mobile (fixed://…) pour le retour.
+    // Abonnement presta NATIF (PaymentSheet) : le backend crée une Subscription
+    // `default_incomplete` et renvoie { subscriptionId, paymentIntentClientSecret,
+    // ephemeralKey, customerId } → pilote le PaymentSheet Stripe (carte/Apple/Google
+    // Pay, montant réel). Prix + identité dérivés serveur depuis le PALIER (clé stable).
+    createSubscription: (tier: string) =>
+      this.post('/subscription/create-subscription', { tier }),
+    // Variante Checkout (redirection navigateur) — conservée mais non utilisée par
+    // l'app (on privilégie l'expérience native ci-dessus).
     createCheckoutSession: (tier: string, returnUrl: string) =>
       this.post('/subscription/create-checkout-session', { tier, returnUrl }),
   };
