@@ -8,15 +8,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  StatusBar, Dimensions, Animated, Easing, Platform,
+  StatusBar, Dimensions, Animated, Easing, Platform, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
+
+// Permet à la session Checkout de se terminer proprement au retour deep-link.
+WebBrowser.maybeCompleteAuthSession();
 
 const A165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
 const A180 = { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
@@ -70,8 +75,10 @@ function Skeleton() {
 // ── Carte palier ──────────────────────────────────────────────────────────────
 // haloOpacity : Animated.Value pilotée par le scroll → le halo glow apparaît quand
 // la carte est centrée (vaut pour TOUTES les cartes, pas seulement Pro).
-function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity }: {
-  tier: Tier; isCurrent: boolean; subscriptionsEnabled: boolean; haloOpacity: Animated.AnimatedInterpolation<number>;
+function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity, onChoose, choosing }: {
+  tier: Tier; isCurrent: boolean; subscriptionsEnabled: boolean;
+  haloOpacity: Animated.AnimatedInterpolation<number>;
+  onChoose: (tier: string) => void; choosing: boolean;
 }) {
   const pro = tier.recommended;
 
@@ -120,9 +127,18 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity }: {
 
       {subscriptionsEnabled ? (
         !isCurrent ? (
-          <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={() => feedback.haptic('light')}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={s.ctaWrap}
+            disabled={choosing}
+            onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}
+          >
             <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
-              <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Choisir {tier.label}</Text>
+              {choosing ? (
+                <ActivityIndicator color={G.onAccent} />
+              ) : (
+                <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Choisir {tier.label}</Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         ) : (
@@ -176,6 +192,7 @@ export default function FormulesScreen() {
   const [data, setData] = useState<TiersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [choosingTier, setChoosingTier] = useState<string | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const pageRef = useRef(0);
 
@@ -187,6 +204,32 @@ export default function FormulesScreen() {
     } catch { setError(true); } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Souscription d'un palier : Checkout Stripe (mode subscription) ouvert dans un
+  // navigateur in-app, retour via deep link fixed://formules. Le palier ACTIF est
+  // posé par le webhook Stripe (asynchrone) → au retour "success" on rafraîchit
+  // /tiers (le currentTier peut mettre quelques secondes à basculer).
+  const handleChoose = useCallback(async (tier: string) => {
+    if (choosingTier) return;
+    setChoosingTier(tier);
+    try {
+      const returnUrl = Linking.createURL('formules');
+      const res: any = await api.subscription.createCheckoutSession(tier, returnUrl);
+      if (!res?.url) throw new Error("Impossible de démarrer l'abonnement.");
+      const result = await WebBrowser.openAuthSessionAsync(res.url, returnUrl);
+      if (result.type === 'success' && result.url?.includes('status=success')) {
+        feedback.success('Abonnement en cours d’activation…');
+        await load();
+      } else if (result.type === 'success' && result.url?.includes('status=cancel')) {
+        feedback.haptic('light'); // annulation explicite — pas d'erreur
+      }
+    } catch (e: any) {
+      // e.message = message FR du backend (TIER_NOT_CONFIGURED, SUBSCRIPTIONS_DISABLED…)
+      feedback.error(e?.message || "Impossible de démarrer l'abonnement.");
+    } finally {
+      setChoosingTier(null);
+    }
+  }, [choosingTier, load]);
 
   // Snap → haptic de sélection (uniquement au changement de carte).
   const onMomentumEnd = (e: any) => {
@@ -250,7 +293,14 @@ export default function FormulesScreen() {
                 const haloOpacity = scrollX.interpolate({ inputRange, outputRange: [0, 1, 0], extrapolate: 'clamp' });
                 return (
                   <Animated.View key={t.tier} style={{ transform: [{ scale }, { translateY }], opacity }}>
-                    <TierCard tier={t} isCurrent={t.tier === data.currentTier} subscriptionsEnabled={data.subscriptionsEnabled} haloOpacity={haloOpacity} />
+                    <TierCard
+                      tier={t}
+                      isCurrent={t.tier === data.currentTier}
+                      subscriptionsEnabled={data.subscriptionsEnabled}
+                      haloOpacity={haloOpacity}
+                      onChoose={handleChoose}
+                      choosing={choosingTier === t.tier}
+                    />
                   </Animated.View>
                 );
               })}

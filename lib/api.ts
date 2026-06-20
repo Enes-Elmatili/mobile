@@ -544,6 +544,11 @@ class ApiClient {
     get: () => this.request('/subscription'),
     create: (plan: string) => this.post('/subscription', { plan }),
     cancel: () => this.delete('/subscription'),
+    // Abonnement presta : crée une session Stripe Checkout pour un PALIER (la clé
+    // stable, ex. "PRO"). Le backend dérive le prix + l'identité côté serveur et
+    // renvoie { id, url }. returnUrl = deep link mobile (fixed://…) pour le retour.
+    createCheckoutSession: (tier: string, returnUrl: string) =>
+      this.post('/subscription/create-checkout-session', { tier, returnUrl }),
   };
 
   // ==================== STRIPE CONNECT ====================
