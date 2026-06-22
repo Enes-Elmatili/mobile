@@ -194,6 +194,11 @@ export const GRAPHITE = {
   // Overlays (dérivés via alpha — aucun rgba littéral)
   insetTop:     alpha(GBASE.ink, 0.06), // highlight inset haut de carte
   scrim:        alpha(GBASE.ink, 0.06), // fond bouton discret (back)
+  // Promo « offre de lancement » (0% commission) — surface verte dérivée
+  promoBorder:    alpha(GBASE.green, 0.32), // bordure de la bannière promo
+  promoChipBg:    alpha(GBASE.green, 0.14), // pastille icône
+  promoChipBorder:alpha(GBASE.green, 0.40),
+  promoDivider:   alpha(GBASE.ink, 0.08),   // séparateur interne bannière
 } as const;
 
 // ── Frozen snapshots for forced-mode components ────────────────────────────

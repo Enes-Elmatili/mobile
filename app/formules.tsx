@@ -1,20 +1,28 @@
-// app/formules.tsx — Écran "Formules" PRESTATAIRE (graphite premium, carrousel animé).
+// app/formules.tsx — Écran « Ma formule » PRESTATAIRE (lecture seule, graphite premium).
 //
-// SOURCE UNIQUE DONNÉES : GET /api/tiers (zéro grille en dur).
+// DÉCISION D'AFFICHAGE PILOTÉE PAR LE SERVEUR (réveil sans rebuild) :
+//   GET /subscriptions/config → { subscriptionsEnabled, availableTiers }
+//     - subscriptionsEnabled=false → on n'affiche QUE la carte Découverte. AUCUN
+//       bouton d'achat, AUCUNE mention des paliers payants (exigence review App Store :
+//       zéro élément d'achat visible dans le binaire iOS au lancement).
+//     - subscriptionsEnabled=true  → la section TierUpgradeSection (paliers + CTA Stripe)
+//       se rend EN PLUS — code présent mais CONDITIONNEL. Passer SUBSCRIPTIONS_ENABLED=true
+//       côté serveur suffit à la faire apparaître, sans republier l'app.
+//   GET /subscriptions/me → plan courant + promoZeroMissionsRemaining (offre 0%).
+//   GET /tiers → données d'affichage des paliers (zéro grille en dur).
+//
 // SOURCE UNIQUE COULEURS : tokens GRAPHITE de @/hooks/use-app-theme (zéro hex en dur).
-// Carrousel scroll-driven : la carte CENTRÉE est mise en avant (scale + halo + opacité
-// pleine), les voisines s'effacent → chaque palier devient désirable à son tour (pas
-// seulement Pro). Haptics via le moteur feedback (jamais Haptics en direct).
+// SOURCE UNIQUE TEXTES   : i18n (namespace formules.*) — FR/NL/EN. Haptics via feedback.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  StatusBar, Dimensions, Animated, Easing, Platform, ActivityIndicator,
+  StatusBar, Animated, Easing, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useStripe } from '@stripe/stripe-react-native';
+import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
@@ -28,21 +36,24 @@ interface Tier {
   missionCap: number | null; recommended: boolean; order: number; perks: string[];
 }
 interface TiersResponse { subscriptionsEnabled: boolean; currentTier: string | null; tiers: Tier[]; }
+interface SubConfig { subscriptionsEnabled: boolean; availableTiers: string[]; }
+interface SubMe { tier: string; status: string; currentPeriodEnd: string | null; promoZeroMissionsRemaining: number; }
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const CARD_W = Math.min(SCREEN_W - 48, 360);
-const CARD_GAP = 16;
-const ITEM = CARD_W + CARD_GAP;
+// Palier gratuit de repli (résilience si /tiers est indisponible) — le taux réel
+// provient normalement du serveur ; ce défaut n'apparaît qu'en cas d'échec réseau.
+const DECOUVERTE_FALLBACK: Tier = {
+  tier: 'DECOUVERTE', label: 'Découverte', monthlyPriceCents: 0,
+  commissionRate: 0.20, missionCap: null, recommended: false, order: 0, perks: [],
+};
 
-const priceLabel = (cents: number) => (cents === 0 ? 'Gratuit' : `${(cents / 100).toFixed(2).replace('.', ',')} €`);
-const commissionLabel = (rate: number) => `${Math.round(rate * 100)} % de commission`;
-const capLabel = (cap: number | null) => (cap === null ? 'Missions illimitées' : `${cap} missions / mois`);
+const ratePct = (rate: number) => Math.round(rate * 100);
+const euros = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 
 function GradientRule() {
   return <LinearGradient colors={['transparent', G.border, 'transparent']} start={AHORIZ.start} end={AHORIZ.end} style={s.rule} />;
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
+// ── Skeleton (carte unique, layout vertical) ────────────────────────────────────
 function Skeleton() {
   const pulse = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
@@ -54,130 +65,166 @@ function Skeleton() {
     return () => loop.stop();
   }, [pulse]);
   return (
-    <View style={s.carouselRow}>
-      {[0, 1].map((i) => (
-        <Animated.View key={i} style={[s.cardOuter, { width: CARD_W, opacity: pulse }]}>
-          <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1, gap: 14 }]}>
-            {[120, 90, 200, 200, 200].map((w, k) => (
-              <View key={k} style={{ width: w, height: k < 2 ? 30 : 14, borderRadius: 7, backgroundColor: G.skeleton }} />
-            ))}
-          </LinearGradient>
-        </Animated.View>
-      ))}
+    <View style={s.scrollPad}>
+      <Animated.View style={[s.cardOuter, { opacity: pulse }]}>
+        <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1, gap: 14 }]}>
+          {[120, 90, 200, 200].map((w, k) => (
+            <View key={k} style={{ width: w, height: k < 2 ? 30 : 14, borderRadius: 7, backgroundColor: G.skeleton }} />
+          ))}
+        </LinearGradient>
+      </Animated.View>
     </View>
   );
 }
 
-// ── Carte palier ──────────────────────────────────────────────────────────────
-// haloOpacity : Animated.Value pilotée par le scroll → le halo glow apparaît quand
-// la carte est centrée (vaut pour TOUTES les cartes, pas seulement Pro).
-function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity, onChoose, choosing }: {
-  tier: Tier; isCurrent: boolean; subscriptionsEnabled: boolean;
-  haloOpacity: Animated.AnimatedInterpolation<number>;
-  onChoose: (tier: string) => void; choosing: boolean;
+// ── Carte « palier actuel » (Découverte en lecture seule) ──────────────────────
+function CurrentPlanCard({ tier, promoActive, showFreeExtras }: {
+  tier: Tier; promoActive: boolean; showFreeExtras: boolean;
 }) {
+  const { t } = useTranslation();
+  return (
+    <View style={s.cardOuter}>
+      <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1 }]}>
+        <View pointerEvents="none" style={[s.insetTop, { backgroundColor: G.insetTop }]} />
+
+        <View style={s.badgeRow}>
+          <View style={[s.badge, { backgroundColor: G.textPrimary }]}>
+            <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>{t('formules.current_badge').toUpperCase()}</Text>
+          </View>
+        </View>
+
+        <Text style={[s.tierLabel, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
+        <View style={s.priceRow}>
+          <Text style={[s.price, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>
+            {tier.monthlyPriceCents === 0 ? t('formules.free') : euros(tier.monthlyPriceCents)}
+          </Text>
+          {tier.monthlyPriceCents > 0 && (
+            <Text style={[s.priceSuffix, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.per_month')}</Text>
+          )}
+        </View>
+
+        <GradientRule />
+        <View style={s.factRow}>
+          <Feather name="percent" size={14} color={promoActive ? G.textMuted : G.greenLight} />
+          <Text style={[s.factText, { color: G.textSecondary, fontFamily: FONTS.sansMedium }, promoActive && s.struck]}>
+            {t('formules.commission_rate', { rate: ratePct(tier.commissionRate) })}
+          </Text>
+        </View>
+        <View style={s.factRow}>
+          <Feather name="briefcase" size={14} color={G.textMuted} />
+          <Text style={[s.factText, { color: G.textSecondary, fontFamily: FONTS.sansMedium }]}>
+            {tier.missionCap === null ? t('formules.unlimited_missions') : t('formules.missions_per_month', { cap: tier.missionCap })}
+          </Text>
+        </View>
+
+        {showFreeExtras && (
+          <>
+            <GradientRule />
+            <View style={s.perks}>
+              {[t('formules.perk_payout_weekly'), t('formules.perk_support_standard')].map((p, i) => (
+                <View key={i} style={s.perkRow}>
+                  <Feather name="check" size={15} color={G.green} />
+                  <Text style={[s.perkText, { color: G.textSecondary, fontFamily: FONTS.sans }]}>{p}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={s.note}>
+              <Feather name="info" size={14} color={G.textMuted} />
+              <Text style={[s.noteText, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.free_note')}</Text>
+            </View>
+          </>
+        )}
+      </LinearGradient>
+    </View>
+  );
+}
+
+// ── Bannière promo « offre de lancement » (0% commission) ──────────────────────
+function PromoBanner({ remaining, nominalPct }: { remaining: number; nominalPct: number }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <LinearGradient colors={G.gradProCard} start={A165.start} end={A165.end} style={[s.promo, { borderColor: G.promoBorder }]}>
+        <View style={s.promoTop}>
+          <View style={[s.promoChip, { backgroundColor: G.promoChipBg, borderColor: G.promoChipBorder }]}>
+            <Feather name="gift" size={18} color={G.greenLight} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.promoTitle, { color: G.greenLight, fontFamily: FONTS.bebas }]}>{t('formules.promo_title')}</Text>
+            <Text style={[s.promoSub, { color: G.green, fontFamily: FONTS.mono }]}>{t('formules.promo_subtitle').toUpperCase()}</Text>
+          </View>
+        </View>
+        <Text style={[s.promoBody, { color: G.textSecondary, fontFamily: FONTS.sans }]}>{t('formules.promo_body')}</Text>
+        <View style={[s.promoCount, { borderTopColor: G.promoDivider }]}>
+          <Feather name="clock" size={15} color={G.greenLight} />
+          <Text style={[s.promoCountText, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>
+            {t('formules.promo_remaining', { count: remaining })}
+          </Text>
+        </View>
+      </LinearGradient>
+      <View style={[s.note, s.notePad]}>
+        <Feather name="info" size={14} color={G.textMuted} />
+        <Text style={[s.noteText, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.promo_footer', { rate: nominalPct })}</Text>
+      </View>
+    </>
+  );
+}
+
+// ── TierUpgradeSection — rendu UNIQUEMENT si subscriptionsEnabled=true ──────────
+function UpgradeCard({ tier, onChoose, choosing }: { tier: Tier; onChoose: (t: string) => void; choosing: boolean }) {
+  const { t } = useTranslation();
   const pro = tier.recommended;
 
   const Body = (
     <>
-      <View pointerEvents="none" style={[s.insetTop, { backgroundColor: G.insetTop }]} />
-
-      <View style={s.badgeRow}>
-        {pro && (
-          <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.badge}>
-            <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>RECOMMANDÉ</Text>
-          </LinearGradient>
-        )}
-        {isCurrent && (
-          <View style={[s.badge, { backgroundColor: G.textPrimary }]}>
-            <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>PALIER ACTUEL</Text>
-          </View>
-        )}
-      </View>
-
-      <Text style={[s.tierLabel, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
-      <View style={s.priceRow}>
-        <Text style={[s.price, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{priceLabel(tier.monthlyPriceCents)}</Text>
-        {tier.monthlyPriceCents > 0 && <Text style={[s.priceSuffix, { color: G.textMuted, fontFamily: FONTS.sans }]}>/ mois</Text>}
-      </View>
-
-      <GradientRule />
-      <View style={s.factRow}>
-        <Feather name="percent" size={14} color={G.greenLight} />
-        <Text style={[s.factText, { color: G.textSecondary, fontFamily: FONTS.sansMedium }]}>{commissionLabel(tier.commissionRate)}</Text>
-      </View>
-      <View style={s.factRow}>
-        <Feather name="briefcase" size={14} color={G.textMuted} />
-        <Text style={[s.factText, { color: G.textSecondary, fontFamily: FONTS.sansMedium }]}>{capLabel(tier.missionCap)}</Text>
-      </View>
-      <GradientRule />
-
-      <View style={s.perks}>
-        {tier.perks.map((p, i) => (
-          <View key={i} style={s.perkRow}>
-            <Feather name="check" size={15} color={G.green} />
-            <Text style={[s.perkText, { color: G.textSecondary, fontFamily: FONTS.sans }]}>{p}</Text>
-          </View>
-        ))}
-      </View>
-
-      {subscriptionsEnabled ? (
-        !isCurrent ? (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={s.ctaWrap}
-            disabled={choosing}
-            onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}
-          >
-            <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
-              {choosing ? (
-                <ActivityIndicator color={G.onAccent} />
-              ) : (
-                <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Choisir {tier.label}</Text>
-              )}
+      <View style={s.upTop}>
+        <View style={{ flex: 1 }}>
+          {pro && (
+            <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.upBadge}>
+              <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>{t('formules.recommended_badge').toUpperCase()}</Text>
             </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <View style={[s.cta, s.ctaGhost, { borderColor: G.border }]}>
-            <Text style={[s.ctaText, { color: G.textMuted, fontFamily: FONTS.sansMedium }]}>Votre formule</Text>
-          </View>
-        )
-      ) : (
-        <View style={[s.cta, s.ctaGhost, { borderColor: G.border }]}>
-          <Text style={[s.ctaText, { color: G.textMuted, fontFamily: FONTS.sansMedium }]}>Bientôt disponible</Text>
+          )}
+          <Text style={[s.upName, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
+        </View>
+        <View style={s.priceRow}>
+          <Text style={[s.upPrice, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{euros(tier.monthlyPriceCents)}</Text>
+          <Text style={[s.priceSuffix, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.per_month')}</Text>
+        </View>
+      </View>
+
+      <View style={[s.factRow, { paddingVertical: 4 }]}>
+        <Feather name="percent" size={13} color={G.greenLight} />
+        <Text style={[s.factText, { color: G.green, fontFamily: FONTS.sansMedium }]}>{t('formules.commission_rate', { rate: ratePct(tier.commissionRate) })}</Text>
+      </View>
+
+      {tier.perks.length > 0 && (
+        <View style={[s.perks, { marginTop: 6 }]}>
+          {tier.perks.map((p, i) => (
+            <View key={i} style={s.perkRow}>
+              <Feather name="check" size={14} color={G.green} />
+              <Text style={[s.perkText, { color: G.textSecondary, fontFamily: FONTS.sans }]}>{p}</Text>
+            </View>
+          ))}
         </View>
       )}
+
+      <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} disabled={choosing} onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}>
+        <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
+          {choosing
+            ? <ActivityIndicator color={G.onAccent} />
+            : <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>{t('formules.cta_choose', { label: tier.label })}</Text>}
+        </LinearGradient>
+      </TouchableOpacity>
     </>
   );
 
-  return (
-    <View style={{ width: CARD_W }}>
-      {/* Halo radial qui suit le focus (toutes les cartes) */}
-      <Animated.View style={[s.halo, { opacity: haloOpacity }]} pointerEvents="none">
-        <Svg width={'100%' as any} height={'100%' as any}>
-          <Defs>
-            <RadialGradient id={`halo-${tier.tier}`} cx="50%" cy="34%" rx="55%" ry="42%">
-              <Stop offset="0" stopColor={G.halo} stopOpacity="0.32" />
-              <Stop offset="1" stopColor={G.halo} stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#halo-${tier.tier})`} />
-        </Svg>
-      </Animated.View>
-
-      {pro ? (
-        <LinearGradient colors={G.gradProBorder} start={A165.start} end={A165.end} style={s.cardOuterPro}>
-          <LinearGradient colors={G.gradProCard} start={A165.start} end={A165.end} style={[s.cardInner, s.cardInnerPro]}>
-            {Body}
-          </LinearGradient>
-        </LinearGradient>
-      ) : (
-        <View style={s.cardOuter}>
-          <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1 }]}>
-            {Body}
-          </LinearGradient>
-        </View>
-      )}
+  return pro ? (
+    <LinearGradient colors={G.gradProBorder} start={A165.start} end={A165.end} style={s.upOuterPro}>
+      <LinearGradient colors={G.gradProCard} start={A165.start} end={A165.end} style={[s.cardInner, s.upInner]}>{Body}</LinearGradient>
+    </LinearGradient>
+  ) : (
+    <View style={[s.cardOuter, s.upOuter]}>
+      <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, s.upInner, { borderColor: G.border, borderWidth: 1 }]}>{Body}</LinearGradient>
     </View>
   );
 }
@@ -185,33 +232,40 @@ function TierCard({ tier, isCurrent, subscriptionsEnabled, haloOpacity, onChoose
 // ── Écran ─────────────────────────────────────────────────────────────────────
 export default function FormulesScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const [data, setData] = useState<TiersResponse | null>(null);
+  const [config, setConfig] = useState<SubConfig | null>(null);
+  const [me, setMe] = useState<SubMe | null>(null);
+  const [tiers, setTiers] = useState<Tier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [choosingTier, setChoosingTier] = useState<string | null>(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const pageRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true); setError(false);
     try {
-      const res = await api.get<TiersResponse>('/tiers');
-      setData((res as any)?.data ?? res);
+      const unwrap = (r: any) => r?.data ?? r;
+      const [cfg, meRes, tiersRes] = await Promise.all([
+        api.get<SubConfig>('/subscriptions/config').then(unwrap),
+        api.get<SubMe>('/subscriptions/me').then(unwrap),
+        api.get<TiersResponse>('/tiers').then(unwrap).catch(() => null),
+      ]);
+      setConfig(cfg);
+      setMe(meRes);
+      setTiers(tiersRes?.tiers ?? []);
     } catch { setError(true); } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // Souscription d'un palier — expérience NATIVE (Stripe PaymentSheet, pas de
-  // navigateur). Le backend crée une Subscription `default_incomplete` ; on pilote
-  // sa 1re facture (PaymentIntent) via le PaymentSheet. Au paiement, l'abonnement
-  // passe `active` → webhook → palier ACTIF (asynchrone) → on rafraîchit /tiers.
+  // Souscription d'un palier (état C uniquement) — Stripe PaymentSheet natif. Le
+  // backend crée une Subscription `default_incomplete` ; au paiement, le webhook pose
+  // le palier ACTIF (asynchrone) → on rafraîchit /subscriptions/me + /tiers.
   const handleChoose = useCallback(async (tier: string) => {
     if (choosingTier) return;
     setChoosingTier(tier);
     try {
       const res: any = await api.subscription.createSubscription(tier);
-      if (!res?.paymentIntentClientSecret) throw new Error("Impossible de démarrer l'abonnement.");
+      if (!res?.paymentIntentClientSecret) throw new Error(t('formules.subscribe_error'));
 
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'Fixed',
@@ -225,26 +279,27 @@ export default function FormulesScreen() {
 
       const { error: presentError } = await presentPaymentSheet();
       if (presentError) {
-        // 'Canceled' = l'utilisateur a fermé la feuille → pas une erreur.
         if (presentError.code !== 'Canceled') feedback.error(presentError.message);
         return;
       }
-
-      feedback.success('Abonnement activé !');
-      await load(); // le palier ACTIF peut mettre quelques secondes (webhook)
+      feedback.success(t('formules.subscribe_success'));
+      await load();
     } catch (e: any) {
-      // e.message = message FR du backend (TIER_NOT_CONFIGURED, SUBSCRIPTIONS_DISABLED…)
-      feedback.error(e?.message || "Impossible de démarrer l'abonnement.");
+      feedback.error(e?.message || t('formules.subscribe_error'));
     } finally {
       setChoosingTier(null);
     }
-  }, [choosingTier, load, initPaymentSheet, presentPaymentSheet]);
+  }, [choosingTier, load, initPaymentSheet, presentPaymentSheet, t]);
 
-  // Snap → haptic de sélection (uniquement au changement de carte).
-  const onMomentumEnd = (e: any) => {
-    const p = Math.round(e.nativeEvent.contentOffset.x / ITEM);
-    if (p !== pageRef.current) { pageRef.current = p; feedback.haptic('selection'); }
-  };
+  const subscriptionsEnabled = config?.subscriptionsEnabled ?? false;
+  const currentTierKey = me?.tier ?? 'DECOUVERTE';
+  const currentTier = tiers.find((x) => x.tier === currentTierKey) ?? DECOUVERTE_FALLBACK;
+  const promoRemaining = me?.promoZeroMissionsRemaining ?? 0;
+  const promoActive = promoRemaining > 0;
+  const availableTiers = config?.availableTiers ?? [];
+  const paidTiers = tiers
+    .filter((x) => x.tier !== currentTierKey && availableTiers.includes(x.tier))
+    .sort((a, b) => a.order - b.order);
 
   return (
     <View style={s.root}>
@@ -260,75 +315,50 @@ export default function FormulesScreen() {
           >
             <Feather name="arrow-left" size={20} color={G.textPrimary} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>FORMULES</Text>
+          <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{t('formules.title').toUpperCase()}</Text>
           <View style={{ width: 38 }} />
         </View>
-
-        {!loading && !error && (
-          <View style={s.banner}>
-            <Text style={[s.bannerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>Gagnez plus, gardez plus</Text>
-            <Text style={[s.bannerSub, { color: G.textMuted, fontFamily: FONTS.sans }]}>Plus votre formule monte, plus votre commission baisse.</Text>
-          </View>
-        )}
 
         {loading ? (
           <Skeleton />
         ) : error ? (
           <View style={s.center}>
             <Feather name="wifi-off" size={36} color={G.textVeryMuted} />
-            <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>Impossible de charger les formules</Text>
+            <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>{t('formules.load_error')}</Text>
             <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={() => { feedback.haptic('light'); load(); }}>
               <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={[s.cta, s.retry]}>
                 <Feather name="refresh-cw" size={15} color={G.onAccent} />
-                <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
+                <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>{t('formules.retry')}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
         ) : (
-          <>
-            <Animated.ScrollView
-              horizontal showsHorizontalScrollIndicator={false}
-              snapToInterval={ITEM} decelerationRate="fast"
-              scrollEventThrottle={16}
-              contentContainerStyle={s.carouselContent}
-              onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
-              onMomentumScrollEnd={onMomentumEnd}
-            >
-              {data?.tiers.map((t, i) => {
-                const inputRange = [(i - 1) * ITEM, i * ITEM, (i + 1) * ITEM];
-                const scale = scrollX.interpolate({ inputRange, outputRange: [0.93, 1, 0.93], extrapolate: 'clamp' });
-                const opacity = scrollX.interpolate({ inputRange, outputRange: [0.6, 1, 0.6], extrapolate: 'clamp' });
-                const translateY = scrollX.interpolate({ inputRange, outputRange: [12, 0, 12], extrapolate: 'clamp' });
-                const haloOpacity = scrollX.interpolate({ inputRange, outputRange: [0, 1, 0], extrapolate: 'clamp' });
-                return (
-                  <Animated.View key={t.tier} style={{ transform: [{ scale }, { translateY }], opacity }}>
-                    <TierCard
-                      tier={t}
-                      isCurrent={t.tier === data.currentTier}
-                      subscriptionsEnabled={data.subscriptionsEnabled}
-                      haloOpacity={haloOpacity}
-                      onChoose={handleChoose}
-                      choosing={choosingTier === t.tier}
-                    />
-                  </Animated.View>
-                );
-              })}
-            </Animated.ScrollView>
+          <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
+            {/* Bandeau d'accroche — uniquement quand les paliers payants sont actifs. */}
+            {subscriptionsEnabled && (
+              <View style={s.banner}>
+                <Text style={[s.bannerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{t('formules.banner_title')}</Text>
+                <Text style={[s.bannerSub, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.banner_sub')}</Text>
+              </View>
+            )}
 
-            {/* Pagination — point actif élargi en dégradé */}
-            <View style={s.dots}>
-              {data?.tiers.map((t, i) => {
-                const inputRange = [(i - 1) * ITEM, i * ITEM, (i + 1) * ITEM];
-                const dotW = scrollX.interpolate({ inputRange, outputRange: [7, 22, 7], extrapolate: 'clamp' });
-                const dotO = scrollX.interpolate({ inputRange, outputRange: [0.35, 1, 0.35], extrapolate: 'clamp' });
-                return (
-                  <Animated.View key={t.tier} style={[s.dotWrap, { width: dotW, opacity: dotO }]}>
-                    <LinearGradient colors={G.gradCta} start={AHORIZ.start} end={AHORIZ.end} style={s.dotFill} />
-                  </Animated.View>
-                );
-              })}
-            </View>
-          </>
+            {/* Carte du palier actuel (toujours affichée). Les extras du palier gratuit
+                (perks + note) n'apparaissent qu'à l'état pur « gratuit, sans promo ». */}
+            <CurrentPlanCard tier={currentTier} promoActive={promoActive} showFreeExtras={!subscriptionsEnabled && !promoActive} />
+
+            {/* Offre de lancement 0% — uniquement si un crédit promo est actif. */}
+            {promoActive && <PromoBanner remaining={promoRemaining} nominalPct={ratePct(currentTier.commissionRate)} />}
+
+            {/* Bloc tiers payants — code présent mais CONDITIONNEL au flag serveur. */}
+            {subscriptionsEnabled && paidTiers.length > 0 && (
+              <>
+                <Text style={[s.upTitle, { color: G.textMuted, fontFamily: FONTS.bebas }]}>{t('formules.upgrade_title').toUpperCase()}</Text>
+                {paidTiers.map((tier) => (
+                  <UpgradeCard key={tier.tier} tier={tier} onChoose={handleChoose} choosing={choosingTier === tier.tier} />
+                ))}
+              </>
+            )}
+          </ScrollView>
         )}
       </SafeAreaView>
     </View>
@@ -345,14 +375,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22, letterSpacing: 1 },
+  headerTitle: { fontSize: 22, letterSpacing: 1.5 },
 
-  banner: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8, gap: 4 },
-  bannerTitle: { fontSize: 30, letterSpacing: 0.5 },
+  scrollPad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
+
+  banner: { paddingHorizontal: 4, paddingBottom: 16, gap: 5 },
+  bannerTitle: { fontSize: 30, letterSpacing: 0.5, lineHeight: 32 },
   bannerSub: { fontSize: 14, lineHeight: 19 },
-
-  carouselRow: { flexDirection: 'row', gap: CARD_GAP, paddingHorizontal: 24, paddingTop: 16 },
-  carouselContent: { paddingHorizontal: 24, paddingVertical: 20, gap: CARD_GAP, alignItems: 'flex-start' },
 
   cardOuter: {
     borderRadius: 22,
@@ -361,44 +390,61 @@ const s = StyleSheet.create({
       android: { elevation: 5 },
     }),
   },
-  cardOuterPro: {
-    borderRadius: 22, padding: 2,
-    ...Platform.select({
-      ios: { shadowColor: G.gradProBorder[2], shadowOpacity: 0.5, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
-      android: { elevation: 8 },
-    }),
-  },
   cardInner: { borderRadius: 22, padding: 22, gap: 12, overflow: 'hidden' },
-  cardInnerPro: { borderRadius: 20 },
   insetTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 1 },
-  halo: { position: 'absolute', top: -30, left: -60, right: -60, bottom: -10 },
 
   badgeRow: { flexDirection: 'row', gap: 8, minHeight: 22 },
-  badge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  badge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
   badgeText: { fontSize: 10, letterSpacing: 0.5 },
 
-  tierLabel: { fontSize: 30 },
+  tierLabel: { fontSize: 31, letterSpacing: 0.5 },
   priceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   price: { fontSize: 34 },
   priceSuffix: { fontSize: 14, marginBottom: 6 },
 
   rule: { height: 1, width: '100%' },
-  factRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  factRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 8 },
   factText: { fontSize: 14 },
+  struck: { textDecorationLine: 'line-through', color: G.textMuted },
 
-  perks: { gap: 9, marginTop: 4 },
+  perks: { gap: 10, marginTop: 4 },
   perkRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   perkText: { fontSize: 13.5, flex: 1 },
 
+  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14 },
+  notePad: { paddingHorizontal: 4 },
+  noteText: { fontSize: 12.5, lineHeight: 18, flex: 1 },
+
+  // Promo
+  promo: { borderRadius: 20, padding: 18, marginTop: 16, borderWidth: 1, overflow: 'hidden' },
+  promoTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  promoChip: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  promoTitle: { fontSize: 24, letterSpacing: 0.5, lineHeight: 26 },
+  promoSub: { fontSize: 10, letterSpacing: 1, marginTop: 3 },
+  promoBody: { fontSize: 13.5, lineHeight: 19, marginTop: 13 },
+  promoCount: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 13, borderTopWidth: 1 },
+  promoCountText: { fontSize: 14 },
+
+  // Upgrade section
+  upTitle: { fontSize: 14, letterSpacing: 1.4, marginTop: 24, marginBottom: 14, marginLeft: 4 },
+  upOuterPro: {
+    borderRadius: 22, padding: 2, marginBottom: 12,
+    ...Platform.select({
+      ios: { shadowColor: G.gradProBorder[2], shadowOpacity: 0.5, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
+      android: { elevation: 8 },
+    }),
+  },
+  upOuter: { marginBottom: 12 },
+  upInner: { padding: 18, gap: 8 },
+  upTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  upBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 8 },
+  upName: { fontSize: 24, letterSpacing: 0.5 },
+  upPrice: { fontSize: 22 },
+
   ctaWrap: { marginTop: 8 },
   cta: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
-  ctaGhost: { backgroundColor: 'transparent', borderWidth: 1, marginTop: 8 },
   ctaText: { fontSize: 15 },
   retry: { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingVertical: 12 },
-
-  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingBottom: 24, paddingTop: 4 },
-  dotWrap: { height: 7, borderRadius: 4, overflow: 'hidden' },
-  dotFill: { flex: 1 },
 
   errorTitle: { fontSize: 16, textAlign: 'center' },
 });
