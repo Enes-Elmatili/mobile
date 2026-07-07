@@ -5,7 +5,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
-  Platform, Pressable, Dimensions,
+  Platform, Pressable, Dimensions, Alert,
 } from 'react-native';
 import { api } from '@/lib/api';
 import { useRouter } from 'expo-router';
@@ -13,7 +13,7 @@ import { useCall } from '@/lib/webrtc/CallContext';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
@@ -127,6 +127,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   const { initiateCall } = useCall();
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const [pendingRating, setPendingRating] = useState(0);
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   const renderBackdrop = useCallback(
@@ -162,19 +163,22 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
     }
   };
 
-  const handleRate = async (rating: number) => {
-    if (!ticket?.provider?.id) return;
-    setPendingRating(rating);
+  // Sélection d'étoiles = choix local uniquement ; la soumission passe par
+  // le bouton "Envoyer" (évite qu'un tap accidentel note définitivement).
+  const handleSubmitRating = async () => {
+    if (!ticket?.provider?.id || pendingRating === 0 || ratingSubmitting) return;
+    setRatingSubmitting(true);
     try {
       await api.post('/ratings', {
         requestId: Number(ticket.id),
         providerId: ticket.provider.id,
-        rating,
+        rating: pendingRating,
       });
-      setTimeout(() => setRatingSubmitted(true), 400);
+      setRatingSubmitted(true);
     } catch (e: any) {
       feedback.error(e?.message || 'Impossible de soumettre l\'évaluation.');
-      setPendingRating(0);
+    } finally {
+      setRatingSubmitting(false);
     }
   };
 
@@ -215,21 +219,47 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
     const ref = String(ticket?.id || '').slice(-6).toUpperCase();
     const subject = encodeURIComponent(t('ext.ticket_support_subject', { ref }));
     const body = encodeURIComponent(t('ext.ticket_support_body', { ref }));
-    Linking.openURL(`mailto:support@fixed.app?subject=${subject}&body=${body}`).catch(() => {
-      feedback.info('support@fixed.app');
+    Linking.openURL(`mailto:support@thefixed.app?subject=${subject}&body=${body}`).catch(() => {
+      feedback.info('support@thefixed.app');
     });
   };
 
+  // Appel VoIP in-app via FIXED — action explicite, distincte du téléphone
+  const handleCallViaFixed = () => {
+    if (!ticket?.provider?.userId) return;
+    onClose();
+    initiateCall({
+      targetUserId: ticket.provider.userId,
+      targetName: ticket.provider.name || t('mission_view.provider'),
+      requestId: String(ticket.id),
+    });
+  };
+
+  // Appel téléphonique classique
+  const handleCallPhone = () => {
+    if (!ticket?.provider?.phone) return;
+    Linking.openURL(`tel:${ticket.provider.phone}`);
+  };
+
+  // Bouton icône "phone" : si les deux canaux existent, proposer le choix
+  // explicitement plutôt que de lancer un VoIP à l'insu de l'utilisateur.
   const handleContact = () => {
-    if (ticket?.provider?.userId) {
-      onClose();
-      initiateCall({
-        targetUserId: ticket.provider.userId,
-        targetName: ticket.provider.name || t('mission_view.provider'),
-        requestId: String(ticket.id),
-      });
-    } else if (ticket?.provider?.phone) {
-      Linking.openURL(`tel:${ticket.provider.phone}`);
+    const hasVoip  = !!ticket?.provider?.userId;
+    const hasPhone = !!ticket?.provider?.phone;
+    if (hasVoip && hasPhone) {
+      Alert.alert(
+        'Appeler le prestataire',
+        'Comment souhaitez-vous l\'appeler ?',
+        [
+          { text: 'Appel via FIXED', onPress: handleCallViaFixed },
+          { text: `Téléphone (${ticket.provider.phone})`, onPress: handleCallPhone },
+          { text: 'Annuler', style: 'cancel' },
+        ],
+      );
+    } else if (hasVoip) {
+      handleCallViaFixed();
+    } else if (hasPhone) {
+      handleCallPhone();
     }
   };
 
@@ -383,8 +413,11 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         {/* ── Mini-carte Silver (statique) ────────────────────────────────── */}
         {hasCoords ? (
           <View style={sd.mapContainer}>
+            {/* PROVIDER_GOOGLE (clé configurée dans app.json, cohérent avec les autres
+                cartes du projet) — indispensable pour que customMapStyle soit appliqué
+                sur iOS, Apple Maps ignorant les styles Google. */}
             <MapView
-              provider={PROVIDER_DEFAULT}
+              provider={PROVIDER_GOOGLE}
               style={sd.map}
               customMapStyle={MAP_STYLE}
               initialRegion={{
@@ -455,8 +488,14 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                       <Feather name="message-circle" size={16} color={theme.accentText} />
                     </TouchableOpacity>
                   )}
-                  {ticket.provider.phone && (
-                    <TouchableOpacity style={[sd.comBtn, { backgroundColor: theme.accent }]} onPress={handleContact} activeOpacity={0.75}>
+                  {(ticket.provider.phone || ticket.provider.userId) && (
+                    <TouchableOpacity
+                      style={[sd.comBtn, { backgroundColor: theme.accent }]}
+                      onPress={handleContact}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel={ticket.provider.userId ? 'Appeler le prestataire (appel via FIXED ou téléphone)' : 'Appeler le prestataire'}
+                    >
                       <Feather name="phone" size={16} color={theme.accentText} />
                     </TouchableOpacity>
                   )}
@@ -504,15 +543,30 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 <Text style={[sd.ratingTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('rating.rate_mission_title')}</Text>
                 <Text style={[sd.ratingSubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('rating.rate_mission_sub')}</Text>
                 <View style={sd.ratingStars}>
-                  <StarRow rating={pendingRating} onRate={handleRate} starColor={theme.text} emptyColor={theme.borderLight} />
+                  <StarRow rating={pendingRating} onRate={setPendingRating} starColor={theme.text} emptyColor={theme.borderLight} />
                 </View>
                 {pendingRating > 0 && (
-                  <Text style={[sd.ratingPending, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                    {pendingRating === 5 ? 'Excellent !' :
-                     pendingRating >= 4 ? 'Très bien' :
-                     pendingRating >= 3 ? 'Correct' :
-                     pendingRating >= 2 ? 'Peut mieux faire' : 'Décevant'}
-                  </Text>
+                  <>
+                    <Text style={[sd.ratingPending, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                      {pendingRating === 5 ? 'Excellent !' :
+                       pendingRating >= 4 ? 'Très bien' :
+                       pendingRating >= 3 ? 'Correct' :
+                       pendingRating >= 2 ? 'Peut mieux faire' : 'Décevant'}
+                    </Text>
+                    <TouchableOpacity
+                      style={[sd.ratingSubmitBtn, { backgroundColor: theme.accent }, ratingSubmitting && { opacity: 0.6 }]}
+                      onPress={handleSubmitRating}
+                      disabled={ratingSubmitting}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Envoyer l'évaluation"
+                    >
+                      <Feather name="send" size={14} color={theme.accentText} />
+                      <Text style={[sd.ratingSubmitText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>
+                        {ratingSubmitting ? 'Envoi…' : 'Envoyer'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
                 )}
               </View>
               <DividerLine />
@@ -522,8 +576,8 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
           {ratingSubmitted && (
             <>
               <View style={sd.ratingDone}>
-                <Feather name="check-circle" size={18} color={COLORS.green} />
-                <Text style={[sd.ratingDoneText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>{t('rating.thank_you')}</Text>
+                <Feather name="check-circle" size={18} color={theme.greenText} />
+                <Text style={[sd.ratingDoneText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>{t('rating.thank_you')}</Text>
               </View>
               <DividerLine />
             </>
@@ -563,7 +617,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 />
               )}
               {isDone && (
-                <InfoRow icon="check-circle" label="Terminée" value="Mission complétée" iconBg={theme.isDark ? 'rgba(34,197,94,0.15)' : 'rgba(61,139,61,0.08)'} />
+                <InfoRow icon="check-circle" label="Terminée" value="Mission complétée" iconBg={theme.isDark ? 'rgba(21,193,110,0.15)' : 'rgba(21,193,110,0.08)'} />
               )}
 
               <DividerLine />
@@ -636,11 +690,19 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                     variant="ghost"
                   />
                 )}
+                {ticket.provider?.userId && (
+                  <ActionBtn
+                    label="Appel via FIXED"
+                    icon="phone-call"
+                    onPress={handleCallViaFixed}
+                    variant="ghost"
+                  />
+                )}
                 {ticket.provider?.phone && (
                   <ActionBtn
-                    label="Contacter le prestataire"
+                    label="Appeler le prestataire"
                     icon="phone"
-                    onPress={handleContact}
+                    onPress={handleCallPhone}
                     variant="ghost"
                   />
                 )}
@@ -657,6 +719,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                     if (!ok) return;
                     try {
                       await api.post(`/requests/${ticket.id}/cancel`);
+                      feedback.success('Mission annulée.');
                       onClose();
                     } catch (e: any) {
                       feedback.error(e?.message || 'Impossible d\'annuler la mission.');
@@ -822,6 +885,12 @@ const sd = StyleSheet.create({
   ratingSubtitle: { fontSize: 13, marginBottom: 14, textAlign: 'center' },
   ratingStars:    { marginBottom: 10 },
   ratingPending:  { fontSize: 13 },
+  ratingSubmitBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    borderRadius: 100, paddingHorizontal: 24, paddingVertical: 11,
+    marginTop: 12,
+  },
+  ratingSubmitText: { fontSize: 14 },
   ratingDone:     { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4 },
   ratingDoneText: { fontSize: 14 },
 

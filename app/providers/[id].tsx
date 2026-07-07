@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -97,7 +97,7 @@ function ReviewCard({ review }: { review: Review }) {
 
 const rv = StyleSheet.create({
   card: {
-    borderRadius: 14,
+    borderRadius: 18,
     padding: 14,
     gap: 10,
     borderWidth: 1,
@@ -154,7 +154,7 @@ export default function ProviderDetailScreen() {
       const av: any = await api.providers.availability(id);
       if (av?.available) {
         router.push({
-          pathname: '/new-request',
+          pathname: '/request/NewRequestStepper',
           params: { preferredProviderId: id, preferredProviderName: firstNameCb },
         });
       } else {
@@ -162,7 +162,7 @@ export default function ProviderDetailScreen() {
       }
     } catch (err) {
       devError('[providers/[id]] availability', err);
-      router.push('/new-request');
+      router.push('/request/NewRequestStepper');
     } finally {
       setCtaLoading(false);
     }
@@ -171,14 +171,14 @@ export default function ProviderDetailScreen() {
   const handleScheduleWithProvider = useCallback(() => {
     setBusyModal(false);
     router.push({
-      pathname: '/new-request',
+      pathname: '/request/NewRequestStepper',
       params: { preferredProviderId: id, preferredProviderName: firstNameCb, forceScheduled: '1' },
     });
   }, [id, firstNameCb, router]);
 
   const handleFindOther = useCallback(() => {
     setBusyModal(false);
-    router.push('/new-request');
+    router.push('/request/NewRequestStepper');
   }, [router]);
 
   if (loading) {
@@ -227,11 +227,12 @@ export default function ProviderDetailScreen() {
 
   // Build stat strip items
   const statItems: { label: string; value: string | number; unit?: string }[] = [
-    { label: 'RATING', value: avgRating > 0 ? avgRating.toFixed(1) : '-', unit: '/5' },
-    { label: 'JOBS', value: jobsDone },
+    { label: 'NOTE', value: avgRating > 0 ? avgRating.toFixed(1) : '-', unit: '/5' },
+    { label: 'MISSIONS', value: jobsDone },
   ];
   if (acceptRate !== null) {
-    statItems.push({ label: 'ON-TIME', value: acceptRate, unit: '%' });
+    // Taux d'acceptation réel (acceptedRequests/totalRequests) — pas de la ponctualité
+    statItems.push({ label: 'ACCEPTATION', value: acceptRate, unit: '%' });
   }
   // Response time placeholder — show if available
   if (provider.avgResponseMin) {
@@ -245,14 +246,16 @@ export default function ProviderDetailScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* Header — IconBtn chevron-left + PROVIDER + IconBtn more-horizontal */}
+      {/* Header — IconBtn chevron-left + PRESTATAIRE */}
       <View style={[s.header, { borderBottomColor: theme.borderLight }]}>
         <IconBtn
           icon="chevron-left"
+          accessibilityLabel="Retour"
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
         />
-        <Text style={[s.headerTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>PROVIDER</Text>
-        <IconBtn icon="more-horizontal" />
+        <Text style={[s.headerTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>PRESTATAIRE</Text>
+        {/* Spacer symétrique (l'ancien bouton "…" sans action a été retiré) */}
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -291,9 +294,9 @@ export default function ProviderDetailScreen() {
           {/* Badges row */}
           <View style={s.badgesRow}>
             {isVerified && (
-              <View style={[s.badge, { backgroundColor: 'rgba(61,139,61,0.10)' }]}>
-                <Feather name="shield" size={11} color={COLORS.greenBrand} />
-                <Text style={[s.badgeText, { color: COLORS.greenBrand, fontFamily: FONTS.mono }]}>VERIFIED</Text>
+              <View style={[s.badge, { backgroundColor: 'rgba(21,193,110,0.10)' }]}>
+                <Feather name="shield" size={11} color={theme.greenText} />
+                <Text style={[s.badgeText, { color: theme.greenText, fontFamily: FONTS.mono }]}>VÉRIFIÉ</Text>
               </View>
             )}
             {avgRating > 0 && (
@@ -335,7 +338,7 @@ export default function ProviderDetailScreen() {
         {provider.description ? (
           <View style={s.sectionWrap}>
             <View style={s.sectionHeaderRow}>
-              <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>ABOUT</Text>
+              <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>À PROPOS</Text>
             </View>
             <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
               <Text style={[s.desc, { color: theme.textSub, fontFamily: FONTS.sans }]}>{provider.description}</Text>
@@ -347,7 +350,7 @@ export default function ProviderDetailScreen() {
         {provider.categories?.length > 0 && (
           <View style={s.sectionWrap}>
             <View style={s.sectionHeaderRow}>
-              <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>SPECIALTIES</Text>
+              <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>SPÉCIALITÉS</Text>
             </View>
             <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
               <View style={s.chips}>
@@ -369,7 +372,7 @@ export default function ProviderDetailScreen() {
             </Text>
             {totalRatings > 0 && (
               <Text style={[s.sectionAction, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
-                {totalRatings} total
+                {totalRatings} au total
               </Text>
             )}
           </View>
@@ -433,7 +436,7 @@ export default function ProviderDetailScreen() {
               <Feather name="clock" size={24} color={theme.textSub} />
             </View>
             <Text style={[s.modalTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>
-              {firstName} n'est pas dispo
+              {firstName} n’est pas dispo
             </Text>
             <Text style={[s.modalBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>
               {firstName} est actuellement occupé ou hors ligne. Vous pouvez planifier une mission avec lui pour plus tard, ou trouver un autre prestataire disponible maintenant.
@@ -585,7 +588,7 @@ const s = StyleSheet.create({
   },
   ctaBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 14,
+    paddingVertical: 14, borderRadius: 100,
     width: '100%',
   },
   ctaText: { fontSize: 28, letterSpacing: 0.5 },

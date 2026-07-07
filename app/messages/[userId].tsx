@@ -2,13 +2,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { devLog, devError } from '../../lib/logger';
+import { feedback } from '@/lib/feedback/feedback';
 import {
   useSocket,
   onIncomingMessage,
@@ -16,11 +19,14 @@ import {
   onUserStopTyping,
   onMessageRead,
   onMessageReadAll,
+  setActiveConversationUser,
 } from '../../lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import { contactNameCacheGet, contactNameCacheSet } from './index';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
+// `status` est purement local : présent uniquement sur les messages optimistes
+// (en cours d'envoi ou échoués), jamais sur les messages venant du serveur.
 interface Message {
   id: string;
   senderId: string;
@@ -28,13 +34,23 @@ interface Message {
   text: string;
   createdAt: string;
   readAt: string | null;
+  status?: 'pending' | 'failed';
 }
 
 function fmtTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const d = new Date(isoString);
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (d >= startOfToday) return time;
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  if (d >= startOfYesterday) return `Hier ${time}`;
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const date = d.toLocaleDateString('fr-FR', sameYear
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${date} ${time}`;
 }
 
 function displayLabel(userId: string): string {
@@ -48,17 +64,21 @@ export default function ConversationScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const theme = useAppTheme();
-  const { socket } = useSocket();
+  const insets = useSafeAreaInsets();
+  const { socket, refreshUnreadMessages } = useSocket();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messageIdsRef = useRef(new Set<string>());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const flatListRef = useRef<FlatList<Message>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emitTypingRef = useRef(false);
+  // Auto-scroll uniquement si l'utilisateur est déjà proche du bas de la liste
+  const isNearBottomRef = useRef(true);
 
   const [contactName, setContactName] = useState<string | null>(name || null);
   const headerName = contactName || displayLabel(userId ?? '');
@@ -89,9 +109,15 @@ export default function ConversationScreen() {
       const res = await api.messages.conversation(userId);
       const msgs: Message[] = res?.data ?? res ?? [];
       messageIdsRef.current = new Set(msgs.map(m => m.id));
-      setMessages(msgs);
+      // Conserver les messages optimistes locaux (pending/failed) non encore
+      // confirmés par le serveur pour ne pas perdre un envoi en cours/échoué.
+      setMessages(prev => {
+        const locals = prev.filter(m => m.status && !messageIdsRef.current.has(m.id));
+        return [...msgs, ...locals];
+      });
+      setLoadError(false);
     } catch {
-      // keep empty state
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -101,12 +127,29 @@ export default function ConversationScreen() {
     loadConversation();
   }, [loadConversation]);
 
+  // Refetch à la reconnexion du socket : les messages arrivés pendant une
+  // coupure (app en background, socket down) sont récupérés via l'API.
+  useEffect(() => {
+    if (!socket) return;
+    const handler = () => { loadConversation(); };
+    socket.on('connect', handler);
+    return () => { socket.off('connect', handler); };
+  }, [socket, loadConversation]);
+
+  // ── Conversation active : le badge global n'incrémente pas pour elle ───────
+  useFocusEffect(useCallback(() => {
+    setActiveConversationUser(userId ?? null);
+    return () => { setActiveConversationUser(null); };
+  }, [userId]));
+
   // ── Mark all messages as read when opening conversation ────────────────────
 
   useEffect(() => {
     if (!userId || loading) return;
-    api.messages.markAllRead(userId).catch(() => {});
-  }, [userId, loading]);
+    api.messages.markAllRead(userId)
+      .then(() => refreshUnreadMessages())
+      .catch(() => {});
+  }, [userId, loading, refreshUnreadMessages]);
 
   // ── Can-chat probe: is there an active request between us? ─────────────────
   const refreshCanChat = useCallback(async () => {
@@ -128,8 +171,12 @@ export default function ConversationScreen() {
 
   useEffect(() => { refreshCanChat(); }, [refreshCanChat]);
 
-  // Re-probe à chaque focus de l'écran (revient depuis le dashboard, etc.)
-  useFocusEffect(useCallback(() => { refreshCanChat(); }, [refreshCanChat]));
+  // Re-probe + refetch de la conversation à chaque focus de l'écran
+  // (revient depuis le dashboard, etc.)
+  useFocusEffect(useCallback(() => {
+    refreshCanChat();
+    loadConversation();
+  }, [refreshCanChat, loadConversation]));
 
   // Re-check when any related request status changes.
   // Backend emits différents events selon la transition : `request:statusUpdated`
@@ -165,15 +212,21 @@ export default function ConversationScreen() {
       if (messageIdsRef.current.has(msg.id)) return;
       messageIdsRef.current.add(msg.id);
       setMessages(prev => [...prev, msg]);
-      setTimeout(() => { if (mounted) flatListRef.current?.scrollToEnd({ animated: true }); }, 80);
+      // Ne pas interrompre la lecture de l'historique : scroll auto uniquement
+      // si l'utilisateur est déjà proche du bas.
+      if (isNearBottomRef.current) {
+        setTimeout(() => { if (mounted) flatListRef.current?.scrollToEnd({ animated: true }); }, 80);
+      }
 
       // Auto-mark as read if it's from the other person
       if (msg.senderId === userId) {
-        api.messages.markAllRead(userId).catch(() => {});
+        api.messages.markAllRead(userId)
+          .then(() => refreshUnreadMessages())
+          .catch(() => {});
       }
     });
     return () => { mounted = false; unsub(); };
-  }, [userId, user?.id]);
+  }, [userId, user?.id, refreshUnreadMessages]);
 
   // ── Typing indicators ─────────────────────────────────────────────────────
 
@@ -236,43 +289,84 @@ export default function ConversationScreen() {
     return () => { unsubRead(); unsubReadAll(); };
   }, [userId, user?.id]);
 
-  // ── Send ──────────────────────────────────────────────────────────────────
+  // ── Send (optimiste : pending → sent / failed avec retry) ─────────────────
 
-  const sendMessage = async () => {
+  const deliverMessage = useCallback(async (localId: string, content: string) => {
+    if (!userId) return;
+    try {
+      const res = await api.messages.send(userId, content);
+      const msg: Message = res?.data ?? res;
+      if (messageIdsRef.current.has(msg.id)) {
+        // L'écho socket `message:sent` est déjà arrivé : retirer le doublon optimiste.
+        setMessages(prev => prev.filter(m => m.id !== localId));
+      } else {
+        messageIdsRef.current.add(msg.id);
+        setMessages(prev => prev.map(m => (m.id === localId ? { ...msg, status: undefined } : m)));
+      }
+    } catch (e: any) {
+      // Le brouillon reste visible dans la bulle "échec" — jamais perdu.
+      setMessages(prev => prev.map(m => (m.id === localId ? { ...m, status: 'failed' as const } : m)));
+      const serverCode = e?.data?.error?.code ?? e?.data?.code;
+      if (serverCode === 'CONVERSATION_CLOSED' || e?.status === 403) {
+        // Server closed the conversation between probe and send: lock UI.
+        setCanChat(false);
+        feedback.error('Message non envoyé — la conversation est fermée.');
+      } else {
+        feedback.error('Message non envoyé. Appuyez sur le message pour réessayer.');
+      }
+    }
+  }, [userId]);
+
+  const sendMessage = () => {
     const content = inputText.trim();
-    if (!content || sending || !userId) return;
-    setSending(true);
+    if (!content || !userId) return;
     setInputText('');
     // Stop typing indicator
     if (emitTypingRef.current) {
       emitTypingRef.current = false;
       socket?.emit('message:stop_typing', { recipientId: userId });
     }
-    try {
-      const res = await api.messages.send(userId, content);
-      const msg: Message = res?.data ?? res;
-      if (!messageIdsRef.current.has(msg.id)) {
-        messageIdsRef.current.add(msg.id);
-        setMessages(prev => [...prev, msg]);
-      }
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-    } catch (e: any) {
-      // Server closed the conversation between probe and send: lock UI.
-      const serverCode = e?.data?.error?.code ?? e?.data?.code;
-      if (serverCode === 'CONVERSATION_CLOSED' || e?.status === 403) {
-        setCanChat(false);
-      } else {
-        setInputText(content); // restore on network error
-      }
-    } finally {
-      setSending(false);
-    }
+    // Insertion optimiste immédiate avec statut "pending"
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const optimistic: Message = {
+      id: localId,
+      senderId: user?.id ?? '',
+      recipientId: userId,
+      text: content,
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      status: 'pending',
+    };
+    setMessages(prev => [...prev, optimistic]);
+    isNearBottomRef.current = true;
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    deliverMessage(localId, content);
   };
+
+  const retryMessage = useCallback((msg: Message) => {
+    if (msg.status !== 'failed') return;
+    setMessages(prev => prev.map(m => (m.id === msg.id ? { ...m, status: 'pending' as const } : m)));
+    deliverMessage(msg.id, msg.text);
+  }, [deliverMessage]);
 
   // ── Status icon for own messages ───────────────────────────────────────────
 
   const MessageStatus = ({ msg }: { msg: Message }) => {
     if (msg.senderId !== user?.id) return null;
+    if (msg.status === 'pending') {
+      return (
+        <View style={b.statusRow}>
+          <Feather name="clock" size={12} color={theme.textMuted as string} />
+        </View>
+      );
+    }
+    if (msg.status === 'failed') {
+      return (
+        <View style={b.statusRow}>
+          <Feather name="alert-circle" size={13} color={COLORS.red} />
+        </View>
+      );
+    }
     const color = msg.readAt ? COLORS.blue : (theme.textMuted as string);
     return (
       <View style={b.statusRow}>
@@ -289,6 +383,8 @@ export default function ConversationScreen() {
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isMine = item.senderId === user?.id;
+    const isFailed = item.status === 'failed';
+    const isPending = item.status === 'pending';
     const prev = messages[index - 1];
     const showTime =
       !prev ||
@@ -300,17 +396,30 @@ export default function ConversationScreen() {
           <Text style={[b.timestamp, { color: theme.textMuted }]}>{fmtTime(item.createdAt)}</Text>
         )}
         <View style={[b.row, isMine ? b.rowRight : b.rowLeft]}>
-          <View style={[
-            b.bubble,
-            isMine
-              ? [b.bubbleMine, { backgroundColor: theme.accent }]
-              : [b.bubbleOther, { backgroundColor: theme.surface },
-                 Platform.OS === 'ios' && { shadowColor: theme.text, shadowOpacity: theme.shadowOpacity * 0.7, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }],
-          ]}>
+          <TouchableOpacity
+            disabled={!isFailed}
+            onPress={() => retryMessage(item)}
+            activeOpacity={isFailed ? 0.7 : 1}
+            accessibilityLabel={isFailed ? 'Message non envoyé — réessayer' : undefined}
+            style={[
+              b.bubble,
+              isMine
+                ? [b.bubbleMine, { backgroundColor: theme.accent }]
+                : [b.bubbleOther, { backgroundColor: theme.surface },
+                   Platform.OS === 'ios' && { shadowColor: theme.text, shadowOpacity: theme.shadowOpacity * 0.7, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }],
+              isPending && { opacity: 0.65 },
+              isFailed && { opacity: 0.85, borderWidth: 1, borderColor: COLORS.red },
+            ]}
+          >
             <Text style={[b.text, isMine ? { color: theme.accentText } : { color: theme.textAlt }]}>{item.text}</Text>
-          </View>
+          </TouchableOpacity>
           {isMine && <MessageStatus msg={item} />}
         </View>
+        {isFailed && (
+          <Text style={[b.failedHint, { color: COLORS.red }]}>
+            Échec de l’envoi — appuyez sur le message pour réessayer
+          </Text>
+        )}
       </View>
     );
   };
@@ -322,9 +431,18 @@ export default function ConversationScreen() {
       <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
-      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface }]}>
-          <Feather name="chevron-left" size={22} color={theme.textAlt} />
+      <View
+        style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}
+        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+      >
+        <TouchableOpacity
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Retour"
+        >
+          <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={[s.headerTitle, { color: theme.textAlt }]} numberOfLines={1}>{headerName}</Text>
@@ -344,11 +462,28 @@ export default function ConversationScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + headerHeight : 0}
       >
         {loading ? (
           <View style={s.centered}>
             <ActivityIndicator size="large" color={theme.accent} />
+          </View>
+        ) : loadError && messages.length === 0 ? (
+          <View style={s.emptyWrap}>
+            <Feather name="wifi-off" size={44} color={theme.textMuted} />
+            <Text style={[s.emptyText, { color: theme.textMuted }]}>
+              Impossible de charger la conversation.
+            </Text>
+            <TouchableOpacity
+              style={[s.retryBtn, { backgroundColor: theme.accent }]}
+              onPress={() => { setLoading(true); loadConversation(); }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Réessayer"
+            >
+              <Feather name="refresh-cw" size={15} color={theme.accentText} />
+              <Text style={[s.retryBtnText, { color: theme.accentText }]}>Réessayer</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <FlatList
@@ -357,7 +492,15 @@ export default function ConversationScreen() {
             keyExtractor={item => item.id}
             renderItem={renderMessage}
             contentContainerStyle={s.list}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              isNearBottomRef.current =
+                contentOffset.y + layoutMeasurement.height >= contentSize.height - 120;
+            }}
+            scrollEventThrottle={100}
+            onContentSizeChange={() => {
+              if (isNearBottomRef.current) flatListRef.current?.scrollToEnd({ animated: false });
+            }}
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListEmptyComponent={
               <View style={s.emptyWrap}>
@@ -397,15 +540,17 @@ export default function ConversationScreen() {
               multiline
               maxLength={2000}
               blurOnSubmit={false}
+              accessibilityLabel="Votre message"
             />
             <TouchableOpacity
-              style={[s.sendBtn, { backgroundColor: theme.accent }, (!inputText.trim() || sending) && s.sendBtnDisabled]}
+              style={[s.sendBtn, { backgroundColor: theme.accent }, !inputText.trim() && s.sendBtnDisabled]}
               onPress={sendMessage}
-              disabled={!inputText.trim() || sending}
+              disabled={!inputText.trim()}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer le message"
+              accessibilityState={{ disabled: !inputText.trim() }}
             >
-              {sending
-                ? <ActivityIndicator size="small" color={theme.accentText} />
-                : <Feather name="send" size={18} color={theme.accentText} />}
+              <Feather name="send" size={18} color={theme.accentText} />
             </TouchableOpacity>
           </View>
         )}
@@ -425,7 +570,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: {
@@ -448,6 +593,12 @@ const s = StyleSheet.create({
 
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 8 },
   emptyText: { fontSize: 14, fontFamily: FONTS.sans },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 100, paddingHorizontal: 20, paddingVertical: 11,
+    marginTop: 10,
+  },
+  retryBtnText: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
@@ -502,5 +653,9 @@ const b = StyleSheet.create({
   },
   typingDots: {
     fontSize: 18, fontWeight: '700', letterSpacing: 2,
+  },
+  failedHint: {
+    textAlign: 'right', fontSize: 11, fontFamily: FONTS.sans,
+    marginTop: 2, marginRight: 4,
   },
 });

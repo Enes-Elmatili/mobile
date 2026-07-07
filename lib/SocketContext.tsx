@@ -41,6 +41,7 @@ interface SocketContextType {
   clearUnread:         () => void;
   unreadMessages:      number;
   clearUnreadMessages: () => void;
+  refreshUnreadMessages: () => void;
   joinRoom:            (type: string, id: string) => void;
   leaveRoom:           (type: string, id: string) => void;
 }
@@ -53,6 +54,7 @@ const SocketContext = createContext<SocketContextType>({
   clearUnread:         () => {},
   unreadMessages:      0,
   clearUnreadMessages: () => {},
+  refreshUnreadMessages: () => {},
   joinRoom:            () => {},
   leaveRoom:           () => {},
 });
@@ -73,6 +75,15 @@ export function showSocketToast(message: string, type: ToastType = 'info') {
 // ═══════════════════════════════════════════════════════════════════════════════
 export type IncomingMessage = { id: string; senderId: string; recipientId: string; text: string; createdAt: string; readAt: string | null };
 const messageEmitter = { listeners: [] as ((msg: IncomingMessage) => void)[] };
+
+// ── Conversation actuellement ouverte ─────────────────────────────────────────
+// Renseignée par l'écran de conversation ([userId].tsx) pour que le badge
+// global `unreadMessages` n'incrémente pas quand l'utilisateur lit déjà
+// les messages de cet expéditeur.
+let activeConversationUserId: string | null = null;
+export function setActiveConversationUser(userId: string | null) {
+  activeConversationUserId = userId;
+}
 
 export function onIncomingMessage(handler: (msg: IncomingMessage) => void): () => void {
   messageEmitter.listeners.push(handler);
@@ -200,6 +211,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const clearUnread         = useCallback(() => setUnreadCount(0), []);
   const clearUnreadMessages = useCallback(() => setUnreadMessages(0), []);
 
+  // Resynchronise le badge messages depuis le serveur (source de vérité) —
+  // appelé après lecture d'une conversation (markAllRead) ou depuis l'inbox.
+  const refreshUnreadMessages = useCallback(() => {
+    api.messages.unreadCount().then((res: any) => {
+      const count = res?.unread ?? res?.data?.unread ?? 0;
+      setUnreadMessages(Number(count) || 0);
+    }).catch(err => devError('Failed to refresh unread messages count:', err));
+  }, []);
+
   // ── Room join/leave avec déduplication ─────────────────────────────────────
   const joinedRoomsRef = useRef<Set<string>>(new Set());
 
@@ -227,6 +247,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const items: any[] = res?.data ?? [];
       setUnreadCount(items.filter((n: any) => !n.readAt).length);
     }).catch(err => devError('Failed to load notification count:', err));
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // ── Charger le nombre de messages non lus au démarrage ────────────────────
+  useEffect(() => {
+    if (!user) { setUnreadMessages(0); return; }
+    let cancelled = false;
+    api.messages.unreadCount().then((res: any) => {
+      if (cancelled) return;
+      const count = res?.unread ?? res?.data?.unread ?? 0;
+      setUnreadMessages(Number(count) || 0);
+    }).catch(err => devError('Failed to load unread messages count:', err));
     return () => { cancelled = true; };
   }, [user?.id]);
 
@@ -515,7 +547,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // ── MESSAGES IN-APP ───────────────────────────────────────────────────────
     newSocket.on('message:received', (msg: IncomingMessage) => {
       devLog('💬 [MESSAGE] Incoming message from:', msg.senderId);
-      setUnreadMessages(prev => prev + 1);
+      // Ne pas incrémenter le badge si l'utilisateur lit déjà cette conversation
+      // (l'écran ouvert marque le message comme lu immédiatement).
+      if (msg.senderId !== activeConversationUserId) {
+        setUnreadMessages(prev => prev + 1);
+      }
       messageEmitter.listeners.forEach(fn => fn(msg));
     });
 
@@ -601,8 +637,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [user?.id]);
 
   const contextValue = useMemo(
-    () => ({ socket, isConnected, connectionStatus, unreadCount, clearUnread, unreadMessages, clearUnreadMessages, joinRoom, leaveRoom }),
-    [socket, isConnected, connectionStatus, unreadCount, clearUnread, unreadMessages, clearUnreadMessages, joinRoom, leaveRoom]
+    () => ({ socket, isConnected, connectionStatus, unreadCount, clearUnread, unreadMessages, clearUnreadMessages, refreshUnreadMessages, joinRoom, leaveRoom }),
+    [socket, isConnected, connectionStatus, unreadCount, clearUnread, unreadMessages, clearUnreadMessages, refreshUnreadMessages, joinRoom, leaveRoom]
   );
 
   return (

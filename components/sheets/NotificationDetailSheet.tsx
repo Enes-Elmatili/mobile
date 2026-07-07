@@ -46,7 +46,7 @@ export interface NotifDetail {
 function severityConfig(type: string, theme: any) {
   switch (type) {
     case 'success':
-      return { icon: 'check' as const, color: COLORS.green, tint: 'rgba(74,222,128,0.14)', guide: 'notifications.guidance_success' };
+      return { icon: 'check' as const, color: COLORS.green, tint: 'rgba(70,220,147,0.14)', guide: 'notifications.guidance_success' };
     case 'warning':
       return { icon: 'alert-triangle' as const, color: COLORS.amber, tint: 'rgba(245,158,11,0.14)', guide: 'notifications.guidance_warning' };
     case 'error':

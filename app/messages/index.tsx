@@ -2,14 +2,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  SafeAreaView, RefreshControl, Platform, ActivityIndicator, StatusBar,
+  RefreshControl, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { onIncomingMessage, useSocket } from '../../lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
+import Avatar from '@/components/ui/Avatar';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -53,38 +55,19 @@ function displayLabel(userId: string): string {
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
-
-function Avatar({ name, size = 46 }: { name: string; size?: number }) {
-  const theme = useAppTheme();
-  const initials = name
-    .split(/[\s#]/)
-    .filter(Boolean)
-    .map(w => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || '?';
-  return (
-    <View style={[av.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.surfaceAlt }]}>
-      <Text style={[av.text, { fontSize: size * 0.34, color: theme.text }]}>{initials}</Text>
-    </View>
-  );
-}
-
-const av = StyleSheet.create({
-  circle: { alignItems: 'center', justifyContent: 'center' },
-  text: { fontFamily: FONTS.sansMedium, fontWeight: '800' },
-});
+// Consolidé sur le composant partagé @/components/ui/Avatar (voir import en tête).
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function MessagesInbox() {
   const { user } = useAuth();
-  const { clearUnreadMessages } = useSocket();
+  const { refreshUnreadMessages } = useSocket();
   const router = useRouter();
   const theme = useAppTheme();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchInbox = useCallback(async () => {
@@ -93,12 +76,19 @@ export default function MessagesInbox() {
       const messages: Message[] = res?.data ?? res ?? [];
 
       // Group by the other party (inbox only has received messages, so senderId = other)
+      // + compter les messages reçus non lus sur TOUS les messages du groupe
+      // (pas seulement le dernier — sinon une conversation dont le dernier
+      // message est le mien paraît lue malgré des non-lus en dessous).
       const map = new Map<string, Message>();
+      const unreadByContact = new Map<string, boolean>();
       for (const msg of messages) {
         const otherId = msg.senderId === user?.id ? msg.recipientId : msg.senderId;
         const existing = map.get(otherId);
         if (!existing || new Date(msg.createdAt) > new Date(existing.createdAt)) {
           map.set(otherId, msg);
+        }
+        if (!msg.readAt && msg.recipientId === user?.id) {
+          unreadByContact.set(otherId, true);
         }
       }
 
@@ -111,44 +101,42 @@ export default function MessagesInbox() {
         displayName: displayLabel(uid),
         lastMessage: msg.text,
         lastAt: msg.createdAt,
-        unread: !msg.readAt && msg.recipientId === user?.id,
+        unread: unreadByContact.get(uid) === true,
       }));
 
-      setConversations(convos);
-
-      // Fetch real names — use module-level cache to avoid N API calls per open
+      // Résoudre les vrais noms AVANT le premier rendu pour éviter le flash
+      // "Contact #XXXXXX" — cache module-level pour éviter N appels par ouverture
       const uncachedConvos = convos.filter(c => !contactNameCache.has(c.userId));
       if (uncachedConvos.length > 0) {
         const namePromises = uncachedConvos.map(async (c) => {
           try {
             const res = await api.messages.contactInfo(c.userId);
             const n = res?.data?.name;
-            if (n) { contactNameCache.set(c.userId, n); return { userId: c.userId, name: n }; }
+            if (n) { contactNameCache.set(c.userId, n); }
           } catch {}
-          return null;
         });
         await Promise.all(namePromises);
       }
-      // Apply cached + fresh names
-      if (contactNameCache.size > 0) {
-        setConversations(prev => prev.map(c => ({
-          ...c,
-          displayName: contactNameCache.get(c.userId) || c.displayName,
-        })));
-      }
+
+      setConversations(convos.map(c => ({
+        ...c,
+        displayName: contactNameCache.get(c.userId) || c.displayName,
+      })));
+      setLoadError(false);
     } catch {
-      // keep empty state
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [user?.id]);
 
-  useEffect(() => {
+  // Rafraîchir à chaque focus (retour depuis une conversation : points "non lu"
+  // et aperçus à jour) + resynchroniser le badge global depuis le serveur.
+  useFocusEffect(useCallback(() => {
     fetchInbox();
-    clearUnreadMessages();
-    // fetchInbox depends on user?.id; re-run when that identity is resolved.
-  }, [fetchInbox, clearUnreadMessages]);
+    refreshUnreadMessages();
+  }, [fetchInbox, refreshUnreadMessages]));
 
   // Real-time: refresh inbox when a new message arrives
   useEffect(() => {
@@ -170,14 +158,14 @@ export default function MessagesInbox() {
         router.push({ pathname: '/messages/[userId]', params: { userId: item.userId, name: item.displayName } })
       }
     >
-      <Avatar name={item.displayName} />
+      <Avatar name={item.displayName} size={46} />
       <View style={s.rowContent}>
         <View style={s.rowTop}>
           <Text style={[s.rowName, { color: theme.textAlt }, item.unread && s.rowNameBold]}>{item.displayName}</Text>
           <Text style={[s.rowTime, { color: theme.textMuted }]}>{timeAgo(item.lastAt)}</Text>
         </View>
         <Text
-          style={[s.rowPreview, { color: theme.textMuted }, item.unread && { color: theme.textAlt, fontWeight: '600' }]}
+          style={[s.rowPreview, { color: theme.textMuted }, item.unread && { color: theme.textAlt, fontFamily: FONTS.sansBold }]}
           numberOfLines={1}
         >
           {item.lastMessage}
@@ -193,8 +181,14 @@ export default function MessagesInbox() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface }]}>
-          <Feather name="chevron-left" size={22} color={theme.textAlt} />
+        <TouchableOpacity
+          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Retour"
+        >
+          <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt }]}>Messages</Text>
         <View style={{ width: 38 }} />
@@ -203,6 +197,24 @@ export default function MessagesInbox() {
       {loading ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={theme.accent} />
+        </View>
+      ) : loadError && conversations.length === 0 ? (
+        <View style={s.centered}>
+          <Feather name="wifi-off" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
+          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>Impossible de charger vos messages.</Text>
+          <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
+            Vérifiez votre connexion et réessayez.
+          </Text>
+          <TouchableOpacity
+            style={[s.emptyBtn, { backgroundColor: theme.accent }]}
+            onPress={() => { setLoading(true); fetchInbox(); }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Réessayer"
+          >
+            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>RÉESSAYER</Text>
+            <Feather name="refresh-cw" size={15} color={theme.accentText} />
+          </TouchableOpacity>
         </View>
       ) : conversations.length === 0 ? (
         <View style={s.centered}>
@@ -247,7 +259,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontSize: 20, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
@@ -256,7 +268,7 @@ const s = StyleSheet.create({
   emptyTitle: { fontSize: 22, fontFamily: FONTS.bebas, marginBottom: 20 },
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: 14,
+    borderRadius: 100,
     paddingHorizontal: 22, paddingVertical: 14,
   },
   emptyBtnText: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 1 },
@@ -272,7 +284,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   rowName: { fontSize: 15, fontFamily: FONTS.sansMedium },
-  rowNameBold: { fontFamily: FONTS.sansMedium, fontWeight: '800' },
+  rowNameBold: { fontFamily: FONTS.sansBold },
   rowTime: { fontSize: 12, fontFamily: FONTS.mono },
   rowPreview: { fontSize: 13, fontFamily: FONTS.sans },
   unreadDot: {

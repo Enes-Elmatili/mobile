@@ -1,11 +1,11 @@
 // lib/NetworkContext.tsx
-// Détecte l'état réseau avec debounce 15s — ne signale offline
-// que si la connexion est réellement perdue depuis 15 secondes.
+// Détecte l'état réseau avec debounce 4s — ne signale offline
+// que si la connexion est réellement perdue depuis 4 secondes.
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 
-const OFFLINE_DELAY_MS = 15_000; // 15 secondes avant de signaler offline
+const OFFLINE_DELAY_MS = 4_000; // 4 secondes avant de signaler offline
 
 interface NetworkContextType {
   isOnline: boolean;
@@ -53,7 +53,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
           wasOffline,
         });
       } else {
-        // Connexion perdue — attendre 15s avant de signaler offline
+        // Connexion perdue — attendre 4s avant de signaler offline
         if (!offlineTimerRef.current) {
           offlineTimerRef.current = setTimeout(() => {
             offlineTimerRef.current = null;
