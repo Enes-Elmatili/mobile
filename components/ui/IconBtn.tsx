@@ -6,18 +6,25 @@ import { Feather } from '@expo/vector-icons';
 import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
 
 interface IconBtnProps {
-  icon: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
+  /** Libellé accessible en français — REQUIS (bouton icône seule). */
+  accessibilityLabel: string;
   onPress?: () => void;
   size?: number;
   badge?: boolean;
 }
 
-export default function IconBtn({ icon, onPress, size = 36, badge }: IconBtnProps) {
+export default function IconBtn({ icon, accessibilityLabel, onPress, size = 36, badge }: IconBtnProps) {
   const theme = useAppTheme();
+  // Étend la cible tactile à 44pt minimum (recommandation a11y iOS/Android).
+  const slop = Math.max(0, Math.round((44 - size) / 2));
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={{ top: slop, bottom: slop, left: slop, right: slop }}
       style={[
         s.btn,
         {
@@ -29,7 +36,7 @@ export default function IconBtn({ icon, onPress, size = 36, badge }: IconBtnProp
         },
       ]}
     >
-      <Feather name={icon as any} size={size * 0.5} color={theme.text} />
+      <Feather name={icon} size={size * 0.5} color={theme.text} />
       {badge && (
         <View style={[s.badge, { backgroundColor: COLORS.orangeBrand, borderColor: theme.surface }]} />
       )}

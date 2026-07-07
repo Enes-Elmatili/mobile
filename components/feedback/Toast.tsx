@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet, Text, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, runOnJS, Easing } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
-import { darkTokens, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { ToastItem, useFeedbackStore } from '@/lib/feedback/store';
 
 const ICON: Record<ToastItem['type'], keyof typeof Feather.glyphMap> = {
@@ -13,6 +13,7 @@ const ACCENT: Record<ToastItem['type'], string> = {
 };
 
 export function Toast({ item }: { item: ToastItem }) {
+  const theme = useAppTheme();
   const progress = useSharedValue(0);
   const dismiss = useFeedbackStore((s) => s.dismissToast);
 
@@ -31,9 +32,9 @@ export function Toast({ item }: { item: ToastItem }) {
   }));
 
   return (
-    <Animated.View style={[s.pill, { borderLeftColor: ACCENT[item.type] }, style]}>
+    <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, borderLeftColor: ACCENT[item.type] }, style]}>
       <Feather name={ICON[item.type]} size={18} color={ACCENT[item.type]} />
-      <Text style={s.text} numberOfLines={2}>{item.message}</Text>
+      <Text style={[s.text, { color: theme.text }]} numberOfLines={2}>{item.message}</Text>
     </Animated.View>
   );
 }
@@ -41,7 +42,6 @@ export function Toast({ item }: { item: ToastItem }) {
 const s = StyleSheet.create({
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: darkTokens.surface,
     borderRadius: 14, borderLeftWidth: 3,
     paddingHorizontal: 16, paddingVertical: 13,
     ...Platform.select({
@@ -49,5 +49,5 @@ const s = StyleSheet.create({
       android: { elevation: 12 },
     }),
   },
-  text: { flex: 1, color: darkTokens.text, fontFamily: FONTS.sansMedium, fontSize: 14 },
+  text: { flex: 1, fontFamily: FONTS.sansMedium, fontSize: 14 },
 });

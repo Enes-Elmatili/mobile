@@ -8,15 +8,10 @@
  * Headline & top decorations sit on the dark zone (use textOnDark).
  * Form inputs & CTA sit on the light zone (use textOnLight).
  */
-import { darkTokens, lightTokens } from "@/hooks/use-app-theme";
+import { darkTokens, lightTokens, alpha } from "@/hooks/use-app-theme";
 
-// ── alpha helper — derive rgba overlays from canonical hex tokens ──────────
-export const alpha = (hex: string, a: number) => {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${a})`;
-};
+// ── alpha helper — ré-exporté depuis use-app-theme (source unique) ──────────
+export { alpha };
 
 // ── Auth gradient palette — inverted by default (dark → light) ─────────────
 // Welcome uses these stops in REVERSE order (light → dark) to give the page its

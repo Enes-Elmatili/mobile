@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 interface InfoRowProps {
-  icon: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
   label: string;
   value: string | number;
   highlight?: boolean;
@@ -16,7 +16,7 @@ export default function InfoRow({ icon, label, value, highlight }: InfoRowProps)
   return (
     <View style={[styles.container, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
       <View style={styles.header}>
-        <Feather name={icon as any} size={20} color={theme.textSub} />
+        <Feather name={icon} size={20} color={theme.textSub} />
         <Text style={[styles.label, { color: theme.textSub }]}>{label}</Text>
       </View>
       <Text style={[styles.value, { color: theme.text }, highlight && styles.valueHighlight]}>{value}</Text>

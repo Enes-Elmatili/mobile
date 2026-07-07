@@ -21,13 +21,14 @@ export const FONTS = {
   sans:       'DMSans_400Regular',
   sansLight:  'DMSans_300Light',
   sansMedium: 'DMSans_500Medium',
+  sansBold:   'DMSans_700Bold',
   mono:       'DMMono_400Regular',
   monoMedium: 'DMMono_500Medium',
 } as const;
 
 // ── Shared semantic colors (mode-independent) ──────────────────────────────
 export const COLORS = {
-  green:       '#4ADE80',
+  green:       '#46DC93',
   amber:       '#F59E0B',
   red:         '#EF4444',
   danger:      '#DC2626',
@@ -35,7 +36,7 @@ export const COLORS = {
   verified:    '#1D9BF0',
   blue:        '#3478F6',
   // ── FIXED brand palette ──
-  greenBrand:  '#3D8B3D', // success (paid, accepted, scheduled, net après commission)
+  greenBrand:  '#15C16E', // success (paid, accepted, scheduled, net après commission)
   orangeBrand: '#E8783A', // warning (pending, sent, adresse à confirmer)
   // ── Status badge palette (StatusBadge component) ──
   statusOngoing:  '#3B82F6', // ONGOING — blue
@@ -79,6 +80,7 @@ interface ThemeTokens {
   verified: string;
   verifiedBg: string;
   verifiedFg: string;
+  greenText: string;
   badgeDoneBg: string;
   badgeDoneText: string;
   badgeCancelledBg: string;
@@ -129,11 +131,14 @@ function buildTheme(isDark: boolean): ThemeTokens {
     shadowOpacity: isDark ? 0.3 : 0.06,
     // ── Verified badge ──
     verified:     COLORS.verified,
-    verifiedBg:   'rgba(61,139,61,0.14)',
-    verifiedFg:   COLORS.greenBrand,
+    verifiedBg:   'rgba(21,193,110,0.14)',
+    verifiedFg:   isDark ? '#46DC93' : '#0E7A47',
+    // vert texte/icône sur fond clair (contraste AA — #15C16E brut échoue à 2,4:1).
+    // Réservé au TEXTE/ICÔNE ; les fills (dot, CTA, overlay) gardent COLORS.greenBrand.
+    greenText:    isDark ? '#46DC93' : '#0E7A47',
     // ── Status badges ──
-    badgeDoneBg:       isDark ? '#1A2A1A'               : 'rgba(74,222,128,0.1)',
-    badgeDoneText:     isDark ? '#4ADE80'               : '#15803D',
+    badgeDoneBg:       isDark ? '#1A2A1A'               : 'rgba(70,220,147,0.1)',
+    badgeDoneText:     isDark ? '#46DC93'               : '#0E7A47',
     badgeCancelledBg:  isDark ? '#1A1A1A'               : '#E9E7E1',
     badgeCancelledText:isDark ? '#666666'               : '#8A8880',
     badgePendingBg:    isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.1)',
@@ -163,7 +168,7 @@ const GBASE = {
   // Surface carte recommandée (graphite teinté vert — intentionnel pour Pro)
   p1: '#1E2A22', p2: '#18221C', p3: '#152019',
   // Verts brand (dark)
-  green: '#34C56C', greenHi: '#3FCF77', greenMid: '#1F8A4C', greenLo: '#1C8146', greenDeep: '#0C3A22',
+  green: '#2BD183', greenHi: '#46DC93', greenMid: '#12A75F', greenLo: '#0F9354', greenDeep: '#0A3D26',
   // Encre (texte) — gris chauds neutres, pas bleutés
   ink: '#F4F4F2', ink2: '#ADABA5', ink3: '#807E77', ink4: '#57554E',
   shadow: '#000000',

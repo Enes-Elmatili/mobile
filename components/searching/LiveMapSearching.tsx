@@ -71,24 +71,8 @@ function useNow(tickMs: number = 10000): number {
 }
 
 // ── Map styles (aligned with missionview.tsx) ────────────────────────────────
-const MAP_STYLE_DARK = [
-  { elementType: 'geometry', stylers: [{ color: '#1A1A1A' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#333333' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#111111' }] },
-];
-const MAP_STYLE_LIGHT = [
-  { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#d0d0d0' }] },
-];
+// Styles carte (source unique light + dark)
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
 function useCountdown(expiresAt?: string | null): string | null {
@@ -608,7 +592,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, height: 28, borderRadius: 14,
   },
   timerDot: { width: 5, height: 5, borderRadius: 2.5 },
-  timerText: { fontSize: 11, fontWeight: '600' },
+  timerText: { fontSize: 11, fontFamily: FONTS.monoMedium },
 
   floaters: { position: 'absolute', top: 110, right: 12, gap: 8 },
 
