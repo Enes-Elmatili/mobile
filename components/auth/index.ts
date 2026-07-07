@@ -11,4 +11,6 @@ export { AuthLink } from "./AuthLink";
 export { AuthPhoneInput } from "./AuthPhoneInput";
 export { AuthAddressAutocomplete } from "./AuthAddressAutocomplete";
 export type { ParsedAddress } from "./AuthAddressAutocomplete";
+export { AuthMasthead } from "./AuthMasthead";
+export { AuthEyebrow } from "./AuthEyebrow";
 export { authT, alpha, invertedGradient, standardGradient } from "./tokens";
