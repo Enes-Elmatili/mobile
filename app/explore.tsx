@@ -4,13 +4,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
   Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
@@ -130,6 +130,7 @@ export default function ExploreScreen() {
   const [radiusIdx, setRadiusIdx] = useState(1); // default 5 km
   const [loading,   setLoading]   = useState(true);
   const [locError,  setLocError]  = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   // ── Location ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -148,12 +149,19 @@ export default function ExploreScreen() {
       const res: any = await api.providers.nearby(lat, lng, radiusM);
       const list = res?.data ?? res;
       setProviders(Array.isArray(list) ? list : []);
+      setFetchError(false);
     } catch {
+      // Ne pas afficher un faux « aucun prestataire » sur une panne réseau.
       setProviders([]);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const retryFetch = useCallback(() => {
+    if (location) fetchProviders(location.lat, location.lng, RADII[radiusIdx].m);
+  }, [location, radiusIdx, fetchProviders]);
 
   useEffect(() => {
     if (!location) return;
@@ -195,8 +203,8 @@ export default function ExploreScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={20} color={theme.textAlt} />
+        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('explore.title')}</Text>
         <View style={s.headerCount}>
@@ -288,9 +296,9 @@ export default function ExploreScreen() {
               {selectedProvider.categories?.[0]?.name ?? selectedProvider.city ?? ''}
             </Text>
           </View>
-          <View style={[s.calloutCTA, { backgroundColor: theme.surface }]}>
-            <Text style={[s.calloutCTAText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>Voir le profil</Text>
-            <Feather name="arrow-right" size={12} color={theme.heroText} />
+          <View style={[s.calloutCTA, { backgroundColor: '#F4F4F2' }]}>
+            <Text style={[s.calloutCTAText, { fontFamily: FONTS.sansMedium, color: '#0A0A0A' }]}>Voir le profil</Text>
+            <Feather name="arrow-right" size={12} color="#0A0A0A" />
           </View>
         </TouchableOpacity>
       )}
@@ -314,12 +322,25 @@ export default function ExploreScreen() {
           )}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            !loading ? (
+            loading ? null : fetchError ? (
+              <View style={s.empty}>
+                <Feather name="wifi-off" size={36} color={theme.textDisabled} />
+                <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Impossible de charger les prestataires.</Text>
+                <TouchableOpacity
+                  style={[s.retryBtn, { backgroundColor: theme.accent }]}
+                  onPress={retryFetch}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="refresh-cw" size={13} color={theme.accentText} />
+                  <Text style={[s.retryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
               <View style={s.empty}>
                 <Feather name="users" size={36} color={theme.textDisabled} />
                 <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('explore.no_providers')}</Text>
               </View>
-            ) : null
+            )
           }
         />
       </View>
@@ -354,7 +375,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerBack: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontSize: 17 },
@@ -380,7 +401,7 @@ const s = StyleSheet.create({
   radiusBtnText: { fontSize: 12 },
 
   callout: {
-    margin: 12, borderRadius: 16,
+    margin: 12, borderRadius: 24,
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14,
     ...Platform.select({
@@ -397,7 +418,7 @@ const s = StyleSheet.create({
   calloutSub: { fontSize: 12, marginTop: 2 },
   calloutCTA: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 100,
   },
   calloutCTAText: { fontSize: 12 },
 
@@ -410,7 +431,12 @@ const s = StyleSheet.create({
   listTitle: { fontSize: 13 },
 
   empty: { alignItems: 'center', paddingVertical: 32, gap: 10 },
-  emptyText: { fontSize: 14 },
+  emptyText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 24 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 18, paddingVertical: 9, borderRadius: 100, marginTop: 4,
+  },
+  retryBtnText: { fontSize: 13 },
 
   errTitle: { fontSize: 28, marginTop: 8 },
   errSub:   { fontSize: 14, textAlign: 'center', lineHeight: 20 },

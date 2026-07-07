@@ -15,9 +15,10 @@
 // SOURCE UNIQUE TEXTES   : i18n (namespace formules.*) — FR/NL/EN. Haptics via feedback.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   StatusBar, Animated, Easing, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +26,7 @@ import { useStripe } from '@stripe/stripe-react-native';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
+import { formatEURCents } from '@/lib/format';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
 
 const A165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
@@ -47,7 +49,8 @@ const DECOUVERTE_FALLBACK: Tier = {
 };
 
 const ratePct = (rate: number) => Math.round(rate * 100);
-const euros = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+// Formatage monétaire unifié via lib/format (plus de toFixed inline).
+const euros = (cents: number) => formatEURCents(cents);
 
 function GradientRule() {
   return <LinearGradient colors={['transparent', G.border, 'transparent']} start={AHORIZ.start} end={AHORIZ.end} style={s.rule} />;

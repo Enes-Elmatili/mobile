@@ -3,8 +3,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { InteractionManager } from 'react-native';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  SafeAreaView, ActivityIndicator, RefreshControl, Platform, StatusBar,
+  ActivityIndicator, RefreshControl, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTabBarPadding } from './_layout';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -74,7 +76,7 @@ function SummaryCard({ icon, value, label, dark, active, onPress, theme }: {
 
 const sc = StyleSheet.create({
   card: {
-    flex: 1, borderRadius: 16, padding: 14, borderWidth: 1.5, gap: 5,
+    flex: 1, borderRadius: 18, padding: 14, borderWidth: 1.5, gap: 5,
   },
   icon: {
     width: 28, height: 28, borderRadius: 8,
@@ -97,10 +99,10 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const isPaid = status === 'PAID';
   const isRefunded = status === 'REFUNDED';
   const barColor = isPaid ? COLORS.greenBrand : isRefunded ? '#888' : COLORS.orangeBrand;
-  const iconBg = isPaid ? 'rgba(61,139,61,0.08)' : isRefunded ? 'rgba(0,0,0,0.04)' : 'rgba(232,120,58,0.08)';
-  const iconColor = isPaid ? COLORS.greenBrand : isRefunded ? '#999' : COLORS.orangeBrand;
-  const pillBg = isPaid ? 'rgba(61,139,61,0.1)' : isRefunded ? theme.surface : 'rgba(232,120,58,0.1)';
-  const pillColor = isPaid ? COLORS.greenBrand : isRefunded ? theme.textMuted : COLORS.orangeBrand;
+  const iconBg = isPaid ? 'rgba(21,193,110,0.08)' : isRefunded ? 'rgba(0,0,0,0.04)' : 'rgba(232,120,58,0.08)';
+  const iconColor = isPaid ? theme.greenText : isRefunded ? '#999' : COLORS.orangeBrand;
+  const pillBg = isPaid ? 'rgba(21,193,110,0.1)' : isRefunded ? theme.surface : 'rgba(232,120,58,0.1)';
+  const pillColor = isPaid ? theme.greenText : isRefunded ? theme.textMuted : COLORS.orangeBrand;
   const pillLabel = isPaid ? t('ext.invoice_pill_paid') : isRefunded ? t('ext.invoice_pill_refunded') : t('ext.invoice_pill_pending');
   const iconName = isPaid ? 'check-circle' : isRefunded ? 'refresh-cw' : 'clock';
 
@@ -148,7 +150,7 @@ const iv = StyleSheet.create({
   right: { alignItems: 'flex-end', gap: 6, flexShrink: 0 },
   amount: { fontFamily: FONTS.bebas, fontSize: 17, letterSpacing: 0.4, lineHeight: 17 },
   pill: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-  pillText: { fontSize: 9, fontFamily: FONTS.sansMedium, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  pillText: { fontSize: 9, fontFamily: FONTS.sansBold, letterSpacing: 0.5, textTransform: 'uppercase' },
 });
 
 // ── Main Screen ──
@@ -163,9 +165,11 @@ export default function Documents() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [activeTab, setActiveTab] = useState<Tab>('factures');
+  const tabBarPadding = useTabBarPadding();
 
   // Deep-link "preuve de remboursement" : une notif refund ouvre directement la
   // facture de la demande concernée (passée en "Remboursé"), pas l'onglet brut.
@@ -218,8 +222,11 @@ export default function Documents() {
             return aTime - bTime;
           })
       );
+      setLoadError(false);
     } catch (e) {
       devError('Documents load error:', e);
+      // Pas d'état vide trompeur (« aucune facture ») quand c'est le réseau qui a échoué.
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -266,7 +273,7 @@ export default function Documents() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <ActivityIndicator size="large" color={theme.accent} />
       </SafeAreaView>
@@ -274,13 +281,13 @@ export default function Documents() {
   }
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
       <View style={s.header}>
         <View>
-          <Text style={[s.headerTitle, { color: theme.text }]}>DOCUMENTS</Text>
+          <Text style={[s.headerTitle, { color: theme.text }]}>{t('ext.tabs_documents').toUpperCase()}</Text>
           <Text style={[s.headerSub, { color: theme.textMuted }]}>
             {activeTab === 'factures' ? t('ext.documents_tab_invoices_sub')
               : activeTab === 'devis' ? t('ext.documents_tab_quotes_sub')
@@ -326,10 +333,32 @@ export default function Documents() {
       </View>
 
       <ScrollView
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
       >
+
+        {/* ── ERREUR DE CHARGEMENT — jamais d'état vide trompeur ── */}
+        {loadError ? (
+          <View style={[s.empty, { backgroundColor: theme.cardBg }]}>
+            <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
+              <Feather name="wifi-off" size={22} color={theme.textDisabled} />
+            </View>
+            <Text style={[s.emptyTitle, { color: theme.text }]}>Impossible de charger vos documents</Text>
+            <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
+              Vérifiez votre connexion puis réessayez.
+            </Text>
+            <TouchableOpacity
+              style={[s.emptyCta, { backgroundColor: theme.accent }]}
+              onPress={() => { setLoading(true); load(); }}
+              activeOpacity={0.85}
+            >
+              <Feather name="refresh-cw" size={14} color={theme.accentText} />
+              <Text style={[s.emptyCtaText, { color: theme.accentText }]}>{t('common.retry')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+        <>
 
         {/* ── FACTURES TAB ── */}
         {activeTab === 'factures' && (
@@ -428,7 +457,7 @@ export default function Documents() {
                 </View>
                 <Text style={[s.emptyTitle, { color: theme.text }]}>Aucun devis</Text>
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
-                  Vos devis apparaîtront ici une fois qu'un prestataire aura fait son diagnostic.
+                  Vos devis apparaîtront ici une fois qu’un prestataire aura fait son diagnostic.
                 </Text>
                 <TouchableOpacity
                   style={[s.emptyCta, { backgroundColor: theme.accent }]}
@@ -451,7 +480,7 @@ export default function Documents() {
                   const isOngoing = statusUp === 'ONGOING';
 
                   const pillTone = isSent ? COLORS.orangeBrand
-                    : isAccepted || isOngoing ? COLORS.greenBrand
+                    : isAccepted || isOngoing ? theme.greenText
                     : isPendingPay ? COLORS.amber
                     : (theme.textMuted as string);
                   const pillLabel = isPendingPay ? t('ext.documents_pill_payment')
@@ -492,8 +521,8 @@ export default function Documents() {
                         <Text style={[iv.name, { color: theme.text }]} numberOfLines={1}>{serviceName}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
                           {req.calloutFee != null && req.calloutFee > 0 && (
-                            <View style={{ backgroundColor: 'rgba(61,139,61,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: COLORS.greenBrand }}>{t('ext.documents_pill_paid_tag')}</Text>
+                            <View style={{ backgroundColor: 'rgba(21,193,110,0.12)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ fontFamily: FONTS.mono, fontSize: 9, color: theme.greenText }}>{t('ext.documents_pill_paid_tag')}</Text>
                             </View>
                           )}
                           <Text style={[iv.meta, { color: theme.textMuted }]}>
@@ -565,7 +594,7 @@ export default function Documents() {
                     : isPendingPay ? t('ext.documents_pill_payment')
                     : isQuote ? t('ext.documents_pill_quote')
                     : t('ext.documents_pill_scheduled_f');
-                  const pillTone = isOngoing || isAccepted ? COLORS.greenBrand
+                  const pillTone = isOngoing || isAccepted ? theme.greenText
                     : isQuote ? COLORS.orangeBrand
                     : COLORS.amber;
                   const pillBg = `${pillTone}1A`;
@@ -607,6 +636,9 @@ export default function Documents() {
               </View>
             )}
           </>
+        )}
+
+        </>
         )}
 
       </ScrollView>
@@ -660,7 +692,7 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   sectionLabel: {
-    fontFamily: FONTS.sansMedium, fontSize: 10, fontWeight: '600',
+    fontFamily: FONTS.sansBold, fontSize: 10,
     letterSpacing: 1.5, textTransform: 'uppercase',
   },
   sectionAction: {

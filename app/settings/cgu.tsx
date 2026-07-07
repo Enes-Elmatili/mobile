@@ -1,9 +1,10 @@
 // app/settings/cgu.tsx — Conditions Générales d'Utilisation (v1.0 — 15 mars 2026)
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -96,7 +97,7 @@ const ARTICLES = [
   },
   {
     n: '16', title: 'Contact',
-    body: 'Pour toute question relative aux présentes CGU :\n– E-mail : support@thefixed.app\n– Site web : www.thefixed.app\n– Adresse : Belgique (adresse complète à insérer après constitution de la SRL)\n\nFIXED PLATEFORM SRL — CGU Clients — Version 1.0, 15 mars 2026',
+    body: 'Pour toute question relative aux présentes CGU :\n– E-mail : support@thefixed.app\n– Site web : www.thefixed.app\n– Adresse : Av. Maeterlinck 54, 1030 Schaerbeek, Belgique\n– TVA / BCE : BE1037.044.717\n\nFIXED PLATEFORM SRL — CGU Clients — Version 1.0, 15 mars 2026',
   },
 ];
 
@@ -149,7 +150,7 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 17 },
   scroll: { padding: 16, paddingBottom: 48, gap: 4 },
 
-  introCard: { borderRadius: 18, padding: 20, gap: 8, marginBottom: 12 },
+  introCard: { borderRadius: 24, padding: 20, gap: 8, marginBottom: 12 },
   introVersion: { fontSize: 11 },
   introTitle: { fontSize: 28, letterSpacing: 1 },
   introText: { fontSize: 13, lineHeight: 20 },

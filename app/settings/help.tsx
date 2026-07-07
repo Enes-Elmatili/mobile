@@ -10,9 +10,10 @@
 //   7. Footer contact (email + WhatsApp + horaires + SLA "réponse sous 2h")
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Linking, Platform, StatusBar, TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -134,14 +135,17 @@ export default function HelpScreen() {
   const [query, setQuery] = useState('');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsTab, setTicketsTab] = useState<'open' | 'closed'>('open');
+  const [ticketsError, setTicketsError] = useState(false);
 
   const loadTickets = async () => {
     try {
       const res: any = await api.tickets.list();
       const list = res?.data || res?.tickets || res;
       setTickets(Array.isArray(list) ? list : []);
+      setTicketsError(false);
     } catch {
       setTickets([]);
+      setTicketsError(true);
     }
   };
 
@@ -192,7 +196,7 @@ export default function HelpScreen() {
           activeOpacity={0.75}
           accessibilityLabel={t('help.back_label')}
         >
-          <Feather name="chevron-left" size={20} color={theme.text} />
+          <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
         <Text style={[s.headerLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
           {t('help.header')}
@@ -290,6 +294,21 @@ export default function HelpScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Erreur de chargement des tickets (≠ absence de tickets) ──────── */}
+        {ticketsError && tickets.length === 0 && (
+          <TouchableOpacity
+            style={[s.ticketsErrorRow, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+            onPress={loadTickets}
+            activeOpacity={0.8}
+          >
+            <Feather name="alert-triangle" size={14} color={theme.textSub} />
+            <Text style={[s.ticketsErrorText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+              Impossible de charger vos tickets. Appuyez pour réessayer.
+            </Text>
+            <Feather name="refresh-cw" size={13} color={theme.textMuted} />
+          </TouchableOpacity>
+        )}
 
         {/* ── Mes tickets (ouverts + résolus) ──────────────────────────────── */}
         {tickets.length > 0 && (
@@ -496,7 +515,7 @@ const s = StyleSheet.create({
   // Action cards
   actionsRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
   actionCard: {
-    flex: 1, borderRadius: 14, borderWidth: 1,
+    flex: 1, borderRadius: 18, borderWidth: 1,
     paddingHorizontal: 14, paddingVertical: 14,
     gap: 10,
   },
@@ -508,6 +527,12 @@ const s = StyleSheet.create({
   actionSub: { fontSize: 11 },
 
   // Tickets section
+  ticketsErrorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 14, borderWidth: 1, marginBottom: 22,
+  },
+  ticketsErrorText: { flex: 1, fontSize: 13 },
   ticketsSection: { marginBottom: 22 },
   ticketsHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

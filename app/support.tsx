@@ -5,9 +5,10 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
+  View, Text, StyleSheet, StatusBar,
   TouchableOpacity, Animated, Easing, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
@@ -203,7 +204,7 @@ function MissionContextCard({ mission, onChange, theme }: {
 const ctxStyles = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12,
     borderWidth: 1, marginBottom: 16,
   },
   iconWrap: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
@@ -224,38 +225,41 @@ export default function SupportScreen() {
   const [level, setLevel] = useState<Level>(1);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedProblem, setSelectedProblem] = useState<ProblemOption | null>(null);
   const [missionStatus, setMissionStatus] = useState<string | null>(null);
 
   // Charge les missions récentes — auto-sélectionne si missionId en deep-link.
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.requests.list();
-        const all = (res.data || res || []) as Mission[];
-        const sorted = all
-          .filter(m => !!m && !!m.id)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setMissions(sorted);
+  const missionIdParam = params.missionId;
+  const loadMissions = useCallback(async () => {
+    try {
+      const res = await api.requests.list();
+      const all = (res.data || res || []) as Mission[];
+      const sorted = all
+        .filter(m => !!m && !!m.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setMissions(sorted);
+      setLoadError(false);
 
-        if (params.missionId) {
-          const target = Number(params.missionId);
-          const match = sorted.find(m => m.id === target);
-          if (match) {
-            setSelectedMission(match);
-            setMissionStatus(match.status);
-            setLevel(2);
-          }
+      if (missionIdParam) {
+        const target = Number(missionIdParam);
+        const match = sorted.find(m => m.id === target);
+        if (match) {
+          setSelectedMission(match);
+          setMissionStatus(match.status);
+          setLevel(2);
         }
-      } catch (err) {
-        devError('[SUPPORT] Failed to load missions:', err);
-      } finally {
-        setLoading(false);
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch (err) {
+      devError('[SUPPORT] Failed to load missions:', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [missionIdParam]);
+
+  useEffect(() => { loadMissions(); }, [loadMissions]);
 
   // ─── Handlers ──
   const handleMissionSelect = useCallback((mission: Mission) => {
@@ -304,12 +308,12 @@ export default function SupportScreen() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: theme.surface }]}
+          style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="chevron-left" size={20} color={theme.text} />
+          <Feather name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
@@ -345,6 +349,19 @@ export default function SupportScreen() {
 
         {level === 1 && (
           <FadeSlide key="level1">
+            {loadError && !loading && (
+              <TouchableOpacity
+                style={[s.errorBanner, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+                onPress={() => { setLoading(true); loadMissions(); }}
+                activeOpacity={0.8}
+              >
+                <Feather name="alert-triangle" size={15} color={theme.textSub} />
+                <Text style={[s.errorBannerText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+                  Impossible de charger vos missions. Appuyez pour réessayer.
+                </Text>
+                <Feather name="refresh-cw" size={14} color={theme.textMuted} />
+              </TouchableOpacity>
+            )}
             <MissionSelector
               missions={missions}
               loading={loading}
@@ -387,7 +404,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 12,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { alignItems: 'center', gap: 1 },
@@ -396,4 +413,10 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 13, textAlign: 'center', paddingHorizontal: 32, marginBottom: 18 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 14, borderWidth: 1, marginBottom: 12,
+  },
+  errorBannerText: { flex: 1, fontSize: 13 },
 });

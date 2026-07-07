@@ -1,9 +1,10 @@
 // app/settings/privacy.tsx — Confidentialité
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, Platform, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -76,7 +77,7 @@ export default function PrivacyScreen() {
         <Section title={t('ext.privacy_section_rights')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_rights_body')}{' '}
-            <Text style={[s.link, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>privacy@fixed.app</Text>.
+            <Text style={[s.link, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>hello@thefixed.app</Text>.
           </Text>
         </Section>
 

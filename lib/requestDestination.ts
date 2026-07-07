@@ -35,8 +35,10 @@ const DASHBOARD: RequestDestination =
   { pathname: '/(tabs)/dashboard', replace: true, ctaKey: 'go_to_space', icon: 'grid' };
 const PROVIDER_MISSIONS: RequestDestination =
   { pathname: '/(tabs)/missions', replace: true, ctaKey: 'cta_view_missions', icon: 'briefcase' };
+// L'onglet Opportunités vit DANS l'écran Missions (tab interne par défaut) —
+// l'ancien écran /(tabs)/opportunities a été supprimé.
 const PROVIDER_OPPORTUNITIES: RequestDestination =
-  { pathname: '/(tabs)/opportunities', replace: true, ctaKey: 'cta_view_opportunities', icon: 'compass' };
+  { pathname: '/(tabs)/missions', replace: true, ctaKey: 'cta_view_opportunities', icon: 'compass' };
 
 // Remboursement : on mène à la PREUVE — la facture précise passée en "Remboursé"
 // (ouverte directement dans l'onglet Documents via `openRequestId`).

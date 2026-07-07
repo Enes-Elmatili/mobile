@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Platform,
   TextInput,
@@ -16,12 +15,17 @@ import {
   Dimensions,
   InteractionManager,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { showSocketToast } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { devLog, devWarn } from '@/lib/logger';
+import { useTabBarPadding } from './_layout';
 import { useTranslation } from 'react-i18next';
 import { translateCategory } from '@/lib/categoryLabel';
 import { feedback } from '@/lib/feedback/feedback';
@@ -76,8 +80,7 @@ function ProviderAvatar({
           style={[av.circle, { borderRadius: size / 2 }]}
           resizeMode="cover"
           onError={(e) => {
-            // eslint-disable-next-line no-console
-            console.warn('[Avatar] Image failed to load:', avatarUri, e?.nativeEvent?.error);
+            devWarn('[Avatar] Image failed to load:', avatarUri, e?.nativeEvent?.error);
             setImgFailed(true);
           }}
         />
@@ -90,6 +93,9 @@ function ProviderAvatar({
         style={[av.badge, { backgroundColor: theme.accent, borderColor: theme.cardBg, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity * 2.5, shadowRadius: 4 }, android: { elevation: 3 } }) }]}
         activeOpacity={0.8}
         onPress={onPickPhoto}
+        hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
+        accessibilityRole="button"
+        accessibilityLabel="Changer la photo de profil"
       >
         <Feather name="camera" size={11} color={theme.accentText} />
       </TouchableOpacity>
@@ -114,9 +120,10 @@ const av = StyleSheet.create({
 // ============================================================================
 
 function StatBadge({
-  icon, iconColor, iconBg, value, label,
+  icon, iconColor, iconBg, value, label, valueColor, labelColor,
 }: {
   icon: string; iconColor: string; iconBg: string; value: string; label: string;
+  valueColor?: string; labelColor?: string;
 }) {
   const t = useAppTheme();
   return (
@@ -124,8 +131,8 @@ function StatBadge({
       <View style={[sb.iconBox, { backgroundColor: iconBg }]}>
         <Feather name={icon as any} size={16} color={iconColor} />
       </View>
-      <Text style={[sb.value, { color: t.textAlt }]}>{value}</Text>
-      <Text style={[sb.label, { color: t.textMuted }]}>{label}</Text>
+      <Text style={[sb.value, { color: valueColor || t.textAlt }]}>{value}</Text>
+      <Text style={[sb.label, { color: labelColor || t.textMuted }]}>{label}</Text>
     </View>
   );
 }
@@ -136,7 +143,7 @@ const sb = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
-  value: { fontSize: 16, fontFamily: FONTS.mono, fontWeight: '800' },
+  value: { fontSize: 16, fontFamily: FONTS.monoMedium },
   label: { fontSize: 10, fontFamily: FONTS.mono, textAlign: 'center' },
 });
 
@@ -215,8 +222,7 @@ export default function Profile() {
   const { t, i18n }                  = useTranslation();
   const router = useRouter();
   const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
+  const tabBarPadding = useTabBarPadding();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   // Dynamic sizing — sheet wraps its content
@@ -236,8 +242,8 @@ export default function Profile() {
   const [confirmPwd,  setConfirmPwd]  = useState('');
   const [pwdSaving,   setPwdSaving]   = useState(false);
   const [avatarUri,   setAvatarUri]   = useState<string | null>(null);
-  const [stripeReady, setStripeReady]  = useState(false);
   const [isVerified,  setIsVerified]  = useState(false);
+  const [refreshing,  setRefreshing]  = useState(false);
   // Category management
   const [allCategories, setAllCategories] = useState<any[]>([]);
   const [selectedCatIds, setSelectedCatIds] = useState<number[]>([]);
@@ -248,7 +254,9 @@ export default function Profile() {
 
   const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
   const email = user?.email || '';
-  const roles = user?.roles?.join(' · ') || 'Prestataire';
+  // Rôles traduits (pas l'enum brut "CLIENT · PROVIDER" à l'écran).
+  const ROLE_LABELS: Record<string, string> = { CLIENT: 'Client', PROVIDER: 'Prestataire', ADMIN: 'Admin' };
+  const roles = (user?.roles || []).map(r => ROLE_LABELS[r] || r).join(' · ') || 'Client';
 
   // ── Chargement avatar : URL serveur en priorité (source de vérité) ──
   // Stratégie : on privilégie l'URL serveur car les `file://` locaux cachés peuvent
@@ -259,22 +267,23 @@ export default function Profile() {
     (async () => {
       const rawApiUrl = (user as any)?.avatarUrl;
       const apiUri = resolveAvatarUrl(rawApiUrl);
-      console.log('[Avatar] Init useEffect — user.avatarUrl:', rawApiUrl, '→ resolved:', apiUri);
+      devLog('[Avatar] Init useEffect — user.avatarUrl:', rawApiUrl, '→ resolved:', apiUri);
       if (apiUri) {
         setAvatarUri(apiUri);
         return;
       }
       // Pas d'URL serveur (jamais uploadé OU /me en échec) → tente la cache
       const cached = await AsyncStorage.getItem(avatarKey(user.id));
-      console.log('[Avatar] No API URL, cache value:', cached);
+      devLog('[Avatar] No API URL, cache value:', cached);
       if (cached) setAvatarUri(cached);
     })();
   }, [user?.id, (user as any)?.avatarUrl]);
 
-  // ── Chargement consolidé : provider stats + stripe + tickets en 1 seul useEffect ──
-  useEffect(() => {
+  // ── Chargement consolidé : provider stats + tickets + adresses ──
+  // Relancé au focus (cache court) + pull-to-refresh : tickets, adresses et badge
+  // "vérifié" ne restent plus périmés après une création ailleurs dans l'app.
+  const loadProfileData = useCallback(() => {
     if (!user?.id) return;
-    const task = InteractionManager.runAfterInteractions(() => {
     const isProvider = user?.roles?.includes('PROVIDER');
 
     const promises: Promise<any>[] = [
@@ -284,11 +293,10 @@ export default function Profile() {
       promises.push(
         api.get<any>('/providers/me').catch(() => null),
         api.wallet.balance().catch(() => null),
-        api.connect.status().catch(() => null),
       );
     }
 
-    Promise.all(promises).then(([ticketsRes, provRes, walletRes, stripeRes]) => {
+    Promise.all(promises).then(([ticketsRes, provRes, walletRes]) => {
       // Tickets — on garde tout (la card filtre les ouverts pour l'affichage)
       const tickets = ticketsRes?.data || ticketsRes?.tickets || ticketsRes;
       if (Array.isArray(tickets)) setTickets(tickets);
@@ -326,12 +334,25 @@ export default function Profile() {
           earnings: formatEURInt(balanceCents / 100),
         }));
       }
-      // Stripe
-      setStripeReady(!!(stripeRes?.isStripeReady || stripeRes?.isConnected));
-    });
-    });
-    return () => task.cancel();
-  }, [user?.id]);
+    }).finally(() => setRefreshing(false));
+  }, [user?.id, user?.roles]);
+
+  const lastFetchRef = useRef(0);
+  useFocusEffect(useCallback(() => {
+    if (!user?.id) return;
+    const now = Date.now();
+    if (now - lastFetchRef.current > 60_000) { // cache court — évite le spam réseau
+      lastFetchRef.current = now;
+      const task = InteractionManager.runAfterInteractions(() => loadProfileData());
+      return () => task.cancel();
+    }
+  }, [user?.id, loadProfileData]));
+
+  const onRefresh = () => {
+    lastFetchRef.current = Date.now();
+    setRefreshing(true);
+    loadProfileData();
+  };
 
   // ── Photo upload ──────────────────────────────────────────────────────────
   const handlePickPhoto = useCallback(async () => {
@@ -393,7 +414,7 @@ export default function Profile() {
       // mais possible avec collision ou retry).
       const baseUri = resolveAvatarUrl(data?.avatarUrl);
       const serverUri = baseUri ? `${baseUri}?t=${Date.now()}` : null;
-      console.log('[Avatar] Upload OK — server URL:', baseUri, '→ display URI:', serverUri);
+      devLog('[Avatar] Upload OK — server URL:', baseUri, '→ display URI:', serverUri);
       if (serverUri && user?.id) {
         await AsyncStorage.setItem(avatarKey(user.id), serverUri).catch(() => {});
         setAvatarUri(serverUri);
@@ -625,7 +646,7 @@ export default function Profile() {
   ];
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.bg }]}>
@@ -633,18 +654,25 @@ export default function Profile() {
           <Text style={[s.headerGreeting, { color: theme.textMuted }]}>
             {t('profile.member_since', { year: new Date((user as any)?.createdAt || Date.now()).getFullYear() })}
           </Text>
-          <Text style={[s.headerTitle, { color: theme.text }]}>PROFIL</Text>
+          <Text style={[s.headerTitle, { color: theme.text }]}>{t('ext.tabs_profile').toUpperCase()}</Text>
         </View>
         <TouchableOpacity
           style={[s.settingsBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => bottomSheetRef.current?.expand()}
           activeOpacity={0.7}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Paramètres"
         >
           <Feather name="settings" size={18} color={theme.text} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+      >
 
         {/* Hero Card — dark premium */}
         <View style={[s.heroCard, { backgroundColor: theme.heroBg }]}>
@@ -660,13 +688,39 @@ export default function Profile() {
                 </View>
                 {isVerified && (
                   <View style={s.verifiedBadge}>
-                    <Feather name="check" size={9} color={COLORS.greenBrand} />
-                    <Text style={s.verifiedBadgeText}>{t('profile.verified')}</Text>
+                    <Feather name="check" size={9} color={theme.greenText} />
+                    <Text style={[s.verifiedBadgeText, { color: theme.greenText }]}>{t('profile.verified')}</Text>
                   </View>
                 )}
               </View>
             </View>
           </View>
+
+          {/* Stats prestataire — chargées via /providers/me + /wallet/balance */}
+          {!isClientOnly && (
+            <View style={s.heroStats}>
+              <StatBadge
+                icon="star" iconColor={COLORS.amber} iconBg="rgba(232,168,56,0.12)"
+                value={profileStats.rating} label={t('profile.stat_rating')}
+                valueColor="rgba(255,255,255,0.85)" labelColor="rgba(255,255,255,0.3)"
+              />
+              <StatBadge
+                icon="zap" iconColor="rgba(255,255,255,0.6)" iconBg="rgba(255,255,255,0.07)"
+                value={profileStats.missions} label={t('profile.stat_missions')}
+                valueColor="rgba(255,255,255,0.85)" labelColor="rgba(255,255,255,0.3)"
+              />
+              <StatBadge
+                icon="credit-card" iconColor={theme.greenText} iconBg="rgba(21,193,110,0.1)"
+                value={profileStats.earnings} label={t('profile.stat_wallet')}
+                valueColor="rgba(255,255,255,0.85)" labelColor="rgba(255,255,255,0.3)"
+              />
+              <StatBadge
+                icon="percent" iconColor="rgba(255,255,255,0.6)" iconBg="rgba(255,255,255,0.07)"
+                value={profileStats.acceptance} label={t('profile.stat_acceptance')}
+                valueColor="rgba(255,255,255,0.85)" labelColor="rgba(255,255,255,0.3)"
+              />
+            </View>
+          )}
 
           {/* Stats strip */}
           <View style={s.heroStrip}>
@@ -676,20 +730,26 @@ export default function Profile() {
               <Text style={s.stripLabel}>{t('profile.strip_member')}</Text>
             </View>
             <View style={s.stripItem}>
-              <View style={s.stripIcon}><Feather name="credit-card" size={13} color="rgba(255,255,255,0.4)" /></View>
-              <Text style={s.stripValue}>•••• 4242</Text>
-              <Text style={s.stripLabel}>{t('profile.strip_payment')}</Text>
-            </View>
-            <View style={s.stripItem}>
               <View style={s.stripIcon}><Feather name="map-pin" size={13} color="rgba(255,255,255,0.4)" /></View>
               <Text style={s.stripValue}>{(user as any)?.city || t('profile.default_city')}</Text>
               <Text style={s.stripLabel}>{t('profile.strip_address')}</Text>
             </View>
-            <View style={s.stripItem}>
-              <View style={[s.stripIcon, s.stripIconGreen]}><Feather name="shield" size={13} color={COLORS.green} /></View>
-              <Text style={[s.stripValue, { color: COLORS.green }]}>{t('profile.active')}</Text>
-              <Text style={s.stripLabel}>{t('profile.strip_status')}</Text>
-            </View>
+            {/* Statut réel : pour un prestataire, reflète validationStatus (ACTIVE → vérifié).
+                Un client a un compte actif par définition (session ouverte). */}
+            {(() => {
+              const statusOk = isClientOnly || isVerified;
+              return (
+                <View style={s.stripItem}>
+                  <View style={[s.stripIcon, statusOk && s.stripIconGreen]}>
+                    <Feather name="shield" size={13} color={statusOk ? theme.greenText : COLORS.amber} />
+                  </View>
+                  <Text style={[s.stripValue, { color: statusOk ? theme.greenText : COLORS.amber }]}>
+                    {statusOk ? t('profile.active') : t('dashboard.status_pending')}
+                  </Text>
+                  <Text style={s.stripLabel}>{t('profile.strip_status')}</Text>
+                </View>
+              );
+            })()}
           </View>
         </View>
 
@@ -724,7 +784,12 @@ export default function Profile() {
                         </Text>
                         <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>{addr.address}</Text>
                       </View>
-                      <TouchableOpacity onPress={() => handleDeleteAddress(addr.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteAddress(addr.id)}
+                        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Supprimer cette adresse"
+                      >
                         <Feather name="trash-2" size={16} color={theme.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -817,7 +882,7 @@ export default function Profile() {
           <MenuSection items={dangerItems} />
         </View>
 
-        <Text style={[s.version, { color: theme.textDisabled }]}>FIXED v1.0.0 · Brussels</Text>
+        <Text style={[s.version, { color: theme.textDisabled }]}>FIXED v{Constants.expoConfig?.version ?? '1.0.0'} · Bruxelles</Text>
       </ScrollView>
 
       {/* Modal — Édition informations personnelles */}
@@ -830,6 +895,8 @@ export default function Profile() {
               onPress={() => setEditVisible(false)}
               disabled={saving}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Fermer"
             >
               <Feather name="x" size={18} color={theme.textAlt} />
             </TouchableOpacity>
@@ -1246,7 +1313,7 @@ export default function Profile() {
                         {(user as any)?.authProvider === 'apple' ? 'Apple ID' : 'Google'}
                       </Text>
                     </View>
-                    <Feather name="check-circle" size={18} color={COLORS.green} />
+                    <Feather name="check-circle" size={18} color={theme.greenText} />
                   </View>
                 </View>
               </>
@@ -1263,8 +1330,13 @@ export default function Profile() {
                   destructive: true,
                 });
                 if (!ok) return;
-                // TODO : appeler api.account.delete() quand l'endpoint existe
-                showSocketToast(t('ext.profile_delete_request_sent'), 'info');
+                try {
+                  await api.delete('/me');
+                  await signOut();
+                  router.replace('/(auth)/login');
+                } catch (e: any) {
+                  showSocketToast(e?.message || t('common.error'), 'error');
+                }
               }}
               style={{ marginTop: 28, marginBottom: 8, paddingVertical: 12, alignItems: 'center' }}
               activeOpacity={0.6}
@@ -1291,7 +1363,7 @@ export default function Profile() {
         handleIndicatorStyle={{ backgroundColor: theme.border }}
         maxDynamicContentSize={Dimensions.get('window').height * 0.7}
       >
-        <BottomSheetScrollView contentContainerStyle={[s.sheetContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
+        <BottomSheetScrollView contentContainerStyle={[s.sheetContent, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
           <View style={[s.sheetHandle, { backgroundColor: theme.border }]} />
           <Text style={[s.sheetTitle, { color: theme.textAlt }]}>Paramètres</Text>
           {sheetItems.map((item, i) => (
@@ -1371,13 +1443,19 @@ const s = StyleSheet.create({
   },
   verifiedBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(61,139,61,0.12)',
-    borderWidth: 1, borderColor: 'rgba(61,139,61,0.22)',
+    backgroundColor: 'rgba(21,193,110,0.12)',
+    borderWidth: 1, borderColor: 'rgba(21,193,110,0.22)',
     borderRadius: 6, paddingHorizontal: 9, paddingVertical: 4,
   },
   verifiedBadgeText: {
     fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 1,
     textTransform: 'uppercase', color: COLORS.green,
+  },
+
+  // Stats prestataire (StatBadge x4)
+  heroStats: {
+    flexDirection: 'row',
+    marginTop: 18, marginBottom: 4,
   },
 
   // Strip stats
@@ -1395,7 +1473,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
-  stripIconGreen: { backgroundColor: 'rgba(61,139,61,0.1)' },
+  stripIconGreen: { backgroundColor: 'rgba(21,193,110,0.1)' },
   stripValue: {
     fontFamily: FONTS.mono, fontSize: 11,
     color: 'rgba(255,255,255,0.75)', textAlign: 'center',
@@ -1470,7 +1548,7 @@ const tk = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
   },
   pillText: {
-    fontSize: 9, fontFamily: FONTS.sansMedium, fontWeight: '700',
+    fontSize: 9, fontFamily: FONTS.sansBold,
     letterSpacing: 0.5, textTransform: 'uppercase',
   },
   viewAll: {

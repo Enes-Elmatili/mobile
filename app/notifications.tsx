@@ -3,10 +3,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, FlatList,
+  View, Text, StyleSheet, FlatList,
   TouchableOpacity, ActivityIndicator, RefreshControl,
   Platform, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -200,10 +201,10 @@ export default function NotificationsScreen() {
       <View style={[s.header, { backgroundColor: theme.bg }]}>
         <TouchableOpacity
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
-          style={s.backBtn}
+          style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Feather name="arrow-left" size={22} color={theme.textAlt} />
+          <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
 
         <View style={s.headerCenter}>
@@ -269,7 +270,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitle: { fontSize: 22, letterSpacing: 1 },
   headerBadge: {

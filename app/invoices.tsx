@@ -2,9 +2,10 @@
 // Liste scrollable de toutes les factures du client ou provider
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   FlatList, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -30,14 +31,18 @@ export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   const loadInvoices = useCallback(async () => {
     try {
       const result = await api.invoices.list();
       setInvoices(result?.data || []);
+      setLoadError(false);
     } catch {
+      // Pas d'état vide trompeur (« aucune facture ») sur une panne réseau.
       setInvoices([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,11 +96,11 @@ export default function InvoicesScreen() {
           </Text>
           <View style={[s.statusPill, {
             backgroundColor: isPaid
-              ? theme.isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.06)'
+              ? theme.isDark ? 'rgba(21,193,110,0.15)' : 'rgba(21,193,110,0.06)'
               : theme.isDark ? 'rgba(255,165,0,0.15)' : 'rgba(255,165,0,0.06)',
           }]}>
             <Text style={[s.statusText, {
-              color: isPaid ? COLORS.green : COLORS.amber,
+              color: isPaid ? theme.greenText : COLORS.amber,
               fontFamily: FONTS.sansMedium,
             }]}>
               {isPaid ? t('ext.invoice_paid') : t('ext.invoice_pending')}
@@ -112,8 +117,8 @@ export default function InvoicesScreen() {
 
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={s.backBtn} activeOpacity={0.7}>
-          <Feather name="chevron-left" size={24} color={theme.textAlt} />
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, letterSpacing: 0.5 }]}>Mes factures</Text>
         <View style={{ width: 40 }} />
@@ -146,15 +151,35 @@ export default function InvoicesScreen() {
           <ActivityIndicator size="large" color={theme.textMuted} />
         </View>
       ) : invoices.length === 0 ? (
-        <View style={s.center}>
-          <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
-            <Feather name="file-text" size={28} color={theme.textMuted} />
+        loadError ? (
+          <View style={s.center}>
+            <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
+              <Feather name="wifi-off" size={28} color={theme.textMuted} />
+            </View>
+            <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Impossible de charger vos factures</Text>
+            <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+              Vérifiez votre connexion puis réessayez.
+            </Text>
+            <TouchableOpacity
+              style={[s.retryBtn, { backgroundColor: theme.accent }]}
+              onPress={() => { setLoading(true); loadInvoices(); }}
+              activeOpacity={0.85}
+            >
+              <Feather name="refresh-cw" size={14} color={theme.accentText} />
+              <Text style={[s.retryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('wallet.empty')}</Text>
-          <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            {t('ext.invoice_empty')}
-          </Text>
-        </View>
+        ) : (
+          <View style={s.center}>
+            <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
+              <Feather name="file-text" size={28} color={theme.textMuted} />
+            </View>
+            <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucune facture</Text>
+            <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+              {t('ext.invoice_empty')}
+            </Text>
+          </View>
+        )
       ) : (
         <FlatList
           data={invoices}
@@ -190,7 +215,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 0.5,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, letterSpacing: -0.3 },
 
   summaryCard: {
@@ -233,6 +258,11 @@ const s = StyleSheet.create({
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 32 },
   emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: 16 },
+  emptyTitle: { fontSize: 16, textAlign: 'center' },
   emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 20, paddingVertical: 11, borderRadius: 100, marginTop: 6,
+  },
+  retryBtnText: { fontSize: 14 },
 });

@@ -19,6 +19,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
+import { TAB_BAR_HEIGHT } from './_layout';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
@@ -33,50 +34,8 @@ import { devWarn, devLog } from '@/lib/logger';
 const TIMER_DURATION = 60;
 
 // -- Map style "Light Mono" --
-const LIGHT_MAP_STYLE = [
-  { elementType: 'geometry',           stylers: [{ color: '#F0F0F0' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#F5F5F5' }] },
-  { featureType: 'landscape',          elementType: 'geometry',         stylers: [{ color: '#F8F9FB' }] },
-  { featureType: 'landscape.man_made', elementType: 'geometry',         stylers: [{ color: '#EFEFEF' }] },
-  { featureType: 'road',               elementType: 'geometry',         stylers: [{ color: '#FFFFFF' }] },
-  { featureType: 'road',               elementType: 'geometry.stroke',  stylers: [{ color: '#E8E8E8' }] },
-  { featureType: 'road',               elementType: 'labels.text.fill', stylers: [{ color: '#ADADAD' }] },
-  { featureType: 'road.arterial',      elementType: 'geometry',         stylers: [{ color: '#F5F5F5' }] },
-  { featureType: 'road.highway',       elementType: 'geometry',         stylers: [{ color: '#EBEBEB' }] },
-  { featureType: 'road.highway',       elementType: 'geometry.stroke',  stylers: [{ color: '#DEDEDE' }] },
-  { featureType: 'road.highway',       elementType: 'labels.text.fill', stylers: [{ color: '#999999' }] },
-  { featureType: 'road.local',         elementType: 'geometry',         stylers: [{ color: '#FAFAFA' }] },
-  { featureType: 'water',              elementType: 'geometry',         stylers: [{ color: '#D1D5DB' }] },
-  { featureType: 'water',              elementType: 'labels.text.fill', stylers: [{ color: '#ADADAD' }] },
-  { featureType: 'administrative',     elementType: 'geometry',         stylers: [{ color: '#E0E0E0' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { featureType: 'poi',      stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',  stylers: [{ visibility: 'off' }] },
-];
-
-// -- Map style "Dark Mono" --
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#666666' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
-  { featureType: 'landscape',          elementType: 'geometry',         stylers: [{ color: '#141414' }] },
-  { featureType: 'landscape.man_made', elementType: 'geometry',         stylers: [{ color: '#1C1C1C' }] },
-  { featureType: 'road',               elementType: 'geometry',         stylers: [{ color: '#2A2A2A' }] },
-  { featureType: 'road',               elementType: 'geometry.stroke',  stylers: [{ color: '#222222' }] },
-  { featureType: 'road',               elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-  { featureType: 'road.arterial',      elementType: 'geometry',         stylers: [{ color: '#282828' }] },
-  { featureType: 'road.highway',       elementType: 'geometry',         stylers: [{ color: '#303030' }] },
-  { featureType: 'road.highway',       elementType: 'geometry.stroke',  stylers: [{ color: '#282828' }] },
-  { featureType: 'road.highway',       elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-  { featureType: 'road.local',         elementType: 'geometry',         stylers: [{ color: '#242424' }] },
-  { featureType: 'water',              elementType: 'geometry',         stylers: [{ color: '#111111' }] },
-  { featureType: 'water',              elementType: 'labels.text.fill', stylers: [{ color: '#444444' }] },
-  { featureType: 'administrative',     elementType: 'geometry',         stylers: [{ color: '#222222' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
-  { featureType: 'poi',      stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',  stylers: [{ visibility: 'off' }] },
-];
+// -- Map styles (source unique) --
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
 
 // ============================================================================
 // UTILS
@@ -316,12 +275,12 @@ function IncomingJobCard({
             </View>
           ) : request.price > 0 ? (
             <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
-              <View style={[jc.infoIcon, { backgroundColor: 'rgba(61,139,61,0.10)', borderColor: 'rgba(61,139,61,0.15)' }]}>
-                <Feather name="credit-card" size={15} color={COLORS.greenBrand} />
+              <View style={[jc.infoIcon, { backgroundColor: 'rgba(21,193,110,0.10)', borderColor: 'rgba(21,193,110,0.15)' }]}>
+                <Feather name="credit-card" size={15} color={theme.greenText} />
               </View>
               <View style={jc.infoContent}>
                 <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.estimated_earnings')}</Text>
-                <Text style={[jc.infoValue, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>{t('provider.net_after_commission')}</Text>
+                <Text style={[jc.infoValue, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>{t('provider.net_after_commission')}</Text>
               </View>
               <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
                 <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{netPrice} €</Text>
@@ -549,17 +508,37 @@ const ci = StyleSheet.create({
 // STATS KPI
 // ============================================================================
 
-function StatsSection({ loading }: { loading: boolean }) {
+function StatsSection({ loading, stats }: { loading: boolean; stats: ProviderStats }) {
   const t = useAppTheme();
   if (loading) {
     return (
       <View style={[ss.loadingRow, { backgroundColor: t.surface }]}>
-        {[0,1,2,3].map(i => (
+        {[0,1,2].map(i => (
           <View key={i} style={[ss.shimmer, { backgroundColor: t.border }]} />
         ))}
       </View>
     );
   }
+  return (
+    <View style={[ss.kpiRow, { backgroundColor: t.cardBg, borderColor: t.borderLight }]}>
+      <View style={ss.kpiItem}>
+        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.jobsCompleted}</Text>
+        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>MISSIONS</Text>
+      </View>
+      <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
+      <View style={ss.kpiItem}>
+        <Text style={[ss.kpiNum, ss.kpiGold]}>
+          {stats.avgRating.toFixed(1)}<Text style={ss.kpiStar}> ★</Text>
+        </Text>
+        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>NOTE</Text>
+      </View>
+      <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
+      <View style={ss.kpiItem}>
+        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.rankScore}</Text>
+        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>RANG</Text>
+      </View>
+    </View>
+  );
 }
 
 const ss = StyleSheet.create({
@@ -605,7 +584,7 @@ export default function ProviderDashboard() {
   const [heading,       setHeading]        = useState(0);
   const [, setLocationError] = useState(false);
   const [wallet,        setWallet]         = useState<WalletData | null>(null);
-  const [, setStats]          = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
+  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
   const [statsLoading,  setStatsLoading]  = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
 
@@ -989,7 +968,7 @@ export default function ProviderDashboard() {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
-        customMapStyle={(theme.isDark || activeJob) ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
+        customMapStyle={(theme.isDark || activeJob) ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -1102,7 +1081,7 @@ export default function ProviderDashboard() {
           </View>
 
           {/* Ligne 3 -- KPIs */}
-          <StatsSection loading={statsLoading} />
+          <StatsSection loading={statsLoading} stats={stats} />
 
         </Animated.View>
       )}
@@ -1114,7 +1093,7 @@ export default function ProviderDashboard() {
         <Animated.View
           style={[
             s.cmbWrap,
-            { opacity: fadeAnim },
+            { bottom: insets.bottom + TAB_BAR_HEIGHT + 12, opacity: fadeAnim },
           ]}
           pointerEvents="box-none"
         >
@@ -1248,7 +1227,7 @@ const s = StyleSheet.create({
   cmbWrap: {
     position: 'absolute',
     left: 0, right: 0,
-    bottom: Platform.OS === 'ios' ? 96 : 80,
+    // `bottom` calcule dynamiquement (insets.bottom + TAB_BAR_HEIGHT) a l'usage.
     alignItems: 'center',
   },
   cmbPill: {

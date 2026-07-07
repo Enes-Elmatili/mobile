@@ -2,15 +2,18 @@
 // Solde · filtres · historique consolide par mission
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  FlatList, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity,
+  FlatList, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView,
   Platform, RefreshControl, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTabBarPadding } from './_layout';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
+import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devError } from '@/lib/logger';
 import { formatEUR as fmtEur } from '@/lib/format';
@@ -127,22 +130,25 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
   }[item.status];
 
   const isGain = item.status === 'released' || item.status === 'credit';
+  // vert de marque illisible en texte/icône sur fond clair → greenText theme-aware (tint gardé)
+  const cfgIconFg  = cfg.iconColor  === COLORS.green ? t.greenText : cfg.iconColor;
+  const cfgBadgeFg = cfg.badgeColor === COLORS.green ? t.greenText : cfg.badgeColor;
 
   return (
     <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
-        <Feather name={cfg.icon} size={18} color={cfg.iconColor} />
+        <Feather name={cfg.icon} size={18} color={cfgIconFg} />
       </View>
       <View style={styles.txInfo}>
         <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{item.label}</Text>
         <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.date)} · {fmtTime(item.date)}</Text>
       </View>
       <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: isGain ? COLORS.green : item.status === 'pending' ? t.textMuted : COLORS.red }]}>
+        <Text style={[styles.txAmount, { color: isGain ? t.greenText : item.status === 'pending' ? t.textMuted : COLORS.red }]}>
           {cfg.sign}{fmtEur(fromCents(item.amount))}
         </Text>
         <View style={[styles.txBadge, { backgroundColor: cfg.badgeColor + '18' }]}>
-          <Text style={[styles.txBadgeText, { color: cfg.badgeColor }]}>{cfg.badge}</Text>
+          <Text style={[styles.txBadgeText, { color: cfgBadgeFg }]}>{cfg.badge}</Text>
         </View>
       </View>
     </View>
@@ -153,10 +159,12 @@ function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
 function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
   const { t: tr } = useTranslation();
   const st = WD_STATUS_CFG[item.status] ?? WD_STATUS_CFG.PENDING;
+  // vert de marque illisible en texte/icône sur fond clair → greenText theme-aware (tint gardé)
+  const stFg = st.color === COLORS.green ? t.greenText : st.color;
   return (
     <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
       <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
-        <Feather name="credit-card" size={18} color={st.color} />
+        <Feather name="credit-card" size={18} color={stFg} />
       </View>
       <View style={styles.txInfo}>
         <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{tr('wallet.withdraw')}</Text>
@@ -166,12 +174,144 @@ function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
       <View style={styles.txRight}>
         <Text style={[styles.txAmount, { color: COLORS.red }]}>−{fmtEur(fromCents(item.amount))}</Text>
         <View style={[styles.txBadge, { backgroundColor: st.color + '18' }]}>
-          <Text style={[styles.txBadgeText, { color: st.color }]}>{tr(st.i18nKey)}</Text>
+          <Text style={[styles.txBadgeText, { color: stFg }]}>{tr(st.i18nKey)}</Text>
         </View>
       </View>
     </View>
   );
 }
+
+// --- Modale de retrait (portee depuis l'ancien app/wallet.tsx) ---
+interface WithdrawModalProps {
+  visible: boolean;
+  balance: number; // en centimes
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalProps) {
+  const theme = useAppTheme();
+  const { t } = useTranslation();
+  const [amount, setAmount] = useState('');
+  const [iban, setIban] = useState('');
+  const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    const amt = parseFloat(amount.replace(',', '.'));
+    if (!Number.isFinite(amt) || amt <= 0) {
+      feedback.error(t('wallet.invalid_amount'));
+      return;
+    }
+    const balanceEur = fromCents(balance);
+    if (amt > balanceEur) {
+      feedback.error(t('wallet.insufficient_balance'));
+      return;
+    }
+    setLoading(true);
+    try {
+      // Le backend attend des centimes (entiers)
+      await api.wallet.withdraw(Math.round(amt * 100), iban.trim() || undefined, note.trim() || undefined);
+      setAmount('');
+      setIban('');
+      setNote('');
+      onSuccess();
+    } catch (e: any) {
+      feedback.error(e?.message || t('wallet.withdraw_error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView style={wm.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
+        <View style={[wm.sheet, { backgroundColor: theme.cardBg }]}>
+          <View style={[wm.handle, { backgroundColor: theme.border }]} />
+          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.wallet_withdraw_title')}</Text>
+          <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.wallet_available_balance')} : {fmtEur(fromCents(balance))}</Text>
+
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_amount_eur')}</Text>
+          <TextInput
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
+            placeholder={t('ext.wallet_amount_placeholder')}
+            placeholderTextColor={theme.textMuted}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            returnKeyType="next"
+          />
+
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_iban_optional')}</Text>
+          <TextInput
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.mono }]}
+            placeholder="BE12 3456 7890 1234"
+            placeholderTextColor={theme.textMuted}
+            value={iban}
+            onChangeText={setIban}
+            autoCapitalize="characters"
+            returnKeyType="next"
+          />
+
+          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_note_optional')}</Text>
+          <TextInput
+            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
+            placeholder={t('ext.wallet_note_placeholder')}
+            placeholderTextColor={theme.textMuted}
+            value={note}
+            onChangeText={setNote}
+            returnKeyType="done"
+          />
+
+          <Text style={[wm.notice, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+            {t('ext.wallet_withdraw_notice')}
+          </Text>
+
+          <TouchableOpacity
+            style={[wm.btn, { backgroundColor: theme.accent }, loading && wm.btnDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading
+              ? <ActivityIndicator color={theme.accentText} />
+              : <Text style={[wm.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_confirm_withdraw')}</Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity style={wm.cancelBtn} onPress={onClose} activeOpacity={0.7}>
+            <Text style={[wm.cancelText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const wm = StyleSheet.create({
+  overlay:    { flex: 1, justifyContent: 'flex-end' },
+  backdrop:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+  },
+  handle:     { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  title:      { fontSize: 28, marginBottom: 4 },
+  subtitle:   { fontSize: 14, marginBottom: 22 },
+  label:      { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 7 },
+  input: {
+    borderRadius: 14, height: 50, paddingHorizontal: 16,
+    fontSize: 15, marginBottom: 14,
+    borderWidth: 1,
+  },
+  notice:     { fontSize: 12, lineHeight: 18, marginBottom: 20, marginTop: 4 },
+  btn:        { borderRadius: 100, height: 55, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  btnDisabled:{ opacity: 0.6 },
+  btnText:    { fontSize: 16 },
+  cancelBtn:  { alignItems: 'center', paddingVertical: 12 },
+  cancelText: { fontSize: 15 },
+});
 
 // ====================================================================
 // MAIN SCREEN
@@ -187,9 +327,12 @@ export default function WalletTab() {
   const [stripeReady, setStripeReady]   = useState(false);
   const [stripeLoading, setStripeLoading] = useState(false);
   const [filter, setFilter]             = useState<Filter>('all');
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [balanceError, setBalanceError] = useState(false);
   const t = useAppTheme();
   const { t: tr } = useTranslation();
   const router = useRouter();
+  const tabBarPadding = useTabBarPadding();
 
   const load = useCallback(async () => {
     try {
@@ -205,6 +348,11 @@ export default function WalletTab() {
         setBalance(b?.balance ?? 0);
         setEscrowAmount(b?.escrowAmount ?? 0);
         setTotalEarnings(b?.totalEarnings ?? 0);
+        setBalanceError(false);
+      } else {
+        // Le solde n'a pas pu etre charge : ne pas afficher un faux "0,00 €".
+        devError('[WalletTab] balance error:', balData.reason);
+        setBalanceError(true);
       }
       if (txData.status === 'fulfilled') {
         const raw = txData.value as any;
@@ -235,6 +383,13 @@ export default function WalletTab() {
     }
   }, [load]));
   const onRefresh = () => { lastWalletFetch.current = 0; setRefreshing(true); load(); };
+
+  const handleWithdrawSuccess = () => {
+    setShowWithdraw(false);
+    showSocketToast(tr('ext.wallet_request_sent_sub'), 'success');
+    lastWalletFetch.current = 0;
+    load();
+  };
 
   const handleOpenStripeDashboard = useCallback(async () => {
     setStripeLoading(true);
@@ -381,6 +536,8 @@ export default function WalletTab() {
           style={[styles.headerIconBtn, { backgroundColor: t.surface, borderColor: t.borderLight }]}
           onPress={onRefresh}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Actualiser"
         >
           <Feather name="refresh-cw" size={18} color={t.text} />
         </TouchableOpacity>
@@ -413,6 +570,17 @@ export default function WalletTab() {
           <Text style={[styles.heroTotalValue, { color: t.heroText }]}>{fmtEur(fromCents(totalEarnings))}</Text>
         </View>
 
+        {/* Bouton retrait — call to action principal (porte depuis l'ancien /wallet) */}
+        <TouchableOpacity
+          style={[styles.withdrawBtn, { backgroundColor: t.isDark ? t.bg : '#FFF' }, fromCents(balance) <= 0 && styles.withdrawBtnDisabled]}
+          onPress={() => setShowWithdraw(true)}
+          disabled={fromCents(balance) <= 0}
+          activeOpacity={0.85}
+        >
+          <Feather name="upload" size={17} color={t.text} />
+          <Text style={[styles.withdrawBtnText, { color: t.text }]}>{tr('ext.wallet_withdraw_funds')}</Text>
+        </TouchableOpacity>
+
         {!stripeReady && (
           <View style={styles.payoutNotice}>
             <Feather name="info" size={14} color={t.heroSub} />
@@ -420,6 +588,19 @@ export default function WalletTab() {
           </View>
         )}
       </View>
+
+      {/* -- Bannière erreur solde -- */}
+      {balanceError && (
+        <TouchableOpacity
+          style={[styles.errorBanner, { backgroundColor: COLORS.red + '15', borderColor: COLORS.red + '40' }]}
+          onPress={onRefresh}
+          activeOpacity={0.8}
+        >
+          <Feather name="alert-triangle" size={15} color={COLORS.red} />
+          <Text style={[styles.errorBannerText, { color: t.text }]}>Solde indisponible. Appuyez pour réessayer.</Text>
+          <Feather name="refresh-cw" size={14} color={t.textMuted} />
+        </TouchableOpacity>
+      )}
 
       {/* -- Stripe link -- */}
       <TouchableOpacity
@@ -477,9 +658,17 @@ export default function WalletTab() {
         data={filteredItems}
         keyExtractor={item => item.key}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarPadding }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+      />
+
+      {/* -- Modale retrait -- */}
+      <WithdrawModal
+        visible={showWithdraw}
+        balance={balance}
+        onClose={() => setShowWithdraw(false)}
+        onSuccess={handleWithdrawSuccess}
       />
     </SafeAreaView>
   );
@@ -534,6 +723,24 @@ const styles = StyleSheet.create({
   payoutNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   payoutNoticeText: { fontSize: 12, fontFamily: FONTS.sans },
 
+  // Bouton retrait
+  withdrawBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 14, paddingHorizontal: 22, paddingVertical: 12,
+    marginTop: 16, alignSelf: 'stretch',
+  },
+  withdrawBtnDisabled: { opacity: 0.4 },
+  withdrawBtnText: { fontSize: 15, fontFamily: FONTS.sansMedium },
+
+  // Bannière erreur
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 16, marginBottom: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 14, borderWidth: 1,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, fontFamily: FONTS.sansMedium },
+
   // Stripe link
   stripeLink: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
@@ -562,7 +769,7 @@ const styles = StyleSheet.create({
   // Tx card
   txCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12,
     marginBottom: 8,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },

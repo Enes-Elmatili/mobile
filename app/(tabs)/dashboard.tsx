@@ -8,11 +8,9 @@ import {
   TouchableOpacity,
   Pressable,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Platform,
   Dimensions,
   Animated,
   StatusBar,
@@ -29,22 +27,22 @@ import { useCall } from '../../lib/webrtc/CallContext';
 import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
+import { useTabBarPadding } from './_layout';
+import { formatEUR } from '@/lib/format';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import type { AppTheme } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
-import {
-  Card as FixedCard,
-  SectionHeader as FixedSectionHeader,
-  IconBtn as FixedIconBtn,
-  StatusChip as FixedStatusChip,
-  Avatar as FixedAvatar,
-  Price as FixedPrice,
-} from '@/components/fixed';
+import FixedCard from '@/components/ui/Card';
+import FixedSectionHeader from '@/components/ui/SectionHeader';
+import FixedIconBtn from '@/components/ui/IconBtn';
+import FixedStatusChip from '@/components/ui/StatusBadge';
+import FixedAvatar from '@/components/ui/Avatar';
+import FixedPrice from '@/components/ui/PriceDisplay';
 
 // ─── Press feel constants (tier-1 haptic + opacity) ─────────────────────────
 const PRESS_PRIMARY   = 0.85;  // CTAs, cards, mission island
@@ -147,13 +145,15 @@ const CARD_GAP = 10;
 
 // Le `label` est volontairement absent : on rend `t(`category.${key}`)` au moment
 // du render — comme ça la card s'affiche en NL / EN si le user a switché de langue.
+// NB : pas de compteur de prestataires ici — aucune API ne fournit de vrais
+// compteurs par catégorie, on n'affiche donc AUCUN chiffre mocké.
 const SERVICE_CARDS = [
-  { key: 'plomberie',   icon: 'droplet',  theme: 'black' as const, led: COLORS.green,  category: 'plomberie',   providers: 8  },
-  { key: 'electricite', icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'electricite', providers: 5  },
-  { key: 'serrurerie',  icon: 'key',      theme: 'light' as const, led: COLORS.amber,  category: 'serrurerie',  providers: 2  },
-  { key: 'chauffage',   icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'chauffage',   providers: 6  },
-  { key: 'bricolage',   icon: 'tool',     theme: 'light' as const, led: COLORS.amber,  category: 'bricolage',   providers: 3  },
-  { key: 'peinture',    icon: 'edit-2',   theme: 'light' as const, led: COLORS.red,    category: 'peinture',    providers: 0  },
+  { key: 'plomberie',   icon: 'droplet',  theme: 'black' as const, led: COLORS.green,  category: 'plomberie'   },
+  { key: 'electricite', icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'electricite' },
+  { key: 'serrurerie',  icon: 'key',      theme: 'light' as const, led: COLORS.green,  category: 'serrurerie'  },
+  { key: 'chauffage',   icon: 'zap',      theme: 'light' as const, led: COLORS.green,  category: 'chauffage'   },
+  { key: 'bricolage',   icon: 'tool',     theme: 'light' as const, led: COLORS.green,  category: 'bricolage'   },
+  { key: 'peinture',    icon: 'edit-2',   theme: 'light' as const, led: COLORS.green,  category: 'peinture'    },
 ];
 
 // Phase test : uniquement Plomberie et Serrurerie
@@ -229,9 +229,6 @@ function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => voi
                   </View>
                   <View style={runway.ledRow}>
                     <PulseDot size={6} color={card.led} />
-                    <Text style={[runway.providerCount, { color: isBlack ? 'rgba(255,255,255,0.5)' : theme.textMuted }]}>
-                      {card.providers}
-                    </Text>
                   </View>
                 </View>
 
@@ -297,7 +294,6 @@ const runway = StyleSheet.create({
   iconBox: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
 
   ledRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  providerCount: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: '600' },
 
   serviceName: { fontFamily: FONTS.bebas, fontSize: 19, letterSpacing: 0.6, lineHeight: 20 },
 
@@ -337,6 +333,9 @@ function MissionIsland({
   const pulseScale = useRef(new Animated.Value(0)).current;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [etaLabel, setEtaLabel] = useState<string>(t('dashboard.loading_eta'));
+  // "LIVE · GPS" ne s'affiche que si on a de vraies coordonnées prestataire —
+  // pas quand l'ETA vient du fallback haversine sans position live.
+  const [hasLiveGps, setHasLiveGps] = useState(false);
   const SEARCH_TIMEOUT = 15 * 60;
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -379,9 +378,11 @@ function MissionIsland({
         const req = details?.data || details;
         const provider = req?.provider;
         if (!provider?.lat || !provider?.lng || !req?.lat || !req?.lng) {
+          if (!cancelled) setHasLiveGps(false);
           setEtaLabel(t('dashboard.provider_on_way'));
           return;
         }
+        if (!cancelled) setHasLiveGps(true);
         if (GOOGLE_MAPS_API_KEY) {
           const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${provider.lat},${provider.lng}&destination=${req.lat},${req.lng}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`;
           const res = await fetch(url);
@@ -402,7 +403,7 @@ function MissionIsland({
         const min = Math.ceil((dist * 1.4 / 30) * 60);
         if (!cancelled) setEtaLabel(min <= 1 ? t('dashboard.arrival_imminent') : t('dashboard.arrival_in_min', { min }));
       } catch {
-        if (!cancelled) setEtaLabel(t('dashboard.provider_on_way'));
+        if (!cancelled) { setHasLiveGps(false); setEtaLabel(t('dashboard.provider_on_way')); }
       }
     };
     fetchETA();
@@ -432,10 +433,12 @@ function MissionIsland({
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <FixedStatusChip variant="ongoing" label={isOngoing ? t('dashboard.status_ongoing').toUpperCase() : t('dashboard.provider_on_way').toUpperCase()} t={theme} />
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 0.8 }}>
-              LIVE · GPS
-            </Text>
+            <FixedStatusChip status="ONGOING" label={isOngoing ? t('dashboard.status_ongoing').toUpperCase() : t('dashboard.provider_on_way').toUpperCase()} />
+            {hasLiveGps ? (
+              <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 0.8 }}>
+                LIVE · GPS
+              </Text>
+            ) : null}
           </View>
 
           {/* ETA — the star of the show */}
@@ -477,7 +480,6 @@ function MissionIsland({
                 avatarUrl={activeMission.provider.avatarUrl}
                 size={40}
                 verified
-                t={theme}
               />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.heroText }}>
@@ -528,7 +530,7 @@ function MissionIsland({
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <FixedStatusChip variant="warning" label={t('dashboard.search_in_progress').toUpperCase()} t={theme} />
+            <FixedStatusChip status="SEARCHING" label={t('dashboard.search_in_progress').toUpperCase()} />
             {secondsLeft !== null && (
               <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.heroSubFaint, letterSpacing: 0.5 }}>
                 {fmt(secondsLeft)}
@@ -574,7 +576,7 @@ function MissionIsland({
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <FixedStatusChip variant={isQuoteSent ? 'done' : 'pending'} label={isQuoteSent ? t('dashboard.status_quote_sent').toUpperCase() : t('dashboard.status_quote_pending').toUpperCase()} t={theme} />
+            <FixedStatusChip status={isQuoteSent ? 'QUOTE_SENT' : 'QUOTE_PENDING'} label={isQuoteSent ? t('dashboard.status_quote_sent').toUpperCase() : t('dashboard.status_quote_pending').toUpperCase()} />
             <Feather name="file-text" size={14} color={theme.heroSubFaint} />
           </View>
 
@@ -693,7 +695,7 @@ function ActivityItem({
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={PRESS_PRIMARY} style={{ marginBottom: 8 }}>
-      <FixedCard t={theme} pad={14}>
+      <FixedCard pad={14}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
             <Feather name={icon as any} size={18} color={theme.textSub} />
@@ -868,7 +870,7 @@ function UpcomingIslandCard({
         {isAccepted ? (
           <View style={uc.statusBadge}>
             <View style={[uc.statusDot, { backgroundColor: COLORS.greenBrand }]} />
-            <Text style={[uc.statusText, { color: COLORS.greenBrand }]}>
+            <Text style={[uc.statusText, { color: theme.greenText }]}>
               {request.provider?.name ? `${request.provider.name}` : t('dashboard.confirmed')}
             </Text>
           </View>
@@ -885,7 +887,7 @@ function UpcomingIslandCard({
 
 const uc = StyleSheet.create({
   card: {
-    borderRadius: 16, borderWidth: 1,
+    borderRadius: 18, borderWidth: 1,
     padding: 16, gap: 14,
   },
 
@@ -943,7 +945,7 @@ function DashboardSkeleton({ theme }: { theme: AppTheme }) {
   );
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={{ paddingBottom: 32 }}>
         {/* Topbar */}
@@ -1013,13 +1015,13 @@ export default function Dashboard() {
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showAllRequests, setShowAllRequests] = useState(false);
   const [invoiceVisible, setInvoiceVisible] = useState(false);
-  const insets = useSafeAreaInsets();
-  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
+  const tabBarPadding = useTabBarPadding();
 
   // CTA squeezy scale animation (tier-1 feel)
   const ctaScale = useRef(new Animated.Value(1)).current;
@@ -1034,8 +1036,10 @@ export default function Dashboard() {
     try {
       const response = await api.get('/client/dashboard');
       setData(response.data || response);
+      setLoadError(false);
     } catch (error) {
       devError('Dashboard load error:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1274,14 +1278,30 @@ export default function Dashboard() {
   const name = data?.me?.name || user?.email?.split('@')[0] || '';
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
       <ScrollView
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Bannière d'erreur réseau + retry ── */}
+        {loadError && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+            marginHorizontal: 16, marginTop: 8, marginBottom: 4,
+            borderRadius: 12, padding: 12, backgroundColor: theme.surface,
+          }}>
+            <Feather name="alert-circle" size={15} color={theme.text} />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: FONTS.sans, color: theme.text }}>
+              Impossible de charger vos données.
+            </Text>
+            <TouchableOpacity onPress={() => { hapticLight(); loadDashboard(); }}>
+              <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text }}>{t('common.retry')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {/* ══════════════════════════════════════════════════════════════
             ADAPTIVE TOP: État A (idle) vs État B (mission active)
             Quand une mission est active, elle ÉCRASE le hero.
@@ -1292,15 +1312,15 @@ export default function Dashboard() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: (activeMission || searchingMission || quoteMission) ? 12 : 16 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 4 }}>
-                {data?.me?.city?.toUpperCase() || 'BRUSSELS'}
+                {data?.me?.city?.toUpperCase() || t('profile.default_city').toUpperCase()}
               </Text>
               <Text style={{ fontFamily: FONTS.bebas, fontSize: (activeMission || searchingMission || quoteMission) ? 22 : 28, color: theme.text, letterSpacing: 0.4 }}>
                 {`${getGreeting(t)}, ${name.split(' ')[0]}`}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <FixedIconBtn icon="bell" t={theme} badge={unreadCount > 0} onPress={() => { hapticLight(); router.push('/notifications'); }} />
-              <FixedIconBtn icon="message-square" t={theme} badge={unreadMessages > 0} onPress={() => { hapticLight(); router.push('/messages'); }} />
+              <FixedIconBtn icon="bell" accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} non lues` : 'Notifications'} badge={unreadCount > 0} onPress={() => { hapticLight(); router.push('/notifications'); }} />
+              <FixedIconBtn icon="message-square" accessibilityLabel={unreadMessages > 0 ? `Messages, ${unreadMessages} non lus` : 'Messages'} badge={unreadMessages > 0} onPress={() => { hapticLight(); router.push('/messages'); }} />
             </View>
           </View>
         </View>
@@ -1308,7 +1328,7 @@ export default function Dashboard() {
         {/* ── ÎLOT NOIR — un seul bloc, deux états ── */}
         <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
           <View style={{
-            backgroundColor: theme.heroBg, borderRadius: 20, overflow: 'hidden',
+            backgroundColor: theme.heroBg, borderRadius: 24, overflow: 'hidden',
             borderWidth: theme.isDark ? 1 : 0, borderColor: theme.borderLight,
           }}>
             {(activeMission || searchingMission || quoteMission) ? (
@@ -1369,11 +1389,11 @@ export default function Dashboard() {
               />
             ) : (
               /* ── État idle : "Besoin d'un pro ?" ── */
-              <View style={{ padding: 20 }}>
+              <View style={{ padding: 22 }}>
                 <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
                   {t('dashboard.available_24_7')}
                 </Text>
-                <Text style={{ fontFamily: FONTS.bebas, fontSize: 28, color: theme.heroText, letterSpacing: 0.4, marginBottom: 18 }}>
+                <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, color: theme.heroText, letterSpacing: 0.4, marginBottom: 20, lineHeight: 32 }}>
                   {t('dashboard.hero_title')}
                 </Text>
                 <Pressable
@@ -1381,15 +1401,15 @@ export default function Dashboard() {
                   onPressOut={() => { Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }).start(); }}
                   onPress={() => { hapticMedium(); router.push('/request/NewRequestStepper'); }}
                 >
+                  {/* CTA pill blanche pleine — signature du kit fixed-design (hero island) */}
                   <Animated.View style={[{
-                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    borderRadius: 13, paddingVertical: 14,
-                    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)',
-                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 8,
+                    borderRadius: 100, paddingVertical: 11, paddingHorizontal: 18,
+                    backgroundColor: '#F4F4F2',
                     transform: [{ scale: ctaScale }],
                   }]}>
-                    <Feather name="plus" size={16} color={theme.heroText} />
-                    <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.heroText }}>
+                    <Feather name="plus" size={17} color="#0A0A0A" />
+                    <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: '#0A0A0A' }}>
                       {t('dashboard.new_request')}
                     </Text>
                   </Animated.View>
@@ -1403,7 +1423,7 @@ export default function Dashboard() {
         {upcomingRequests.length > 0 && (
           <>
             <View style={{ marginTop: 22 }}>
-              <FixedSectionHeader label={t('dashboard.upcoming')} action={String(upcomingRequests.length)} t={theme} />
+              <FixedSectionHeader label={t('dashboard.upcoming')} action={String(upcomingRequests.length)} />
             </View>
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {upcomingRequests.map((req) => (
@@ -1426,7 +1446,7 @@ export default function Dashboard() {
 
         {/* ── POPULAR SERVICES (2x2 grid) ── */}
         <View style={{ marginTop: 26 }}>
-          <FixedSectionHeader label="SERVICES" t={theme} />
+          <FixedSectionHeader label={t('dashboard.services_available').toUpperCase()} />
         </View>
         <View style={{ paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {LAUNCH_CARDS.map((card) => (
@@ -1439,14 +1459,11 @@ export default function Dashboard() {
               activeOpacity={PRESS_PRIMARY}
               style={{ width: (Dimensions.get('window').width - 42) / 2 }}
             >
-              <FixedCard t={theme} pad={14}>
+              <FixedCard pad={14}>
                 <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
                   <Feather name={card.icon as any} size={18} color={theme.text} />
                 </View>
                 <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text }}>{t(`category.${card.key}`, { defaultValue: card.key })}</Text>
-                <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.6, marginTop: 3 }}>
-                  {card.providers} PROS
-                </Text>
               </FixedCard>
             </TouchableOpacity>
           ))}
@@ -1454,7 +1471,7 @@ export default function Dashboard() {
 
         {/* ── ACTIVITÉ RÉCENTE ── */}
         <View style={{ marginTop: 26 }}>
-          <FixedSectionHeader label={t('dashboard.recent_activity').toUpperCase()} action={totalCount ? String(totalCount) : undefined} t={theme} onAction={() => { hapticLight(); onRefresh(); }} />
+          <FixedSectionHeader label={t('dashboard.recent_activity').toUpperCase()} action={totalCount ? String(totalCount) : undefined} onAction={() => { hapticLight(); onRefresh(); }} />
         </View>
 
         <View style={s.activityList}>
@@ -1508,7 +1525,7 @@ export default function Dashboard() {
         handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}
         maxDynamicContentSize={Dimensions.get('window').height * 0.85}
       >
-        <BottomSheetScrollView contentContainerStyle={[s.sheet, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
+        <BottomSheetScrollView contentContainerStyle={[s.sheet, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
           {loadingDetails ? (
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 50 }} />
           ) : selectedRequest ? (
@@ -1523,7 +1540,7 @@ export default function Dashboard() {
               {[
                 { icon: 'file-text', val: selectedRequest.description || t('dashboard.no_description') },
                 selectedRequest.address && { icon: 'map-pin', val: selectedRequest.address },
-                selectedRequest.price    && { icon: 'dollar-sign', val: `${selectedRequest.price} €` },
+                selectedRequest.price    && { icon: 'dollar-sign', val: formatEUR(selectedRequest.price) },
               ].filter(Boolean).map((row: any, i) => (
                 <View key={i} style={s.sheetRow}>
                   <View style={[s.sheetRowIcon, { backgroundColor: theme.surface }]}>
@@ -1569,7 +1586,7 @@ export default function Dashboard() {
               {selectedRequest.status?.toUpperCase() === 'DONE' && (
                 <>
                   <View style={[s.doneCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                    <Feather name="check-circle" size={20} color={COLORS.green} />
+                    <Feather name="check-circle" size={20} color={theme.greenText} />
                     <Text style={[s.doneText, { color: theme.text }]}>{t('dashboard.mission_success')}</Text>
                   </View>
                   {invoice && (

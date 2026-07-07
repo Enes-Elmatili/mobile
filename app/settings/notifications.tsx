@@ -1,39 +1,16 @@
 // app/settings/notifications.tsx — Préférences notifications
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
-  Switch, Platform, TouchableOpacity, StatusBar,
+  View, Text, StyleSheet, ScrollView,
+  Switch, Platform, TouchableOpacity, StatusBar, Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { showSocketToast } from '@/lib/SocketContext';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { feedback } from '@/lib/feedback/feedback';
-
-// ── Storage key ────────────────────────────────────────────────────────────────
-
-const NOTIF_PREFS_KEY = '@fixed:notif:prefs';
-
-// ── Default prefs ─────────────────────────────────────────────────────────────
-
-interface NotifPrefs {
-  newMissions:  boolean;
-  messages:     boolean;
-  payments:     boolean;
-  reminders:    boolean;
-  promotions:   boolean;
-}
-
-const DEFAULT_PREFS: NotifPrefs = {
-  newMissions: true,
-  messages:    true,
-  payments:    true,
-  reminders:   true,
-  promotions:  false,
-};
 
 // ── Toggle Row ────────────────────────────────────────────────────────────────
 
@@ -85,56 +62,11 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useAppTheme();
-  const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
 
   const sound = useFeedbackPrefs((s) => s.sound);
   const haptics = useFeedbackPrefs((s) => s.haptics);
   const animations = useFeedbackPrefs((s) => s.animations);
   const setPref = useFeedbackPrefs((s) => s.setPref);
-
-  useEffect(() => {
-    AsyncStorage.getItem(NOTIF_PREFS_KEY).then(raw => {
-      if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
-    });
-  }, []);
-
-  const toggle = (key: keyof NotifPrefs) => (value: boolean) => {
-    const next = { ...prefs, [key]: value };
-    setPrefs(next);
-    AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next)).catch(() => {});
-    showSocketToast(value ? t('ext.settings_activated') : t('ext.settings_deactivated'), 'success');
-  };
-
-  const ITEMS: {
-    key: keyof NotifPrefs; icon: string;
-    label: string; sublabel: string;
-  }[] = [
-    {
-      key: 'newMissions', icon: 'briefcase',
-      label: t('settings.notif_new_missions'),
-      sublabel: t('ext.settings_notif_new_missions_sub'),
-    },
-    {
-      key: 'messages', icon: 'message-circle',
-      label: t('settings.notif_messages'),
-      sublabel: t('ext.settings_notif_messages_sub'),
-    },
-    {
-      key: 'payments', icon: 'credit-card',
-      label: t('settings.notif_payments'),
-      sublabel: t('ext.settings_notif_payments_sub'),
-    },
-    {
-      key: 'reminders', icon: 'clock',
-      label: t('settings.notif_reminders'),
-      sublabel: t('ext.settings_notif_reminders_sub'),
-    },
-    {
-      key: 'promotions', icon: 'tag',
-      label: t('settings.notif_promotions'),
-      sublabel: t('ext.settings_notif_promotions_sub'),
-    },
-  ];
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -148,17 +80,33 @@ export default function NotificationsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {/* ── Notifications push : gérées au niveau du système ──
+            Les préférences fines par type ne sont pas encore branchées au
+            backend d'envoi ; plutôt qu'afficher des interrupteurs sans effet,
+            on renvoie vers le seul réglage réellement opérant (l'OS). ── */}
         <View style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-          {ITEMS.map((item) => (
-            <ToggleRow
-              key={item.key}
-              icon={item.icon}
-              label={item.label}
-              sublabel={item.sublabel}
-              value={prefs[item.key]}
-              onToggle={toggle(item.key)}
-            />
-          ))}
+          <View style={s.systemRow}>
+            <View style={[s.systemIcon, { backgroundColor: theme.surface }]}>
+              <Feather name="bell" size={18} color={theme.textSub} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.systemTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Notifications push</Text>
+              <Text style={[s.systemSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
+                Les notifications (missions, messages, paiements) sont gérées par votre téléphone.
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[s.systemBtn, { borderTopColor: theme.borderLight }]}
+            onPress={() => Linking.openSettings()}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Ouvrir les réglages système"
+          >
+            <Feather name="settings" size={16} color={theme.accent} />
+            <Text style={[s.systemBtnText, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Ouvrir les réglages système</Text>
+            <Feather name="chevron-right" size={16} color={theme.textVeryMuted} />
+          </TouchableOpacity>
         </View>
         {/* ── Feedback & sound ── */}
         <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('feedback.settings.section')}</Text>
@@ -219,4 +167,22 @@ const s = StyleSheet.create({
     fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.2,
     marginBottom: 8, marginTop: 8, paddingHorizontal: 4,
   },
+
+  // Notifications système
+  systemRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14,
+  },
+  systemIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  systemTitle: { fontSize: 15, marginBottom: 3 },
+  systemSub: { fontSize: 12, lineHeight: 17 },
+  systemBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderTopWidth: 1,
+  },
+  systemBtnText: { flex: 1, fontSize: 14 },
 });

@@ -4,19 +4,20 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, SafeAreaView,
+  RefreshControl, ActivityIndicator,
   Animated, Dimensions, Linking, Platform,
   TextInput, ScrollView, Modal, Pressable,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useTabBarPadding } from './_layout';
 import { useSocket } from '@/lib/SocketContext';
 import { useCall } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
@@ -32,50 +33,8 @@ const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
 const { width } = Dimensions.get('window');
 const NET_RATE = 0.80;
 
-// --- Grayscale map style ---
-const LIGHT_MAP_STYLE = [
-  { elementType: 'geometry',           stylers: [{ color: '#F0F0F0' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#F5F5F5' }] },
-  { featureType: 'landscape',          elementType: 'geometry',         stylers: [{ color: '#F8F9FB' }] },
-  { featureType: 'landscape.man_made', elementType: 'geometry',         stylers: [{ color: '#EFEFEF' }] },
-  { featureType: 'road',               elementType: 'geometry',         stylers: [{ color: '#FFFFFF' }] },
-  { featureType: 'road',               elementType: 'geometry.stroke',  stylers: [{ color: '#E8E8E8' }] },
-  { featureType: 'road',               elementType: 'labels.text.fill', stylers: [{ color: '#ADADAD' }] },
-  { featureType: 'road.arterial',      elementType: 'geometry',         stylers: [{ color: '#F5F5F5' }] },
-  { featureType: 'road.highway',       elementType: 'geometry',         stylers: [{ color: '#EBEBEB' }] },
-  { featureType: 'road.highway',       elementType: 'geometry.stroke',  stylers: [{ color: '#DEDEDE' }] },
-  { featureType: 'road.highway',       elementType: 'labels.text.fill', stylers: [{ color: '#999999' }] },
-  { featureType: 'road.local',         elementType: 'geometry',         stylers: [{ color: '#FAFAFA' }] },
-  { featureType: 'water',              elementType: 'geometry',         stylers: [{ color: '#D1D5DB' }] },
-  { featureType: 'water',              elementType: 'labels.text.fill', stylers: [{ color: '#ADADAD' }] },
-  { featureType: 'administrative',     elementType: 'geometry',         stylers: [{ color: '#E0E0E0' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { featureType: 'poi',      stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',  stylers: [{ visibility: 'off' }] },
-];
-
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#666666' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#111111' }] },
-  { featureType: 'landscape',          elementType: 'geometry',         stylers: [{ color: '#151515' }] },
-  { featureType: 'landscape.man_made', elementType: 'geometry',         stylers: [{ color: '#1C1C1C' }] },
-  { featureType: 'road',               elementType: 'geometry',         stylers: [{ color: '#2A2A2A' }] },
-  { featureType: 'road',               elementType: 'geometry.stroke',  stylers: [{ color: '#222222' }] },
-  { featureType: 'road',               elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-  { featureType: 'road.arterial',      elementType: 'geometry',         stylers: [{ color: '#282828' }] },
-  { featureType: 'road.highway',       elementType: 'geometry',         stylers: [{ color: '#333333' }] },
-  { featureType: 'road.highway',       elementType: 'geometry.stroke',  stylers: [{ color: '#2A2A2A' }] },
-  { featureType: 'road.highway',       elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-  { featureType: 'road.local',         elementType: 'geometry',         stylers: [{ color: '#232323' }] },
-  { featureType: 'water',              elementType: 'geometry',         stylers: [{ color: '#0E0E0E' }] },
-  { featureType: 'water',              elementType: 'labels.text.fill', stylers: [{ color: '#444444' }] },
-  { featureType: 'administrative',     elementType: 'geometry',         stylers: [{ color: '#222222' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
-  { featureType: 'poi',      stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',  stylers: [{ visibility: 'off' }] },
-];
+// --- Grayscale map style (source unique) ---
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
 
 // ============================================================================
 // TYPES
@@ -481,12 +440,26 @@ function MissionCard({
 
           <View style={mc.quickActions}>
             {canNavigate && (
-              <TouchableOpacity style={[mc.quickBtn, { backgroundColor: t.surface }]} onPress={onNavigate} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={[mc.quickBtn, { backgroundColor: t.surface }]}
+                onPress={onNavigate}
+                activeOpacity={0.8}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel="Itinéraire vers la mission"
+              >
                 <Feather name="navigation" size={15} color={t.text} />
               </TouchableOpacity>
             )}
             {canComplete && (
-              <TouchableOpacity style={[mc.quickBtn, { backgroundColor: t.surface }]} onPress={onComplete} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={[mc.quickBtn, { backgroundColor: t.surface }]}
+                onPress={onComplete}
+                activeOpacity={0.8}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={tr('missions.complete_cta')}
+              >
                 <Feather name="check" size={15} color={t.text} />
               </TouchableOpacity>
             )}
@@ -653,7 +626,7 @@ function OpportunityCard({
   const { t: tr } = useTranslation();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const { day, time, relative } = formatScheduledDate(item.preferredTimeStart, tr);
-  const net = item.price ? (item.price * NET_RATE).toFixed(0) : null;
+  const net = item.price ? item.price * NET_RATE : null;
 
   const handlePress = () => {
     Animated.sequence([
@@ -694,7 +667,7 @@ function OpportunityCard({
         <View style={opp.infoRow}>
           <View style={opp.infoItem}>
             <Feather name="calendar" size={14} color={theme.textMuted} />
-            <Text style={[opp.infoText, { color: theme.textSub }]}>{day} a {time}</Text>
+            <Text style={[opp.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
           </View>
           <View style={opp.infoItem}>
             <Feather name="map-pin" size={14} color={theme.textMuted} />
@@ -707,7 +680,7 @@ function OpportunityCard({
         <View style={opp.cardFoot}>
           {net ? (
             <View>
-              <Text style={[opp.priceNet, { color: theme.text }]}>{net} €</Text>
+              <Text style={[opp.priceNet, { color: theme.text }]}>{formatEuros(net, 0)}</Text>
               <Text style={[opp.priceLabel, { color: theme.textMuted }]}>{tr('ext.missions_net_estimate')}</Text>
             </View>
           ) : (
@@ -748,7 +721,7 @@ function OpportunityCard({
 
 const opp = StyleSheet.create({
   card: {
-    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12,
+    borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 12,
     shadowColor: '#000', shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
@@ -866,9 +839,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const t = useAppTheme();
   const { t: tr } = useTranslation();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { initiateCall } = useCall();
-  const TAB_BAR_H = Platform.OS === 'ios' ? 70 : 54;
+  const tabBarPadding = useTabBarPadding();
   const cfg         = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const net         = mission.price * NET_RATE;
   const canComplete = mission.status === 'ONGOING';
@@ -887,13 +859,13 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
 
   return (
-    <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: TAB_BAR_H + insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
+    <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
       {/* -- Mini-carte -- */}
       {hasCoords ? (
         <View style={sd.mapContainer}>
           <MapView
             provider={PROVIDER_DEFAULT}
-            customMapStyle={t.isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
+            customMapStyle={t.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
             style={sd.map}
             initialRegion={{ latitude: lat!, longitude: lng!, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
@@ -1043,6 +1015,9 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
                     });
                   }}
                   activeOpacity={0.8}
+                  hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Envoyer un message au client"
                 >
                   <Feather name="message-circle" size={16} color={t.text} />
                 </TouchableOpacity>
@@ -1062,6 +1037,9 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
                     }
                   }}
                   activeOpacity={0.8}
+                  hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Appeler le client"
                 >
                   <Feather name="phone" size={16} color={t.accentText} />
                 </TouchableOpacity>
@@ -1187,7 +1165,9 @@ export default function Missions() {
   // Opportunity state
   const [opportunities,    setOpportunities]    = useState<Opportunity[]>([]);
   const [loadingOpps,      setLoadingOpps]      = useState(true);
+  const [oppError,         setOppError]         = useState<string | null>(null);
   const [acceptingOpp,     setAcceptingOpp]     = useState<number | null>(null);
+  const tabBarPadding = useTabBarPadding();
 
   // Modals
   const [completeModal, setCompleteModal] = useState<Mission | null>(null);
@@ -1233,12 +1213,15 @@ export default function Missions() {
       const res = await api.get('/requests/opportunities');
       const data = res?.data ?? res;
       setOpportunities(Array.isArray(data) ? data : data?.data ?? []);
+      setOppError(null);
     } catch (e) {
       devError('Opportunities load error:', e);
+      // Pas d'état vide trompeur : on distingue l'échec réseau de "0 opportunité".
+      setOppError(tr('missions.load_error'));
     } finally {
       setLoadingOpps(false);
     }
-  }, []);
+  }, [tr]);
 
   const handleAcceptOpp = useCallback(async (requestId: number) => {
     setAcceptingOpp(requestId);
@@ -1304,8 +1287,18 @@ export default function Missions() {
     };
   }, [socket, fetchOpportunities, loadMissions]);
 
-  useEffect(() => { loadMissions(); fetchOpportunities(); }, [loadMissions, fetchOpportunities]);
-  const onRefresh = () => { setRefreshing(true); loadMissions(); fetchOpportunities(); };
+  // Refetch au focus (retour depuis earnings/dashboard…) avec cache court —
+  // les sockets gèrent le temps réel, le focus rattrape les events manqués.
+  const lastFetchRef = useRef(0);
+  useFocusEffect(useCallback(() => {
+    const now = Date.now();
+    if (now - lastFetchRef.current > 60_000) {
+      lastFetchRef.current = now;
+      loadMissions();
+      fetchOpportunities();
+    }
+  }, [loadMissions, fetchOpportunities]));
+  const onRefresh = () => { lastFetchRef.current = Date.now(); setRefreshing(true); loadMissions(); fetchOpportunities(); };
 
   // -- Auto-redirect quand l'heure planifiee d'une mission ACCEPTED arrive --
   // On ne redirige QUE les missions dont le scheduledAt est strictement dans le futur
@@ -1478,14 +1471,14 @@ export default function Missions() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.center, { backgroundColor: t.bg }]}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={[s.center, { backgroundColor: t.bg }]}>
         <ActivityIndicator size="large" color={t.accent} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: t.bg }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: t.bg }]}>
 
       {/* -- Header -- */}
       <View style={[s.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
@@ -1503,6 +1496,9 @@ export default function Missions() {
               style={[s.searchIconBtn, { backgroundColor: t.surface }]}
               onPress={() => setSearchActive(true)}
               activeOpacity={0.7}
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel="Rechercher"
             >
               <Feather name="search" size={20} color={t.text} />
             </TouchableOpacity>
@@ -1522,7 +1518,13 @@ export default function Missions() {
               autoFocus
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ paddingHorizontal: 10 }}>
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={{ paddingHorizontal: 10 }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Effacer la recherche"
+              >
                 <Feather name="x-circle" size={16} color={t.textMuted} />
               </TouchableOpacity>
             )}
@@ -1533,19 +1535,22 @@ export default function Missions() {
       {/* -- Tabs -- */}
       <TabBar tab={tab} onChange={setTab} upcomingCount={upcomingMissions.length} opportunityCount={opportunities.length} />
 
+      {/* -- Erreur opportunités (échec réseau ≠ 0 opportunité) -- */}
+      {tab === 'opportunities' && !loadingOpps && oppError && (
+        <View style={[s.errorBanner, { backgroundColor: t.surface }]}>
+          <Feather name="alert-circle" size={15} color={t.text} />
+          <Text style={[s.errorText, { color: t.text }]}>{oppError}</Text>
+          <TouchableOpacity onPress={() => { setLoadingOpps(true); fetchOpportunities(); }}>
+            <Text style={[s.retryText, { color: t.text }]}>{tr('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* -- Opportunites tab -- */}
       {tab === 'opportunities' && (
         loadingOpps ? (
           <View style={s.center}>
             <ActivityIndicator size="large" color={t.accent} />
-          </View>
-        ) : opportunities.length === 0 ? (
-          <View style={opp.emptyWrap}>
-            <Feather name="search" size={48} color={t.textMuted} />
-            <Text style={[opp.emptyTitle, { color: t.text }]}>{tr('ext.missions_no_opp_title')}</Text>
-            <Text style={[opp.emptySub, { color: t.textSub }]}>
-              {tr('ext.missions_no_opp_sub')}
-            </Text>
           </View>
         ) : (
           <FlatList
@@ -1554,10 +1559,21 @@ export default function Missions() {
             renderItem={({ item }) => (
               <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} onDecline={handleDeclineOpp} accepting={acceptingOpp} />
             )}
-            contentContainerStyle={s.list}
+            contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }, !opportunities.length && s.listEmpty]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />
+            }
+            ListEmptyComponent={
+              oppError ? null : (
+                <View style={opp.emptyWrap}>
+                  <Feather name="search" size={48} color={t.textMuted} />
+                  <Text style={[opp.emptyTitle, { color: t.text }]}>{tr('ext.missions_no_opp_title')}</Text>
+                  <Text style={[opp.emptySub, { color: t.textSub }]}>
+                    {tr('ext.missions_no_opp_sub')}
+                  </Text>
+                </View>
+              )
             }
           />
         )
@@ -1595,7 +1611,7 @@ export default function Missions() {
           data={displayedList}
           renderItem={renderMission}
           keyExtractor={item => item.id}
-          contentContainerStyle={[s.list, !displayedList.length && s.listEmpty]}
+          contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }, !displayedList.length && s.listEmpty]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
           ListEmptyComponent={
             <EmptyState tab={tab} onGoOnline={() => router.replace('/(tabs)/dashboard')} dayEarnings={tab === 'upcoming' ? todayDoneEarnings : undefined} />

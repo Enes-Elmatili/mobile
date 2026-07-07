@@ -136,7 +136,7 @@ export async function handleNotificationNavigation(data: any) {
     switch (intent.kind) {
       case 'support':          router.push('/support'); return;
       case 'kyc':              router.replace('/onboarding/provider/pending'); return;
-      case 'opportunity':      router.replace('/(tabs)/opportunities'); return;
+      case 'opportunity':      router.replace('/(tabs)/missions'); return; // onglet Opportunités interne à Missions
       case 'refund':           navigateToDestination(refundDestination(intent.requestId)); return;
       case 'client-request':   await navigateToRequestById(intent.requestId, { provider: false }); return;
       case 'provider-request': await navigateToRequestById(intent.requestId, { provider: true }); return;

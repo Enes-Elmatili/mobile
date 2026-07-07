@@ -4,10 +4,11 @@
 // Affiche : récap, timeline d'avancement (basée sur status), actions disponibles.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, StatusBar, Linking,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -265,9 +266,14 @@ export default function TicketDetailScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={36} color={theme.textMuted} />
         <Text style={[s.errText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.ticket_not_found')}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-          <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
-        </TouchableOpacity>
+        <View style={s.errBtnRow}>
+          <TouchableOpacity onPress={() => { setLoading(true); load(); }} style={[s.errBtn, { backgroundColor: theme.accent }]}>
+            <Text style={[s.errBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
+            <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -287,15 +293,20 @@ export default function TicketDetailScreen() {
           activeOpacity={0.75}
           accessibilityLabel={t('common.back')}
         >
-          <Feather name="chevron-left" size={20} color={theme.text} />
+          <Feather name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
         <View style={[s.refPill, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <Text style={[s.refText, { color: theme.text, fontFamily: FONTS.monoMedium }]}>{ref}</Text>
         </View>
-        <View style={{ width: 38 }} />
+        <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={s.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={8}
+      >
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* ── Status + priority pills ───────────────────────────────────── */}
         <View style={s.pillRow}>
@@ -509,6 +520,7 @@ export default function TicketDetailScreen() {
           </TouchableOpacity>
         )}
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -517,9 +529,11 @@ export default function TicketDetailScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  errText: { fontSize: 14 },
-  errBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, marginTop: 8 },
+  kav: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  errText: { fontSize: 14, textAlign: 'center' },
+  errBtnRow: { flexDirection: 'row', gap: 10 },
+  errBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, marginTop: 8 },
   errBtnText: { fontSize: 14 },
 
   header: {
@@ -527,7 +541,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 12, borderWidth: 1,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   refPill: {
@@ -554,7 +568,7 @@ const s = StyleSheet.create({
   missionLink: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 11,
-    borderRadius: 12, borderWidth: 1,
+    borderRadius: 18, borderWidth: 1,
   },
   missionLinkText: { flex: 1, fontSize: 13 },
 
@@ -621,7 +635,7 @@ const s = StyleSheet.create({
   },
   ctaBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    paddingVertical: 14, borderRadius: 14,
+    paddingVertical: 14, borderRadius: 100,
   },
   ctaText: { fontSize: 15 },
 });
