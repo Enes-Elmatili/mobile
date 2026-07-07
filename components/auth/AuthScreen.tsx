@@ -19,8 +19,9 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authT, invertedGradient, standardGradient } from "./tokens";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
-type Variant = "inverted" | "standard";
+type Variant = "inverted" | "standard" | "flat";
 
 type Props = {
   children: React.ReactNode;
@@ -38,10 +39,14 @@ export function AuthScreen({
   scrollable = false,
   contentStyle,
 }: Props) {
+  const theme = useAppTheme();
+  const isFlat = variant === "flat";
   const grad = variant === "inverted" ? invertedGradient : standardGradient;
-  // Top of inverted gradient is dark → light status bar text.
-  // Top of standard gradient is light → dark status bar text.
-  const statusBarStyle = variant === "inverted" ? "light-content" : "dark-content";
+  // flat: fond uni theme-aware (onboarding dark par défaut, paper en light).
+  // inverted: top sombre → texte clair. standard: top clair → texte sombre.
+  const statusBarStyle = isFlat
+    ? theme.statusBar
+    : variant === "inverted" ? "light-content" : "dark-content";
 
   const Inner = (
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
@@ -52,11 +57,15 @@ export function AuthScreen({
   return (
     <View style={s.root}>
       <StatusBar barStyle={statusBarStyle} />
-      <LinearGradient
-        colors={grad.colors}
-        locations={grad.locations}
-        style={StyleSheet.absoluteFill}
-      />
+      {isFlat ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg }]} />
+      ) : (
+        <LinearGradient
+          colors={grad.colors}
+          locations={grad.locations}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {scrollable ? (
         <KeyboardAvoidingView
           style={s.flex}
