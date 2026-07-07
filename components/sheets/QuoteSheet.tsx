@@ -36,19 +36,26 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
   const [quote, setQuote] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!isVisible || !requestId) return;
+  const loadQuote = useCallback(() => {
+    if (!requestId) return;
     setLoading(true);
+    setError(false);
     setQuote(null);
     api.get(`/quotes/request/${requestId}`)
       .then((res: any) => {
         const q = res?.quotes?.[0];
         if (q) setQuote(q);
       })
-      .catch((e: any) => devError('QuoteSheet fetch error:', e))
+      .catch((e: any) => { devError('QuoteSheet fetch error:', e); setError(true); })
       .finally(() => setLoading(false));
-  }, [isVisible, requestId]);
+  }, [requestId]);
+
+  useEffect(() => {
+    if (!isVisible || !requestId) return;
+    loadQuote();
+  }, [isVisible, requestId, loadQuote]);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -104,7 +111,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
             />
           </View>
           <View style={qs.headerRight}>
-            <Text style={[qs.quoteLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>DEVIS</Text>
+            <Text style={[qs.quoteLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('quote.doc_label')}</Text>
             <Text style={[qs.quoteRef, { color: textPrimary, fontFamily: FONTS.bebas }]}>{quoteRef}</Text>
           </View>
         </View>
@@ -121,7 +128,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               </Text>
               {quote?.validUntil && (
                 <Text style={[qs.serviceMeta, { color: textMuted, fontFamily: FONTS.sans }]}>
-                  Valable jusqu'au {fmtDate(quote.validUntil)}
+                  {t('quote.valid_until', { date: fmtDate(quote.validUntil) })}
                 </Text>
               )}
             </View>
@@ -131,6 +138,21 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
           {loading ? (
             <ActivityIndicator color={accentBg} style={{ marginVertical: 24 }} />
+          ) : error ? (
+            <View style={qs.errorWrap}>
+              <Feather name="alert-circle" size={32} color={textMuted} />
+              <Text style={[qs.noQuote, { color: textMuted, fontFamily: FONTS.sans, paddingVertical: 8 }]}>
+                Impossible de charger le devis.
+              </Text>
+              <TouchableOpacity
+                style={[qs.retryBtn, { borderColor: borderColor }]}
+                onPress={loadQuote}
+                activeOpacity={0.78}
+              >
+                <Feather name="refresh-cw" size={15} color={textSecondary} />
+                <Text style={[qs.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
+              </TouchableOpacity>
+            </View>
           ) : quote ? (
             <>
               {/* Breakdown */}
@@ -165,8 +187,8 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
               {quote.calloutPaid > 0 && (
                 <View style={qs.lineRow}>
-                  <Text style={[qs.lineLabel, { color: COLORS.green, fontFamily: FONTS.sans }]}>{t('quote.deposit_paid')}</Text>
-                  <Text style={[qs.lineVal, { color: COLORS.green, fontFamily: FONTS.mono }]}>-{fmtEur(quote.calloutPaid)}</Text>
+                  <Text style={[qs.lineLabel, { color: theme.greenText, fontFamily: FONTS.sans }]}>{t('quote.deposit_paid')}</Text>
+                  <Text style={[qs.lineVal, { color: theme.greenText, fontFamily: FONTS.mono }]}>-{fmtEur(quote.calloutPaid)}</Text>
                 </View>
               )}
 
@@ -191,7 +213,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
               {/* Status badge */}
               <View style={qs.statusRow}>
-                <View style={[qs.statusBadge, { backgroundColor: isAccepted ? 'rgba(61,139,61,0.12)' : isSent ? 'rgba(232,120,58,0.12)' : 'rgba(136,136,136,0.12)' }]}>
+                <View style={[qs.statusBadge, { backgroundColor: isAccepted ? 'rgba(21,193,110,0.12)' : isSent ? 'rgba(232,120,58,0.12)' : 'rgba(136,136,136,0.12)' }]}>
                   <Feather
                     name={isAccepted ? 'check-circle' : 'clock'}
                     size={14}
@@ -231,7 +253,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               onPress={onClose}
               activeOpacity={0.78}
             >
-              <Text style={[qs.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>Fermer</Text>
+              <Text style={[qs.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -272,6 +294,11 @@ const qs = StyleSheet.create({
   remainVal: { fontSize: 36, fontVariant: ['tabular-nums'] as any, letterSpacing: -1 },
   notes: { fontSize: 14, lineHeight: 21, marginBottom: 8 },
   noQuote: { textAlign: 'center', fontSize: 14, paddingVertical: 24 },
+  errorWrap: { alignItems: 'center', gap: 10, paddingVertical: 20 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, height: 44, paddingHorizontal: 20, borderRadius: 12, borderWidth: 1.5,
+  },
   statusRow: { flexDirection: 'row', marginTop: 14, marginBottom: 4 },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

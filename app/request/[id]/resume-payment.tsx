@@ -86,7 +86,11 @@ export default function ResumePayment() {
           router.replace('/(tabs)/dashboard');
           return;
         }
-        if (req.status?.toUpperCase() !== 'PENDING_PAYMENT') {
+        const st = req.status?.toUpperCase();
+        if (st !== 'PENDING_PAYMENT') {
+          // Plus PENDING_PAYMENT (payée entre-temps, annulée…) → on explique avant de rediriger.
+          const inactive = ['CANCELLED', 'QUOTE_EXPIRED', 'QUOTE_REFUSED', 'EXPIRED', 'REFUNDED'].includes(st);
+          feedback.info(inactive ? t('ext.request_inactive_toast') : t('ext.resume_already_paid'));
           router.replace('/(tabs)/dashboard');
           return;
         }
@@ -167,11 +171,34 @@ export default function ResumePayment() {
     try {
       const { error: presentError } = await presentPaymentSheet();
       if (presentError) {
-        if (presentError.code !== 'Canceled') devError('Payment sheet error:', presentError.message);
+        if (presentError.code !== 'Canceled') {
+          // Erreur de paiement (hors annulation) → feedback explicite, pas d'écran muet.
+          devError('Payment sheet error:', presentError.message);
+          feedback.error(t('ext.resume_payment_failed'));
+        }
         return;
       }
       await confirmPaymentSuccess();
       feedback.event('payment_received');
+
+      // Flow devis (callout fee, pricingMode estimate/diagnostic) : le paiement était
+      // les frais de déplacement → on va DIRECTEMENT à l'écran d'attente de devis
+      // (pas de missionview au prix erroné, pas de hop inutile).
+      const isQuoteFlow = request?.pricingMode === 'estimate' || request?.pricingMode === 'diagnostic';
+      if (isQuoteFlow) {
+        router.replace({
+          pathname: '/request/[id]/quote-pending',
+          params: {
+            id: String(id),
+            serviceName: request?.serviceType || '',
+            address: request?.address || '',
+            calloutFee: request?.calloutFee ? String(Math.round(request.calloutFee / 100)) : '',
+            pricingMode: request?.pricingMode || '',
+          },
+        });
+        return;
+      }
+
       // Navigate to missionview or scheduled based on request
       const scheduledFor = request?.scheduledFor || request?.preferredTimeStart;
       const isScheduled = scheduledFor && new Date(scheduledFor) > new Date();
@@ -207,10 +234,12 @@ export default function ResumePayment() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity
+          style={s.backBtn}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          activeOpacity={0.75}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Feather name="chevron-left" size={20} color="rgba(255,255,255,0.6)" />
+          <Feather name="arrow-left" size={18} color="rgba(255,255,255,0.85)" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>{t('ext.invoice_payment_label')}</Text>
         <View style={{ width: 20 }} />
@@ -309,6 +338,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 48 : 28, paddingBottom: 10,
     zIndex: 2,
   },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   headerTitle: { fontFamily: FONTS.bebas, fontSize: 18, color: C.white, letterSpacing: 2 },
 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -337,7 +371,7 @@ const s = StyleSheet.create({
 
   card: {
     backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 14, padding: 14, width: '100%', gap: 10,
+    borderRadius: 18, padding: 14, width: '100%', gap: 10,
   },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardLabel: { fontFamily: FONTS.sans, fontSize: 12, color: C.grey, width: 56 },
@@ -348,7 +382,7 @@ const s = StyleSheet.create({
   infoCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     backgroundColor: C.cardBg, borderWidth: 1, borderColor: C.border,
-    borderRadius: 12, padding: 12, width: '100%',
+    borderRadius: 18, padding: 12, width: '100%',
   },
   infoText: {
     flex: 1, fontFamily: FONTS.sansLight, fontSize: 12,
@@ -361,7 +395,7 @@ const s = StyleSheet.create({
     zIndex: 2,
   },
   btnPrimary: {
-    width: '100%', height: 52, backgroundColor: C.white, borderRadius: 14,
+    width: '100%', height: 55, backgroundColor: C.white, borderRadius: 100,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
   btnDisabled: { opacity: 0.6 },
@@ -369,7 +403,7 @@ const s = StyleSheet.create({
     fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2.5, color: C.bg,
   },
   arrowPill: {
-    width: 28, height: 28, borderRadius: 8, backgroundColor: C.bg,
+    width: 28, height: 28, borderRadius: 14, backgroundColor: C.bg,
     alignItems: 'center', justifyContent: 'center',
   },
 });

@@ -28,7 +28,7 @@ import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useConversationUnread } from '@/lib/useConversationUnread';
 import { markCompletionHandled } from '@/lib/navDedup';
-import { resolveAvatarUrl } from '@/lib/avatarUrl';
+import Avatar from '@/components/ui/Avatar';
 import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -43,22 +43,7 @@ import { useTranslation } from 'react-i18next';
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
 
-/** Avatar component — real photo or initials fallback */
-function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: string | null; size?: number; style?: any }) {
-  const theme = useAppTheme();
-  const r = size / 2;
-  const base = { width: size, height: size, borderRadius: r, overflow: 'hidden' as const };
-  const resolved = resolveAvatarUrl(url);
-  if (resolved) {
-    return <Image source={{ uri: resolved }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
-  }
-  const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  return (
-    <View style={[base, { backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: theme.borderLight }, style]}>
-      <Text style={{ fontSize: size * 0.38, fontFamily: FONTS.sansMedium, color: theme.text }}>{initials}</Text>
-    </View>
-  );
-}
+// Avatar consolidé sur @/components/ui/Avatar (photo réelle + fallback initiales + onError).
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 // ─── Utils ───────────────────────────────────────────────────────────────────
@@ -353,10 +338,24 @@ export default function MissionOngoing() {
     }
   }, [id, router]);
 
+  // Quitter la mission : MÊME comportement (confirmation identique) pour le bouton
+  // système Android et la flèche back UI. Fini l'incohérence (l'un bloquait, l'autre
+  // revenait en arrière). La mission reste assignée — on peut y revenir.
+  const handleLeave = useCallback(async () => {
+    const ok = await feedback.confirm({
+      title: t('ext.ongoing_leave_title'),
+      message: t('ext.ongoing_leave_msg'),
+      confirm: t('ext.leave'),
+      cancel: t('ext.stay'),
+    });
+    if (!ok) return;
+    router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
+  }, [router]);
+
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleLeave(); return true; });
     return () => sub.remove();
-  }, []);
+  }, [handleLeave]);
   useEffect(() => { loadRequest(); }, [loadRequest]);
 
   // Re-fetch les données quand l'écran regagne le focus (retour d'app switch)
@@ -466,15 +465,30 @@ export default function MissionOngoing() {
         destructive: true,
       });
       if (!ok) return;
-      // Optimiste : on rentre au dashboard sans attendre. Le backend traite
-      // l'abandon (release providerId + status PUBLISHED + provider ONLINE).
-      router.replace('/(tabs)/dashboard');
-      api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' })
-        .catch((err) => {
-          // Network down : la mission reste assignée DB-side. L'opérateur
-          // pourra réessayer ; le cron cleanupZombieMissions filet de sécurité.
-          console.warn('[abandon] backend release failed, will retry via cron', err?.message);
-        });
+      // Plus d'optimisme silencieux : on attend la confirmation backend AVANT de
+      // naviguer. Si l'appel échoue (offline), toast d'échec + possibilité de réessayer
+      // — sinon le prestataire croit avoir abandonné alors que la mission lui reste.
+      const attempt = async (): Promise<void> => {
+        setActionLoading(true);
+        try {
+          await api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' });
+          feedback.haptic('warning');
+          router.replace('/(tabs)/dashboard');
+        } catch (err: any) {
+          console.warn('[abandon] backend release failed', err?.message);
+          feedback.error(t('ext.ongoing_abandon_failed'));
+          const retry = await feedback.confirm({
+            title: t('ext.ongoing_abandon_retry_title'),
+            message: t('ext.ongoing_abandon_retry_msg'),
+            confirm: t('common.retry'),
+            cancel: t('ext.later'),
+          });
+          if (retry) return attempt();
+        } finally {
+          setActionLoading(false);
+        }
+      };
+      await attempt();
     };
 
     const choice = await feedback.actionSheet({
@@ -676,12 +690,12 @@ export default function MissionOngoing() {
       <SafeAreaView style={s.floatingTopBar} edges={['top']} pointerEvents="box-none">
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={handleLeave}
           activeOpacity={0.8}
           accessibilityLabel={t('common.back')}
           accessibilityRole="button"
         >
-          <Feather name="chevron-left" size={22} color={theme.text} />
+          <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
 
         {/* FIXED · #ID */}
@@ -706,7 +720,7 @@ export default function MissionOngoing() {
 
       {/* ── Bottom sheet ── */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'position' : undefined}
+        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? -20 : 0}
         style={s.sheetWrapper}
       >
@@ -771,7 +785,7 @@ export default function MissionOngoing() {
 
           {/* Client row — identité + actions rapides */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Avatar url={request.client?.avatarUrl} name={request.client?.name} size={40} />
+            <Avatar avatarUrl={request.client?.avatarUrl} name={request.client?.name ?? undefined} size={40} />
             <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
                 {request.client?.name || t('provider.client')}
@@ -879,7 +893,7 @@ export default function MissionOngoing() {
           {currentStep === 2 && (
             <Pressable onPress={() => pinInputRef.current?.focus()}>
               <View style={[s.pinCard, { backgroundColor: theme.heroBg }]}>
-                <Text style={[s.pinCardLabel, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>CLIENT PIN · ASK TO VERIFY</Text>
+                <Text style={[s.pinCardLabel, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>{t('ext.ongoing_pin_card_label')}</Text>
                 <TextInput
                   ref={pinInputRef}
                   value={pin}
@@ -931,7 +945,7 @@ export default function MissionOngoing() {
           {currentStep === 3 && isQuoteMission && hasQuote && status === 'QUOTE_SENT' && (
             <ActionCard icon="clock" title={t('missions.quote_sent_card_title')} subtitle={t('missions.waiting_response')} theme={theme}>
               <View style={[s.primaryBtn, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}>
-                <Feather name="check-circle" size={20} color={COLORS.green} />
+                <Feather name="check-circle" size={20} color={theme.greenText} />
                 <Text style={[s.primaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('missions.waiting_response')}</Text>
               </View>
             </ActionCard>
@@ -947,7 +961,7 @@ export default function MissionOngoing() {
             >
               <View style={[s.ongoingBadge, { backgroundColor: theme.badgeDoneBg }]}>
                 <View style={[s.liveDot, { backgroundColor: COLORS.green }]} />
-                <Text style={[s.ongoingBadgeText, { color: COLORS.green, fontFamily: FONTS.sansMedium }]}>{t('missions.ongoing')}</Text>
+                <Text style={[s.ongoingBadgeText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>{t('missions.ongoing')}</Text>
               </View>
 
               {!afterPhotoUploaded ? (
@@ -1017,7 +1031,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 8 : 44,
+    // Le SafeAreaView edges={['top']} applique deja l'inset haut (additif) :
+    // simple respiration sous la safe area, pas de compensation status bar manuelle.
+    paddingTop: 8,
     gap: 12,
     zIndex: 10,
   },

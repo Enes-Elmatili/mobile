@@ -4,11 +4,12 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { devError } from '@/lib/logger';
 import { feedback } from '@/lib/feedback/feedback';
 import { useRouter } from 'expo-router';
@@ -16,13 +17,39 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { formatEUR } from '@/lib/format';
+
+// Clés i18n des statuts bruts de l'enum backend (traduits au rendu).
+const STATUS_KEYS: Record<string, string> = {
+  PENDING_PAYMENT: 'ext.reqstatus_pending_payment',
+  PUBLISHED: 'ext.reqstatus_published',
+  ACCEPTED: 'ext.reqstatus_accepted',
+  ONGOING: 'ext.reqstatus_ongoing',
+  QUOTE_PENDING: 'ext.reqstatus_quote_pending',
+  QUOTE_SENT: 'ext.reqstatus_quote_sent',
+  QUOTE_ACCEPTED: 'ext.reqstatus_quote_accepted',
+  QUOTE_REFUSED: 'ext.reqstatus_quote_refused',
+  QUOTE_EXPIRED: 'ext.reqstatus_quote_expired',
+  CANCELLED: 'ext.reqstatus_cancelled',
+  DONE: 'ext.reqstatus_done',
+  COMPLETED: 'ext.reqstatus_done',
+  REFUNDED: 'ext.reqstatus_refunded',
+  EXPIRED: 'ext.reqstatus_expired',
+};
 
 export default function RequestsListScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { t } = useTranslation();
+
+  const statusLabel = (status?: string): string => {
+    const key = STATUS_KEYS[(status || '').toUpperCase()];
+    return key ? t(key) : (status || '');
+  };
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     loadRequests();
@@ -30,14 +57,22 @@ export default function RequestsListScreen() {
 
   const loadRequests = async () => {
     try {
+      setError(false);
       const response = await api.requests.list();
       setRequests(response.data || response || []);
-    } catch (error) {
-      devError('Requests load error:', error);
-      feedback.error('providers.load_error');
+    } catch (err) {
+      devError('Requests load error:', err);
+      setError(true);
+      feedback.error(t('ext.reqlist_load_error'));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadRequests();
   };
 
   const renderRequest = ({ item }: any) => (
@@ -55,10 +90,10 @@ export default function RequestsListScreen() {
         {item.description}
       </Text>
       <View style={styles.footer}>
-        <Text style={[styles.status, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{item.status}</Text>
+        <Text style={[styles.status, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{statusLabel(item.status)}</Text>
         <Text style={[styles.price, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
           {item.price && item.price > 0
-            ? `${item.price}€`
+            ? formatEUR(item.price)
             : ((item as any).pricingMode === 'estimate' || (item as any).pricingMode === 'diagnostic')
               ? t('dashboard.badge_quote')
               : '—'}
@@ -87,18 +122,36 @@ export default function RequestsListScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <FlatList
-        data={requests}
-        renderItem={renderRequest}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="file-text" size={64} color={theme.textDisabled} />
-            <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.list_no_requests')}</Text>
-          </View>
-        }
-      />
+      {error && requests.length === 0 ? (
+        <View style={styles.empty}>
+          <Feather name="alert-circle" size={56} color={theme.textMuted} />
+          <Text style={[styles.emptyText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('ext.reqlist_load_error')}</Text>
+          <TouchableOpacity
+            style={[styles.retryBtn, { backgroundColor: theme.accent }]}
+            onPress={() => { setLoading(true); loadRequests(); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="refresh-cw" size={16} color={theme.accentText} />
+            <Text style={[styles.retryText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={requests}
+          renderItem={renderRequest}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Feather name="file-text" size={64} color={theme.textDisabled} />
+              <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.list_no_requests')}</Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -133,6 +186,11 @@ const styles = StyleSheet.create({
   },
   status: { fontSize: 12 },
   price: { fontSize: 18 },
-  empty: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 16, marginTop: 16 },
+  empty: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 14 },
+  emptyText: { fontSize: 16, marginTop: 4, textAlign: 'center' },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 100, paddingHorizontal: 20, paddingVertical: 12,
+  },
+  retryText: { fontSize: 14 },
 });

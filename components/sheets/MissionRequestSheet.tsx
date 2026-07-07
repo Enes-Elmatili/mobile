@@ -16,7 +16,9 @@ import {
   Platform,
   Vibration,
   Dimensions,
+  Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { feedback } from '@/lib/feedback/feedback';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -62,6 +64,7 @@ function getServiceIcon(service?: string): FeatherName {
 export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   const { t } = useTranslation();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const translateY    = useRef(new Animated.Value(SHEET_HEIGHT + 60)).current;
   const backdropAnim  = useRef(new Animated.Value(0)).current;
   const progressAnim  = useRef(new Animated.Value(1)).current;
@@ -230,16 +233,20 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   });
 
   return (
-    <View style={styles.wrapper} pointerEvents="box-none">
+    <View style={styles.wrapper}>
 
-      {/* Backdrop */}
-      <Animated.View
-        style={[styles.backdrop, { opacity: backdropOpacity }]}
-        pointerEvents="none"
-      />
+      {/* Backdrop bloquant : absorbe les taps pour que l'écran derrière ne soit pas
+          cliquable pendant l'affichage de la sheet. Un tap sur le fond ne fait rien —
+          le prestataire doit choisir explicitement Accepter ou Refuser. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => {}}>
+        <Animated.View
+          style={[styles.backdrop, { opacity: backdropOpacity }]}
+          pointerEvents="none"
+        />
+      </Pressable>
 
       {/* Sheet */}
-      <Animated.View style={[styles.sheet, { backgroundColor: theme.cardBg, transform: [{ translateY }] }]}>
+      <Animated.View style={[styles.sheet, { backgroundColor: theme.cardBg, paddingBottom: Math.max(insets.bottom, 16) + 12, transform: [{ translateY }] }]}>
 
         {/* Barre countdown */}
         <View style={[styles.progressTrack, { backgroundColor: theme.borderLight }]}>
@@ -324,7 +331,7 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius:  26,
     borderTopRightRadius: 26,
-    paddingBottom: Platform.OS === 'ios' ? 38 : 26,
+    // paddingBottom appliqué inline via useSafeAreaInsets (home bar).
     overflow: 'hidden',
     ...Platform.select({
       ios: {

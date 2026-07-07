@@ -24,8 +24,16 @@ import { formatEUR, formatEURCents } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 
 export default function EarningsScreen() {
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams<{ id?: string; earnings?: string }>();
+  const id = params.id;
   const router = useRouter();
+
+  // Gains NETS réels transmis par le backend (euros). Source de vérité — évite le
+  // recalcul 20% hardcodé, faux pour les tiers Pro/Pro+ et les missions sur devis.
+  const netEarningsParam =
+    params.earnings != null && params.earnings !== '' && Number.isFinite(Number(params.earnings))
+      ? Number(params.earnings)
+      : null;
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { t } = useTranslation();
@@ -86,7 +94,10 @@ export default function EarningsScreen() {
   useEffect(() => {
     if (loading || !request) return;
     const baseP = Number(request?.price) || 0;
-    const target = Math.round((baseP - baseP * 0.20) * 100) / 100;
+    // Priorité au net backend ; sinon fallback approximatif (ancienne commission 20%).
+    const target = netEarningsParam != null
+      ? Math.round(netEarningsParam * 100) / 100
+      : Math.round((baseP - baseP * 0.20) * 100) / 100;
     const duration = 1200;
     const steps = 40;
     const stepTime = duration / steps;
@@ -119,13 +130,21 @@ export default function EarningsScreen() {
   }
 
   const basePrice = Number(request?.price) || 0;
-  const commission = Math.round(basePrice * 0.20 * 100) / 100;
-  const net = Math.round((basePrice - commission) * 100) / 100;
+  // Net = source backend en priorité ; sinon fallback commission 20%.
+  const net = netEarningsParam != null
+    ? Math.round(netEarningsParam * 100) / 100
+    : Math.round((basePrice - basePrice * 0.20) * 100) / 100;
+  // Commission dérivée du vrai net UNIQUEMENT si on connaît le montant brut facturé
+  // (basePrice > 0). Pour une mission sur devis (price = 0), on n'invente pas de
+  // décomposition : on affiche seulement le net.
+  const commission = basePrice > 0 ? Math.max(0, Math.round((basePrice - net) * 100) / 100) : null;
 
-  const rows = [
-    { label: t('ext.earnings_mission_price'), value: formatEUR(basePrice), highlight: false },
-    { label: t('ext.earnings_commission'), value: `-${formatEUR(commission)}`, highlight: false, negative: true },
-  ];
+  const rows = basePrice > 0
+    ? [
+        { label: t('ext.earnings_mission_price'), value: formatEUR(basePrice), highlight: false },
+        { label: t('ext.earnings_commission'), value: `-${formatEUR(commission ?? 0)}`, highlight: false, negative: true },
+      ]
+    : [];
 
   return (
     <View style={[s.root, { backgroundColor: theme.heroBg }]}>
@@ -197,7 +216,7 @@ export default function EarningsScreen() {
           activeOpacity={0.85}
         >
           <View style={s.monthCardLeft}>
-            <Feather name="trending-up" size={18} color={COLORS.green} />
+            <Feather name="trending-up" size={18} color={theme.greenText} />
             <View>
               <Text style={[s.monthCardLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.earnings_month')}</Text>
               <Text style={[s.monthCardValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
@@ -281,7 +300,7 @@ const s = StyleSheet.create({
 
   // Calcul
   calcCard: {
-    borderRadius: 14,
+    borderRadius: 18,
     paddingHorizontal: 14, paddingTop: 12, paddingBottom: 2,
     marginBottom: 2,
     borderWidth: 1,
@@ -300,7 +319,7 @@ const s = StyleSheet.create({
 
   // Mission
   missionCard: {
-    borderRadius: 14, overflow: 'hidden', marginBottom: 2,
+    borderRadius: 18, overflow: 'hidden', marginBottom: 2,
     borderWidth: 1,
   },
   missionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 9 },
@@ -310,7 +329,7 @@ const s = StyleSheet.create({
   // Month card
   monthCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11,
+    borderRadius: 18, paddingHorizontal: 14, paddingVertical: 11,
     borderWidth: 1,
   },
   monthCardLeft: {

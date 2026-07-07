@@ -16,8 +16,8 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Modal,
-  LayoutAnimation,
   UIManager,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -49,45 +49,8 @@ const DEFAULT_REGION = {
 };
 
 // ─── Carte Grayscale (light) ───────────────────────────────────────────────────
-const MAP_STYLE_SILVER = [
-  { elementType: 'geometry',                                  stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.icon',                               stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',                          stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke',                        stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#bdbdbd' }] },
-  { featureType: 'poi',                        elementType: 'geometry',         stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'poi',                        elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'poi.park',                   elementType: 'geometry',         stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'poi.park',                   elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'road',                       elementType: 'geometry',         stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.arterial',              elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'road.highway',               elementType: 'geometry',         stylers: [{ color: '#dadada' }] },
-  { featureType: 'road.highway',               elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { featureType: 'road.local',                 elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'transit.line',               elementType: 'geometry',         stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'transit.station',            elementType: 'geometry',         stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'water',                      elementType: 'geometry',         stylers: [{ color: '#d9d9d9' }] },
-  { featureType: 'water',                      elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-];
-
-// ─── Carte Dark (monochrome branded — no blue) ──────────────────────────────────
-const MAP_STYLE_DARK = [
-  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
-  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
-  { featureType: 'landscape',     elementType: 'geometry', stylers: [{ color: '#222222' }] },
-  { featureType: 'poi',           stylers: [{ visibility: 'off' }] },
-  { featureType: 'road',          elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { featureType: 'road.highway',  elementType: 'geometry', stylers: [{ color: '#333333' }] },
-  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
-  { featureType: 'transit.line',  elementType: 'geometry', stylers: [{ color: '#1A1A1A' }] },
-  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#222222' }] },
-  { featureType: 'water',         elementType: 'geometry', stylers: [{ color: '#111111' }] },
-  { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-];
+// ─── Cartes Google Maps (source unique light + dark) ────────────────────────────
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
 
 // Local Ionicons→Feather icon name bridge. Used to translate legacy category
 // icon names returned by toIoniconName() into Feather glyphs without touching
@@ -170,6 +133,7 @@ function useTheme() {
     cardBorder:      t.border,
     sep:             t.borderLight,
     text:            t.text,
+    greenText:       t.greenText,
     textSub:         t.textSub,
     textMuted:       t.textMuted,
     textPlaceholder: t.textMuted,
@@ -376,6 +340,7 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
   calloutFee?:  number;
 }) {
   const t     = useTheme();
+  const { t: tr } = useTranslation();
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
@@ -409,8 +374,8 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
         <View style={[sc.dot, { backgroundColor: isQuote ? COLORS.amber : COLORS.greenBrand }, selected && { backgroundColor: t.text }]} />
         <Text style={[sc.text, { color: t.textSub }, selected && { fontFamily: FONTS.sansMedium, color: t.text }]}>{label}</Text>
         <View style={sc.right}>
-          <View style={[sc.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(61,139,61,0.15)' }]}>
-            <Text style={[sc.pillText, { color: isQuote ? COLORS.amber : COLORS.greenBrand }]}>{isQuote ? 'Sur devis' : 'Prix fixe'}</Text>
+          <View style={[sc.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(21,193,110,0.15)' }]}>
+            <Text style={[sc.pillText, { color: isQuote ? COLORS.amber : t.greenText }]}>{isQuote ? tr('stepper.pricing_quote') : tr('stepper.pricing_fixed')}</Text>
           </View>
           {selected && <Feather name="check" size={16} color={t.text as string} />}
         </View>
@@ -592,6 +557,7 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
           ]}
           accessibilityLabel={label}
           accessibilityRole="button"
+          accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
         >
           {/* Press dim overlay — assombrit légèrement la pill au press */}
           <Animated.View
@@ -693,11 +659,11 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
                   <Feather name={pricingMode === 'diagnostic' ? 'search' : 'file-text'} size={20} color={COLORS.amber} />
                 </View>
                 <Text style={[dim.title, { color: theme.text }]}>
-                  {pricingMode === 'diagnostic' ? 'Diagnostic sur place' : 'Estimation sur place'}
+                  {pricingMode === 'diagnostic' ? t('stepper.onsite_diagnostic') : t('stepper.onsite_estimate')}
                 </Text>
               </View>
               <Text style={[dim.subtitle, { color: theme.textSub }]}>
-                Le prestataire se déplace, évalue les travaux et vous envoie un devis détaillé.
+                {t('stepper.onsite_desc')}
               </Text>
             </View>
 
@@ -761,7 +727,7 @@ function PromoSheet({
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24, paddingHorizontal: 24 }]}>
             <View style={dim.titleRow}>
               <View style={[dim.iconWrap, { backgroundColor: 'rgba(21,193,110,0.15)', borderColor: 'rgba(21,193,110,0.3)' }]}>
-                <Feather name="tag" size={20} color={COLORS.green} />
+                <Feather name="tag" size={20} color={theme.greenText} />
               </View>
               <Text style={[dim.title, { color: theme.text }]}>{t('stepper.promo_title') || 'Code promo'}</Text>
             </View>
@@ -890,11 +856,11 @@ function BrandSheen({ width, opacity = 0.1 }: { width: number; opacity?: number 
 /** Carte noire premium : montant héros, filigrane FIXED, pied TVA/HT.
  *  `original` (montant barré) + `savings` (pill verte) → état remise promo. */
 function AmountCardB({
-  theme, label, euros, footerLeft, footerRight, original, savings,
+  theme, label, euros, footerLeft, footerRight, original, savings, loading,
 }: {
   theme: any; label: string; euros: string;
   footerLeft: React.ReactNode; footerRight?: React.ReactNode;
-  original?: string; savings?: string;
+  original?: string; savings?: string; loading?: boolean;
 }) {
   return (
     <View
@@ -943,6 +909,14 @@ function AmountCardB({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1 }}>{footerLeft}</View>
         {footerRight != null ? <View style={{ flexShrink: 0 }}>{footerRight}</View> : null}
       </View>
+
+      {/* Loader pendant l'init du paiement (lock prix + création demande + PaymentSheet) */}
+      {loading ? (
+        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(0,0,0,0.55)' }]}>
+          <ActivityIndicator color="#FFFFFF" />
+          <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.85)' }}>Préparation du paiement…</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -966,70 +940,6 @@ function RecapTile({
       </View>
       {right != null ? right : null}
     </Wrap>
-  );
-}
-
-/** Sélecteur de moyen de paiement repliable, affordance MODIFIER (Direction B). */
-function PaymentRowCollapsible({
-  theme, t, value, onChange,
-}: {
-  theme: any; t: any; value: string; onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rot = useRef(new Animated.Value(0)).current;
-  const walletId = Platform.OS === 'ios' ? 'apple_pay' : 'google_pay';
-  const walletLabel = Platform.OS === 'ios' ? 'Apple Pay' : 'Google Pay';
-  const methods = [
-    { id: 'card', label: t('stepper.pay_card'), sub: 'Visa · Mastercard', icon: 'credit-card' as const },
-    { id: walletId, label: walletLabel, sub: t('stepper.instant'), icon: 'smartphone' as const },
-  ];
-  const current = methods.find((m) => m.id === value) || methods[0];
-
-  const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.create(240, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
-    Animated.timing(rot, { toValue: open ? 0 : 1, duration: 240, useNativeDriver: true }).start();
-    setOpen(!open);
-  };
-
-  return (
-    <View>
-      <TouchableOpacity onPress={toggle} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 16 }}>
-        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
-          <Feather name={current.icon} size={17} color={theme.text as string} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: 15, fontFamily: FONTS.sansMedium, color: theme.text as string }} numberOfLines={1}>{current.label}</Text>
-          <Text style={{ fontSize: 12.5, fontFamily: FONTS.sans, color: theme.textSub as string, marginTop: 1 }} numberOfLines={1}>{current.sub}</Text>
-        </View>
-        <Text style={{ fontSize: 11.5, fontFamily: FONTS.mono, letterSpacing: 0.5, color: theme.textMuted as string }}>{t('stepper.modify')}</Text>
-        <Animated.View style={{ transform: [{ rotate: rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
-          <Feather name="chevron-down" size={15} color={theme.textMuted as string} />
-        </Animated.View>
-      </TouchableOpacity>
-
-      {open ? (
-        <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
-          {methods.map((m) => {
-            const active = m.id === value;
-            return (
-              <TouchableOpacity
-                key={m.id}
-                onPress={() => { feedback.haptic('selection'); onChange(m.id); toggle(); }}
-                activeOpacity={0.7}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 2, borderRadius: 13, backgroundColor: active ? theme.surface : 'transparent' }}
-              >
-                <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: active ? theme.accent : theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                  <Feather name={m.icon} size={14} color={(active ? theme.accentText : theme.text) as string} />
-                </View>
-                <Text style={{ flex: 1, fontSize: 14.5, fontFamily: FONTS.sansMedium, color: theme.text as string }}>{m.label}</Text>
-                <Text style={{ fontSize: 12, fontFamily: FONTS.sans, color: theme.textSub as string }}>{m.sub}</Text>
-                {active ? <Feather name="check" size={17} color={theme.text as string} /> : null}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ) : null}
-    </View>
   );
 }
 
@@ -1065,7 +975,7 @@ export default function NewRequestStepper() {
   // Stockée localement pour permettre au client de retirer la préférence en
   // cours de stepper s'il change d'avis (banner avec X).
   const [preferred, setPreferred] = useState<{ id: string; name: string } | null>(
-    preferredProviderId ? { id: preferredProviderId, name: preferredProviderName || 'ce prestataire' } : null,
+    preferredProviderId ? { id: preferredProviderId, name: preferredProviderName || t('stepper.this_provider') } : null,
   );
 
   // Étape 1
@@ -1277,17 +1187,49 @@ export default function NewRequestStepper() {
     }
   };
 
+  // Android : le retour physique revient à l'étape précédente au lieu de
+  // quitter le stepper (perte de saisie). À l'étape 1 → confirmation.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (step > 1) {
+        goBack();
+        return true;
+      }
+      feedback.confirm({
+        title:       t('stepper.quit_title'),
+        message:     t('stepper.quit_msg'),
+        confirm:     t('stepper.quit_confirm'),
+        cancel:      t('common.continue'),
+        destructive: true,
+      }).then((ok) => {
+        if (!ok || !mountedRef.current) return;
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/dashboard');
+      });
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   // Étape 4 — paiement
   const [devisModalVisible, setDevisModalVisible] = useState(false);
   const [requestId,          setRequestId]         = useState<string | null>(null);
   const [paymentReady,       setPaymentReady]       = useState(false);
+  // Store-review : le backend (comptes REVIEW_DEMO_EMAILS) renvoie { demo:true } →
+  // on saute la PaymentSheet. Inerte pour un vrai utilisateur (demo jamais renvoyé).
+  const [bypassPayment,      setBypassPayment]      = useState(false);
   const [paymentInitLoading, setPaymentInitLoading] = useState(false);
   const [priceDetailOpen,    setPriceDetailOpen]    = useState(false);
   const [pricingToken,       setPricingToken]       = useState<string | null>(null);
   const [serverPrice,        setServerPrice]        = useState<ReturnType<typeof computePrice> | null>(null);
   const [pricingError,       setPricingError]       = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
   const [confirmedCalloutCents, setConfirmedCalloutCents] = useState<number | null>(null);
+  // Incrémenté par le bouton "Réessayer" de la bannière d'erreur → relance l'init paiement.
+  const [initAttempt,        setInitAttempt]        = useState(0);
+  // Paiement Stripe débité mais /payments/success en échec après 3 tentatives →
+  // on affiche un CTA "Réessayer" manuel (jamais de retry récursif infini).
+  const [confirmRetryNeeded, setConfirmRetryNeeded] = useState(false);
 
   // ── Code promo / offre de lancement (mode prix fixe — beta) ──
   // appliedPromo = remise validée 100% serveur (jamais le montant saisi côté app).
@@ -1297,15 +1239,26 @@ export default function NewRequestStepper() {
   const [promoApplying,     setPromoApplying]     = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountCents: number; nominalCents: number } | null>(null);
 
-  // Reset prix/paiement quand l'utilisateur change de service
+  // Reset prix/paiement dès que l'utilisateur change de service, d'adresse,
+  // de créneau, d'urgence ou de TVA : le PaymentIntent doit TOUJOURS refléter
+  // les valeurs courantes (jamais un ancien prix/RDV/adresse verrouillé).
+  // Le retour au step 4 relancera l'init (effet [step, initAttempt] ci-dessous).
   useEffect(() => {
+    // Annule la demande PENDING_PAYMENT devenue obsolète pour éviter les
+    // demandes orphelines côté client ("reprendre paiement", documents…).
+    if (requestId) {
+      api.requests.cancel(String(requestId)).catch(() => {});
+    }
     setServerPrice(null);
     setPaymentReady(false);
     setPricingToken(null);
     setRequestId(null);
     setConfirmedCalloutCents(null);
     setAppliedPromo(null);
-  }, [subcategoryId, categoryId]);
+    setPricingError(null);
+    setConfirmRetryNeeded(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subcategoryId, categoryId, location, scheduleMode, selectedDayIso, selectedTime, isUrgent, buildingOver10y, buildingType]);
 
   // Prix affiché = prix serveur (si disponible) ou estimation client
   const displayPrice = serverPrice || priceDetails;
@@ -1338,6 +1291,12 @@ export default function NewRequestStepper() {
       setPaymentInitLoading(true);
       setPricingError(null);
       try {
+        // Demande partiellement créée lors d'une tentative précédente (init en
+        // échec) → annulée avant d'en recréer une (évite les orphelines).
+        if (requestId) {
+          api.requests.cancel(String(requestId)).catch(() => {});
+          setRequestId(null);
+        }
         const serviceType = selectedSubcategory?.name || selectedCategory.name;
 
         // ── Service gratuit → skip pricing lock + skip payment ──
@@ -1400,7 +1359,8 @@ export default function NewRequestStepper() {
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
             paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
           });
-          if (!error && !cancelled) setPaymentReady(true);
+          if (error) throw new Error(error.message);
+          if (!cancelled) setPaymentReady(true);
           return;
         }
 
@@ -1449,6 +1409,12 @@ export default function NewRequestStepper() {
         // Bancontact, Apple Pay, Google Pay selon montant/r\u00e9gion. On ne force plus
         // d'ordre pour laisser Stripe prioriser la m\u00e9thode la plus pertinente.
         const res: any = await api.payments.setup(rId);
+        // Store-review : { demo:true } → pas de charge, on saute la sheet ; /success
+        // (branche démo) fera la transition PUBLISHED + broadcast au tap du CTA.
+        if (res.demo) {
+          if (!cancelled) { setBypassPayment(true); setPaymentReady(true); }
+          return;
+        }
         const clientSecret = res.paymentIntentClientSecret || res.setupIntentClientSecret;
         const { error } = await initPaymentSheet({
           merchantDisplayName:        'Fixed',
@@ -1459,11 +1425,12 @@ export default function NewRequestStepper() {
           googlePay: { merchantCountryCode: 'BE', testEnv: false },
           paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
         });
-        if (!error && !cancelled) setPaymentReady(true);
+        if (error) throw new Error(error.message);
+        if (!cancelled) setPaymentReady(true);
       } catch (e: any) {
         if (!cancelled) {
           devError('Payment init error:', e);
-          setPricingError(e?.message || 'Erreur lors du calcul du prix');
+          setPricingError(e?.message || t('stepper.pricing_error'));
         }
       } finally {
         if (!cancelled) setPaymentInitLoading(false);
@@ -1471,9 +1438,11 @@ export default function NewRequestStepper() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, initAttempt]);
 
-  // Confirme le paiement côté backend avec retry (max 3 tentatives, backoff 1s/2s)
+  // Confirme le paiement côté backend avec retry (max 3 tentatives, backoff 1s/2s).
+  // Un seul cycle : après 3 échecs on throw — l'appelant affiche un CTA
+  // "Réessayer" manuel (pas de récursion infinie, pas de navigation différée).
   const confirmPaymentSuccess = async (rId: string | number): Promise<void> => {
     let lastErr: any;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -1488,14 +1457,35 @@ export default function NewRequestStepper() {
         if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000));
       }
     }
-    if (!mountedRef.current) return;
-    // Paiement déjà prélevé côté Stripe → ne pas laisser l'utilisateur bloqué
-    feedback.info(t('stepper.payment_retry'));
-    if (mountedRef.current) confirmPaymentSuccess(rId).then(goToMissionView);
     throw lastErr;
   };
 
+  // CTA manuel après échec de confirmation (le débit Stripe a déjà eu lieu :
+  // on ne re-présente JAMAIS la PaymentSheet, on rejoue seulement /success).
+  const retryConfirmPayment = async () => {
+    if (!requestId) return;
+    setLoading(true);
+    try {
+      await confirmPaymentSuccess(requestId);
+      if (!mountedRef.current) return;
+      setConfirmRetryNeeded(false);
+      feedback.haptic('success');
+      goToMissionView();
+    } catch (e: any) {
+      devError('retryConfirmPayment error:', e);
+      if (mountedRef.current) feedback.error(t('stepper.confirm_retry_failed'));
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
   const goToMissionView = () => {
+    // Montant réellement débité : prix serveur verrouillé, remise promo déduite
+    // (jamais l'estimation client — sinon l'écran suivant affiche un faux prix).
+    const chargedPrice = isQuoteFlow ? '' : (discountedCentsFixed / 100).toFixed(2);
+    const calloutParam = isQuoteFlow && confirmedCalloutCents != null
+      ? (confirmedCalloutCents / 100).toFixed(2)
+      : '';
     if (scheduleMode === 'later') {
       // Requête planifiée → page de confirmation (pas de recherche de provider)
       // Pour un devis, le client n'a payé QUE le callout fee — pas le prix total.
@@ -1506,10 +1496,8 @@ export default function NewRequestStepper() {
           id:             String(requestId),
           serviceName:    serviceName    || '',
           address:        location?.address  || '',
-          price:          isQuoteFlow ? '' : String(estimatedPrice),
-          calloutFee:     isQuoteFlow && confirmedCalloutCents != null
-            ? (confirmedCalloutCents / 100).toFixed(2)
-            : '',
+          price:          chargedPrice,
+          calloutFee:     calloutParam,
           isQuote:        isQuoteFlow ? '1' : '',
           scheduledLabel: scheduledLabel || '',
           lat:            String(location?.lat  ?? ''),
@@ -1523,7 +1511,9 @@ export default function NewRequestStepper() {
           id:             String(requestId),
           serviceName:    serviceName    || '',
           address:        location?.address  || '',
-          price:          String(estimatedPrice),
+          price:          chargedPrice,
+          calloutFee:     calloutParam,
+          isQuote:        isQuoteFlow ? '1' : '',
           scheduledLabel: scheduledLabel || t('stepper.now'),
           lat:            String(location?.lat  ?? ''),
           lng:            String(location?.lng  ?? ''),
@@ -1585,12 +1575,39 @@ export default function NewRequestStepper() {
   };
 
   const handlePay = async () => {
-    if (!paymentReady || !requestId) return;
+    if (!paymentReady || !requestId || confirmRetryNeeded) return;
     setLoading(true);
     try {
-      // Service gratuit → pas de payment sheet, publication directe
+      // Service gratuit → pas de payment sheet, publication directe.
+      // On ne navigue vers missionview QUE si la publication a réussi.
       if (isFreeService) {
-        await api.payments.success(String(requestId)).catch(() => {});
+        try {
+          await api.payments.success(String(requestId));
+        } catch (e: any) {
+          devError('free publish error:', e);
+          feedback.error(t('stepper.publish_failed'));
+          return;
+        }
+        if (!mountedRef.current) return;
+        feedback.haptic('success');
+        goToMissionView();
+        return;
+      }
+
+      // Store-review DEMO (prix-fixe uniquement) : pas de PaymentSheet.
+      // /success (branche démo) publie la mission + broadcast aux prestataires.
+      if (bypassPayment) {
+        try {
+          await confirmPaymentSuccess(requestId);
+        } catch (e: any) {
+          devError('demo confirm error:', e);
+          if (mountedRef.current) {
+            setConfirmRetryNeeded(true);
+            feedback.error(t('stepper.confirm_failed_retry'));
+          }
+          return;
+        }
+        if (!mountedRef.current) return;
         feedback.haptic('success');
         goToMissionView();
         return;
@@ -1598,7 +1615,10 @@ export default function NewRequestStepper() {
 
       const { error: presentError } = await presentPaymentSheet();
       if (presentError) {
-        if (presentError.code !== 'Canceled') devError('Payment sheet error:', presentError.message);
+        if (presentError.code !== 'Canceled') {
+          devError('Payment sheet error:', presentError.message);
+          feedback.error(t('stepper.payment_failed'));
+        }
         return;
       }
 
@@ -1608,26 +1628,34 @@ export default function NewRequestStepper() {
           await api.post('/quotes/confirm-callout', { requestId });
         } catch (e: any) {
           devError('confirm-callout error:', e);
-          feedback.error(t('stepper.callout_confirm_failed') || 'Impossible de confirmer le paiement. Réessayez.');
+          feedback.error(t('stepper.callout_confirm_failed'));
           return;
         }
+        if (!mountedRef.current) return;
         feedback.haptic('success');
         goToMissionView();
       } else {
-        await confirmPaymentSuccess(requestId);
+        try {
+          await confirmPaymentSuccess(requestId);
+        } catch (e: any) {
+          // Le client a déjà été débité par Stripe → surtout ne pas re-présenter
+          // la PaymentSheet : on propose une relance manuelle de la confirmation.
+          devError('confirmPaymentSuccess error:', e);
+          if (mountedRef.current) {
+            setConfirmRetryNeeded(true);
+            feedback.error(t('stepper.payment_ok_confirm_failed'));
+          }
+          return;
+        }
+        if (!mountedRef.current) return;
         goToMissionView();
       }
     } catch (error: any) {
       devError('handlePay error:', error);
+      feedback.error(t('stepper.payment_generic_error'));
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  };
-
-  const handleChangePayment = async () => {
-    if (!paymentReady) return;
-    feedback.haptic('light');
-    await presentPaymentSheet();
   };
 
   const STEPS = getStepConfig(t);
@@ -1641,12 +1669,20 @@ export default function NewRequestStepper() {
       {/* ── Header ── */}
       <View style={s.header}>
         <View style={s.headerSide}>
-          <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={t('common.back')} accessibilityRole="button">
-            <Feather name="arrow-left" size={22} color={theme.text as string} />
+          <TouchableOpacity
+            onPress={goBack}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel={t('common.back')}
+            accessibilityRole="button"
+            style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.sep }]}
+          >
+            <Feather name="arrow-left" size={18} color={theme.text as string} />
           </TouchableOpacity>
         </View>
 
         <View style={s.headerCenter}>
+          <Text style={[s.stepCounter, { color: theme.textMuted }]}>{t('stepper.step_counter', { step, total: TOTAL_STEPS })}</Text>
           <Text style={[s.stepName, { color: theme.text }]}>{currentStep.label}</Text>
         </View>
 
@@ -1661,12 +1697,13 @@ export default function NewRequestStepper() {
         <View style={[s.preferredBanner, { backgroundColor: theme.surface, borderColor: theme.sep }]}>
           <Feather name="user-check" size={14} color={theme.text as string} />
           <Text style={[s.preferredBannerText, { color: theme.text, fontFamily: FONTS.sans }]}>
-            Demander en priorité à <Text style={{ fontFamily: FONTS.sansMedium }}>{preferred.name}</Text>
+            {t('stepper.request_priority_prefix')}<Text style={{ fontFamily: FONTS.sansMedium }}>{preferred.name}</Text>
           </Text>
           <TouchableOpacity
             onPress={() => setPreferred(null)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Retirer la préférence"
+            accessibilityRole="button"
+            accessibilityLabel={t('stepper.remove_preference_a11y')}
           >
             <Feather name="x" size={16} color={theme.textMuted as string} />
           </TouchableOpacity>
@@ -1678,7 +1715,7 @@ export default function NewRequestStepper() {
         <LiveSummary
           location={location}
           serviceName={step >= 3 ? serviceName : null}
-          scheduledLabel={step >= 4 ? scheduledLabel : null}
+          scheduledLabel={step >= 3 ? scheduledLabel : null}
         />
       )}
 
@@ -1693,7 +1730,7 @@ export default function NewRequestStepper() {
               provider={PROVIDER_GOOGLE}
               style={StyleSheet.absoluteFillObject}
               initialRegion={DEFAULT_REGION}
-              customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_SILVER}
+              customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
               showsUserLocation
               showsMyLocationButton={false}
               showsPointsOfInterest={false}
@@ -1774,6 +1811,9 @@ export default function NewRequestStepper() {
                       onPress={() => setShowAddrDropdown(prev => !prev)}
                       activeOpacity={0.7}
                       style={{ padding: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('stepper.saved_addresses_a11y')}
+                      accessibilityState={{ expanded: showAddrDropdown }}
                     >
                       <Feather name="bookmark" size={18} color={showAddrDropdown ? (theme.text as string) : (theme.textMuted as string)} />
                     </TouchableOpacity>
@@ -1841,7 +1881,7 @@ export default function NewRequestStepper() {
                 <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
                   <Feather name="alert-triangle" size={16} color={COLORS.orangeBrand} />
                   <Text style={[s.addrText, { color: COLORS.orangeBrand, flex: 1 }]} numberOfLines={2}>
-                    {'Zone test : Ixelles, Saint-Gilles et Uccle uniquement'}
+                    {t('stepper.test_zone_notice')}
                   </Text>
                 </View>
               )}
@@ -1889,7 +1929,7 @@ export default function NewRequestStepper() {
 
               {/* Title */}
               <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text as string, letterSpacing: 1, marginBottom: 6 }}>
-                NOMMER CETTE ADRESSE
+                {t('stepper.name_this_address')}
               </Text>
               <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textMuted as string, marginBottom: 20 }} numberOfLines={1}>
                 {location?.address || ''}
@@ -1940,7 +1980,7 @@ export default function NewRequestStepper() {
               <TextInput
                 value={saveLabel}
                 onChangeText={setSaveLabel}
-                placeholder={"Ou un nom personnalisé..."}
+                placeholder={t('stepper.custom_name_placeholder')}
                 placeholderTextColor={theme.textMuted as string}
                 style={{
                   fontFamily: FONTS.sans, fontSize: 15, color: theme.text as string,
@@ -2062,7 +2102,7 @@ export default function NewRequestStepper() {
             </View>
 
             <BottomCTA
-              label={isQuoteFlow ? 'Demander un devis' : t('stepper.continue')}
+              label={isQuoteFlow ? t('stepper.request_quote_cta') : t('stepper.continue')}
               onPress={goNext}
               disabled={!categoryId}
             />
@@ -2090,7 +2130,7 @@ export default function NewRequestStepper() {
                 {/* Planifier */}
                 <TouchableOpacity
                   style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => { feedback.haptic('medium'); setScheduleMode('later'); }}
+                  onPress={() => { feedback.haptic('medium'); setScheduleMode('later'); setIsUrgent(false); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                 >
@@ -2135,6 +2175,46 @@ export default function NewRequestStepper() {
                 </>
               )}
 
+              {/* ── Urgence (mode maintenant) — câblé sur isUrgent : majoration
+                     et callout urgent calculés côté serveur ── */}
+              {scheduleMode === 'now' && (
+                <View style={{ marginTop: 24 }}>
+                  <View style={[ai.sep, { backgroundColor: theme.sep }]} />
+                  <TouchableOpacity
+                    style={ai.header}
+                    onPress={() => { feedback.haptic('medium'); setIsUrgent(prev => !prev); }}
+                    activeOpacity={0.7}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: isUrgent }}
+                    accessibilityLabel={t('stepper.urgency_label')}
+                  >
+                    <View style={[ai.headerIcon, { backgroundColor: isUrgent ? theme.accent : theme.surface }]}>
+                      <Feather name="zap" size={16} color={isUrgent ? theme.accentText as string : theme.textSub as string} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[ai.headerTitle, { color: theme.text }]}>{t('stepper.urgency_label')}</Text>
+                      <Text style={[ai.headerSub, { color: theme.textMuted }]}>
+                        {isQuoteFlow
+                          ? t('stepper.urgency_desc_callout')
+                          : t('stepper.urgency_desc_surcharge')}
+                      </Text>
+                    </View>
+                    <View style={{
+                      width: 46, height: 28, borderRadius: 14, padding: 3,
+                      backgroundColor: isUrgent ? (theme.accent as string) : (theme.surface as string),
+                      borderWidth: 1.5,
+                      borderColor: isUrgent ? (theme.accent as string) : (theme.surfaceBorder as string),
+                      alignItems: isUrgent ? 'flex-end' : 'flex-start',
+                      justifyContent: 'center',
+                    }}>
+                      <View style={{
+                        width: 19, height: 19, borderRadius: 10,
+                        backgroundColor: isUrgent ? (theme.accentText as string) : (theme.textMuted as string),
+                      }} />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {/* ── TVA : âge du logement (détermine 6% vs 21%) ── */}
               {vatEligible && (
@@ -2192,9 +2272,9 @@ export default function NewRequestStepper() {
                     <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.building_type')}</Text>
                     <View style={ai.chipRow}>
                       {([
-                        { key: 'apartment', label: 'Appartement', icon: 'layers' },
-                        { key: 'house',     label: 'Maison',      icon: 'home' },
-                        { key: 'office',    label: 'Bureau',      icon: 'briefcase' },
+                        { key: 'apartment', label: 'stepper.building_apartment', icon: 'layers' },
+                        { key: 'house',     label: 'stepper.building_house',     icon: 'home' },
+                        { key: 'office',    label: 'stepper.building_office',    icon: 'briefcase' },
                       ] as const).map(bt => (
                         <TouchableOpacity
                           key={bt.key}
@@ -2207,7 +2287,7 @@ export default function NewRequestStepper() {
                           activeOpacity={0.7}
                         >
                           <Feather name={bt.icon as any} size={14} color={buildingType === bt.key ? theme.accentText as string : theme.textSub as string} />
-                          <Text style={[ai.chipText, { color: buildingType === bt.key ? theme.accentText : theme.textSub }]}>{bt.label}</Text>
+                          <Text style={[ai.chipText, { color: buildingType === bt.key ? theme.accentText : theme.textSub }]}>{t(bt.label)}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -2222,7 +2302,7 @@ export default function NewRequestStepper() {
                             style={[ai.input, { color: theme.text }]}
                             value={floorNum}
                             onChangeText={setFloorNum}
-                            placeholder="Ex: 3"
+                            placeholder={t('stepper.floor_placeholder')}
                             placeholderTextColor={theme.textMuted as string}
                             keyboardType="number-pad"
                             maxLength={3}
@@ -2259,7 +2339,7 @@ export default function NewRequestStepper() {
                         style={[ai.textarea, { color: theme.text }]}
                         value={accessNotes}
                         onChangeText={setAccessNotes}
-                        placeholder="Code portail, interphone, parking..."
+                        placeholder={t('stepper.access_placeholder')}
                         placeholderTextColor={theme.textMuted as string}
                         multiline
                         maxLength={500}
@@ -2339,6 +2419,53 @@ export default function NewRequestStepper() {
               showsVerticalScrollIndicator={false}
             >
 
+              {/* ── Erreur pricing / init paiement → bannière + Réessayer ── */}
+              {pricingError && !paymentInitLoading && (
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 10,
+                  padding: 14, borderRadius: 14, borderWidth: 1,
+                  backgroundColor: 'rgba(232,120,58,0.12)', borderColor: 'rgba(232,120,58,0.35)',
+                }}>
+                  <Feather name="alert-triangle" size={16} color={COLORS.orangeBrand} />
+                  <Text style={{ flex: 1, fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18, color: COLORS.orangeBrand }}>
+                    {t('stepper.payment_prepare_error')}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => { feedback.haptic('light'); setPricingError(null); setInitAttempt(a => a + 1); }}
+                    style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: theme.accent as string }}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 12.5, color: theme.accentText as string }}>{t('common.retry')}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ── Paiement débité mais confirmation en échec → relance manuelle ── */}
+              {confirmRetryNeeded && (
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 10,
+                  padding: 14, borderRadius: 14, borderWidth: 1,
+                  backgroundColor: 'rgba(232,120,58,0.12)', borderColor: 'rgba(232,120,58,0.35)',
+                }}>
+                  <Feather name="alert-triangle" size={16} color={COLORS.orangeBrand} />
+                  <Text style={{ flex: 1, fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18, color: COLORS.orangeBrand }}>
+                    {t('stepper.payment_confirm_failed_banner')}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={retryConfirmPayment}
+                    disabled={loading}
+                    style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: theme.accent as string, opacity: loading ? 0.6 : 1 }}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                  >
+                    {loading
+                      ? <ActivityIndicator size="small" color={theme.accentText as string} />
+                      : <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 12.5, color: theme.accentText as string }}>{t('common.retry')}</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* ── MONTANT (carte noire premium · Direction B) ── */}
               {isFreeService ? (
                 <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
@@ -2352,6 +2479,7 @@ export default function NewRequestStepper() {
                 <View style={{ gap: 12 }}>
                   <AmountCardB
                     theme={theme}
+                    loading={paymentInitLoading}
                     label={t('stepper.pay_now')}
                     euros={stripEuro(confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : formatEUR(calloutFee))}
                     footerLeft={(
@@ -2380,6 +2508,7 @@ export default function NewRequestStepper() {
               ) : (
                 <AmountCardB
                   theme={theme}
+                  loading={paymentInitLoading}
                   label={t('stepper.total_to_pay')}
                   euros={appliedPromo ? stripEuro(formatEURCents(discountedCentsFixed)) : (displayPrice as any).totalTVAC}
                   original={appliedPromo ? stripEuro(formatEURCents(nominalCentsFixed)) : undefined}
@@ -2404,7 +2533,7 @@ export default function NewRequestStepper() {
 
               {/* ── RÉCAPITULATIF (tuiles-icônes · Direction B) ── */}
               <View>
-                <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>RÉCAPITULATIF</Text>
+                <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>{t('stepper.recap_title')}</Text>
                 <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
                   <RecapTile
                     theme={theme}
@@ -2429,18 +2558,6 @@ export default function NewRequestStepper() {
                       </View>
                     ) : undefined}
                   />
-                  {!isFreeService && (
-                    <>
-                      <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                      <PaymentRowCollapsible
-                        theme={theme}
-                        t={t}
-                        value={paymentMethod}
-                        onChange={(v) => setPaymentMethod(v as any)}
-                      />
-                    </>
-                  )}
-
                   {/* ── Code promo (mode fixe — beta) ── */}
                   {!isFreeService && !isQuoteFlow && (
                     <>
@@ -2496,7 +2613,7 @@ export default function NewRequestStepper() {
                   ? `${t('stepper.reserve')} · ${confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : calloutFee > 0 ? formatEUR(calloutFee) : '...'}`
                   : t('stepper.confirm_mission')}
               onPress={handlePay}
-              disabled={loading || !paymentReady || !!pricingError}
+              disabled={loading || !paymentReady || !!pricingError || confirmRetryNeeded}
               loading={loading}
               sheen
             />
@@ -2533,8 +2650,10 @@ const s = StyleSheet.create({
   // Header
   header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
   iconBtn:      { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  backBtn:      { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerSide:   { width: 60, justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
+  stepCounter:  { fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1, marginBottom: 2 },
 
   // Préférence prestataire (CTA "Demander X")
   preferredBanner: {

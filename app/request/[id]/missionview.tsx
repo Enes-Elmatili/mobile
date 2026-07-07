@@ -33,22 +33,6 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-/** Avatar component — real photo or initials fallback */
-function Avatar({ url, name, size = 46, style }: { url?: string | null; name?: string | null; size?: number; style?: any }) {
-  const theme = useAppTheme();
-  const r = size / 2;
-  const base = { width: size, height: size, borderRadius: r, overflow: 'hidden' as const };
-  const resolved = resolveAvatarUrl(url);
-  if (resolved) {
-    return <Image source={{ uri: resolved }} style={[base, { borderWidth: 1.5, borderColor: theme.borderLight }, style]} />;
-  }
-  const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  return (
-    <View style={[base, { backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: theme.borderLight }, style]}>
-      <Text style={{ fontSize: size * 0.38, fontFamily: FONTS.sansMedium, color: theme.text }}>{initials}</Text>
-    </View>
-  );
-}
 
 // ─── Phase de la page ────────────────────────────────────────────────────────
 type Phase = 'LOADING' | 'SEARCHING' | 'TRACKING';
@@ -410,20 +394,6 @@ const dm = StyleSheet.create({
   sub:   { fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: FONTS.sans },
 });
 
-// ─── Countdown ────────────────────────────────────────────────────────────────
-function useCountdown(expiresAt?: string) {
-  const [sec, setSec] = useState(() =>
-    expiresAt ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)) : 15 * 60
-  );
-  useEffect(() => {
-    const iv = setInterval(() => setSec(p => p > 0 ? p - 1 : 0), 1000);
-    return () => clearInterval(iv);
-  }, []);
-  const m = Math.floor(sec / 60);
-  const ss = String(sec % 60).padStart(2, '0');
-  return { display: `${m}:${ss}`, isExpiring: sec < 120, isExpired: sec === 0 };
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROVIDER MARKER (TRACKING)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -475,14 +445,9 @@ export default function MissionView() {
   const { user: authUser } = useAuth();
 
   const { t } = useTranslation();
-  // Guard: id is required
-  if (!id || !/^\d+$/.test(id)) {
-    return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>{t('mission_view.mission_not_found')}</Text>
-      </SafeAreaView>
-    );
-  }
+  // Guard: id is required. Le RETURN conditionnel est déplacé APRÈS tous les hooks
+  // (cf. plus bas) pour ne jamais changer le nombre de hooks entre deux renders.
+  const invalidId = !id || !/^\d+$/.test(id);
   const theme = useAppTheme();
   const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
@@ -513,6 +478,9 @@ export default function MissionView() {
   const [message, setMessage] = useState('');
   // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
   const hasRealLocationRef = useRef(false);
+  // State miroir (déclenche un re-render) : conditionne l'indicateur "LIVE · GPS"
+  // à la réception d'une vraie position — pas affiché tant qu'aucun GPS reçu.
+  const [hasLiveGps, setHasLiveGps] = useState(false);
 
   // ─── PIN state ──────────────────────────────────────────────────────────
   const [pinCode, setPinCode] = useState<string | null>(null);
@@ -756,6 +724,34 @@ export default function MissionView() {
     }
   }, [pinCode]);
 
+  // ─── Polling lent en TRACKING (complément du socket, toutes les 45 s) ──────
+  // En phase TRACKING tout repose sur le socket (sauf le PIN). Si le socket se
+  // déconnecte, complétion/annulation ne sont jamais rattrapées et l'écran reste
+  // figé "en route". Ce poll lent est le filet de sécurité pour les statuts terminaux.
+  useEffect(() => {
+    if (phase !== 'TRACKING' || !id) return;
+    const poll = async () => {
+      try {
+        const res = await api.get(`/requests/${id}`);
+        const data = res?.data || res;
+        const st = (data?.status || '').toUpperCase();
+        if (st === 'DONE' || st === 'COMPLETED') {
+          if (isCompletionHandled(id)) return; // SocketContext / socket a déjà pris la main
+          markCompletionHandled(id);
+          feedback.haptic('success');
+          showToast(t('mission_view.mission_completed'), 'success');
+          router.replace({ pathname: '/request/[id]/rating', params: { id: String(id) } });
+        } else if (st === 'CANCELLED') {
+          showToast(t('mission_view.mission_cancelled'), 'error');
+          router.replace('/(tabs)/dashboard');
+        }
+      } catch (e) { devError('[MissionView] tracking poll:', e); }
+    };
+    const iv = setInterval(poll, 45000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, id]);
+
   // ─── PIN — affichage inline dans la sheet de tracking ────────────────────
   // Plus de navigation vers /request/[id]/pin : le code est désormais visible
   // directement dans la card PIN du tracking sheet (cf. block "PIN Card" ci-dessous).
@@ -779,6 +775,7 @@ export default function MissionView() {
     const onLocation = async (data: any) => {
       if (String(data.requestId) !== String(id)) return;
       hasRealLocationRef.current = true;
+      setHasLiveGps(true);
       const loc = { latitude: data.lat, longitude: data.lng };
       setProviderLocation(loc);
       // Throttle ETA fetch to max 1 per 30 seconds
@@ -873,6 +870,7 @@ export default function MissionView() {
       showToast(t('ext.missionview_reassigning_toast'), 'info');
       hasTransitionedRef.current = false;
       hasRealLocationRef.current = false;
+      setHasLiveGps(false);
       setPinCode(null);
       setPinVerified(false);
       setProviderArrived(false);
@@ -1052,6 +1050,15 @@ export default function MissionView() {
   // ═════════════════════════════════════════════════════════════════════════
   // RENDER
   // ═════════════════════════════════════════════════════════════════════════
+  // Guard id invalide — placé APRÈS tous les hooks (rules of hooks respectées).
+  if (invalidId) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>{t('mission_view.mission_not_found')}</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <View style={s.root}>
       <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
@@ -1132,9 +1139,9 @@ export default function MissionView() {
       {phase === 'TRACKING' && (
         <>
           {/* Bouton retour flottant */}
-          <SafeAreaView style={s.floatingTopBar} pointerEvents="box-none">
+          <SafeAreaView style={s.floatingTopBar} edges={['top']} pointerEvents="box-none">
             <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
-              <Feather name="chevron-left" size={22} color={theme.text} />
+              <Feather name="arrow-left" size={20} color={theme.text} />
             </TouchableOpacity>
 
             {/* FIXED · #ID */}
@@ -1164,10 +1171,12 @@ export default function MissionView() {
                   {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : t('missions.status_en_route')}
                 </Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <PulseDot size={6} color={COLORS.greenBrand} />
-                <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>LIVE · GPS</Text>
-              </View>
+              {hasLiveGps && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <PulseDot size={6} color={COLORS.greenBrand} />
+                  <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>LIVE · GPS</Text>
+                </View>
+              )}
             </View>
 
             {/* ETA — the star of the show */}
@@ -1295,9 +1304,9 @@ export default function MissionView() {
             {pinVerified && (
               <>
                 <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-                <View style={[pinStyles.verified, { backgroundColor: 'rgba(61,139,61,0.10)' }]}>
-                  <Feather name="check-circle" size={16} color={COLORS.greenBrand} />
-                  <Text style={[pinStyles.verifiedText, { color: COLORS.greenBrand }]}>
+                <View style={[pinStyles.verified, { backgroundColor: 'rgba(21,193,110,0.10)' }]}>
+                  <Feather name="check-circle" size={16} color={theme.greenText} />
+                  <Text style={[pinStyles.verifiedText, { color: theme.greenText }]}>
                     {t('mission_view.pin_verified_started')}
                   </Text>
                 </View>
@@ -1435,7 +1444,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 8 : 44,
+    // Le SafeAreaView applique deja l'inset haut (additif) : simple respiration
+    // sous la safe area, pas de compensation status bar manuelle.
+    paddingTop: 8,
     gap: 12,
     zIndex: 10,
   },

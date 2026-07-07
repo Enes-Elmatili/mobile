@@ -14,12 +14,21 @@ import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { devError } from "@/lib/logger";
 import { formatEURCents as fmtEur } from "@/lib/format";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/lib/auth/AuthContext";
+
+// Normalise la virgule décimale (clavier FR/BE) avant parseFloat.
+const parseAmount = (value: string): number => parseFloat(value.replace(",", ".")) || 0;
+
+// Statuts pour lesquels l'envoi d'un devis est légitime (mission assignée en cours
+// de diagnostic / d'estimation). Un devis déjà envoyé ou une demande terminée sortent.
+const QUOTE_ELIGIBLE = ["ONGOING", "QUOTE_PENDING", "ACCEPTED"];
 
 export default function SendQuote() {
   const router = useRouter();
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
 
   const [labor, setLabor] = useState("");
   const [parts, setParts] = useState("");
@@ -27,21 +36,45 @@ export default function SendQuote() {
   const [sending, setSending] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
   const [calloutFee, setCalloutFee] = useState(0);
+  const [checking, setChecking] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  // Fetch callout fee from request
-  useEffect(() => {
-    if (!id) return;
-    (async () => {
-      try {
-        const res: any = await api.get(`/requests/${id}`);
-        const data = res?.data || res;
-        if (data?.calloutFee) setCalloutFee(data.calloutFee);
-      } catch { /* ignore */ }
-    })();
-  }, [id]);
+  // Guard ownership + statut au mount, et gestion de l'erreur du fetch initial.
+  const loadRequest = useCallback(async () => {
+    if (!id || !user?.id) return;
+    setChecking(true);
+    setLoadError(false);
+    try {
+      const res: any = await api.get(`/requests/${id}`);
+      const data = res?.data || res;
+      if (!data) { setLoadError(true); return; }
 
-  const laborCents = Math.round((parseFloat(labor) || 0) * 100);
-  const partsCents = Math.round((parseFloat(parts) || 0) * 100);
+      const st = (data.status || "").toUpperCase();
+      // Ownership : la demande doit être assignée à ce prestataire.
+      if (data.providerId && data.providerId !== user.id) {
+        feedback.error(t("ext.sendquote_not_assigned"));
+        router.replace("/(tabs)/missions");
+        return;
+      }
+      // Statut : sinon on ne peut pas (encore) envoyer de devis.
+      if (!QUOTE_ELIGIBLE.includes(st)) {
+        if (st === "QUOTE_SENT") feedback.info(t("ext.sendquote_already_sent"));
+        router.replace("/(tabs)/missions");
+        return;
+      }
+      if (data.calloutFee) setCalloutFee(data.calloutFee);
+    } catch (e) {
+      devError("SendQuote load error:", e);
+      setLoadError(true);
+    } finally {
+      setChecking(false);
+    }
+  }, [id, user?.id, router]);
+
+  useEffect(() => { loadRequest(); }, [loadRequest]);
+
+  const laborCents = Math.round(parseAmount(labor) * 100);
+  const partsCents = Math.round(parseAmount(parts) * 100);
   const totalCents = laborCents + partsCents;
   const canSend = laborCents > 0;
 
@@ -81,6 +114,35 @@ export default function SendQuote() {
     }
   }, [canSend, id, laborCents, partsCents, notes, router]);
 
+  // Vérification en cours (guard ownership/statut) → loader plein écran.
+  if (checking) {
+    return (
+      <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+        <ActivityIndicator size="large" color={theme.accent} />
+      </View>
+    );
+  }
+
+  // Erreur du fetch initial → état dédié avec bouton réessayer.
+  if (loadError) {
+    return (
+      <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+        <Feather name="alert-circle" size={40} color={theme.textMuted} />
+        <Text style={[s.errorText, { color: theme.textSub }]}>Impossible de charger cette demande.</Text>
+        <TouchableOpacity
+          style={[s.retryBtn, { backgroundColor: theme.accent }]}
+          onPress={loadRequest}
+          activeOpacity={0.85}
+        >
+          <Feather name="refresh-cw" size={16} color={theme.accentText} />
+          <Text style={[s.retryText, { color: theme.accentText }]}>Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
@@ -89,11 +151,11 @@ export default function SendQuote() {
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
         <View style={s.header}>
           <TouchableOpacity
-            style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
             activeOpacity={0.75}
           >
-            <Feather name="chevron-left" size={18} color={theme.text} />
+            <Feather name="arrow-left" size={18} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.send_quote_title')}</Text>
           <View style={{ width: 36 }} />
@@ -216,20 +278,23 @@ export default function SendQuote() {
           {sending ? (
             <ActivityIndicator size="small" color={theme.accentText} />
           ) : (
-            <View style={s.ctaContent}>
-              <Text style={[
-                s.ctaText,
-                { color: canSend ? theme.accentText : theme.textMuted },
-              ]}>
-                {t('quote.send_quote_cta')}
-              </Text>
-              <Text style={[
-                s.ctaSub,
-                { color: canSend ? theme.accentText : theme.textMuted },
-              ]}>
-                {canSend ? t('quote.send_quote_amount_to_invoice', { amount: fmtEur(totalCents) }) : t('quote.send_quote_cta_disabled')}
-              </Text>
-            </View>
+            <>
+              <View style={s.ctaContent}>
+                <Text style={[
+                  s.ctaText,
+                  { color: canSend ? theme.accentText : theme.textMuted },
+                ]}>
+                  {t('quote.send_quote_cta')}
+                </Text>
+                <Text style={[
+                  s.ctaSub,
+                  { color: canSend ? theme.accentText : theme.textMuted },
+                ]}>
+                  {canSend ? t('quote.send_quote_amount_to_invoice', { amount: fmtEur(totalCents) }) : t('quote.send_quote_cta_disabled')}
+                </Text>
+              </View>
+              <Feather name="arrow-right" size={18} color={canSend ? theme.accentText : theme.textMuted} />
+            </>
           )}
         </TouchableOpacity>
       </SafeAreaView>
@@ -239,6 +304,13 @@ export default function SendQuote() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+  centerFill: { justifyContent: "center", alignItems: "center", gap: 14, paddingHorizontal: 32 },
+  errorText: { fontFamily: FONTS.sans, fontSize: 14, textAlign: "center" },
+  retryBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderRadius: 100, paddingHorizontal: 20, paddingVertical: 12,
+  },
+  retryText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
 
   header: {
     flexDirection: "row",
@@ -248,7 +320,7 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   headerBack: {
-    width: 36, height: 36, borderRadius: 12,
+    width: 36, height: 36, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
   },
@@ -280,7 +352,7 @@ const s = StyleSheet.create({
   },
 
   totalBlock: {
-    marginTop: 18, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center",
+    marginTop: 18, padding: 16, borderRadius: 18, borderWidth: 1, alignItems: "center",
   },
   totalLabel: {
     fontFamily: FONTS.sansMedium, fontSize: 10,
@@ -294,7 +366,7 @@ const s = StyleSheet.create({
   calloutText: { fontFamily: FONTS.sans, fontSize: 12 },
 
   footer: { paddingHorizontal: 16, paddingTop: 10 },
-  ctaBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  ctaBtn: { borderRadius: 100, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   ctaContent: { alignItems: "center", gap: 2 },
   ctaText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 },
   ctaSub: {

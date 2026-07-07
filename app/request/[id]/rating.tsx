@@ -6,7 +6,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   TextInput,
   ScrollView,
@@ -17,6 +16,7 @@ import {
   BackHandler,
   KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -149,6 +149,7 @@ export default function RatingScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const compliments = getCompliments(t);
   const ratingLabels = getRatingLabels(t);
@@ -160,6 +161,7 @@ export default function RatingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const { execute: submitRatingOffline } = useOfflineAction('SUBMIT_RATING', {
     onQueued: () => {
@@ -190,6 +192,8 @@ export default function RatingScreen() {
   }, [id]);
 
   const loadRequest = async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const response = await api.get(`/requests/${id}`);
       const req = response.data || response;
@@ -206,7 +210,9 @@ export default function RatingScreen() {
 
       setRequest(req);
     } catch (error) {
+      // Ne pas afficher un formulaire qui échouera (providerId absent) → écran erreur.
       devError('Error loading request:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -260,10 +266,45 @@ export default function RatingScreen() {
     );
   }
 
-  const providerName = request?.provider?.name || 'le prestataire';
+  // Échec du chargement de la demande → écran erreur + retry (jamais un formulaire
+  // qui échouera à la soumission faute de providerId).
+  if (loadError) {
+    return (
+      <View style={[s.loading, { backgroundColor: theme.bg, gap: 14, paddingHorizontal: 32 }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <Feather name="alert-circle" size={40} color={theme.textMuted} />
+        <Text style={{ color: theme.textSub, fontFamily: FONTS.sans, fontSize: 14, textAlign: 'center' }}>
+          Impossible de charger cette mission.
+        </Text>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.accent, borderRadius: 100, paddingHorizontal: 20, paddingVertical: 12 }}
+          onPress={loadRequest}
+          activeOpacity={0.85}
+        >
+          <Feather name="refresh-cw" size={16} color={theme.accentText} />
+          <Text style={{ color: theme.accentText, fontFamily: FONTS.sansMedium, fontSize: 14 }}>Réessayer</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={{ paddingVertical: 8 }}>
+          <Text style={{ color: theme.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13, textDecorationLine: 'underline' }}>Passer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Redirection en cours (déjà noté / statut non-DONE) : on n'a pas de request.
+  if (!request) {
+    return (
+      <View style={[s.loading, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <ActivityIndicator size="large" color={theme.accent} />
+      </View>
+    );
+  }
+
+  const providerName = request?.provider?.name || t('rating.provider_fallback');
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -278,9 +319,15 @@ export default function RatingScreen() {
         {/* ── Header — Navigation Lock ── */}
         {/* Pas de bouton retour : on bloque la race condition layout/socket */}
         <View style={s.header}>
-          <View style={[s.closeBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Feather name="x" size={20} color={theme.textDisabled} />
-          </View>
+          <TouchableOpacity
+            style={[s.closeBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={() => router.replace('/(tabs)/dashboard')}
+            accessibilityRole="button"
+            accessibilityLabel={t('rating.skip')}
+            activeOpacity={0.7}
+          >
+            <Feather name="x" size={20} color={theme.textSub} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')} style={s.skipBtn} accessibilityRole="button">
             <Text style={[s.skipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('rating.skip')}</Text>
           </TouchableOpacity>
@@ -389,7 +436,7 @@ export default function RatingScreen() {
       </KeyboardAvoidingView>
 
       {/* ── CTA fixe en bas ── */}
-      <View style={[s.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>
+      <View style={[s.footer, { backgroundColor: theme.bg, borderTopColor: theme.border, paddingBottom: insets.bottom + 14 }]}>
         <TouchableOpacity
           style={[s.submitBtn, { backgroundColor: theme.accent }, (rating === 0 || submitting) && { backgroundColor: theme.textDisabled }]}
           onPress={handleSubmit}
@@ -475,11 +522,11 @@ const s = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+    // paddingBottom applique en inline (insets.bottom + 14) : safe area home indicator.
     borderTopWidth: 1,
   },
   submitBtn: {
-    borderRadius: 14, height: 50,
+    borderRadius: 100, height: 55,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   submitBtnText: { fontSize: 15 },

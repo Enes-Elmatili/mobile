@@ -54,6 +54,31 @@ export default function QuotePending() {
 
   const [quoteReceived, setQuoteReceived] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [reqStatus, setReqStatus] = useState<string>("");
+  // État terminal atteint pendant l'attente (annulé / refusé / expiré 72h + refund) :
+  // on affiche un écran dédié au lieu de rester bloqué sur "devis en préparation".
+  const [terminalState, setTerminalState] = useState<null | "expired" | "cancelled" | "refused">(null);
+
+  // Résout un statut courant → navigation/état terminal. Retourne true si géré
+  // (l'appelant doit alors stopper son polling).
+  const handleStatus = (stRaw?: string): boolean => {
+    const st = (stRaw || "").toUpperCase();
+    setReqStatus(st);
+    if (st === "QUOTE_SENT") {
+      feedback.haptic('success');
+      router.replace({ pathname: "/request/[id]/quote-review", params: { id: String(id) } });
+      return true;
+    }
+    if (st === "PENDING_PAYMENT") {
+      // Frais de déplacement pas encore réglés → on reprend le paiement.
+      router.replace({ pathname: "/request/[id]/resume-payment", params: { id: String(id) } });
+      return true;
+    }
+    if (st === "QUOTE_EXPIRED") { feedback.haptic('warning'); setTerminalState("expired"); return true; }
+    if (st === "QUOTE_REFUSED") { feedback.haptic('warning'); setTerminalState("refused"); return true; }
+    if (st === "CANCELLED")     { feedback.haptic('warning'); setTerminalState("cancelled"); return true; }
+    return false;
+  };
 
   // Guard: verify ownership + status on mount
   useEffect(() => {
@@ -67,12 +92,7 @@ export default function QuotePending() {
           router.replace("/(tabs)/dashboard");
           return;
         }
-        const st = request.status?.toUpperCase();
-        if (st === "QUOTE_SENT") {
-          router.replace({ pathname: "/request/[id]/quote-review", params: { id: String(id) } });
-        } else if (st !== "QUOTE_PENDING" && st !== "PENDING_PAYMENT" && st !== "PUBLISHED") {
-          router.replace("/(tabs)/dashboard");
-        }
+        handleStatus(request.status);
       } catch {}
     })();
   }, [id, user?.id]);
@@ -82,35 +102,38 @@ export default function QuotePending() {
     if (!socket || !id) return;
     const handler = (data: any) => {
       if (String(data.requestId) !== String(id)) return;
-      const st = data.status?.toUpperCase();
-      if (st === "QUOTE_SENT") {
-        feedback.haptic('success');
-        router.replace({ pathname: "/request/[id]/quote-review", params: { id: String(id) } });
-      }
+      handleStatus(data.status);
     };
     socket.on("request:statusUpdated", handler);
     return () => { socket.off("request:statusUpdated", handler); };
   }, [socket, id]);
 
-  // Poll pour vérifier si un devis a été envoyé (fallback)
+  // Poll de secours (fallback socket) — vérifie le STATUT COMPLET de la demande,
+  // pas seulement l'existence d'un devis : annulation / refus / expiration sont
+  // ainsi rattrapés même si le socket est déconnecté.
   useEffect(() => {
-    if (!id || quoteReceived) return;
+    if (!id || quoteReceived || terminalState) return;
     const interval = setInterval(async () => {
       try {
-        const res: any = await api.get(`/quotes/request/${id}`);
-        if (res?.quotes?.length > 0) {
-          setQuoteReceived(true);
-          clearInterval(interval);
-          feedback.haptic('success');
-          router.replace({
-            pathname: "/request/[id]/quote-review",
-            params: { id },
-          });
+        const res: any = await api.requests.get(String(id));
+        const request = res?.data || res;
+        const st = (request?.status || "").toUpperCase();
+        if (st === "QUOTE_SENT") setQuoteReceived(true);
+        if (handleStatus(st)) { clearInterval(interval); return; }
+        // Filet : un devis peut exister alors que le statut n'a pas encore basculé.
+        if (!st || st === "QUOTE_PENDING") {
+          const qRes: any = await api.get(`/quotes/request/${id}`);
+          if (qRes?.quotes?.length > 0) {
+            setQuoteReceived(true);
+            clearInterval(interval);
+            feedback.haptic('success');
+            router.replace({ pathname: "/request/[id]/quote-review", params: { id: String(id) } });
+          }
         }
       } catch {}
     }, 10_000);
     return () => clearInterval(interval);
-  }, [id, quoteReceived]);
+  }, [id, quoteReceived, terminalState]);
 
   // Animations
   const pulseOp = useRef(new Animated.Value(1)).current;
@@ -140,11 +163,50 @@ export default function QuotePending() {
   }, []);
 
   const isDiagnostic = pricingMode === "diagnostic";
+  // Frais de déplacement réellement réglés : vrai dès que la demande a quitté
+  // PENDING_PAYMENT (webhook callout_fee → QUOTE_PENDING). Plus de "payé" en dur.
+  const feesPaid = !!reqStatus && reqStatus !== "PENDING_PAYMENT" && reqStatus !== "PUBLISHED";
 
   // Theme-adaptive colors
   const cardBg = theme.cardBg;
   const cardBorder = theme.border;
   const glowColor = theme.isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.03)";
+
+  // ── Écrans terminaux dédiés (annulé / refusé / expiré) ──
+  if (terminalState) {
+    const terminal = {
+      expired:   { icon: "clock" as const,      title: t('quote.expired'),                 msg: t('quote.terminal_expired_msg') },
+      cancelled: { icon: "x-circle" as const,   title: t('quote.terminal_cancelled_title'), msg: t('quote.terminal_cancelled_msg') },
+      refused:   { icon: "slash" as const,      title: t('quote.terminal_refused_title'),   msg: t('quote.terminal_refused_msg') },
+    }[terminalState];
+    return (
+      <View style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+        <GridLines isDark={theme.isDark} />
+        <SafeAreaView style={s.safe}>
+          <View style={s.content}>
+            <View style={[s.iconCircle, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Feather name={terminal.icon} size={40} color={theme.text} />
+            </View>
+            <Text style={[s.title, { color: theme.text }]}>{terminal.title}</Text>
+            <Text style={[s.subtitle, { color: theme.textSub }]}>{terminal.msg}</Text>
+          </View>
+          <View style={s.footer}>
+            <TouchableOpacity
+              style={[s.btnPrimary, { backgroundColor: theme.accent }]}
+              onPress={() => { feedback.haptic('medium'); router.replace("/(tabs)/dashboard"); }}
+              activeOpacity={0.88}
+            >
+              <Text style={[s.btnPrimaryText, { color: theme.accentText }]}>{t('dashboard.back_home')}</Text>
+              <View style={[s.arrowPill, { backgroundColor: theme.bg }]}>
+                <Feather name="arrow-right" size={14} color={theme.text} />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
@@ -189,7 +251,7 @@ export default function QuotePending() {
           <View style={[s.stepsCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             {[
               { label: t('quote.pending_step_sent'), done: true },
-              { label: (isDiagnostic ? t('quote.pending_step_paid_diagnostic', { fee: calloutFee ? calloutFee + '€' : '' }) : t('quote.pending_step_paid', { fee: calloutFee ? calloutFee + '€' : '' })).replace(/\s+/g, ' ').trim(), done: true },
+              { label: (isDiagnostic ? t('quote.pending_step_paid_diagnostic', { fee: calloutFee ? calloutFee + '€' : '' }) : t('quote.pending_step_paid', { fee: calloutFee ? calloutFee + '€' : '' })).replace(/\s+/g, ' ').trim(), done: feesPaid },
               { label: t('quote.pending_step_quote_progress'), done: false },
             ].map((step, i) => (
               <View key={i} style={s.stepRow}>
@@ -366,14 +428,14 @@ const s = StyleSheet.create({
     gap: 8,
   },
   btnPrimary: {
-    width: "100%", height: 52, borderRadius: 14,
+    width: "100%", height: 55, borderRadius: 100,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
   },
   btnPrimaryText: {
     fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2.5,
   },
   arrowPill: {
-    width: 28, height: 28, borderRadius: 8,
+    width: 28, height: 28, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
   cancelBtn: {

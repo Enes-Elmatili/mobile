@@ -1,9 +1,9 @@
 // app/request/[id]/quote-review.tsx — Client revue de devis (adaptive dark/light)
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
   TouchableOpacity, ScrollView, ActivityIndicator, TextInput,
-  Animated, Easing,
+  Animated, Easing, KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -15,6 +15,7 @@ import { useAppTheme, FONTS, COLORS } from "@/hooks/use-app-theme";
 import { PulseDot } from '@/components/ui/PulseDot';
 import { devError } from "@/lib/logger";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useSocket } from "@/lib/SocketContext";
 import { formatEURCents as fmtEur } from "@/lib/format";
 import { useTranslation } from "react-i18next";
 
@@ -25,9 +26,11 @@ export default function QuoteReview() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { user } = useAuth();
+  const { socket } = useSocket();
 
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<any>(null);
+  const [requestStatus, setRequestStatus] = useState<string>("");
   const [accepting, setAccepting] = useState(false);
   const [refusing, setRefusing] = useState(false);
   const [showRefuseInput, setShowRefuseInput] = useState(false);
@@ -44,41 +47,84 @@ export default function QuoteReview() {
     ]).start();
   }, []);
 
-  useEffect(() => {
-    if (!id) return;
-    (async () => {
-      try {
-        const reqRes: any = await api.requests.get(String(id));
-        const request = reqRes?.data || reqRes;
-        if (!request || request.clientId !== user?.id) {
+  // Charge la demande + le devis. Réutilisable (mount + rafraîchissement socket).
+  // Retourne le statut courant de la demande (ou null si accès refusé/erreur).
+  const load = useCallback(async (opts?: { silent?: boolean }): Promise<string | null> => {
+    if (!id) return null;
+    try {
+      const reqRes: any = await api.requests.get(String(id));
+      const request = reqRes?.data || reqRes;
+      if (!request || request.clientId !== user?.id) {
+        if (!opts?.silent) {
           feedback.error(t('quote.access_denied'));
           router.replace("/(tabs)/documents");
-          return;
         }
-        const allowed = ["QUOTE_SENT", "QUOTE_ACCEPTED", "QUOTE_REFUSED", "QUOTE_EXPIRED"].includes(
-          request.status?.toUpperCase()
-        );
-        if (!allowed) {
-          router.replace("/(tabs)/documents");
-          return;
-        }
-
-        const res: any = await api.get(`/quotes/request/${id}`);
-        const latest = res?.quotes?.[0];
-        if (latest) setQuote(latest);
-      } catch (e) {
-        devError("Quote fetch error:", e);
-      } finally {
-        setLoading(false);
+        return null;
       }
-    })();
-  }, [id, user?.id]);
+      const status = (request.status || "").toUpperCase();
+      setRequestStatus(status);
+      const allowed = ["QUOTE_SENT", "QUOTE_ACCEPTED", "QUOTE_REFUSED", "QUOTE_EXPIRED"].includes(status);
+      if (!allowed) {
+        if (!opts?.silent) router.replace("/(tabs)/documents");
+        return status;
+      }
+
+      const res: any = await api.get(`/quotes/request/${id}`);
+      const latest = res?.quotes?.[0];
+      if (latest) setQuote(latest);
+      return status;
+    } catch (e) {
+      devError("Quote fetch error:", e);
+      return null;
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, [id, user?.id, router, t]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Temps réel : un changement de statut (devis accepté/refusé/expiré depuis un
+  // autre appareil, expiration cron 72 h…) rafraîchit l'écran pour que le badge et
+  // les CTA reflètent l'état COURANT plutôt qu'un état figé au render.
+  useEffect(() => {
+    if (!socket || !id) return;
+    const handler = (data: any) => {
+      if (String(data.requestId) !== String(id)) return;
+      load({ silent: true });
+    };
+    socket.on("request:statusUpdated", handler);
+    return () => { socket.off("request:statusUpdated", handler); };
+  }, [socket, id, load]);
+
+  // Confirme le paiement côté backend avec retry x3 + backoff. Le client a DÉJÀ été
+  // débité par Stripe : en cas d'échec réseau, on ne le laisse pas dans un état
+  // incohérent — on réessaie, et si ça échoue quand même on ne bloque pas.
+  const confirmPaymentWithRetry = useCallback(async (quoteId: number, paymentIntentId: string): Promise<boolean> => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await api.quotes.confirmPayment(quoteId, paymentIntentId);
+        return true;
+      } catch (e: any) {
+        if (e?.status === 401 || e?.status === 403) return false;
+        if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1000));
+      }
+    }
+    return false;
+  }, []);
 
   const handleAccept = async () => {
     if (!quote) return;
     feedback.haptic('medium');
     setAccepting(true);
     try {
+      // Re-vérifier l'état COURANT avant d'accepter : le devis a pu expirer / être
+      // traité depuis un autre appareil. Évite une erreur générique côté backend.
+      const currentStatus = await load({ silent: true });
+      if (currentStatus && currentStatus !== "QUOTE_SENT") {
+        feedback.info("Ce devis n'est plus disponible.");
+        return;
+      }
+
       const res: any = await api.quotes.accept(quote.id);
 
       if (res.paymentIntent) {
@@ -106,11 +152,16 @@ export default function QuoteReview() {
           return;
         }
 
-        // Payment succeeded → confirm on backend to transition status to ONGOING
-        const quoteId = res.paymentIntent.quoteId || quote.id;
+        // Payment succeeded → confirm on backend to transition status to ONGOING.
         // Passer le paymentIntentId pour qu'il soit persisté sur le Payment
         // (nécessaire pour un refund admin ultérieur).
-        await api.quotes.confirmPayment(quoteId, res.paymentIntent.id);
+        const quoteId = res.paymentIntent.quoteId || quote.id;
+        const confirmed = await confirmPaymentWithRetry(quoteId, res.paymentIntent.id);
+        if (!confirmed) {
+          // Débité mais synchro backend échouée après 3 tentatives : on informe et on
+          // laisse quand même passer (le webhook/cron réconciliera le statut).
+          feedback.info(t('quote.payment_syncing'));
+        }
       }
 
       feedback.event('quote_accepted');
@@ -172,8 +223,16 @@ export default function QuoteReview() {
     );
   }
 
-  const expired = new Date() > new Date(quote.validUntil);
-  const canAct = !expired && quote.status === "SENT" && !showRefuseInput;
+  // Badge dérivé du VRAI statut du devis / de la demande (plus de "en attente" affiché
+  // sur un devis déjà accepté ou refusé).
+  const qStatus = (quote.status || "").toUpperCase();
+  const expired = qStatus === "EXPIRED" || requestStatus === "QUOTE_EXPIRED" || new Date() > new Date(quote.validUntil);
+  const accepted = qStatus === "ACCEPTED" || requestStatus === "QUOTE_ACCEPTED" || requestStatus === "ONGOING";
+  const refused = qStatus === "REFUSED" || requestStatus === "QUOTE_REFUSED";
+  const badgeDanger = refused || expired;
+  const badgeColor = accepted ? theme.greenText : badgeDanger ? COLORS.red : theme.textSub;
+  const badgeLabel = accepted ? t('quote.badge_accepted') : refused ? t('quote.badge_refused') : expired ? t('quote.expired') : t('quote.awaiting_response');
+  const canAct = !expired && !accepted && !refused && qStatus === "SENT" && !showRefuseInput;
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
@@ -183,32 +242,39 @@ export default function QuoteReview() {
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
         <View style={s.header}>
           <TouchableOpacity
-            style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
             activeOpacity={0.75}
           >
-            <Feather name="chevron-left" size={18} color={theme.text} />
+            <Feather name="arrow-left" size={18} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.short_label').toUpperCase()}</Text>
           <View style={{ width: 36 }} />
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Animated.View style={{ opacity: fadeIn, transform: [{ translateY: slideUp }] }}>
 
           {/* Status badge */}
           <View style={[
             s.badge,
             { backgroundColor: theme.surface, borderColor: theme.border },
-            expired && { backgroundColor: COLORS.red + "18" },
+            badgeDanger && { backgroundColor: COLORS.red + "18" },
+            accepted && { backgroundColor: 'rgba(21,193,110,0.10)' },
           ]}>
-            <PulseDot size={7} color={expired ? COLORS.red : undefined} />
-            <Text style={[
-              s.badgeText,
-              { color: expired ? COLORS.red : theme.textSub },
-            ]}>
-              {expired ? t('quote.expired') : t('quote.awaiting_response')}
+            <PulseDot size={7} color={badgeColor} />
+            <Text style={[s.badgeText, { color: badgeColor }]}>
+              {badgeLabel}
             </Text>
           </View>
 
@@ -247,8 +313,8 @@ export default function QuoteReview() {
             {/* Callout credit */}
             {quote.calloutPaid > 0 && (
               <View style={s.row}>
-                <Text style={[s.rowLabel, { color: COLORS.green }]}>{t('quote.deposit_paid')}</Text>
-                <Text style={[s.rowValue, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)}</Text>
+                <Text style={[s.rowLabel, { color: theme.greenText }]}>{t('quote.deposit_paid')}</Text>
+                <Text style={[s.rowValue, { color: theme.greenText }]}>− {fmtEur(quote.calloutPaid)}</Text>
               </View>
             )}
 
@@ -321,6 +387,7 @@ export default function QuoteReview() {
         </Animated.View>
         <View style={{ height: 120 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Actions footer */}
       {canAct && (
@@ -370,7 +437,7 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   headerBack: {
-    width: 36, height: 36, borderRadius: 12,
+    width: 36, height: 36, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
   },
@@ -395,7 +462,7 @@ const s = StyleSheet.create({
   },
   badgeText: { fontFamily: FONTS.sansMedium, fontSize: 12, letterSpacing: 0.5 },
 
-  card: { borderRadius: 14, borderWidth: 1, padding: 14 },
+  card: { borderRadius: 18, borderWidth: 1, padding: 14 },
   cardTitle: {
     fontFamily: FONTS.sansMedium, fontSize: 10,
     letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 10,
@@ -418,7 +485,7 @@ const s = StyleSheet.create({
   rowFinalLabel: { fontFamily: FONTS.sansMedium, fontSize: 15 },
   rowFinalValue: { fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 1 },
 
-  notesCard: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  notesCard: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
   notesText: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19 },
 
   expiryRow: {
@@ -455,7 +522,7 @@ const s = StyleSheet.create({
   },
   refuseBtnText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
   acceptBtn: {
-    flex: 1, height: 50, borderRadius: 12,
+    flex: 1, height: 55, borderRadius: 100,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
   },
   acceptBtnText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2 },

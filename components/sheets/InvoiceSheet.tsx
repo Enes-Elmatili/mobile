@@ -59,11 +59,6 @@ interface InvoiceSheetProps {
   onNavigateToWallet?: () => void;
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-const TAX_RATE = 0.21;
-const PLATFORM_FEE_RATE = 0.15;
-
 // ─── Utils ──────────────────────────────────────────────────────────────────
 
 const fmtDate = (d: string) =>
@@ -186,34 +181,27 @@ export default function InvoiceSheet({
   );
 
   // ── Computed values ──
+  // Règle stricte : on n'affiche QUE ce que le backend fournit dans `breakdown`.
+  // Aucun recalcul client (taux TVA variable 6%/21%, commission variable selon le
+  // tier). Sans breakdown → on montre uniquement le total, sans décomposition.
   const breakdown = invoice?.breakdown;
-  const items: InvoiceItem[] = useMemo(() => {
-    if (breakdown?.items?.length) return breakdown.items;
-    // Fallback: create a single item from the invoice amount
-    if (invoice?.amount) {
-      const subtotal = invoice.amount / (1 + TAX_RATE);
-      return [
-        {
-          label: serviceTitle || invoice.request?.serviceType || t('ext.invoice_service_fallback'),
-          quantity: 1,
-          unitPrice: subtotal,
-          total: subtotal,
-        },
-      ];
-    }
-    return [];
-  }, [invoice, breakdown, serviceTitle]);
+  const items: InvoiceItem[] = useMemo(
+    () => (breakdown?.items?.length ? breakdown.items : []),
+    [breakdown],
+  );
 
-  const subtotal = breakdown?.subtotal ?? items.reduce((s, i) => s + i.total, 0);
-  const taxRate = breakdown?.taxRate ?? TAX_RATE;
-  const taxAmount = breakdown?.taxAmount ?? subtotal * taxRate;
-  const total = breakdown?.total ?? subtotal + taxAmount;
+  const subtotal = breakdown?.subtotal ?? null;
+  const taxRate = breakdown?.taxRate ?? null;
+  const taxAmount = breakdown?.taxAmount ?? null;
+  const total = breakdown?.total ?? invoice?.amount ?? 0;
   const paymentMethod = breakdown?.paymentMethod ?? 'card';
   const isPaid = invoice?.status === 'PAID';
 
-  // Provider-specific
-  const platformFee = total * PLATFORM_FEE_RATE;
-  const netEarnings = breakdown?.providerEarnings ?? total - platformFee;
+  // Provider-specific — net EXCLUSIVEMENT depuis le backend. Absent → pas de bloc net.
+  const netEarnings = breakdown?.providerEarnings ?? null;
+  const commissionPct = netEarnings != null && total > 0
+    ? Math.round((1 - netEarnings / total) * 100)
+    : null;
   const payoutDate = invoice?.issuedAt ? getPayoutDate(invoice.issuedAt) : null;
 
   // ── PDF download ──
@@ -315,7 +303,7 @@ export default function InvoiceSheet({
           s.statusBadge,
           {
             backgroundColor: isPaid
-              ? dark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.06)'
+              ? dark ? 'rgba(21,193,110,0.15)' : 'rgba(21,193,110,0.06)'
               : dark ? 'rgba(255,165,0,0.15)' : 'rgba(255,165,0,0.06)',
           },
         ]}
@@ -375,33 +363,37 @@ export default function InvoiceSheet({
           </View>
         </View>
 
-        {/* Net Earnings block */}
-        <View style={[s.netBlock, { backgroundColor: surfaceBg }]}>
-          <View style={s.netHeader}>
-            <Feather name="credit-card" size={15} color={textMuted} />
-            <Text style={[s.netLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
-              {t('ext.invoice_net_received')}
-            </Text>
-          </View>
-          <View style={s.netRow}>
-            <View>
-              <Text style={[s.netValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
-                {formatEuros(netEarnings)}
-              </Text>
-              <Text style={[s.netSub, { color: textMuted, fontFamily: FONTS.sans }]}>
-                {t('ext.invoice_after_commission', { pct: Math.round(PLATFORM_FEE_RATE * 100) })}
+        {/* Net Earnings block — affiché uniquement si le backend fournit le net */}
+        {netEarnings != null && (
+          <View style={[s.netBlock, { backgroundColor: surfaceBg }]}>
+            <View style={s.netHeader}>
+              <Feather name="credit-card" size={15} color={textMuted} />
+              <Text style={[s.netLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
+                {t('ext.invoice_net_received')}
               </Text>
             </View>
-          </View>
-          {payoutDate && (
-            <View style={[s.payoutBadge, { backgroundColor: theme.surface }]}>
-              <Feather name="clock" size={12} color={textMuted} />
-              <Text style={[s.payoutText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
-                {t('ext.invoice_payout_scheduled', { date: payoutDate })}
-              </Text>
+            <View style={s.netRow}>
+              <View>
+                <Text style={[s.netValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
+                  {formatEuros(netEarnings)}
+                </Text>
+                {commissionPct != null && (
+                  <Text style={[s.netSub, { color: textMuted, fontFamily: FONTS.sans }]}>
+                    {t('ext.invoice_after_commission', { pct: commissionPct })}
+                  </Text>
+                )}
+              </View>
             </View>
-          )}
-        </View>
+            {payoutDate && (
+              <View style={[s.payoutBadge, { backgroundColor: theme.surface }]}>
+                <Feather name="clock" size={12} color={textMuted} />
+                <Text style={[s.payoutText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
+                  {t('ext.invoice_payout_scheduled', { date: payoutDate })}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Badges */}
         {statusBadges}
@@ -493,38 +485,49 @@ export default function InvoiceSheet({
 
         <InvoiceDivider color={borderColor} />
 
-        {/* Line Items */}
-        <View style={s.sectionHeader}>
-          <Feather name="file-text" size={13} color={textMuted} />
-          <Text style={[s.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_detail_label')}</Text>
-        </View>
+        {/* Line Items — uniquement si le backend fournit le détail */}
+        {items.length > 0 && (
+          <>
+            <View style={s.sectionHeader}>
+              <Feather name="file-text" size={13} color={textMuted} />
+              <Text style={[s.sectionLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_detail_label')}</Text>
+            </View>
 
-        {items.map((item, i) => (
-          <LineItem key={i} item={item} textColor={textPrimary} subColor={textSecondary} />
-        ))}
+            {items.map((item, i) => (
+              <LineItem key={i} item={item} textColor={textPrimary} subColor={textSecondary} />
+            ))}
 
-        <InvoiceDivider color={borderColor} />
+            <InvoiceDivider color={borderColor} />
+          </>
+        )}
 
-        {/* Totals */}
+        {/* Totals — sous-total / TVA affichés SEULEMENT si fournis par le backend.
+            Sans breakdown, on n'affiche que le total (aucune TVA inventée). */}
         <View style={s.totalsBlock}>
-          <View style={s.totalLine}>
-            <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
-              {t('ext.invoice_subtotal')}
-            </Text>
-            <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
-              {formatEuros(subtotal)}
-            </Text>
-          </View>
-          <View style={s.totalLine}>
-            <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
-              {t('ext.invoice_vat', { pct: Math.round(taxRate * 100) })}
-            </Text>
-            <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
-              {formatEuros(taxAmount)}
-            </Text>
-          </View>
+          {subtotal != null && (
+            <View style={s.totalLine}>
+              <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
+                {t('ext.invoice_subtotal')}
+              </Text>
+              <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
+                {formatEuros(subtotal)}
+              </Text>
+            </View>
+          )}
+          {taxAmount != null && (
+            <View style={s.totalLine}>
+              <Text style={[s.totalLineLabel, { color: textSecondary, fontFamily: FONTS.sans }]}>
+                {t('ext.invoice_vat', { pct: Math.round((taxRate ?? 0) * 100) })}
+              </Text>
+              <Text style={[s.totalLineValue, { color: textSecondary, fontFamily: FONTS.mono }]}>
+                {formatEuros(taxAmount)}
+              </Text>
+            </View>
+          )}
 
-          <View style={[s.totalDivider, { backgroundColor: borderColor }]} />
+          {(subtotal != null || taxAmount != null) && (
+            <View style={[s.totalDivider, { backgroundColor: borderColor }]} />
+          )}
 
           <View style={s.totalLine}>
             <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>

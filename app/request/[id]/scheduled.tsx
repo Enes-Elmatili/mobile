@@ -11,9 +11,10 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
+  View, Text, StyleSheet, StatusBar,
   Animated, Easing, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -94,6 +95,22 @@ export default function ScheduledConfirmation() {
       const status = (r.status || '').toUpperCase();
       const isStillFuture = r.preferredTimeStart && new Date(r.preferredTimeStart).getTime() > Date.now();
 
+      // ── Routage par statut ──
+      // Un prestataire a envoyé un devis → écran de revue de devis.
+      if (status === 'QUOTE_SENT') {
+        router.replace({ pathname: '/request/[id]/quote-review', params: { id } });
+        return;
+      }
+      // Statuts terminaux (annulé / expiré / refusé / remboursé / terminé) → dashboard
+      // avec un toast : ne pas laisser le récap "en attente" avec un bouton Annuler actif.
+      if (['CANCELLED', 'QUOTE_EXPIRED', 'QUOTE_REFUSED', 'EXPIRED', 'REFUNDED', 'DONE', 'COMPLETED'].includes(status)) {
+        feedback.info(status === 'CANCELLED'
+          ? t('ext.request_cancelled_toast')
+          : t('ext.request_inactive_toast'));
+        router.replace('/(tabs)/dashboard');
+        return;
+      }
+
       // ACCEPTED pour une date future = prestataire engagé mais mission pas démarrée
       // → reste sur le récap, affiche juste "Confirmé par X" en badge.
       if (status === 'ACCEPTED' && isStillFuture) {
@@ -143,11 +160,21 @@ export default function ScheduledConfirmation() {
       // (mission future) ou si on bascule vers missionview (mission en cours/passée).
       fetchRequest();
     };
+    // Annulation temps réel (par le prestataire, un admin, ou expiration) : on ne
+    // reste pas sur un récap périmé avec un bouton Annuler encore actif.
+    const handleCancelled = (data: any) => {
+      const incomingId = String(data?.id ?? data?.requestId ?? '');
+      if (incomingId !== String(id)) return;
+      feedback.info(t('ext.request_cancelled_toast'));
+      router.replace('/(tabs)/dashboard');
+    };
     socket.on('request:accepted', handleAccepted);
+    socket.on('request:cancelled', handleCancelled);
     return () => {
       socket.off('request:accepted', handleAccepted);
+      socket.off('request:cancelled', handleCancelled);
     };
-  }, [socket, id, fetchRequest]);
+  }, [socket, id, fetchRequest, router]);
 
   // ── Action : annuler la demande ──
   const handleCancel = async () => {
@@ -244,9 +271,9 @@ export default function ScheduledConfirmation() {
           </View>
 
           {isAccepted ? (
-            <View style={[st.infoBadge, { backgroundColor: 'rgba(61,139,61,0.08)', borderWidth: 1, borderColor: 'rgba(61,139,61,0.2)' }]}>
-              <Feather name="check-circle" size={16} color={COLORS.greenBrand} />
-              <Text style={[st.infoText, { color: COLORS.greenBrand, fontFamily: FONTS.sansMedium }]}>
+            <View style={[st.infoBadge, { backgroundColor: 'rgba(21,193,110,0.08)', borderWidth: 1, borderColor: 'rgba(21,193,110,0.2)' }]}>
+              <Feather name="check-circle" size={16} color={theme.greenText} />
+              <Text style={[st.infoText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>
                 {providerName
                   ? t('ext.scheduled_confirmed_by', { name: providerName })
                   : t('ext.scheduled_confirmed_by_generic')}
@@ -276,6 +303,7 @@ export default function ScheduledConfirmation() {
           activeOpacity={0.85}
         >
           <Text style={[st.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('ext.scheduled_back_home')}</Text>
+          <Feather name="arrow-right" size={18} color={theme.accentText} />
         </TouchableOpacity>
 
         {isRecapMode ? (
@@ -337,7 +365,7 @@ const st = StyleSheet.create({
   infoText:   { fontSize: 12, lineHeight: 17, flex: 1 },
 
   bottom:          { paddingHorizontal: 16, paddingBottom: 18, gap: 8 },
-  btn:             { borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  btn:             { borderRadius: 100, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   btnText:         { fontSize: 15 },
   btnSecondary:    { borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1.5 },
   btnSecondaryText:{ fontSize: 14 },

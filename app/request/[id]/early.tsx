@@ -6,9 +6,10 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
+  View, Text, StyleSheet, StatusBar,
   TouchableOpacity, ScrollView, Linking, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
@@ -107,8 +108,9 @@ export default function EarlyScreen() {
       feedback.error('ext.early_no_address_sub');
       return;
     }
-    const label = encodeURIComponent(mission.address || 'Mission FIXED');
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${mission.lat},${mission.lng}&destination_place_id=${label}`;
+    // Uniquement destination=lat,lng — un `destination_place_id` doit être un vrai
+    // place_id Google, pas une adresse encodée (sinon paramètre ignoré par Maps).
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${mission.lat},${mission.lng}`;
     feedback.haptic('light');
     Linking.openURL(url).catch(() => feedback.error('ext.early_navigation_failed'));
   }, [mission, t]);
@@ -157,12 +159,12 @@ export default function EarlyScreen() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: theme.surface }]}
+          style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/missions'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="chevron-left" size={20} color={theme.text} />
+          <Feather name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('missions.mission').toUpperCase()}</Text>
@@ -367,7 +369,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4,
   },
   backBtn: {
-    width: 38, height: 38, borderRadius: 12,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { alignItems: 'center', gap: 1 },
