@@ -10,6 +10,11 @@ const SOUND_FILES: Record<SoundKey, any> = {
   providerFound:   require('../assets/sounds/provider-found.wav'),
 };
 
+// Pas de vraie sonnerie dédiée dans les assets : new-mission.wav est le son
+// existant le plus adapté — joué en boucle par IncomingCallOverlay pour les
+// appels entrants (accompagné d'une vibration répétée).
+export const RINGTONE_SOUND = SOUND_FILES.newMission;
+
 export function useSoundManager() {
   const soundsRef = useRef<Partial<Record<SoundKey, Audio.Sound>>>({});
 

@@ -3,14 +3,20 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing,
+  View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing, Vibration,
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
+import { RINGTONE_SOUND } from '@/hooks/useSoundManager';
+import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useTranslation } from 'react-i18next';
+
+// Android : [attente, vibration, pause] — iOS : durées entre deux vibrations.
+const RING_VIBRATION_PATTERN = Platform.OS === 'android' ? [0, 800, 1600] : [800, 1600];
 
 export default function IncomingCallOverlay() {
   const theme = useAppTheme();
@@ -27,6 +33,38 @@ export default function IncomingCallOverlay() {
     });
     return unsub;
   }, []);
+
+  // ── Sonnerie + vibration répétée tant que l'appel entrant est affiché ──
+  // Stoppées dès accept/refus/fin (incoming → null) ou démontage.
+  const ringtoneRef = useRef<Audio.Sound | null>(null);
+  useEffect(() => {
+    if (!incoming) return;
+
+    Vibration.vibrate(RING_VIBRATION_PATTERN, true);
+
+    let cancelled = false;
+    if (useFeedbackPrefs.getState().sound) {
+      (async () => {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            RINGTONE_SOUND,
+            { isLooping: true, shouldPlay: true },
+          );
+          if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
+          ringtoneRef.current = sound;
+        } catch {
+          // Ne jamais bloquer l'UX pour un échec de son — la vibration suffit.
+        }
+      })();
+    }
+
+    return () => {
+      cancelled = true;
+      Vibration.cancel();
+      ringtoneRef.current?.unloadAsync().catch(() => {});
+      ringtoneRef.current = null;
+    };
+  }, [incoming]);
 
   // Animate in/out
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -87,10 +125,22 @@ export default function IncomingCallOverlay() {
 
         {/* Actions */}
         <View style={s.actions}>
-          <TouchableOpacity style={s.rejectBtn} onPress={rejectCall} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.rejectBtn}
+            onPress={rejectCall}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Refuser l'appel"
+          >
             <Feather name="x" size={22} color={COLORS.red} />
           </TouchableOpacity>
-          <TouchableOpacity style={s.acceptBtn} onPress={acceptCall} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.acceptBtn}
+            onPress={acceptCall}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Accepter l'appel"
+          >
             <Feather name="phone" size={22} color="#FFF" />
           </TouchableOpacity>
         </View>

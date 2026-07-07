@@ -8,7 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { useCall } from '@/lib/webrtc/CallContext';
+import { useCall, type CallEndReason } from '@/lib/webrtc/CallContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -19,13 +19,21 @@ function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function getStatusLabel(state: string, t: (k: string) => string): string {
+function getStatusLabel(state: string, endReason: CallEndReason | null, t: (k: string) => string): string {
+  if (state === 'ended') {
+    switch (endReason) {
+      case 'rejected': return 'Appel refusé';
+      case 'busy':     return 'Occupé';
+      case 'failed':   return 'Échec de connexion';
+      case 'timeout':  return 'Sans réponse';
+      default:         return t('ext.call_ended');
+    }
+  }
   switch (state) {
     case 'outgoing':   return t('ext.call_outgoing');
     case 'incoming':   return t('ext.call_incoming');
     case 'connecting': return t('ext.call_connecting');
     case 'connected':  return t('ext.call_connected');
-    case 'ended':      return t('ext.call_ended');
     default:           return '';
   }
 }
@@ -61,8 +69,8 @@ export default function ActiveCallScreen() {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const {
-    callState, callInfo, isMuted, isSpeaker, callDuration,
-    hangup, toggleMute, toggleSpeaker,
+    callState, callInfo, endReason, isMuted, callDuration,
+    hangup, toggleMute,
   } = useCall();
 
   // Auto-dismiss when call ends.
@@ -109,7 +117,7 @@ export default function ActiveCallScreen() {
 
         <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{callInfo?.remoteName || t('ext.call_unknown')}</Text>
         <Text style={[cs.status, { color: theme.heroSub, fontFamily: isConnected ? FONTS.mono : FONTS.sans }]}>
-          {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, t)}
+          {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, endReason, t)}
         </Text>
 
         {callInfo?.requestId && (
@@ -129,6 +137,9 @@ export default function ActiveCallScreen() {
             style={[cs.controlBtn, isMuted && [cs.controlBtnActive, { backgroundColor: theme.cardBg }]]}
             onPress={toggleMute}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isMuted ? 'Réactiver le micro' : 'Couper le micro'}
+            accessibilityState={{ selected: isMuted }}
           >
             <Feather
               name={isMuted ? 'mic-off' : 'mic'}
@@ -141,31 +152,28 @@ export default function ActiveCallScreen() {
           </TouchableOpacity>
 
           {/* Hangup */}
-          <TouchableOpacity style={cs.hangupBtn} onPress={hangup} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={cs.hangupBtn}
+            onPress={hangup}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Raccrocher"
+          >
             <Feather name="phone-off" size={32} color={theme.heroText} />
           </TouchableOpacity>
 
-          {/* Speaker */}
-          <TouchableOpacity
-            style={[cs.controlBtn, isSpeaker && [cs.controlBtnActive, { backgroundColor: theme.cardBg }]]}
-            onPress={toggleSpeaker}
-            activeOpacity={0.7}
-          >
-            <Feather
-              name={isSpeaker ? 'volume-2' : 'volume-1'}
-              size={26}
-              color={isSpeaker ? theme.heroBg : theme.heroText}
-            />
-            <Text style={[cs.controlLabel, { fontFamily: FONTS.sansMedium, color: theme.heroSub }, isSpeaker && { color: theme.heroBg }]}>
-              HP
-            </Text>
-          </TouchableOpacity>
+          {/* Note: bouton haut-parleur retiré — aucun routage audio natif
+              implémenté (toggleSpeaker était purement cosmétique). */}
         </View>
       )}
 
       {isEnded && (
         <View style={cs.endedSection}>
-          <Feather name="check-circle" size={48} color={theme.heroSub} />
+          <Feather
+            name={!endReason || endReason === 'hangup' ? 'check-circle' : endReason === 'timeout' ? 'phone-missed' : 'x-circle'}
+            size={48}
+            color={theme.heroSub}
+          />
         </View>
       )}
     </View>
