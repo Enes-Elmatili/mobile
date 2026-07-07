@@ -1,4 +1,7 @@
-// app/(auth)/welcome.tsx — FIXED welcome (standard light → dark gradient)
+// app/(auth)/welcome.tsx — FIXED welcome v2 (éditorial, flat theme-aware)
+// Spec: maquette « welcome-editorial-v2 » validée 2026-07-07.
+// Titre Bebas calé à gauche (contenu, plus de débordement), point vert signature,
+// eyebrow mono avec tiret vert, steps sur hairline, CTA pill qui respire.
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -10,12 +13,20 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { FONTS } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, alpha } from "@/hooks/use-app-theme";
 import { feedback } from "@/lib/feedback/feedback";
-import { AuthScreen, AuthCTA, AuthLink, authT, alpha } from "@/components/auth";
+import {
+  AuthScreen,
+  AuthCTA,
+  AuthLink,
+  AuthMasthead,
+  AuthEyebrow,
+} from "@/components/auth";
 
 export default function Welcome() {
   const { t } = useTranslation();
+  const theme = useAppTheme();
+  const dot = theme.brandDot;
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(20)).current;
 
@@ -53,39 +64,51 @@ export default function Welcome() {
   };
 
   return (
-    <AuthScreen variant="standard">
+    <AuthScreen variant="flat">
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        <View style={{ flex: 1 }} />
+        {/* « BE · IXELLES » : marque géographique, identique dans les 3 langues — volontairement hors i18n */}
+        <AuthMasthead meta="BE · Ixelles" />
 
-        <Text style={s.headline}>
+        <View style={s.airTop} />
+
+        <AuthEyebrow label={t('auth.welcome_eyebrow')} />
+
+        <Text style={[s.headline, { color: theme.text }]}>
           {t('auth.welcome_l1')}{"\n"}
-          {t('auth.welcome_l2_prefix')}
-          <Text style={s.headlineAccent}>{t('auth.welcome_l2_accent')}</Text>{"\n"}
-          {t('auth.welcome_l3')}
+          {t('auth.welcome_l2_prefix')}{t('auth.welcome_l2_accent')}{"\n"}
+          {t('auth.welcome_l3')}<Text style={{ color: dot }}>.</Text>
         </Text>
 
-        <Text style={s.subhead}>{t('auth.welcome_sub')}</Text>
+        <Text style={[s.subhead, { color: alpha(theme.text, 0.56) }]}>
+          {t('auth.welcome_sub')}
+        </Text>
 
-        <View style={{ flex: 1 }} />
+        <View style={s.airMid} />
 
-        {/* 3-step editorial process */}
-        <View style={s.steps}>
+        {/* 3 étapes — colonnes gauches sur hairline, numéros verts */}
+        <View style={[s.steps, { borderTopColor: alpha(theme.text, 0.11) }]}>
           {[t('auth.welcome_step1'), t('auth.welcome_step2'), t('auth.welcome_step3')].map((label, i) => (
-            <React.Fragment key={label}>
-              {i > 0 && <View style={s.stepLine} />}
-              <View style={s.step}>
-                <Text style={s.stepNum}>{String(i + 1).padStart(2, "0")}</Text>
-                <Text style={s.stepLabel}>{label}</Text>
-              </View>
-            </React.Fragment>
+            <View key={label} style={s.step}>
+              <Text style={[s.stepNum, { color: dot }]}>{String(i + 1).padStart(2, "0")}</Text>
+              <Text style={[s.stepLabel, { color: theme.text }]}>{label}</Text>
+            </View>
           ))}
         </View>
 
-        <View style={s.hairline} />
+        <AuthCTA
+          label={t('auth.welcome_cta')}
+          onPress={handlePrimary}
+          variant={theme.isDark ? "standard" : "inverted"}
+        />
 
-        <AuthCTA label={t('auth.welcome_cta')} onPress={handlePrimary} variant="standard" />
-
-        <AuthLink prefix={t('auth.welcome_already')} action={t('auth.welcome_signin')} onPress={handleSignIn} onDark />
+        <View style={s.signinWrap}>
+          <AuthLink
+            prefix={t('auth.welcome_already')}
+            action={t('auth.welcome_signin')}
+            onPress={handleSignIn}
+            onDark={theme.isDark}
+          />
+        </View>
 
         <Pressable
           onPress={handleProLink}
@@ -94,8 +117,11 @@ export default function Welcome() {
           accessibilityRole="button"
           accessibilityLabel={`${t('auth.welcome_pro_q')} ${t('auth.welcome_pro_link')}`}
         >
-          <Text style={s.proText}>
-            {t('auth.welcome_pro_q')} <Text style={s.proLink}>{t('auth.welcome_pro_link')}</Text>
+          <Text style={[s.proText, { color: alpha(theme.text, 0.26) }]}>
+            {t('auth.welcome_pro_q')}{" "}
+            <Text style={[s.proLink, { color: alpha(theme.text, 0.5), textDecorationColor: alpha(theme.text, 0.26) }]}>
+              {t('auth.welcome_pro_link')}
+            </Text>
           </Text>
         </Pressable>
       </Animated.View>
@@ -106,83 +132,57 @@ export default function Welcome() {
 const s = StyleSheet.create({
   flex: { flex: 1 },
 
-  // Headline (sits in light zone — uses textOnLight)
+  // Rythme vertical v2 : air généreux au-dessus du hero, base desserrée.
+  airTop: { flex: 1 },
+  airMid: { flex: 1.1 },
+
   headline: {
     fontFamily: FONTS.bebas,
-    fontSize: 64,
-    lineHeight: 66,
-    letterSpacing: 0.5,
-    color: authT.textOnLight,
-    textAlign: "center",
+    fontSize: 52,
+    lineHeight: 48,
+    letterSpacing: 0.6,
+    textAlign: "left",
   },
-  headlineAccent: {
-    color: alpha(authT.textOnLight, 0.72),
-  },
-
-  // Subhead
   subhead: {
     fontFamily: FONTS.sans,
-    fontSize: 15,
-    lineHeight: 22,
-    color: alpha(authT.textOnDark, 0.6),
+    fontSize: 14,
+    lineHeight: 21,
     marginTop: 20,
-    maxWidth: 280,
-    textAlign: "center",
-    alignSelf: "center",
+    maxWidth: 230,
+    textAlign: "left",
   },
 
-  // 3-step (sits in dark zone — uses textOnDark)
   steps: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    paddingTop: 18,
+    marginBottom: 30,
   },
-  step: {
-    alignItems: "center",
-    gap: 5,
-  },
+  step: { flex: 1 },
   stepNum: {
     fontFamily: FONTS.monoMedium,
-    fontSize: 10,
-    letterSpacing: 1,
-    color: alpha(authT.textOnDark, 0.4),
+    fontSize: 11,
+    letterSpacing: 1.5,
   },
   stepLabel: {
     fontFamily: FONTS.bebas,
-    fontSize: 15,
-    letterSpacing: 1.5,
-    color: authT.textOnDark,
-  },
-  stepLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: alpha(authT.textOnDark, 0.14),
-    marginHorizontal: 12,
+    fontSize: 16,
+    letterSpacing: 1.2,
+    marginTop: 5,
   },
 
-  // Editorial hairline (full bleed via negative margin matching AuthScreen padding)
-  hairline: {
-    height: 1,
-    backgroundColor: alpha(authT.textOnDark, 0.12),
-    marginHorizontal: -22,
-    marginBottom: 20,
-  },
+  signinWrap: { marginTop: 10 },
 
-  // Lien prestataire (zone sombre)
   proRow: {
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 14,
   },
   proText: {
     fontFamily: FONTS.mono,
     fontSize: 9.5,
-    letterSpacing: 1.6,
-    color: alpha(authT.textOnDark, 0.3),
+    letterSpacing: 1.5,
   },
   proLink: {
-    color: alpha(authT.textOnDark, 0.55),
     textDecorationLine: "underline",
-    textDecorationColor: alpha(authT.textOnDark, 0.3),
   },
 });
