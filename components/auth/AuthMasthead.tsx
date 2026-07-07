@@ -3,7 +3,7 @@
 // à gauche, méta mono optionnelle à droite (ex. "BE · IXELLES", "01 / 02").
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { useAppTheme, FONTS, COLORS, alpha } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, alpha } from "@/hooks/use-app-theme";
 
 type Props = {
   /** Méta mono affichée à droite (déjà localisée si besoin). */
@@ -12,7 +12,7 @@ type Props = {
 
 export function AuthMasthead({ meta }: Props) {
   const theme = useAppTheme();
-  const dot = theme.isDark ? "#2BD183" : COLORS.greenBrand;
+  const dot = theme.brandDot;
   return (
     <View style={s.row}>
       <Text style={[s.wordmark, { color: theme.text }]}>

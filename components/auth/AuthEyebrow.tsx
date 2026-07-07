@@ -2,7 +2,7 @@
 // Eyebrow mono uppercase précédé d'un tiret vert — signature v2 de l'onboarding.
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { useAppTheme, FONTS, COLORS, alpha } from "@/hooks/use-app-theme";
+import { useAppTheme, FONTS, alpha } from "@/hooks/use-app-theme";
 
 type Props = {
   label: string;
@@ -10,7 +10,7 @@ type Props = {
 
 export function AuthEyebrow({ label }: Props) {
   const theme = useAppTheme();
-  const dot = theme.isDark ? "#2BD183" : COLORS.greenBrand;
+  const dot = theme.brandDot;
   return (
     <View style={s.row}>
       <View style={[s.dash, { backgroundColor: dot }]} />

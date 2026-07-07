@@ -81,6 +81,7 @@ interface ThemeTokens {
   verifiedBg: string;
   verifiedFg: string;
   greenText: string;
+  brandDot: string;
   badgeDoneBg: string;
   badgeDoneText: string;
   badgeCancelledBg: string;
@@ -136,6 +137,9 @@ function buildTheme(isDark: boolean): ThemeTokens {
     // vert texte/icône sur fond clair (contraste AA — #15C16E brut échoue à 2,4:1).
     // Réservé au TEXTE/ICÔNE ; les fills (dot, CTA, overlay) gardent COLORS.greenBrand.
     greenText:    isDark ? '#46DC93' : '#0E7A47',
+    // Point vert du wordmark (charte : « the logo dot, brighter #2BD183 on dark »).
+    // Fill de marque — exception documentée à la règle « fills = COLORS.greenBrand ».
+    brandDot:     isDark ? '#2BD183' : COLORS.greenBrand, // #2BD183 = GBASE.green (déclaré après buildTheme)
     // ── Status badges ──
     badgeDoneBg:       isDark ? '#1A2A1A'               : 'rgba(70,220,147,0.1)',
     badgeDoneText:     isDark ? '#46DC93'               : '#0E7A47',
