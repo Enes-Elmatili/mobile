@@ -12,6 +12,8 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  Platform,
+  BackHandler,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
@@ -138,7 +140,7 @@ const str = StyleSheet.create({
   wrap: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: -2, marginBottom: 4 },
   barRow: { flex: 1, flexDirection: "row", gap: 4 },
   segment: { flex: 1, height: 3, borderRadius: 2 },
-  label: { fontFamily: FONTS.sansMedium, fontSize: 11, width: 40 },
+  label: { fontFamily: FONTS.sansMedium, fontSize: 11, minWidth: 40, flexShrink: 1 },
 });
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -189,6 +191,9 @@ export default function Signup() {
       const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
       const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
       if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
+    } else if (googleResponse.type === "error") {
+      // Échec OAuth Google — sans ce feedback le bouton redevenait juste actif
+      showToast(t('auth.su_err_social'));
     }
   }, [googleResponse]);
 
@@ -271,6 +276,10 @@ export default function Signup() {
 
   const emailRef = useRef<TextInput>(null);
   const pwdRef = useRef<TextInput>(null);
+
+  // Mémorise que api.auth.signup a réussi : si providers.register échoue ensuite,
+  // le retry ne rejoue QUE l'enregistrement provider (sinon 409 « email déjà utilisé »).
+  const signupDoneRef = useRef(false);
 
   // Billing state
   const [phone, setPhone] = useState("");
@@ -387,6 +396,34 @@ export default function Signup() {
     else router.replace("/(auth)/welcome");
   };
 
+  // Bouton retour matériel Android : revient à la phase précédente au lieu de
+  // quitter tout le signup ; à la phase 1 (identité), demande confirmation.
+  useEffect(() => {
+    const onHardwareBack = () => {
+      if (phase === "creating") return true; // création en cours → bloquer
+      if (phase === "zone" || phase === "billing") {
+        goBack();
+        return true;
+      }
+      // phase "identity" → confirmation avant de quitter
+      feedback.confirm({
+        title: t("auth.su_quit_title"),
+        message: t("auth.su_quit_msg"),
+        confirm: t("auth.su_quit_confirm"),
+        cancel: t("common.continue"),
+        destructive: true,
+      }).then((ok) => {
+        if (ok) {
+          if (router.canGoBack()) router.back();
+          else router.replace("/(auth)/welcome");
+        }
+      });
+      return true;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+    return () => sub.remove();
+  }, [phase]);
+
   const toggleCat = (id: number) => {
     feedback.haptic('light');
     setSelectedCats((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -406,24 +443,30 @@ export default function Signup() {
     setPhase("creating");
 
     try {
-      await api.auth.signup(
-        email.trim().toLowerCase(),
-        password,
-        name.trim() || undefined,
-        {
-          role: isProvider ? "PROVIDER" : "CLIENT",
-          phone: phone.trim(),
-          address: address.trim(),
-          postalCode: postalCode.trim(),
-          city: billingCity.trim(),
-        }
-      );
+      // Ne rejoue pas le signup si le compte a déjà été créé lors d'une tentative
+      // précédente (échec au niveau providers.register uniquement).
+      if (!signupDoneRef.current) {
+        await api.auth.signup(
+          email.trim().toLowerCase(),
+          password,
+          name.trim() || undefined,
+          {
+            role: isProvider ? "PROVIDER" : "CLIENT",
+            phone: phone.trim(),
+            address: address.trim(),
+            postalCode: postalCode.trim(),
+            city: billingCity.trim(),
+          }
+        );
+        signupDoneRef.current = true;
+      }
 
       if (isProvider) {
         const selectedCatObjects = categories.filter((c) => selectedCats.includes(c.id));
         await api.providers.register({
           name: name.trim(),
           city: city.trim(),
+          radius,
           categoryIds: selectedCats,
         });
         await refreshMe();
@@ -513,17 +556,33 @@ export default function Signup() {
           <View style={s.body}>
             {/* Social */}
             <View style={s.socialRow}>
-              <TouchableOpacity style={s.socialBtn} onPress={handleAppleSignIn} disabled={isBusy} activeOpacity={0.7}>
-                {socialLoading === "apple" ? (
-                  <Spinner color={authT.textOnDark} />
-                ) : (
-                  <>
-                    <AppleLogo />
-                    <Text style={s.socialText}>Apple</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={s.socialBtn} onPress={() => googlePromptAsync()} disabled={isBusy || !googleRequest} activeOpacity={0.7}>
+              {Platform.OS === "ios" && (
+                <TouchableOpacity
+                  style={s.socialBtn}
+                  onPress={handleAppleSignIn}
+                  disabled={isBusy}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("auth.su_continue_apple")}
+                >
+                  {socialLoading === "apple" ? (
+                    <Spinner color={authT.textOnDark} />
+                  ) : (
+                    <>
+                      <AppleLogo />
+                      <Text style={s.socialText}>Apple</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={s.socialBtn}
+                onPress={() => googlePromptAsync()}
+                disabled={isBusy || !googleRequest}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.su_continue_google")}
+              >
                 {socialLoading === "google" ? (
                   <Spinner color={authT.textOnDark} />
                 ) : (
@@ -548,6 +607,8 @@ export default function Signup() {
                 icon="user"
                 placeholder={t('auth.su_name_placeholder')}
                 autoCapitalize="words"
+                autoComplete="name"
+                textContentType="name"
                 maxLength={60}
                 returnKeyType="next"
                 value={name}
@@ -560,6 +621,9 @@ export default function Signup() {
                 icon="mail"
                 placeholder={t('auth.su_email_placeholder')}
                 autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                autoCorrect={false}
                 keyboardType="email-address"
                 returnKeyType="next"
                 value={email}
@@ -572,12 +636,15 @@ export default function Signup() {
                 icon="lock"
                 placeholder={t('auth.su_pwd_placeholder')}
                 secureTextEntry={!showPwd}
+                autoComplete="password-new"
+                textContentType="newPassword"
+                autoCorrect={false}
                 trailingIcon={showPwd ? "eye-off" : "eye"}
                 onTrailingPress={() => setShowPwd((p) => !p)}
                 returnKeyType="done"
                 value={password}
                 onChangeText={setPassword}
-                onSubmitEditing={isProvider ? goToZone : createAccount}
+                onSubmitEditing={goToBilling}
               />
               {password.length > 0 && <StrengthBar password={password} />}
             </View>
@@ -587,9 +654,21 @@ export default function Signup() {
               <Feather name="shield" size={13} color={alpha(authT.textOnLight, 0.3)} style={{ marginTop: 1 }} />
               <Text style={s.cguText}>
                 {t('auth.su_cgu_pre')}
-                <Text style={s.cguLink}>{t('auth.su_cgu_terms')}</Text>
+                <Text
+                  style={s.cguLink}
+                  onPress={() => router.push("/settings/cgu")}
+                  accessibilityRole="link"
+                >
+                  {t('auth.su_cgu_terms')}
+                </Text>
                 {t('auth.su_cgu_mid')}
-                <Text style={s.cguLink}>{t('auth.su_cgu_privacy')}</Text>
+                <Text
+                  style={s.cguLink}
+                  onPress={() => router.push("/settings/privacy")}
+                  accessibilityRole="link"
+                >
+                  {t('auth.su_cgu_privacy')}
+                </Text>
                 {t('auth.su_cgu_post')}
               </Text>
             </View>
@@ -613,6 +692,15 @@ export default function Signup() {
                   if (addressError) setAddressError("");
                   if (postalCodeError) setPostalCodeError("");
                   if (billingCityError) setBillingCityError("");
+                }}
+                onChangeText={() => {
+                  // L'utilisateur retape après avoir sélectionné une adresse :
+                  // on invalide la valeur parsée pour éviter une donnée périmée.
+                  if (address || postalCode || billingCity) {
+                    setAddress("");
+                    setPostalCode("");
+                    setBillingCity("");
+                  }
                 }}
                 error={addressError || undefined}
               />
@@ -762,6 +850,19 @@ export default function Signup() {
           }
         />
 
+        {/* Raison de désactivation du CTA — sinon bouton grisé inexpliqué */}
+        {(() => {
+          const hint =
+            phase === "identity" && !canIdentity
+              ? t("auth.su_err_identity")
+              : phase === "billing" && !canBilling
+                ? t("auth.su_err_coords")
+                : phase === "zone" && !canZone
+                  ? t("auth.su_err_activity")
+                  : null;
+          return hint ? <Text style={s.ctaHint}>{hint}</Text> : null;
+        })()}
+
         {phase === "identity" && (
           <AuthLink
             prefix={t('auth.su_already')}
@@ -836,11 +937,11 @@ const s = StyleSheet.create({
   },
   socialBtn: {
     flex: 1,
-    height: 46,
+    height: 52,
     backgroundColor: alpha(authT.dark, 0.85),
     borderWidth: 1,
     borderColor: alpha(authT.textOnDark, 0.16),
-    borderRadius: 14,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -914,7 +1015,7 @@ const s = StyleSheet.create({
     backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
     borderColor: alpha(authT.textOnDark, 0.16),
-    borderRadius: 14,
+    borderRadius: 18,
   },
   cityOptionActive: {
     backgroundColor: authT.textOnDark,
@@ -935,7 +1036,7 @@ const s = StyleSheet.create({
     backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
     borderColor: alpha(authT.textOnDark, 0.16),
-    borderRadius: 16,
+    borderRadius: 18,
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
@@ -1038,4 +1139,14 @@ const s = StyleSheet.create({
   },
 
   spacer: { flex: 1, minHeight: 24 },
+
+  ctaHint: {
+    fontFamily: FONTS.sans,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: alpha(authT.textOnLight, 0.55),
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 2,
+  },
 });

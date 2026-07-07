@@ -24,12 +24,15 @@ export const PROVIDER_FLOW = {
   },
 } as const;
 
-/** Libellés de phase affichés à côté du compteur (ex. « Identité · 01 / 06 »). */
+/**
+ * Clés i18n des libellés de phase affichés à côté du compteur
+ * (ex. « Identité · 01 / 06 »). Traduire au rendu via t(...).
+ */
 export const STEP_LABELS: Record<number, { client?: string; provider: string }> = {
-  1: { client: "Identité", provider: "Identité" },
-  2: { client: "Coordonnées", provider: "Coordonnées" },
-  3: { client: "Vérification", provider: "Activité" },
-  4: { provider: "Vérification" },
-  5: { provider: "Documents" },
-  6: { provider: "Paiements" },
+  1: { client: "onboarding.phase_identity", provider: "onboarding.phase_identity" },
+  2: { client: "onboarding.phase_coords", provider: "onboarding.phase_coords" },
+  3: { client: "onboarding.phase_verify", provider: "onboarding.phase_activity" },
+  4: { provider: "onboarding.phase_verify" },
+  5: { provider: "onboarding.phase_documents" },
+  6: { provider: "onboarding.phase_payments" },
 };

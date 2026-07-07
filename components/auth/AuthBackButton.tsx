@@ -19,6 +19,8 @@ export function AuthBackButton({ onPress, style }: Props) {
     <Pressable
       onPress={onPress}
       hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Retour"
       style={({ pressed }) => [
         s.btn,
         pressed && { transform: [{ scale: 0.94 }], opacity: 0.85 },

@@ -10,11 +10,15 @@ import {
   Animated,
   Easing,
   StatusBar,
+  TouchableOpacity,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { FONTS } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
@@ -22,6 +26,8 @@ import {
   AuthInput,
   AuthPhoneInput,
   AuthAddressAutocomplete,
+  authT,
+  alpha,
 } from "@/components/auth";
 import type { ParsedAddress } from "@/components/auth";
 
@@ -35,7 +41,8 @@ type MissingField = "name" | "phone" | "address" | "postalCode" | "city";
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function CompleteProfile() {
   const router = useRouter();
-  const { refreshMe } = useAuth();
+  const { refreshMe, signOut } = useAuth();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ missingFields?: string }>();
 
   // Parse the missing fields from route param.
@@ -85,15 +92,15 @@ export default function CompleteProfile() {
   const validate = (): boolean => {
     let valid = true;
     if (needs("name")) {
-      if (name.trim().length < 2) { setNameError("Nom trop court — 2 caractères min."); valid = false; } else setNameError("");
+      if (name.trim().length < 2) { setNameError(t("auth.cp_err_name")); valid = false; } else setNameError("");
     }
     if (needs("phone")) {
-      if (!/^\+\d{7,}$/.test(phone.trim())) { setPhoneError("Numéro de téléphone invalide"); valid = false; } else setPhoneError("");
+      if (!/^\+\d{7,}$/.test(phone.trim())) { setPhoneError(t("auth.su_err_phone")); valid = false; } else setPhoneError("");
     }
     if (needs("address") || needs("postalCode") || needs("city")) {
-      if (address.trim().length < 3) { setAddressError("Sélectionne ton adresse dans la liste"); valid = false; } else setAddressError("");
-      if (!POSTAL_RE.test(postalCode.trim())) { setPostalCodeError(""); valid = false; }
-      if (city.trim().length < 2) { setCityError(""); valid = false; }
+      if (address.trim().length < 3) { setAddressError(t("auth.cp_err_address")); valid = false; } else setAddressError("");
+      if (!POSTAL_RE.test(postalCode.trim())) { setPostalCodeError(t("auth.cp_err_postal")); valid = false; } else setPostalCodeError("");
+      if (city.trim().length < 2) { setCityError(t("auth.cp_err_city")); valid = false; } else setCityError("");
     }
     return valid;
   };
@@ -127,7 +134,7 @@ export default function CompleteProfile() {
       router.replace("/(tabs)/dashboard");
     } catch (err: any) {
       feedback.haptic('error');
-      showToast(err.message || "Mise à jour impossible, réessaie");
+      showToast(err.message || t("auth.cp_err_update"));
     } finally {
       setLoading(false);
     }
@@ -142,9 +149,9 @@ export default function CompleteProfile() {
         <View style={s.topRow} />
 
         <AuthHeadline
-          kicker="PROFIL INCOMPLET"
-          title="COMPLÉTEZ\n{accent}VOTRE PROFIL.{/accent}"
-          subtitle="Ces informations sont requises pour utiliser FIXED."
+          kicker={t("auth.cp_kicker")}
+          title={t("auth.cp_title")}
+          subtitle={t("auth.cp_sub")}
           align="left"
         />
 
@@ -152,9 +159,9 @@ export default function CompleteProfile() {
           <View style={s.form}>
             {needs("name") && (
               <AuthInput
-                label="Nom complet *"
+                label={t("auth.cp_name_label")}
                 icon="user"
-                placeholder="Prénom et nom"
+                placeholder={t("auth.su_name_placeholder")}
                 autoCapitalize="words"
                 maxLength={60}
                 returnKeyType="next"
@@ -190,11 +197,27 @@ export default function CompleteProfile() {
         <View style={s.spacer} />
 
         <AuthCTA
-          label="ENREGISTRER"
+          label={t("auth.cp_save_cta")}
           onPress={onSubmit}
           loading={loading}
           disabled={loading || !isFormValid}
         />
+
+        {/* Échappatoire : si le PATCH échoue en boucle, l'utilisateur peut sortir */}
+        <TouchableOpacity
+          onPress={() => {
+            feedback.haptic("light");
+            signOut();
+            router.replace("/(auth)/welcome");
+          }}
+          activeOpacity={0.6}
+          style={s.logoutLink}
+          accessibilityRole="button"
+          accessibilityLabel={t("auth.sign_out")}
+        >
+          <Feather name="log-out" size={14} color={alpha(authT.textOnLight, 0.5)} />
+          <Text style={s.logoutText}>{t("auth.sign_out")}</Text>
+        </TouchableOpacity>
       </Animated.View>
     </AuthScreen>
   );
@@ -214,4 +237,20 @@ const s = StyleSheet.create({
     gap: 10,
   },
   spacer: { flex: 1, minHeight: 24 },
+  logoutLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingBottom: 4,
+    marginTop: 10,
+  },
+  logoutText: {
+    fontFamily: FONTS.sans,
+    fontSize: 13,
+    color: alpha(authT.textOnLight, 0.55),
+    textDecorationLine: "underline",
+    textDecorationColor: alpha(authT.textOnLight, 0.2),
+  },
 });

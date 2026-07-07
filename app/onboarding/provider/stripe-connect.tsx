@@ -57,7 +57,8 @@ export default function ProviderStripeConnect() {
         router.replace("/onboarding/provider/pending");
         return;
       }
-      // Stripe pas configuré (annulé ou incomplet) → rester sur cet écran
+      // Stripe pas configuré (annulé ou incomplet) → rester sur cet écran + informer
+      feedback.info(t('onboarding.stripe_incomplete'));
     } catch (err: any) {
       feedback.error(err?.message || t('onboarding.st_error'));
     } finally { setLoading(false); }

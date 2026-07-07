@@ -20,7 +20,13 @@ type Props = {
 export function AuthLink({ prefix, action, onPress, onDark }: Props) {
   const base = onDark ? authT.textOnDark : authT.textOnLight;
   return (
-    <Pressable onPress={onPress} hitSlop={8} style={s.wrap}>
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={prefix ? `${prefix} ${action}` : action}
+      style={s.wrap}
+    >
       <Text style={[s.text, { color: alpha(base, 0.55) }]}>
         {prefix ? `${prefix} ` : ""}
         <Text style={[s.strong, { color: base }]}>{action}</Text>

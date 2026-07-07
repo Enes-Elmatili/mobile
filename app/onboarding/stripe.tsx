@@ -146,7 +146,8 @@ export default function OnboardingStripe() {
         router.replace("/onboarding/provider/pending");
         return;
       }
-      // Stripe pas encore configuré (annulé ou incomplet)
+      // Stripe pas encore configuré (annulé ou incomplet) → informer l'utilisateur
+      feedback.info(t('onboarding.stripe_incomplete'));
     } catch (err: any) {
       feedback.error(err?.message || t('onboarding.st_error'));
     } finally {
@@ -348,7 +349,7 @@ const r = StyleSheet.create({
     backgroundColor: C.cardBg,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 16,
+    borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 4,
     marginBottom: 16,

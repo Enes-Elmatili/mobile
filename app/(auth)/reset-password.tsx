@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import { feedback } from "@/lib/feedback/feedback";
 import { FONTS, COLORS } from "@/hooks/use-app-theme";
@@ -26,6 +27,7 @@ import {
 
 export default function ResetPassword() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { token } = useLocalSearchParams<{ token: string }>();
 
   const [password, setPassword] = useState("");
@@ -67,11 +69,11 @@ export default function ResetPassword() {
 
   const handleSubmit = async () => {
     if (password.length < 8) {
-      setError("Le mot de passe doit contenir au moins 8 caractères");
+      setError(t("auth.rp_err_short"));
       return;
     }
     if (password !== confirm) {
-      setError("Les mots de passe ne correspondent pas");
+      setError(t("auth.rp_err_mismatch"));
       return;
     }
     if (!token) return;
@@ -84,31 +86,31 @@ export default function ResetPassword() {
       setDone(true);
       feedback.haptic('success');
     } catch (e: any) {
-      setError(e?.data?.error || "Une erreur est survenue. Le lien a peut-être expiré.");
+      setError(e?.data?.error || t("auth.rp_err_generic"));
     } finally {
       setLoading(false);
     }
   };
 
   // State machine for header content
-  let title = "NOUVEAU\n{accent}MOT DE PASSE.{/accent}";
-  let subtitle = "Choisissez un nouveau mot de passe pour votre compte.";
+  let title = t("auth.rp_title");
+  let subtitle = t("auth.rp_sub");
   let iconName: keyof typeof Feather.glyphMap = "key";
   let iconColor = authT.textOnDark;
   let iconBgVariant: "default" | "success" | "error" = "default";
 
   if (validating) {
-    title = "VÉRIFICATION\n{accent}DU LIEN…{/accent}";
-    subtitle = "Validation en cours, veuillez patienter.";
+    title = t("auth.rp_validating_title");
+    subtitle = t("auth.rp_validating_sub");
   } else if (!token || !tokenValid) {
-    title = "LIEN\n{accent}INVALIDE.{/accent}";
-    subtitle = "Ce lien de réinitialisation est expiré ou invalide. Demandez un nouveau lien.";
+    title = t("auth.rp_invalid_title");
+    subtitle = t("auth.rp_invalid_sub");
     iconName = "x-circle";
     iconColor = COLORS.red;
     iconBgVariant = "error";
   } else if (done) {
-    title = "MOT DE PASSE\n{accent}MODIFIÉ !{/accent}";
-    subtitle = "Votre mot de passe a été réinitialisé avec succès. Connectez-vous avec votre nouveau mot de passe.";
+    title = t("auth.rp_done_title");
+    subtitle = t("auth.rp_done_sub");
     iconName = "check-circle";
     iconColor = COLORS.greenBrand;
     iconBgVariant = "success";
@@ -119,7 +121,7 @@ export default function ResetPassword() {
     if (validating) return null;
     if (done) {
       return {
-        label: "SE CONNECTER",
+        label: t("auth.login_cta"),
         onPress: () => {
           feedback.haptic('medium');
           router.replace("/(auth)/login");
@@ -128,7 +130,7 @@ export default function ResetPassword() {
     }
     if (!tokenValid) {
       return {
-        label: "DEMANDER UN NOUVEAU LIEN",
+        label: t("auth.rp_request_new_cta"),
         onPress: () => {
           feedback.haptic('medium');
           router.replace("/(auth)/forgot-password");
@@ -136,7 +138,7 @@ export default function ResetPassword() {
       };
     }
     return {
-      label: "RÉINITIALISER",
+      label: t("auth.rp_reset_cta"),
       onPress: handleSubmit,
       loading,
       disabled: password.length < 8 || password !== confirm,
@@ -177,10 +179,13 @@ export default function ResetPassword() {
           {tokenValid && !done && !validating && (
             <View style={s.form}>
               <AuthInput
-                label="Nouveau mot de passe"
+                label={t("auth.rp_new_label")}
                 icon="lock"
-                placeholder="Min. 8 caractères"
+                placeholder={t("auth.rp_new_placeholder")}
                 secureTextEntry={!showPwd}
+                autoComplete="password-new"
+                textContentType="newPassword"
+                autoCorrect={false}
                 trailingIcon={showPwd ? "eye-off" : "eye"}
                 onTrailingPress={() => setShowPwd((p) => !p)}
                 returnKeyType="next"
@@ -194,10 +199,13 @@ export default function ResetPassword() {
               />
               <AuthInput
                 inputRef={confirmRef}
-                label="Confirmer"
+                label={t("common.confirm")}
                 icon="lock"
-                placeholder="Confirmez le mot de passe"
+                placeholder={t("auth.rp_confirm_placeholder")}
                 secureTextEntry={!showPwd}
+                autoComplete="password-new"
+                textContentType="newPassword"
+                autoCorrect={false}
                 returnKeyType="done"
                 value={confirm}
                 onChangeText={(t) => {
@@ -205,7 +213,12 @@ export default function ResetPassword() {
                   setError(null);
                 }}
                 onSubmitEditing={handleSubmit}
-                error={error}
+                error={
+                  error ??
+                  (confirm.length > 0 && password !== confirm
+                    ? t("auth.rp_err_mismatch")
+                    : undefined)
+                }
               />
             </View>
           )}

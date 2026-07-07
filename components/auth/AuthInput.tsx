@@ -17,6 +17,7 @@ import {
   Pressable,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { FONTS } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
@@ -43,6 +44,7 @@ export function AuthInput({
   inputRef,
   ...rest
 }: Props) {
+  const { t } = useTranslation();
   const [focused, setFocused] = useState(false);
 
   return (
@@ -78,7 +80,13 @@ export function AuthInput({
           style={[s.input, style]}
         />
         {trailingIcon && (
-          <Pressable hitSlop={8} onPress={onTrailingPress} style={s.trailing}>
+          <Pressable
+            hitSlop={8}
+            onPress={onTrailingPress}
+            accessibilityRole="button"
+            accessibilityLabel={t("auth.pwd_toggle_a11y")}
+            style={s.trailing}
+          >
             <Feather
               name={trailingIcon}
               size={16}

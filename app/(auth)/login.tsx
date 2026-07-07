@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
   StatusBar,
+  Platform,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
@@ -32,6 +33,8 @@ import {
 } from "@/components/auth";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 type ToastType = "success" | "error" | "info";
 
@@ -132,6 +135,9 @@ export default function Login() {
       const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
       const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
       if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
+    } else if (googleResponse.type === "error") {
+      // Échec OAuth Google — sans feedback l'utilisateur ne voit rien
+      showToast(t("auth.login_google_failed"));
     }
   }, [googleResponse]);
 
@@ -154,7 +160,7 @@ export default function Login() {
       }
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
-      else showToast("Connexion impossible, réessaie");
+      else showToast(t("auth.su_err_social"));
     } finally {
       setSocialLoading(null);
     }
@@ -200,7 +206,7 @@ export default function Login() {
       } else if (e?.status === 409) {
         showToast(e.data?.error || e.message);
       } else {
-        showToast("Connexion impossible, réessaie");
+        showToast(t("auth.su_err_social"));
       }
     } finally {
       setSocialLoading(null);
@@ -222,6 +228,10 @@ export default function Login() {
       showToast(t("auth.fill_all_fields"));
       return;
     }
+    if (!EMAIL_RE.test(email.trim())) {
+      showToast(t("auth.invalid_email"));
+      return;
+    }
     feedback.haptic('medium');
     setLoading(true);
     try {
@@ -234,11 +244,32 @@ export default function Login() {
           pathname: "/(auth)/complete-profile",
           params: { missingFields: res.missingFields.join(",") },
         });
+        return;
+      }
+      // Reproduit la logique de app/index.tsx : un provider non-ACTIF doit
+      // passer par l'écran pending, pas directement le dashboard.
+      let roles: string[] | undefined = res.roles;
+      let providerStatus: string | undefined = res.providerStatus;
+      if (!Array.isArray(roles)) {
+        try {
+          const me: any = await api.user.me();
+          roles = me?.user?.roles;
+          providerStatus = me?.user?.providerStatus;
+        } catch {}
+      }
+      const isProvider = Array.isArray(roles) && roles.includes("PROVIDER");
+      if (isProvider) {
+        router.replace(providerStatus === "ACTIVE" ? "/(tabs)/provider-dashboard" : "/onboarding/provider/pending");
       } else {
         router.replace("/(tabs)/dashboard");
       }
-    } catch {
-      showToast(t("auth.invalid_credentials"));
+    } catch (e: any) {
+      if (e?.status === 401) {
+        showToast(t("auth.invalid_credentials"));
+      } else {
+        // Panne réseau / serveur : ne pas suggérer que le mot de passe est faux
+        showToast(t("auth.login_network_error"));
+      }
     } finally {
       setLoading(false);
     }
@@ -268,32 +299,38 @@ export default function Login() {
           <AuthBackButton onPress={handleBack} />
         </View>
 
-        <AuthHeadline title="CONNEXION" align="left" />
+        <AuthHeadline title={t("auth.login")} align="left" />
 
         <View style={s.body}>
           {/* Social buttons */}
           <View style={s.socialRow}>
-            <TouchableOpacity
-              style={s.socialBtn}
-              onPress={handleAppleSignIn}
-              disabled={isBusy}
-              activeOpacity={0.7}
-            >
-              {socialLoading === "apple" ? (
-                <Spinner color={authT.textOnDark} />
-              ) : (
-                <>
-                  <AppleLogo />
-                  <Text style={s.socialText}>Apple</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={s.socialBtn}
+                onPress={handleAppleSignIn}
+                disabled={isBusy}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.login_apple_a11y")}
+              >
+                {socialLoading === "apple" ? (
+                  <Spinner color={authT.textOnDark} />
+                ) : (
+                  <>
+                    <AppleLogo />
+                    <Text style={s.socialText}>Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={s.socialBtn}
               onPress={() => googlePromptAsync()}
               disabled={isBusy || !googleRequest}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t("auth.login_google_a11y")}
             >
               {socialLoading === "google" ? (
                 <Spinner color={authT.textOnDark} />
@@ -309,17 +346,20 @@ export default function Login() {
           {/* Divider */}
           <View style={s.divider}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerLabel}>OU</Text>
+            <Text style={s.dividerLabel}>{t("auth.su_or")}</Text>
             <View style={s.dividerLine} />
           </View>
 
           {/* Form */}
           <View style={s.form}>
             <AuthInput
-              label="Email"
+              label={t("auth.email_label")}
               icon="mail"
-              placeholder="votre@email.com"
+              placeholder={t("auth.email_placeholder_value")}
               autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              autoCorrect={false}
               keyboardType="email-address"
               returnKeyType="next"
               value={email}
@@ -329,10 +369,13 @@ export default function Login() {
 
             <AuthInput
               inputRef={pwdRef}
-              label="Mot de passe"
+              label={t("auth.password_label")}
               icon="lock"
               placeholder="••••••••"
               secureTextEntry={!showPwd}
+              autoComplete="password"
+              textContentType="password"
+              autoCorrect={false}
               trailingIcon={showPwd ? "eye-off" : "eye"}
               onTrailingPress={() => setShowPwd((p) => !p)}
               returnKeyType="done"
@@ -342,8 +385,14 @@ export default function Login() {
             />
 
             <View style={s.forgotRow}>
-              <TouchableOpacity activeOpacity={0.6} onPress={() => router.push("/(auth)/forgot-password")}>
-                <Text style={s.forgotLink}>Mot de passe oublié ?</Text>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.forgot_password")}
+                onPress={() => router.push("/(auth)/forgot-password")}
+              >
+                <Text style={s.forgotLink}>{t("auth.forgot_password")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -352,15 +401,15 @@ export default function Login() {
         <View style={s.spacer} />
 
         <AuthCTA
-          label="SE CONNECTER"
+          label={t("auth.login_cta")}
           onPress={onSubmit}
           loading={loading}
           disabled={isBusy}
         />
 
         <AuthLink
-          prefix="Pas encore de compte ?"
-          action="Créer un compte"
+          prefix={t("auth.no_account")}
+          action={t("auth.signup")}
           onPress={() => {
             feedback.haptic('light');
             router.push("/(auth)/role-select");

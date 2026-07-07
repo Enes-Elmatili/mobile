@@ -7,6 +7,7 @@ import { NetworkProvider } from '../lib/NetworkContext';
 import { OfflineQueueProvider } from '../lib/OfflineQueueContext';
 import { CallProvider } from '../lib/webrtc/CallContext';
 import IncomingCallOverlay from '../components/IncomingCallOverlay';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { FeedbackHost } from '@/components/feedback/FeedbackHost';
 import { usePushNotifications } from '../lib/usePushNotifications';
 import {
@@ -24,9 +25,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { useFonts } from 'expo-font';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
-import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
+import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
-import { darkTokens, lightTokens } from '@/hooks/use-app-theme';
+import { darkTokens, lightTokens, FONTS } from '@/hooks/use-app-theme';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
@@ -65,7 +66,6 @@ const MISSION_FLOW_ROUTES = [
   'missionview',
   'explore',
   'onboarding',
-  'subscription',
   'settings',
   'providers',
   'signup',
@@ -78,8 +78,11 @@ const MISSION_FLOW_ROUTES = [
   'call',
 ];
 
+// ✅ Pages légales consultables sans être connecté (liens CGU / confidentialité du signup)
+const PUBLIC_LEGAL_ROUTES = ['cgu', 'privacy'];
+
 function RootLayoutNav() {
-  const { user, isBooting, token } = useAuth();
+  const { user, isBooting, token, missingFields } = useAuth();
   const segments                   = useSegments();
   const router                     = useRouter();
 
@@ -93,9 +96,10 @@ function RootLayoutNav() {
   // Primitives stables — évitent de relancer l'effet sur chaque re-render
   // `segments` est un nouveau tableau à chaque render (référence instable)
   // `user` est un nouvel objet à chaque setUser() (même données)
-  const userId     = user?.id ?? null;
-  const hasToken   = !!token;
-  const segmentKey = segments.join('/');
+  const userId            = user?.id ?? null;
+  const hasToken          = !!token;
+  const segmentKey        = segments.join('/');
+  const profileIncomplete = missingFields.length > 0;
 
   useEffect(() => {
     if (isBooting) return;
@@ -109,6 +113,9 @@ function RootLayoutNav() {
     if (!segments[0] || segmentKey === '') return;
 
     const inAuthGroup = segments[0] === '(auth)';
+
+    // Pages légales accessibles sans compte (CGU / confidentialité depuis le signup)
+    if (PUBLIC_LEGAL_ROUTES.some(route => segments.some(seg => seg === route))) return;
 
     // Guard : ne jamais interrompre un flow en cours
     // Exception: si le token a disparu (logout explicite ou 401), on doit rediriger
@@ -139,6 +146,13 @@ function RootLayoutNav() {
         return;
       }
 
+      // Gate complete-profile : tant que le profil est incomplet (missingFields
+      // fournis par la réponse login/social), l'écran reste forcé — ne pas
+      // l'éjecter vers le dashboard.
+      if (segments.some(s => s === 'complete-profile') && profileIncomplete) {
+        return;
+      }
+
       // Si on est dans le groupe auth mais connecté+vérifié → rediriger
       if (inAuthGroup) {
         const isProvider = user?.roles?.includes('PROVIDER');
@@ -154,7 +168,7 @@ function RootLayoutNav() {
         }
       }
     }
-  }, [userId, isBooting, segmentKey, hasToken]);
+  }, [userId, isBooting, segmentKey, hasToken, profileIncomplete]);
 
   if (isBooting) {
     return (
@@ -203,7 +217,7 @@ class AppErrorBoundary extends React.Component<
       const t = dark ? darkTokens : lightTokens;
       return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: t.bg }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: t.text }}>{i18n.t('common.error')}</Text>
+          <Text style={{ fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.5, marginBottom: 12, color: t.text }}>{i18n.t('common.error')}</Text>
           <Text style={{ fontSize: 14, color: t.textSub, textAlign: 'center', marginBottom: 24 }}>
             {i18n.t('ext.error_boundary_msg')}
           </Text>
@@ -211,7 +225,7 @@ class AppErrorBoundary extends React.Component<
             onPress={() => this.setState({ hasError: false })}
             style={{ backgroundColor: t.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
-            <Text style={{ color: t.accentText, fontWeight: '600' }}>{i18n.t('common.retry')}</Text>
+            <Text style={{ color: t.accentText, fontFamily: FONTS.sansMedium }}>{i18n.t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -226,6 +240,7 @@ export default Sentry.wrap(function RootLayout() {
     DMSans_300Light,
     DMSans_400Regular,
     DMSans_500Medium,
+    DMSans_700Bold,
     DMMono_400Regular,
     DMMono_500Medium,
   });
@@ -254,6 +269,7 @@ export default Sentry.wrap(function RootLayout() {
                 <SocketProvider>
                   <CallProvider>
                     <IncomingCallOverlay />
+                    <OfflineBanner />
                     <RootLayoutNav />
                   </CallProvider>
                 </SocketProvider>

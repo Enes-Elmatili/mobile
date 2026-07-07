@@ -46,6 +46,12 @@ export default function Welcome() {
     router.push("/(auth)/login");
   };
 
+  // Lien « Vous êtes un pro ? » → role-select avec le rôle PROVIDER pré-sélectionné
+  const handleProLink = async () => {
+    feedback.haptic('medium');
+    router.push({ pathname: "/(auth)/role-select", params: { role: "PROVIDER" } });
+  };
+
   return (
     <AuthScreen variant="standard">
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
@@ -81,7 +87,13 @@ export default function Welcome() {
 
         <AuthLink prefix={t('auth.welcome_already')} action={t('auth.welcome_signin')} onPress={handleSignIn} onDark />
 
-        <Pressable onPress={handlePrimary} style={s.proRow} hitSlop={8}>
+        <Pressable
+          onPress={handleProLink}
+          style={s.proRow}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('auth.welcome_pro_q')} ${t('auth.welcome_pro_link')}`}
+        >
           <Text style={s.proText}>
             {t('auth.welcome_pro_q')} <Text style={s.proLink}>{t('auth.welcome_pro_link')}</Text>
           </Text>

@@ -23,6 +23,12 @@ export default function Index() {
     return <Redirect href={{ pathname: "/(auth)/verify-email", params: { email: user.email } }} />;
   }
 
+  // Social signup interrompu : vérifié mais sans rôle → sélection de rôle
+  // (évite le flash dashboard → role-select corrigé ensuite par RootLayoutNav)
+  if (!user.roles || user.roles.length === 0) {
+    return <Redirect href="/(auth)/role-select" />;
+  }
+
   // Provider not yet active → pending screen
   const isProvider = user.roles?.includes('PROVIDER');
   if (isProvider) {

@@ -224,7 +224,7 @@ export default function VerifyEmail() {
   const focusedIndex = Math.min(code.length, CODE_LENGTH - 1);
 
   return (
-    <AuthScreen variant="inverted">
+    <AuthScreen variant="inverted" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
         {/* Step indicator (top right) */}
         <View style={s.topRow}>
@@ -334,7 +334,14 @@ export default function VerifyEmail() {
                 {cooldown > 0 ? (
                   <Text style={s.metaFaint}>{t('auth.ve_resend_in', { time: fmtCooldown })}</Text>
                 ) : (
-                  <TouchableOpacity onPress={handleResend} disabled={resending} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    onPress={handleResend}
+                    disabled={resending}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('auth.ve_resend_cta')}
+                  >
                     {resending ? (
                       <ActivityIndicator size="small" color={alpha(authT.textOnDark, 0.6)} />
                     ) : (

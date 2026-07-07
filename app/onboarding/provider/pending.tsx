@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, Dimensions, Animated, Easing, ScrollView, Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Line } from "react-native-svg";
@@ -22,6 +23,12 @@ import { useSocket } from "../../../lib/SocketContext";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
 import { PulseDot } from '@/components/ui/PulseDot';
+import { BASE_REQUIREMENTS } from "@/constants/kycRequirements";
+
+// Libellés traduits des documents (au lieu de la clé technique « id_front »)
+const DOC_LABELS: Record<string, string> = Object.fromEntries(
+  BASE_REQUIREMENTS.map((d) => [d.type, d.label])
+);
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
@@ -344,10 +351,16 @@ export default function PendingValidation() {
           />
         </Animated.View>
 
+        <KeyboardAvoidingView
+          style={s.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        >
         <ScrollView
           style={s.flex}
           contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 24 }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header : kicker + chip statut */}
           <View style={s.headerRow}>
@@ -384,7 +397,7 @@ export default function PendingValidation() {
                 <View key={doc.id} style={s.docRow}>
                   <Feather name="x-circle" size={16} color={C.red} />
                   <View style={{ flex: 1 }}>
-                    <Text style={s.docLabel}>{doc.docKey.replace(/_/g, " ")}</Text>
+                    <Text style={s.docLabel}>{t(`kyc.${doc.docKey}_label`, { defaultValue: DOC_LABELS[doc.docKey] ?? doc.docKey.replace(/_/g, " ") })}</Text>
                     {!!doc.rejectionReason && <Text style={s.docReason}>{doc.rejectionReason}</Text>}
                   </View>
                   <Text style={[s.docStatus, { color: C.red }]}>{t('onboarding.pending_doc_refused')}</Text>
@@ -463,6 +476,7 @@ export default function PendingValidation() {
             <Text style={s.prepHint}>{t('onboarding.pending_prep_hint')}</Text>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Footer */}
         <View style={s.footer}>
@@ -769,7 +783,7 @@ const s = StyleSheet.create({
   },
   docRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
   docLabel: {
-    fontFamily: FONTS.sansMedium, fontSize: 13, color: C.white, textTransform: "capitalize",
+    fontFamily: FONTS.sansMedium, fontSize: 13, color: C.white,
   },
   docReason: { fontFamily: FONTS.sans, fontSize: 12, color: C.red, marginTop: 2 },
   docStatus: { fontFamily: FONTS.sansMedium, fontSize: 12, color: C.grey },

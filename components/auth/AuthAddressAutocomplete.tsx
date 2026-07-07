@@ -6,14 +6,20 @@
  *
  * Tracks whether the user has committed to a Place. If the field has text but no
  * Place was selected, shows an inline error on blur / submit attempt.
+ *
+ * Fallback de saisie manuelle : si l'autocomplete Google échoue (onFail) ou via
+ * le lien « Saisir manuellement », un formulaire rue / code postal / ville prend
+ * le relais pour ne jamais bloquer l'inscription.
  */
 import React, { useRef, useState, useCallback } from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from "react-native";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 import type { GooglePlaceDetail, AddressComponent } from "react-native-google-places-autocomplete";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { FONTS } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
+import { AuthInput } from "./AuthInput";
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
@@ -64,20 +70,51 @@ type Props = {
   error?: string | null;
   label?: string;
   value?: string;
+  /**
+   * Appelé quand l'utilisateur retape dans le champ Google après avoir déjà
+   * sélectionné une adresse : le parent doit invalider l'adresse parsée
+   * (sinon address/postalCode/city gardent l'ancienne valeur).
+   */
   onChangeText?: (text: string) => void;
 };
 
 export function AuthAddressAutocomplete({
   onAddressSelected,
   error,
-  label = "Adresse *",
+  label,
   onChangeText,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label === undefined ? t("auth.address_label") : label;
   const [focused, setFocused] = useState(false);
   const [placeSelected, setPlaceSelected] = useState(false);
   const [internalError, setInternalError] = useState<string | null>(null);
 
+  // Saisie manuelle (fallback)
+  const [manual, setManual] = useState(false);
+  const [mStreet, setMStreet] = useState("");
+  const [mPostal, setMPostal] = useState("");
+  const [mCity, setMCity] = useState("");
+
   const effectiveError = error ?? internalError;
+
+  const emitManual = useCallback(
+    (street: string, postal: string, city: string) => {
+      const formatted = [street, [postal, city].filter(Boolean).join(" ")]
+        .filter(Boolean)
+        .join(", ");
+      onAddressSelected({
+        formatted,
+        street: street.trim(),
+        postalCode: postal.trim(),
+        city: city.trim(),
+        country: "Belgique",
+        lat: 0,
+        lng: 0,
+      });
+    },
+    [onAddressSelected]
+  );
 
   const handlePress = useCallback(
     (data: { description: string }, details: GooglePlaceDetail | null) => {
@@ -86,14 +123,88 @@ export function AuthAddressAutocomplete({
       setPlaceSelected(true);
       setInternalError(null);
       onAddressSelected(parsed);
-      onChangeText?.(data.description);
     },
-    [onAddressSelected, onChangeText]
+    [onAddressSelected]
   );
 
+  const switchToManual = useCallback(() => {
+    setManual(true);
+    setInternalError(null);
+    // Réinitialise l'adresse parsée : on repart d'une saisie vierge
+    onChangeText?.("");
+  }, [onChangeText]);
+
+  // ── Mode saisie manuelle ────────────────────────────────────────────────────
+  if (manual) {
+    return (
+      <View style={s.wrap}>
+        <AuthInput
+          label={resolvedLabel}
+          icon="map-pin"
+          placeholder={t("auth.address_street_placeholder")}
+          autoCapitalize="words"
+          value={mStreet}
+          onChangeText={(v) => {
+            setMStreet(v);
+            emitManual(v, mPostal, mCity);
+          }}
+        />
+        <View style={s.manualRow}>
+          <View style={s.manualPostal}>
+            <AuthInput
+              label={t("auth.postal_label")}
+              icon="hash"
+              placeholder="1050"
+              keyboardType="number-pad"
+              maxLength={4}
+              value={mPostal}
+              onChangeText={(v) => {
+                setMPostal(v);
+                emitManual(mStreet, v, mCity);
+              }}
+            />
+          </View>
+          <View style={s.manualCity}>
+            <AuthInput
+              label={t("auth.city_label")}
+              icon="map"
+              placeholder="Ixelles"
+              autoCapitalize="words"
+              value={mCity}
+              onChangeText={(v) => {
+                setMCity(v);
+                emitManual(mStreet, mPostal, v);
+              }}
+            />
+          </View>
+        </View>
+
+        <TouchableOpacity
+          onPress={() => setManual(false)}
+          style={s.manualLinkRow}
+          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t("auth.address_search_a11y")}
+        >
+          <Feather name="search" size={11} color={alpha(authT.textOnLight, 0.55)} />
+          <Text style={s.manualLink}>{t("auth.address_search_a11y")}</Text>
+        </TouchableOpacity>
+
+        {effectiveError ? (
+          <View style={s.errorRow}>
+            <Feather name="alert-circle" size={12} color="#DC2626" />
+            <Text style={s.errorText}>{effectiveError}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  // ── Mode autocomplete Google ────────────────────────────────────────────────
   return (
     <View style={s.wrap}>
-      {label ? <Text style={s.label}>{label}</Text> : null}
+      {resolvedLabel ? <Text style={s.label}>{resolvedLabel}</Text> : null}
       <View
         style={[
           s.field,
@@ -110,7 +221,7 @@ export function AuthAddressAutocomplete({
         />
 
         <GooglePlacesAutocomplete
-          placeholder="Rue, numéro, ville"
+          placeholder={t("auth.address_search_placeholder")}
           fetchDetails
           onPress={handlePress}
           query={{
@@ -130,7 +241,11 @@ export function AuthAddressAutocomplete({
           // doesn't overflow visually.
           disableScroll
           listEmptyComponent={null}
-          onFail={() => setInternalError("Erreur de recherche — réessaie")}
+          onFail={() => {
+            // API Places indisponible / clé absente → bascule vers la saisie manuelle
+            setInternalError(t("auth.address_search_unavailable"));
+            switchToManual();
+          }}
           textInputProps={{
             placeholderTextColor: alpha(authT.textOnDark, 0.4),
             onFocus: () => setFocused(true),
@@ -145,6 +260,7 @@ export function AuthAddressAutocomplete({
                 setPlaceSelected(false);
               }
               setInternalError(null);
+              // Invalide l'adresse parsée côté parent (donnée périmée sinon)
               onChangeText?.(text);
             },
             selectionColor: authT.textOnDark,
@@ -216,6 +332,19 @@ export function AuthAddressAutocomplete({
           }}
         />
       </View>
+
+      <TouchableOpacity
+        onPress={switchToManual}
+        style={s.manualLinkRow}
+        activeOpacity={0.7}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t("auth.address_manual_a11y")}
+      >
+        <Feather name="edit-3" size={11} color={alpha(authT.textOnLight, 0.55)} />
+        <Text style={s.manualLink}>{t("auth.address_manual_link")}</Text>
+      </TouchableOpacity>
+
       {effectiveError ? (
         <View style={s.errorRow}>
           <Feather name="alert-circle" size={12} color="#DC2626" />
@@ -259,6 +388,27 @@ const s = StyleSheet.create({
   },
   icon: {
     marginRight: 10,
+  },
+  // Saisie manuelle
+  manualRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  manualPostal: { flex: 1 },
+  manualCity: { flex: 1.6 },
+  manualLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
+  manualLink: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 12,
+    color: alpha(authT.textOnLight, 0.6),
+    textDecorationLine: "underline",
   },
   errorRow: {
     flexDirection: "row",

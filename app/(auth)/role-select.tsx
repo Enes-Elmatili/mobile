@@ -9,7 +9,7 @@ import {
   Easing,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { feedback } from "@/lib/feedback/feedback";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
@@ -70,6 +70,10 @@ function RoleCard({
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
+        accessibilityRole="radio"
+        accessibilityState={{ selected: isSelected }}
+        accessibilityLabel={title}
+        accessibilityHint={subtitle}
       >
         <View style={[s.cardIcon, isSelected && s.cardIconSelected]}>
           <Feather
@@ -98,7 +102,11 @@ export default function RoleSelect() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user, signIn } = useAuth();
-  const [selected, setSelected] = useState<"CLIENT" | "PROVIDER" | null>(null);
+  // Pré-sélection possible via param (ex. lien « Vous êtes un pro ? » du welcome)
+  const params = useLocalSearchParams<{ role?: string }>();
+  const initialRole: "CLIENT" | "PROVIDER" | null =
+    params.role === "PROVIDER" || params.role === "CLIENT" ? params.role : null;
+  const [selected, setSelected] = useState<"CLIENT" | "PROVIDER" | null>(initialRole);
   const [submitting, setSubmitting] = useState(false);
   const isAuthenticated = !!user;
 
@@ -136,9 +144,12 @@ export default function RoleSelect() {
       try {
         const res = await api.auth.assignRole(selected);
         if (res?.token) await signIn(res.token);
+        // Navigation explicite pour les DEUX rôles — on ne dépend plus de la
+        // chaîne implicite refreshMe → redirect (spinner infini si res.token absent).
         if (selected === "PROVIDER") {
           router.replace("/onboarding/documents");
-          return;
+        } else {
+          router.replace("/(tabs)/dashboard");
         }
       } catch (e: any) {
         feedback.error(e?.message || t('ext.role_assign_error'));

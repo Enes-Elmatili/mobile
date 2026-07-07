@@ -18,6 +18,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-nativ
 import CountryPicker from "react-native-country-picker-modal";
 import type { Country, CountryCode } from "react-native-country-picker-modal";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { FONTS } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
@@ -42,11 +43,13 @@ export function AuthPhoneInput({
   onChangeText,
   onChangeFormattedText,
   error,
-  label = "Téléphone *",
+  label,
   placeholder = "470 12 34 56",
   returnKeyType = "next",
   onSubmitEditing,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedLabel = label === undefined ? t("auth.phone_label") : label;
   const [focused, setFocused] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [country, setCountry] = useState<{ cca2: CountryCode; callingCode: string }>(
@@ -71,7 +74,7 @@ export function AuthPhoneInput({
 
   return (
     <View style={s.wrap}>
-      {label ? <Text style={s.label}>{label}</Text> : null}
+      {resolvedLabel ? <Text style={s.label}>{resolvedLabel}</Text> : null}
       <View
         style={[
           s.field,
@@ -97,7 +100,7 @@ export function AuthPhoneInput({
             onClose={() => setPickerVisible(false)}
             visible={pickerVisible}
             // Keep the picker's filter input hint localized.
-            filterProps={{ placeholder: "Rechercher un pays...", autoFocus: true }}
+            filterProps={{ placeholder: t("auth.country_search_placeholder"), autoFocus: true }}
           />
           <Text style={s.dialCode}>+{country.callingCode}</Text>
           <Feather name="chevron-down" size={14} color={alpha(authT.textOnDark, 0.5)} />

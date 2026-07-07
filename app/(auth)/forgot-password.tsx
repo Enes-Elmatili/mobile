@@ -24,6 +24,8 @@ import {
   alpha,
 } from "@/components/auth";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 export default function ForgotPassword() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -46,6 +48,10 @@ export default function ForgotPassword() {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed) {
       setError(t('auth.forgot_password_empty'));
+      return;
+    }
+    if (!EMAIL_RE.test(trimmed)) {
+      setError(t('auth.invalid_email'));
       return;
     }
     feedback.haptic('medium');
@@ -115,6 +121,9 @@ export default function ForgotPassword() {
                 placeholder={t('auth.email_placeholder_value')}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                autoCorrect={false}
                 autoFocus
                 returnKeyType="done"
                 value={email}
@@ -192,7 +201,7 @@ const s = StyleSheet.create({
     backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
     borderColor: alpha(authT.textOnDark, 0.14),
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
   },
   infoText: {

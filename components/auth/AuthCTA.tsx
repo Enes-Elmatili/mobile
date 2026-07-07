@@ -81,6 +81,9 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled, busy: !!loading }}
       style={({ pressed }) => [
         s.cta,
         { backgroundColor: pillBg, borderColor, borderWidth: 1 },
