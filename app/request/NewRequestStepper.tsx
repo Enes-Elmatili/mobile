@@ -1352,6 +1352,12 @@ export default function NewRequestStepper() {
           setRequestId(rId);
           const calloutRes = await api.post('/quotes/callout-payment', { requestId: rId });
           if (calloutRes.amount) setConfirmedCalloutCents(calloutRes.amount);
+          // Store-review : { demo:true } → le backend a déjà fait QUOTE_PENDING + broadcast
+          // (aucune charge). On saute la PaymentSheet ; handlePay navigue directement.
+          if (calloutRes.demo) {
+            if (!cancelled) { setBypassPayment(true); setPaymentReady(true); }
+            return;
+          }
           const { error } = await initPaymentSheet({
             merchantDisplayName:      'Fixed',
             paymentIntentClientSecret: calloutRes.clientSecret,
@@ -1597,6 +1603,15 @@ export default function NewRequestStepper() {
       // Store-review DEMO (prix-fixe uniquement) : pas de PaymentSheet.
       // /success (branche démo) publie la mission + broadcast aux prestataires.
       if (bypassPayment) {
+        // Flow devis démo : le backend (callout-payment démo) a déjà fait QUOTE_PENDING
+        // + broadcast aux prestas — rien à confirmer, on navigue directement.
+        if (isQuoteFlow) {
+          if (!mountedRef.current) return;
+          feedback.haptic('success');
+          goToMissionView();
+          return;
+        }
+        // Flow prix-fixe démo : /success publie la mission + broadcast aux prestataires.
         try {
           await confirmPaymentSuccess(requestId);
         } catch (e: any) {
