@@ -256,7 +256,8 @@
     "su_quit_confirm": "Leave",
     "su_err_identity": "Enter your name, a valid email and a password (8 characters min.).",
     "su_err_coords": "Complete your phone and address to continue.",
-    "su_err_activity": "Choose your city and at least one category."
+    "su_err_activity": "Choose your city and at least one category.",
+    "welcome_eyebrow": "Plumbing · Locksmith"
   },
   "profile": {
     "title": "Profile",

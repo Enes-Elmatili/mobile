@@ -256,7 +256,8 @@
     "su_quit_confirm": "Verlaten",
     "su_err_identity": "Vul uw naam, een geldig e-mailadres en een wachtwoord in (min. 8 tekens).",
     "su_err_coords": "Vul uw telefoon en adres in om door te gaan.",
-    "su_err_activity": "Kies uw stad en minstens één categorie."
+    "su_err_activity": "Kies uw stad en minstens één categorie.",
+    "welcome_eyebrow": "Loodgieterij · Slotenmakerij"
   },
   "profile": {
     "title": "Profiel",

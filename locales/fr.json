@@ -256,7 +256,8 @@
     "su_quit_confirm": "Quitter",
     "su_err_identity": "Renseigne ton nom, un email valide et un mot de passe (8 caractères min.).",
     "su_err_coords": "Complète ton téléphone et ton adresse pour continuer.",
-    "su_err_activity": "Choisis ta ville et au moins une catégorie."
+    "su_err_activity": "Choisis ta ville et au moins une catégorie.",
+    "welcome_eyebrow": "Plomberie · Serrurerie"
   },
   "profile": {
     "title": "Profil",
