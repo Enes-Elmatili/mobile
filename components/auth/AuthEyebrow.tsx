@@ -14,7 +14,7 @@ export function AuthEyebrow({ label }: Props) {
   return (
     <View style={s.row}>
       <View style={[s.dash, { backgroundColor: dot }]} />
-      <Text style={[s.label, { color: alpha(theme.text, 0.55) }]}>
+      <Text style={[s.label, { color: alpha(theme.text, 0.55) }]} maxFontSizeMultiplier={1.3}>
         {label.toUpperCase()}
       </Text>
     </View>

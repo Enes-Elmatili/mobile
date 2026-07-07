@@ -15,11 +15,11 @@ export function AuthMasthead({ meta }: Props) {
   const dot = theme.brandDot;
   return (
     <View style={s.row}>
-      <Text style={[s.wordmark, { color: theme.text }]}>
+      <Text style={[s.wordmark, { color: theme.text }]} maxFontSizeMultiplier={1.3}>
         FIXED<Text style={{ color: dot }}>.</Text>
       </Text>
       {!!meta && (
-        <Text style={[s.meta, { color: alpha(theme.text, 0.3) }]}>
+        <Text style={[s.meta, { color: alpha(theme.text, 0.3) }]} maxFontSizeMultiplier={1.3}>
           {meta.toUpperCase()}
         </Text>
       )}

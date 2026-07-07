@@ -91,7 +91,7 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
         pressed && !isDisabled && { transform: [{ scale: 0.98 }], opacity: 0.95 },
       ]}
     >
-      <Text style={[s.label, { color: labelColor }]}>{label}</Text>
+      <Text style={[s.label, { color: labelColor }]} maxFontSizeMultiplier={1.3}>{label}</Text>
       {loading ? (
         <ActivityIndicator size="small" color={arrowColor} style={s.arrow} />
       ) : !hideArrow ? (

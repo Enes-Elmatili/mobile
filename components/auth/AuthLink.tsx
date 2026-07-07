@@ -27,7 +27,7 @@ export function AuthLink({ prefix, action, onPress, onDark }: Props) {
       accessibilityLabel={prefix ? `${prefix} ${action}` : action}
       style={s.wrap}
     >
-      <Text style={[s.text, { color: alpha(base, 0.55) }]}>
+      <Text style={[s.text, { color: alpha(base, 0.55) }]} maxFontSizeMultiplier={1.3}>
         {prefix ? `${prefix} ` : ""}
         <Text style={[s.strong, { color: base }]}>{action}</Text>
       </Text>

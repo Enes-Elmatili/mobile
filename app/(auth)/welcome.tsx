@@ -73,13 +73,13 @@ export default function Welcome() {
 
         <AuthEyebrow label={t('auth.welcome_eyebrow')} />
 
-        <Text style={[s.headline, { color: theme.text }]}>
+        <Text style={[s.headline, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
           {t('auth.welcome_l1')}{"\n"}
           {t('auth.welcome_l2_prefix')}{t('auth.welcome_l2_accent')}{"\n"}
           {t('auth.welcome_l3')}<Text style={{ color: dot }}>.</Text>
         </Text>
 
-        <Text style={[s.subhead, { color: alpha(theme.text, 0.56) }]}>
+        <Text style={[s.subhead, { color: alpha(theme.text, 0.56) }]} maxFontSizeMultiplier={1.2}>
           {t('auth.welcome_sub')}
         </Text>
 
@@ -89,8 +89,8 @@ export default function Welcome() {
         <View style={[s.steps, { borderTopColor: alpha(theme.text, 0.11) }]}>
           {[t('auth.welcome_step1'), t('auth.welcome_step2'), t('auth.welcome_step3')].map((label, i) => (
             <View key={label} style={s.step}>
-              <Text style={[s.stepNum, { color: dot }]}>{String(i + 1).padStart(2, "0")}</Text>
-              <Text style={[s.stepLabel, { color: theme.text }]}>{label}</Text>
+              <Text style={[s.stepNum, { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{String(i + 1).padStart(2, "0")}</Text>
+              <Text style={[s.stepLabel, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{label}</Text>
             </View>
           ))}
         </View>
@@ -113,13 +113,13 @@ export default function Welcome() {
         <Pressable
           onPress={handleProLink}
           style={s.proRow}
-          hitSlop={8}
+          hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={`${t('auth.welcome_pro_q')} ${t('auth.welcome_pro_link')}`}
         >
-          <Text style={[s.proText, { color: alpha(theme.text, 0.26) }]}>
+          <Text style={[s.proText, { color: alpha(theme.text, theme.isDark ? 0.26 : 0.4) }]} maxFontSizeMultiplier={1.2}>
             {t('auth.welcome_pro_q')}{" "}
-            <Text style={[s.proLink, { color: alpha(theme.text, 0.5), textDecorationColor: alpha(theme.text, 0.26) }]}>
+            <Text style={[s.proLink, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68), textDecorationColor: alpha(theme.text, theme.isDark ? 0.26 : 0.4) }]}>
               {t('auth.welcome_pro_link')}
             </Text>
           </Text>
@@ -176,6 +176,7 @@ const s = StyleSheet.create({
   proRow: {
     alignItems: "center",
     marginTop: 14,
+    paddingVertical: 8,
   },
   proText: {
     fontFamily: FONTS.mono,
