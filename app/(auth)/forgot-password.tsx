@@ -147,9 +147,11 @@ export default function ForgotPassword() {
           disabled={!sent && !email.trim()}
         />
 
-        <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
-          <Text style={s.secondaryLinkText}>{t('auth.back_to_login_link')}</Text>
-        </TouchableOpacity>
+        {!sent && (
+          <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
+            <Text style={s.secondaryLinkText}>{t('auth.back_to_login_link')}</Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
     </AuthScreen>
   );

@@ -471,7 +471,10 @@ export default function Documents() {
             ) : (
               <View style={s.invoiceList}>
                 {quoteRequests.map(req => {
-                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || t('ext.invoice_service_default');
+                  const rawService = req.serviceType || req.subcategory?.name || req.category?.name || req.title;
+                  const serviceName = rawService
+                    ? rawService.charAt(0).toUpperCase() + rawService.slice(1)
+                    : t('ext.invoice_service_default');
                   const statusUp = req.status?.toUpperCase();
                   const isPendingPay = statusUp === 'PENDING_PAYMENT';
                   const isPending = statusUp === 'QUOTE_PENDING';
@@ -570,7 +573,10 @@ export default function Documents() {
             ) : (
               <View style={s.invoiceList}>
                 {scheduledRequests.map(req => {
-                  const serviceName = req.serviceType || req.subcategory?.name || req.category?.name || req.title || t('ext.invoice_service_default');
+                  const rawService = req.serviceType || req.subcategory?.name || req.category?.name || req.title;
+                  const serviceName = rawService
+                    ? rawService.charAt(0).toUpperCase() + rawService.slice(1)
+                    : t('ext.invoice_service_default');
                   const isQuote = req.pricingMode === 'estimate' || req.pricingMode === 'diagnostic';
                   const statusUp = (req.status || '').toUpperCase();
                   const isOngoing = statusUp === 'ONGOING';
