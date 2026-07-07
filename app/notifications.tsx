@@ -255,6 +255,7 @@ export default function NotificationsScreen() {
         notif={selected}
         isVisible={!!selected}
         onClose={() => setSelected(null)}
+        onDelete={handleDelete}
       />
     </SafeAreaView>
   );

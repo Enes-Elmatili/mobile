@@ -42,7 +42,8 @@
     "tag_info": "Informatie",
     "tag_success": "Bevestiging",
     "tag_warning": "Belangrijk",
-    "tag_error": "Probleem"
+    "tag_error": "Probleem",
+    "delete": "Verwijderen"
   },
   "common": {
     "cancel": "Annuleren",

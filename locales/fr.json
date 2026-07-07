@@ -42,7 +42,8 @@
     "tag_info": "Information",
     "tag_success": "Confirmation",
     "tag_warning": "Important",
-    "tag_error": "Problème"
+    "tag_error": "Problème",
+    "delete": "Supprimer"
   },
   "common": {
     "cancel": "Annuler",
