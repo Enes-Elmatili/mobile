@@ -1342,6 +1342,7 @@
     "role_signup": "Registratie",
     "role_step": "STAP 1 / 3",
     "signup_step": "STAP 2 / 3",
+    "verify_step": "STAP 3 / 3",
     "role_title": "IK BEN\n{accent}WIE ?{/accent}",
     "role_subtitle": "Kies uw profiel om de ervaring te personaliseren.",
     "role_client": "KLANT",

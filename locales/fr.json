@@ -1342,6 +1342,7 @@
     "role_signup": "Inscription",
     "role_step": "ÉTAPE 1 / 3",
     "signup_step": "ÉTAPE 2 / 3",
+    "verify_step": "ÉTAPE 3 / 3",
     "role_title": "JE SUIS\n{accent}QUI ?{/accent}",
     "role_subtitle": "Choisissez votre profil pour personnaliser l'expérience.",
     "role_client": "CLIENT",

@@ -1,4 +1,4 @@
-// app/(auth)/verify-email.tsx — vérification par code OTP 6 chiffres (inverted gradient)
+// app/(auth)/verify-email.tsx — vérification par code OTP 6 chiffres (flat theme-aware, v2 éditorial)
 // Redesign onboarding : le lien email devient un code saisi sur place, validé
 // automatiquement à la saisie. Le polling /auth/me reste en fallback pour le
 // chemin "clic sur le lien" des anciens emails.
@@ -20,14 +20,14 @@ import { api } from "@/lib/api";
 import { feedback } from "@/lib/feedback/feedback";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useTranslation } from "react-i18next";
-import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
-import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
   AuthCTA,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
+  AuthStepper,
 } from "@/components/auth";
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
@@ -39,6 +39,7 @@ export default function VerifyEmail() {
   const router = useRouter();
   const { refreshMe, signOut } = useAuth();
   const { t } = useTranslation();
+  const theme = useAppTheme();
 
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,16 +47,11 @@ export default function VerifyEmail() {
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_S);
   const [verified, setVerified] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
 
   const inputRef = useRef<TextInput>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const verifiedRef = useRef(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem(ROLE_INTENT_KEY).then(setRole);
-  }, []);
 
   // Countdown renvoi
   useEffect(() => {
@@ -180,10 +176,6 @@ export default function VerifyEmail() {
     }
   };
 
-  const flow = role === "PROVIDER" ? PROVIDER_FLOW : CLIENT_FLOW;
-  const stepNum = flow.steps.VERIFY_EMAIL;
-  const totalSteps = flow.totalSteps;
-
   // Entrance animation
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(16)).current;
@@ -224,51 +216,56 @@ export default function VerifyEmail() {
   const focusedIndex = Math.min(code.length, CODE_LENGTH - 1);
 
   return (
-    <AuthScreen variant="inverted" scrollable>
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        {/* Step indicator (top right) */}
-        <View style={s.topRow}>
-          <View style={s.stepIndicator}>
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
-            ))}
-            <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>{t('auth.ve_label')} · {String(stepNum).padStart(2, "0")}</Text>
-              {" / "}
-              {String(totalSteps).padStart(2, "0")}
-            </Text>
-          </View>
+        {/* Header : masthead + stepper macro (3/3) — pas de back, gate volontaire */}
+        <View style={s.header}>
+          <AuthMasthead />
+          <AuthStepper total={3} current={3} accessibilityLabel={t('ext.verify_step')} />
         </View>
 
+        <View style={s.airTop} />
+
         {/* Icon */}
-        <View style={[s.iconWrap, verified && s.iconWrapVerified, !!errorMsg && s.iconWrapError]}>
+        <View
+          style={[
+            s.iconWrap,
+            { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+            verified && {
+              backgroundColor: alpha(theme.brandDot, 0.12),
+              borderColor: alpha(theme.brandDot, 0.35),
+            },
+            !!errorMsg && { borderColor: alpha(COLORS.red, 0.4) },
+          ]}
+        >
           <Feather
             name={verified ? "check-circle" : "mail"}
             size={30}
-            color={verified ? COLORS.greenBrand : authT.textOnDark}
+            color={verified ? theme.greenText : theme.text}
           />
           {!verified && (
             <Animated.View
-              style={[s.iconDot, { opacity: pulseOp }, !!errorMsg && { backgroundColor: COLORS.red }]}
+              style={[
+                s.iconDot,
+                { borderColor: theme.bg, opacity: pulseOp },
+                !!errorMsg && { backgroundColor: COLORS.red },
+              ]}
             />
           )}
         </View>
 
-        <AuthHeadline
-          kicker={verified ? t('auth.ve_label_ok') : t('auth.ve_label')}
-          title={verified ? t('auth.ve_title_ok') : t('auth.ve_title')}
-          align="left"
-        />
+        <AuthEyebrow label={verified ? t('auth.ve_label_ok') : t('auth.ve_label')} />
+        <AuthHeadline themed title={verified ? t('auth.ve_title_ok') : t('auth.ve_title')} />
 
         {/* Body */}
         <View style={s.body}>
-          <Text style={s.subtitle}>
+          <Text style={[s.subtitle, { color: alpha(theme.text, 0.56) }]} maxFontSizeMultiplier={1.2}>
             {verified ? (
               t('auth.ve_sub_ok')
             ) : (
               <>
                 {t('auth.ve_sub') + "\n"}
-                <Text style={s.emailText}>{email || t('auth.ve_sub_fallback')}</Text>
+                <Text style={[s.emailText, { color: theme.text }]}>{email || t('auth.ve_sub_fallback')}</Text>
               </>
             )}
           </Text>
@@ -290,15 +287,24 @@ export default function VerifyEmail() {
                         key={i}
                         style={[
                           s.otpBox,
-                          !!char && s.otpBoxFilled,
-                          isFocus && s.otpBoxFocus,
-                          !!errorMsg && s.otpBoxError,
+                          { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+                          !!char && { borderColor: alpha(theme.text, 0.35) },
+                          isFocus && [s.otpBoxFocus, { borderColor: alpha(theme.text, 0.4) }],
+                          !!errorMsg && [
+                            s.otpBoxError,
+                            { backgroundColor: alpha(COLORS.red, 0.08), borderColor: alpha(COLORS.red, 0.65) },
+                          ],
                         ]}
                       >
                         {char ? (
-                          <Text style={[s.otpChar, !!errorMsg && s.otpCharError]}>{char}</Text>
+                          <Text
+                            style={[s.otpChar, { color: errorMsg ? COLORS.red : theme.text }]}
+                            maxFontSizeMultiplier={1.2}
+                          >
+                            {char}
+                          </Text>
                         ) : isFocus ? (
-                          <Animated.View style={[s.otpCursor, { opacity: blinkOp }]} />
+                          <Animated.View style={[s.otpCursor, { backgroundColor: theme.text, opacity: blinkOp }]} />
                         ) : null}
                       </View>
                     );
@@ -325,14 +331,19 @@ export default function VerifyEmail() {
               {!!errorMsg && (
                 <View style={s.errorRow}>
                   <Feather name="x" size={14} color={COLORS.red} />
-                  <Text style={s.errorText}>{errorMsg}</Text>
+                  <Text style={s.errorText} maxFontSizeMultiplier={1.2}>{errorMsg}</Text>
                 </View>
               )}
 
               {/* Renvoi + validation auto */}
               <View style={s.metaRow}>
                 {cooldown > 0 ? (
-                  <Text style={s.metaFaint}>{t('auth.ve_resend_in', { time: fmtCooldown })}</Text>
+                  <Text
+                    style={[s.metaFaint, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    {t('auth.ve_resend_in', { time: fmtCooldown })}
+                  </Text>
                 ) : (
                   <TouchableOpacity
                     onPress={handleResend}
@@ -343,19 +354,32 @@ export default function VerifyEmail() {
                     accessibilityLabel={t('auth.ve_resend_cta')}
                   >
                     {resending ? (
-                      <ActivityIndicator size="small" color={alpha(authT.textOnDark, 0.6)} />
+                      <ActivityIndicator size="small" color={alpha(theme.text, 0.6)} />
                     ) : (
-                      <Text style={s.metaLink}>{t('auth.ve_resend_cta')}</Text>
+                      <Text
+                        style={[
+                          s.metaLink,
+                          { color: theme.text, textDecorationColor: alpha(theme.text, 0.4) },
+                        ]}
+                        maxFontSizeMultiplier={1.2}
+                      >
+                        {t('auth.ve_resend_cta')}
+                      </Text>
                     )}
                   </TouchableOpacity>
                 )}
                 <View style={s.metaRight}>
                   {submitting ? (
-                    <ActivityIndicator size="small" color={alpha(authT.textOnDark, 0.55)} />
+                    <ActivityIndicator size="small" color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)} />
                   ) : (
-                    <Feather name="zap" size={11} color={alpha(authT.textOnDark, 0.55)} />
+                    <Feather name="zap" size={11} color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)} />
                   )}
-                  <Text style={s.metaMuted}>{t('auth.ve_auto')}</Text>
+                  <Text
+                    style={[s.metaMuted, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    {t('auth.ve_auto')}
+                  </Text>
                 </View>
               </View>
             </>
@@ -366,8 +390,18 @@ export default function VerifyEmail() {
 
         {!verified && (
           <View style={s.hintRow}>
-            <Feather name="mail" size={12} color={alpha(authT.textOnLight, 0.4)} style={{ marginTop: 1 }} />
-            <Text style={s.hintText}>{t('auth.ve_hint')}</Text>
+            <Feather
+              name="mail"
+              size={12}
+              color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)}
+              style={{ marginTop: 1 }}
+            />
+            <Text
+              style={[s.hintText, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {t('auth.ve_hint')}
+            </Text>
           </View>
         )}
 
@@ -376,6 +410,7 @@ export default function VerifyEmail() {
           onPress={() => (verified ? handleContinue() : submitCode(code))}
           loading={submitting}
           disabled={!verified && code.length < CODE_LENGTH}
+          variant="flat"
         />
 
         <TouchableOpacity
@@ -387,8 +422,19 @@ export default function VerifyEmail() {
           activeOpacity={0.6}
           style={s.logoutLink}
         >
-          <Feather name="log-out" size={14} color={alpha(authT.textOnLight, 0.5)} />
-          <Text style={s.logoutText}>{t('onboarding.signout')}</Text>
+          <Feather name="log-out" size={14} color={alpha(theme.text, theme.isDark ? 0.5 : 0.68)} />
+          <Text
+            style={[
+              s.logoutText,
+              {
+                color: alpha(theme.text, theme.isDark ? 0.5 : 0.68),
+                textDecorationColor: alpha(theme.text, theme.isDark ? 0.3 : 0.45),
+              },
+            ]}
+            maxFontSizeMultiplier={1.2}
+          >
+            {t('onboarding.signout')}
+          </Text>
         </TouchableOpacity>
       </Animated.View>
     </AuthScreen>
@@ -397,44 +443,18 @@ export default function VerifyEmail() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    marginTop: 4,
-    marginBottom: 24,
-  },
-  stepIndicator: { flexDirection: "row", alignItems: "center", gap: 6 },
-  stepBar: { height: 2, borderRadius: 2 },
-  stepBarActive: { width: 24, backgroundColor: authT.textOnDark },
-  stepBarInactive: { width: 14, backgroundColor: alpha(authT.textOnDark, 0.15) },
-  stepLabel: {
-    fontFamily: FONTS.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    color: alpha(authT.textOnDark, 0.3),
-    marginLeft: 4,
-  },
-  stepLabelBold: { color: alpha(authT.textOnDark, 0.6) },
+  header: { position: "relative" },
+  airTop: { flex: 0.55, minHeight: 12 },
 
   iconWrap: {
     width: 64,
     height: 64,
     borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: alpha(authT.textOnDark, 0.14),
-    backgroundColor: alpha(authT.dark, 0.85),
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-start",
     marginBottom: 16,
-  },
-  iconWrapVerified: {
-    backgroundColor: alpha(COLORS.greenBrand, 0.12),
-    borderColor: alpha(COLORS.greenBrand, 0.35),
-  },
-  iconWrapError: {
-    borderColor: alpha(COLORS.red, 0.4),
   },
   iconDot: {
     position: "absolute",
@@ -445,7 +465,6 @@ const s = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: COLORS.amber,
     borderWidth: 2.5,
-    borderColor: authT.dark,
   },
 
   body: {
@@ -456,12 +475,10 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize: 15,
     lineHeight: 22,
-    color: alpha(authT.textOnDark, 0.65),
   },
   emailText: {
     fontFamily: FONTS.monoMedium,
     fontSize: 14,
-    color: authT.textOnDark,
   },
 
   otpRow: {
@@ -472,37 +489,24 @@ const s = StyleSheet.create({
     flex: 1,
     height: 62,
     borderRadius: 14,
-    backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.16),
     alignItems: "center",
     justifyContent: "center",
   },
-  otpBoxFilled: {
-    borderColor: alpha(authT.textOnDark, 0.35),
-  },
   otpBoxFocus: {
     borderWidth: 1.5,
-    borderColor: alpha(authT.textOnDark, 0.65),
   },
   otpBoxError: {
-    backgroundColor: alpha(COLORS.red, 0.08),
     borderWidth: 1.5,
-    borderColor: alpha(COLORS.red, 0.65),
   },
   otpChar: {
     fontFamily: FONTS.bebas,
     fontSize: 28,
-    color: authT.textOnDark,
     transform: [{ translateY: 1 }],
-  },
-  otpCharError: {
-    color: COLORS.red,
   },
   otpCursor: {
     width: 1.5,
     height: 24,
-    backgroundColor: authT.textOnDark,
   },
   hiddenInput: {
     position: "absolute",
@@ -533,15 +537,12 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono,
     fontSize: 9.5,
     letterSpacing: 1.6,
-    color: alpha(authT.textOnDark, 0.35),
   },
   metaLink: {
     fontFamily: FONTS.mono,
     fontSize: 9.5,
     letterSpacing: 1.6,
-    color: authT.textOnDark,
     textDecorationLine: "underline",
-    textDecorationColor: alpha(authT.textOnDark, 0.4),
   },
   metaRight: {
     flexDirection: "row",
@@ -552,7 +553,6 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono,
     fontSize: 9.5,
     letterSpacing: 1.6,
-    color: alpha(authT.textOnDark, 0.55),
   },
 
   spacer: { flex: 1, minHeight: 24 },
@@ -568,7 +568,6 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize: 11,
     lineHeight: 16,
-    color: alpha(authT.textOnLight, 0.55),
   },
 
   logoutLink: {
@@ -583,8 +582,6 @@ const s = StyleSheet.create({
   logoutText: {
     fontFamily: FONTS.sans,
     fontSize: 13,
-    color: alpha(authT.textOnLight, 0.55),
     textDecorationLine: "underline",
-    textDecorationColor: alpha(authT.textOnLight, 0.2),
   },
 });
