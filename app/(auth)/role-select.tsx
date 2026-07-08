@@ -182,13 +182,15 @@ export default function RoleSelect() {
   return (
     <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        <View style={s.topRow}>
-          {!isAuthenticated ? <AuthBackButton onPress={handleBack} themed /> : <View style={{ width: 36 }} />}
-          <View style={{ flex: 1 }} />
+        <View style={s.header}>
+          {!isAuthenticated && (
+            <View style={s.backAbs}>
+              <AuthBackButton onPress={handleBack} themed />
+            </View>
+          )}
+          <AuthMasthead />
+          <AuthStepper total={3} current={1} accessibilityLabel={t('ext.role_step')} />
         </View>
-
-        <AuthMasthead />
-        <AuthStepper total={3} current={1} accessibilityLabel={t('ext.role_step')} />
 
         <View style={s.airTop} />
 
@@ -255,11 +257,8 @@ export default function RoleSelect() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
+  header: { position: "relative" },
+  backAbs: { position: "absolute", left: 0, top: 11, zIndex: 1 },
   airTop: { flex: 0.55, minHeight: 12 },
   headline: {
     fontFamily: FONTS.bebas,
