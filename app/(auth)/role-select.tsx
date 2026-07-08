@@ -179,7 +179,7 @@ export default function RoleSelect() {
   };
 
   return (
-    <AuthScreen variant="flat">
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
         <View style={s.topRow}>
           {!isAuthenticated ? <AuthBackButton onPress={handleBack} themed /> : <View style={{ width: 36 }} />}
@@ -259,7 +259,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
-  airTop: { flex: 0.55, minHeight: 18 },
+  airTop: { flex: 0.55, minHeight: 12 },
   headline: {
     fontFamily: FONTS.bebas,
     fontSize: 44,
@@ -271,25 +271,25 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize: 13.5,
     lineHeight: 20,
-    marginTop: 16,
+    marginTop: 12,
     maxWidth: 240,
     textAlign: "left",
   },
 
   // Cards
-  cards: { gap: 12, marginTop: 26 },
+  cards: { gap: 10, marginTop: 18 },
   card: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
     borderWidth: 1,
     borderRadius: 18,
-    padding: 18,
+    padding: 14,
   },
   cardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -342,6 +342,6 @@ const s = StyleSheet.create({
 
   spacer: {
     flex: 1,
-    minHeight: 32,
+    minHeight: 20,
   },
 });
