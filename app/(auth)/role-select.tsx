@@ -263,7 +263,7 @@ const s = StyleSheet.create({
   headline: {
     fontFamily: FONTS.bebas,
     fontSize: 44,
-    lineHeight: 41,
+    lineHeight: 44,
     letterSpacing: 0.6,
     textAlign: "left",
   },
@@ -277,7 +277,7 @@ const s = StyleSheet.create({
   },
 
   // Cards
-  cards: { gap: 10, marginTop: 18 },
+  cards: { gap: 10, marginTop: 22 },
   card: {
     flexDirection: "row",
     alignItems: "center",

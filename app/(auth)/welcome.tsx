@@ -133,13 +133,13 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
 
   // Rythme vertical v2 : air généreux au-dessus du hero, base desserrée.
-  airTop: { flex: 1 },
-  airMid: { flex: 1.1 },
+  airTop: { flex: 0.85, maxHeight: 170 },
+  airMid: { flex: 1.15 },
 
   headline: {
     fontFamily: FONTS.bebas,
     fontSize: 52,
-    lineHeight: 48,
+    lineHeight: 52,
     letterSpacing: 0.6,
     textAlign: "left",
   },
