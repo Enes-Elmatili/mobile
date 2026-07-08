@@ -21,7 +21,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
-import { authT, alpha } from "./tokens";
+import { authT, alpha, themedFieldColors } from "./tokens";
 
 type Props = TextInputProps & {
   icon?: keyof typeof Feather.glyphMap;
@@ -57,22 +57,21 @@ export function AuthInput({
   const theme = useAppTheme();
   const [focused, setFocused] = useState(false);
 
-  const iconColor = themed
-    ? alpha(theme.text, focused ? 0.85 : 0.55)
-    : alpha(authT.textOnDark, focused ? 0.85 : 0.55);
+  const f = themedFieldColors(theme, focused);
+  const iconColor = themed ? f.icon : alpha(authT.textOnDark, focused ? 0.85 : 0.55);
   const trailingColor = themed ? alpha(theme.text, 0.6) : alpha(authT.textOnDark, 0.6);
-  const placeholderColor = themed ? alpha(theme.text, 0.35) : alpha(authT.textOnDark, 0.4);
+  const placeholderColor = themed ? f.placeholder : alpha(authT.textOnDark, 0.4);
 
   return (
     <View style={s.wrap}>
       {label && (
-        <Text style={[s.label, themed && { color: alpha(theme.text, 0.55) }]}>{label}</Text>
+        <Text style={[s.label, themed && { color: f.label }]}>{label}</Text>
       )}
       <View
         style={[
           s.field,
-          themed && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
-          focused && (themed ? { borderColor: alpha(theme.text, 0.4) } : s.fieldFocused),
+          themed && f.field,
+          focused && (themed ? { borderColor: f.focusBorder } : s.fieldFocused),
           !!error && s.fieldError,
         ]}
       >

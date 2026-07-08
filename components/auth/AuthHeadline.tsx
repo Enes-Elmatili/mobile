@@ -71,10 +71,12 @@ export function AuthHeadline({ title, subtitle, kicker, align = "center", themed
         "AuthHeadline: `kicker` est ignoré en mode `themed` — composer <AuthEyebrow /> séparément."
       );
     }
-    const clean = stripAccent(title);
+    // Trim de fin : un espace/saut de ligne résiduel après strip des marqueurs
+    // décalerait le point vert — on rend la version trimmée.
+    const clean = stripAccent(title).trimEnd();
     // AMENDEMENT 4 : point vert terminal SEULEMENT si le titre stripé ne se
     // termine pas déjà par une ponctuation finale (?, ! ou .).
-    const needsDot = !/[?!.]$/.test(clean.trimEnd());
+    const needsDot = !/[?!.]$/.test(clean);
 
     return (
       <View style={s.wrap}>

@@ -21,7 +21,7 @@ import type { GooglePlaceDetail, AddressComponent } from "react-native-google-pl
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
-import { authT, alpha } from "./tokens";
+import { authT, alpha, themedFieldColors } from "./tokens";
 import { AuthInput } from "./AuthInput";
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -146,6 +146,8 @@ export function AuthAddressAutocomplete({
     onChangeText?.("");
   }, [onChangeText]);
 
+  const f = themedFieldColors(theme, focused);
+
   // Couleurs du lien « saisie manuelle / recherche » — zone claire du gradient
   // par défaut, dérivées du thème quand `themed`.
   const manualIconColor = themed ? alpha(theme.text, 0.55) : alpha(authT.textOnLight, 0.55);
@@ -227,13 +229,13 @@ export function AuthAddressAutocomplete({
   return (
     <View style={s.wrap}>
       {resolvedLabel ? (
-        <Text style={[s.label, themed && { color: alpha(theme.text, 0.55) }]}>{resolvedLabel}</Text>
+        <Text style={[s.label, themed && { color: f.label }]}>{resolvedLabel}</Text>
       ) : null}
       <View
         style={[
           s.field,
-          themed && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
-          focused && (themed ? { borderColor: alpha(theme.text, 0.4) } : s.fieldFocused),
+          themed && f.field,
+          focused && (themed ? { borderColor: f.focusBorder } : s.fieldFocused),
           !!effectiveError && s.fieldError,
         ]}
       >
@@ -241,11 +243,7 @@ export function AuthAddressAutocomplete({
         <Feather
           name="map-pin"
           size={16}
-          color={
-            themed
-              ? alpha(theme.text, focused ? 0.85 : 0.55)
-              : alpha(authT.textOnDark, focused ? 0.85 : 0.55)
-          }
+          color={themed ? f.icon : alpha(authT.textOnDark, focused ? 0.85 : 0.55)}
           style={s.icon}
         />
 
@@ -276,9 +274,7 @@ export function AuthAddressAutocomplete({
             switchToManual();
           }}
           textInputProps={{
-            placeholderTextColor: themed
-              ? alpha(theme.text, 0.35)
-              : alpha(authT.textOnDark, 0.4),
+            placeholderTextColor: themed ? f.placeholder : alpha(authT.textOnDark, 0.4),
             onFocus: () => setFocused(true),
             onBlur: () => {
               setFocused(false);
@@ -294,7 +290,7 @@ export function AuthAddressAutocomplete({
               // Invalide l'adresse parsée côté parent (donnée périmée sinon)
               onChangeText?.(text);
             },
-            selectionColor: themed ? theme.text : authT.textOnDark,
+            selectionColor: themed ? f.selection : authT.textOnDark,
           }}
           styles={{
             container: {

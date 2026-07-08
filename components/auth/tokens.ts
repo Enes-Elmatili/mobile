@@ -8,10 +8,31 @@
  * Headline & top decorations sit on the dark zone (use textOnDark).
  * Form inputs & CTA sit on the light zone (use textOnLight).
  */
-import { darkTokens, lightTokens, alpha } from "@/hooks/use-app-theme";
+import { darkTokens, lightTokens, alpha, type AppTheme } from "@/hooks/use-app-theme";
 
 // ── alpha helper — ré-exporté depuis use-app-theme (source unique) ──────────
 export { alpha };
+
+// ── Champs themed (flat v2) — dérivations partagées des inputs ──────────────
+// Source unique des ~6 couleurs dérivées du thème utilisées par AuthInput,
+// AuthPhoneInput et AuthAddressAutocomplete en mode `themed`. Pure extraction :
+// le rendu themed de chaque input reste strictement identique.
+export function themedFieldColors(theme: AppTheme, focused = false) {
+  return {
+    /** Label mono uppercase au-dessus du champ. */
+    label: alpha(theme.text, 0.55),
+    /** Fond + bordure du champ au repos. */
+    field: { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+    /** Bordure au focus. */
+    focusBorder: alpha(theme.text, 0.4),
+    /** Placeholder. */
+    placeholder: alpha(theme.text, 0.35),
+    /** Curseur / sélection de texte. */
+    selection: theme.text,
+    /** Icône leading (mail, lock, map-pin…) — s'accentue au focus. */
+    icon: alpha(theme.text, focused ? 0.85 : 0.55),
+  };
+}
 
 // ── Auth gradient palette — inverted by default (dark → light) ─────────────
 // Welcome uses these stops in REVERSE order (light → dark) to give the page its

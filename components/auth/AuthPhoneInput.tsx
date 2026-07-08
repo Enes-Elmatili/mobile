@@ -22,7 +22,7 @@ import type { Country, CountryCode } from "react-native-country-picker-modal";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
-import { authT, alpha } from "./tokens";
+import { authT, alpha, themedFieldColors } from "./tokens";
 
 type Props = {
   defaultValue?: string;
@@ -82,16 +82,18 @@ export function AuthPhoneInput({
     setPickerVisible(false);
   };
 
+  const f = themedFieldColors(theme, focused);
+
   return (
     <View style={s.wrap}>
       {resolvedLabel ? (
-        <Text style={[s.label, themed && { color: alpha(theme.text, 0.55) }]}>{resolvedLabel}</Text>
+        <Text style={[s.label, themed && { color: f.label }]}>{resolvedLabel}</Text>
       ) : null}
       <View
         style={[
           s.field,
-          themed && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
-          focused && (themed ? { borderColor: alpha(theme.text, 0.4) } : s.fieldFocused),
+          themed && f.field,
+          focused && (themed ? { borderColor: f.focusBorder } : s.fieldFocused),
           !!error && s.fieldError,
         ]}
       >
@@ -132,13 +134,13 @@ export function AuthPhoneInput({
           value={number}
           onChangeText={setNumber}
           placeholder={placeholder}
-          placeholderTextColor={themed ? alpha(theme.text, 0.35) : alpha(authT.textOnDark, 0.4)}
+          placeholderTextColor={themed ? f.placeholder : alpha(authT.textOnDark, 0.4)}
           keyboardType="phone-pad"
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          selectionColor={themed ? theme.text : authT.textOnDark}
+          selectionColor={themed ? f.selection : authT.textOnDark}
           autoCorrect={false}
           textContentType="telephoneNumber"
         />
