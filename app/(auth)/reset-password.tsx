@@ -1,8 +1,7 @@
-// app/(auth)/reset-password.tsx — reset password (inverted gradient)
+// app/(auth)/reset-password.tsx — reset password (flat theme-aware, v2 éditorial)
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
-  Text,
   TextInput,
   StyleSheet,
   Animated,
@@ -14,20 +13,21 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import { feedback } from "@/lib/feedback/feedback";
-import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import { COLORS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
   AuthCTA,
   AuthBackButton,
   AuthInput,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
 } from "@/components/auth";
 
 export default function ResetPassword() {
   const router = useRouter();
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const { token } = useLocalSearchParams<{ token: string }>();
 
   const [password, setPassword] = useState("");
@@ -96,7 +96,7 @@ export default function ResetPassword() {
   let title = t("auth.rp_title");
   let subtitle = t("auth.rp_sub");
   let iconName: keyof typeof Feather.glyphMap = "key";
-  let iconColor = authT.textOnDark;
+  let iconColor = theme.text;
   let iconBgVariant: "default" | "success" | "error" = "default";
 
   if (validating) {
@@ -112,7 +112,7 @@ export default function ResetPassword() {
     title = t("auth.rp_done_title");
     subtitle = t("auth.rp_done_sub");
     iconName = "check-circle";
-    iconColor = COLORS.greenBrand;
+    iconColor = theme.greenText;
     iconBgVariant = "success";
   }
 
@@ -146,39 +146,52 @@ export default function ResetPassword() {
   })();
 
   return (
-    <AuthScreen variant="inverted" scrollable>
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        <View style={s.topRow}>
-          <AuthBackButton
-            onPress={() => {
-              feedback.haptic('light');
-              router.replace("/(auth)/login");
-            }}
-          />
+        <View style={s.header}>
+          <View style={s.backAbs}>
+            <AuthBackButton
+              onPress={() => {
+                feedback.haptic('light');
+                router.replace("/(auth)/login");
+              }}
+              themed
+            />
+          </View>
+          <AuthMasthead />
         </View>
+
+        <View style={s.airTop} />
 
         <View
           style={[
             s.iconWrap,
-            iconBgVariant === "success" && s.iconWrapSuccess,
-            iconBgVariant === "error" && s.iconWrapError,
+            iconBgVariant === "default" && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+            iconBgVariant === "success" && {
+              backgroundColor: alpha(theme.brandDot, 0.12),
+              borderColor: alpha(theme.brandDot, 0.35),
+            },
+            iconBgVariant === "error" && {
+              backgroundColor: alpha(COLORS.red, 0.12),
+              borderColor: alpha(COLORS.red, 0.35),
+            },
           ]}
         >
           {validating ? (
-            <ActivityIndicator size="small" color={authT.textOnDark} />
+            <ActivityIndicator size="small" color={theme.text} />
           ) : (
             <Feather name={iconName} size={34} color={iconColor} />
           )}
         </View>
 
-        <AuthHeadline title={title} align="left" />
+        <AuthEyebrow label={t("auth.login")} />
+        <AuthHeadline themed title={title} subtitle={subtitle} />
 
         <View style={s.body}>
-          <Text style={s.subtitle}>{subtitle}</Text>
-
           {tokenValid && !done && !validating && (
             <View style={s.form}>
               <AuthInput
+                themed
                 label={t("auth.rp_new_label")}
                 icon="lock"
                 placeholder={t("auth.rp_new_placeholder")}
@@ -198,6 +211,7 @@ export default function ResetPassword() {
                 onSubmitEditing={() => confirmRef.current?.focus()}
               />
               <AuthInput
+                themed
                 inputRef={confirmRef}
                 label={t("common.confirm")}
                 icon="lock"
@@ -232,6 +246,7 @@ export default function ResetPassword() {
             onPress={ctaProps.onPress}
             loading={ctaProps.loading}
             disabled={ctaProps.disabled}
+            variant="flat"
           />
         )}
       </Animated.View>
@@ -241,41 +256,22 @@ export default function ResetPassword() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: 24,
-  },
+  header: { position: "relative" },
+  backAbs: { position: "absolute", left: 0, top: 11, zIndex: 1 },
+  airTop: { flex: 0.55, minHeight: 12 },
   iconWrap: {
     width: 72,
     height: 72,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: alpha(authT.textOnDark, 0.14),
-    backgroundColor: alpha(authT.dark, 0.85),
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-start",
     marginBottom: 18,
   },
-  iconWrapSuccess: {
-    backgroundColor: alpha(COLORS.greenBrand, 0.12),
-    borderColor: alpha(COLORS.greenBrand, 0.35),
-  },
-  iconWrapError: {
-    backgroundColor: alpha(COLORS.red, 0.12),
-    borderColor: alpha(COLORS.red, 0.35),
-  },
   body: {
     paddingTop: 18,
     gap: 18,
-  },
-  subtitle: {
-    fontFamily: FONTS.sans,
-    fontSize: 15,
-    lineHeight: 22,
-    color: alpha(authT.textOnDark, 0.65),
   },
   form: {
     gap: 12,

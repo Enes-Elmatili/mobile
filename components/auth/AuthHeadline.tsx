@@ -75,8 +75,9 @@ export function AuthHeadline({ title, subtitle, kicker, align = "center", themed
     // décalerait le point vert — on rend la version trimmée.
     const clean = stripAccent(title).trimEnd();
     // AMENDEMENT 4 : point vert terminal SEULEMENT si le titre stripé ne se
-    // termine pas déjà par une ponctuation finale (?, ! ou .).
-    const needsDot = !/[?!.]$/.test(clean);
+    // termine pas déjà par une ponctuation finale (?, ! ou . — « … » inclus :
+    // ellipse terminale, ex. rp_validating_title, sinon on rendrait « …. »).
+    const needsDot = !/[?!.…]$/.test(clean);
 
     return (
       <View style={s.wrap}>
