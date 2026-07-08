@@ -1,4 +1,4 @@
-// app/(auth)/login.tsx — login (inverted gradient)
+// app/(auth)/login.tsx — login (flat theme-aware, v2 éditorial)
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -20,7 +20,7 @@ import { useAuth } from "../../lib/auth/AuthContext";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
@@ -28,8 +28,8 @@ import {
   AuthBackButton,
   AuthInput,
   AuthLink,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
 } from "@/components/auth";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -39,16 +39,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 type ToastType = "success" | "error" | "info";
 
 // ── SVG Logos ───────────────────────────────────────────────────────────────
-function AppleLogo({ size = 15 }: { size?: number }) {
+function AppleLogo({ size = 15, color }: { size?: number; color: string }) {
   return (
     <Svg width={size} height={size * 1.2} viewBox="0 0 15 18" fill="none">
       <Path
         d="M12.4 9.6C12.4 7.8 13.5 6.7 13.5 6.7C12.5 5.3 11 5.2 10.4 5.2C9.1 5.1 7.9 6 7.2 6C6.5 6 5.5 5.2 4.4 5.2C2.8 5.3 1 6.4 1 9.1C1 10.9 1.7 12.8 2.6 14C3.3 15 4 15.8 5 15.8C5.9 15.8 6.3 15.2 7.5 15.2C8.7 15.2 9 15.8 10 15.8C11 15.8 11.7 14.9 12.4 13.9C13 13.1 13.3 12.2 13.3 12.1C13.3 12.1 12.4 11.8 12.4 9.6Z"
-        fill={alpha(authT.textOnDark, 0.85)}
+        fill={color}
       />
       <Path
         d="M9.5 3.5C10.1 2.8 10.5 1.8 10.4 0.8C9.5 0.9 8.4 1.4 7.8 2.2C7.2 2.9 6.7 3.9 6.9 4.9C7.9 4.9 8.9 4.3 9.5 3.5Z"
-        fill={alpha(authT.textOnDark, 0.85)}
+        fill={color}
       />
     </Svg>
   );
@@ -66,7 +66,7 @@ function GoogleLogo({ size = 17 }: { size?: number }) {
 }
 
 // ── Spinner ─────────────────────────────────────────────────────────────────
-function Spinner({ color = authT.textOnDark }: { color?: string }) {
+function Spinner({ color }: { color: string }) {
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const a = Animated.loop(
@@ -97,6 +97,7 @@ export default function Login() {
   const router = useRouter();
   const { signIn, isBooting, refreshMe } = useAuth();
   const { t } = useTranslation();
+  const theme = useAppTheme();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -279,9 +280,9 @@ export default function Login() {
 
   if (isBooting) {
     return (
-      <View style={{ flex: 1, backgroundColor: authT.dark, justifyContent: "center", alignItems: "center" }}>
-        <StatusBar barStyle="light-content" />
-        <Spinner color={authT.textOnDark} />
+      <View style={{ flex: 1, backgroundColor: theme.bg, justifyContent: "center", alignItems: "center" }}>
+        <StatusBar barStyle={theme.statusBar} />
+        <Spinner color={theme.text} />
       </View>
     );
   }
@@ -293,20 +294,26 @@ export default function Login() {
   };
 
   return (
-    <AuthScreen variant="inverted" scrollable>
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        <View style={s.topRow}>
-          <AuthBackButton onPress={handleBack} />
+        <View style={s.header}>
+          <View style={s.backAbs}>
+            <AuthBackButton onPress={handleBack} themed />
+          </View>
+          <AuthMasthead />
         </View>
 
-        <AuthHeadline title={t("auth.login")} align="left" />
+        <View style={s.airTop} />
+
+        <AuthEyebrow label={t("auth.welcome_back")} />
+        <AuthHeadline themed title={t("auth.login")} />
 
         <View style={s.body}>
           {/* Social buttons */}
           <View style={s.socialRow}>
             {Platform.OS === "ios" && (
               <TouchableOpacity
-                style={s.socialBtn}
+                style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
                 onPress={handleAppleSignIn}
                 disabled={isBusy}
                 activeOpacity={0.7}
@@ -314,18 +321,18 @@ export default function Login() {
                 accessibilityLabel={t("auth.login_apple_a11y")}
               >
                 {socialLoading === "apple" ? (
-                  <Spinner color={authT.textOnDark} />
+                  <Spinner color={theme.text} />
                 ) : (
                   <>
-                    <AppleLogo />
-                    <Text style={s.socialText}>Apple</Text>
+                    <AppleLogo color={theme.text} />
+                    <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Apple</Text>
                   </>
                 )}
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
-              style={s.socialBtn}
+              style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
               onPress={() => googlePromptAsync()}
               disabled={isBusy || !googleRequest}
               activeOpacity={0.7}
@@ -333,11 +340,11 @@ export default function Login() {
               accessibilityLabel={t("auth.login_google_a11y")}
             >
               {socialLoading === "google" ? (
-                <Spinner color={authT.textOnDark} />
+                <Spinner color={theme.text} />
               ) : (
                 <>
                   <GoogleLogo />
-                  <Text style={s.socialText}>Google</Text>
+                  <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Google</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -345,14 +352,20 @@ export default function Login() {
 
           {/* Divider */}
           <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerLabel}>{t("auth.su_or")}</Text>
-            <View style={s.dividerLine} />
+            <View style={[s.dividerLine, { backgroundColor: alpha(theme.text, 0.11) }]} />
+            <Text
+              style={[s.dividerLabel, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {t("auth.su_or")}
+            </Text>
+            <View style={[s.dividerLine, { backgroundColor: alpha(theme.text, 0.11) }]} />
           </View>
 
           {/* Form */}
           <View style={s.form}>
             <AuthInput
+              themed
               label={t("auth.email_label")}
               icon="mail"
               placeholder={t("auth.email_placeholder_value")}
@@ -368,6 +381,7 @@ export default function Login() {
             />
 
             <AuthInput
+              themed
               inputRef={pwdRef}
               label={t("auth.password_label")}
               icon="lock"
@@ -392,7 +406,18 @@ export default function Login() {
                 accessibilityLabel={t("auth.forgot_password")}
                 onPress={() => router.push("/(auth)/forgot-password")}
               >
-                <Text style={s.forgotLink}>{t("auth.forgot_password")}</Text>
+                <Text
+                  style={[
+                    s.forgotLink,
+                    {
+                      color: alpha(theme.text, theme.isDark ? 0.5 : 0.68),
+                      textDecorationColor: alpha(theme.text, theme.isDark ? 0.3 : 0.45),
+                    },
+                  ]}
+                  maxFontSizeMultiplier={1.2}
+                >
+                  {t("auth.forgot_password")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -405,9 +430,11 @@ export default function Login() {
           onPress={onSubmit}
           loading={loading}
           disabled={isBusy}
+          variant="flat"
         />
 
         <AuthLink
+          themed
           prefix={t("auth.no_account")}
           action={t("auth.signup")}
           onPress={() => {
@@ -422,12 +449,9 @@ export default function Login() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: 24,
-  },
+  header: { position: "relative" },
+  backAbs: { position: "absolute", left: 0, top: 11, zIndex: 1 },
+  airTop: { flex: 0.55, minHeight: 12 },
   body: {
     paddingTop: 24,
     gap: 18,
@@ -439,9 +463,7 @@ const s = StyleSheet.create({
   socialBtn: {
     flex: 1,
     height: 52,
-    backgroundColor: alpha(authT.dark, 0.85),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.16),
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -451,7 +473,6 @@ const s = StyleSheet.create({
   socialText: {
     fontFamily: FONTS.sansMedium,
     fontSize: 13,
-    color: alpha(authT.textOnDark, 0.85),
     letterSpacing: 0.2,
   },
   divider: {
@@ -462,12 +483,10 @@ const s = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: alpha(authT.textOnLight, 0.18),
   },
   dividerLabel: {
     fontFamily: FONTS.mono,
     fontSize: 10,
-    color: alpha(authT.textOnLight, 0.55),
     letterSpacing: 2,
   },
   form: {
@@ -480,9 +499,7 @@ const s = StyleSheet.create({
   forgotLink: {
     fontFamily: FONTS.sans,
     fontSize: 12,
-    color: alpha(authT.textOnLight, 0.55),
     textDecorationLine: "underline",
-    textDecorationColor: alpha(authT.textOnLight, 0.18),
   },
   spacer: { flex: 1, minHeight: 24 },
 });
