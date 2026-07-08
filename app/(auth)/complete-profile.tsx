@@ -1,4 +1,5 @@
 // app/(auth)/complete-profile.tsx — gate screen for users missing billing fields
+// (flat theme-aware, v2 éditorial)
 // Non-dismissable: no back button, no skip. User MUST complete to proceed.
 // Receives missing field names via route param "missingFields" (comma-separated).
 // Uses Option A: missingFields supplied by the login response, not /auth/me.
@@ -9,7 +10,6 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  StatusBar,
   TouchableOpacity,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
@@ -26,8 +26,8 @@ import {
   AuthInput,
   AuthPhoneInput,
   AuthAddressAutocomplete,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
 } from "@/components/auth";
 import type { ParsedAddress } from "@/components/auth";
 
@@ -43,6 +43,7 @@ export default function CompleteProfile() {
   const router = useRouter();
   const { refreshMe, signOut } = useAuth();
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const params = useLocalSearchParams<{ missingFields?: string }>();
 
   // Parse the missing fields from route param.
@@ -141,24 +142,23 @@ export default function CompleteProfile() {
   };
 
   return (
-    <AuthScreen variant="inverted" scrollable>
-      <StatusBar barStyle="light-content" />
-
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        {/* No back button — screen is non-dismissable */}
-        <View style={s.topRow} />
+        {/* No back button — screen is non-dismissable. Gate hors flux d'étapes → pas de stepper. */}
+        <View style={s.header}>
+          <AuthMasthead />
+        </View>
 
-        <AuthHeadline
-          kicker={t("auth.cp_kicker")}
-          title={t("auth.cp_title")}
-          subtitle={t("auth.cp_sub")}
-          align="left"
-        />
+        <View style={s.airTop} />
+
+        <AuthEyebrow label={t("auth.cp_kicker")} />
+        <AuthHeadline themed title={t("auth.cp_title")} subtitle={t("auth.cp_sub")} />
 
         <View style={s.body}>
           <View style={s.form}>
             {needs("name") && (
               <AuthInput
+                themed
                 label={t("auth.cp_name_label")}
                 icon="user"
                 placeholder={t("auth.su_name_placeholder")}
@@ -173,6 +173,7 @@ export default function CompleteProfile() {
             )}
             {needs("phone") && (
               <AuthPhoneInput
+                themed
                 onChangeFormattedText={(e164) => { setPhone(e164); if (phoneError) setPhoneError(""); }}
                 onChangeText={() => { if (phoneError) setPhoneError(""); }}
                 error={phoneError || undefined}
@@ -180,6 +181,7 @@ export default function CompleteProfile() {
             )}
             {needsAddressBlock && (
               <AuthAddressAutocomplete
+                themed
                 onAddressSelected={(p: ParsedAddress) => {
                   setAddress(p.street);
                   setPostalCode(p.postalCode);
@@ -201,6 +203,7 @@ export default function CompleteProfile() {
           onPress={onSubmit}
           loading={loading}
           disabled={loading || !isFormValid}
+          variant="flat"
         />
 
         {/* Échappatoire : si le PATCH échoue en boucle, l'utilisateur peut sortir */}
@@ -215,8 +218,19 @@ export default function CompleteProfile() {
           accessibilityRole="button"
           accessibilityLabel={t("auth.sign_out")}
         >
-          <Feather name="log-out" size={14} color={alpha(authT.textOnLight, 0.5)} />
-          <Text style={s.logoutText}>{t("auth.sign_out")}</Text>
+          <Feather name="log-out" size={14} color={alpha(theme.text, theme.isDark ? 0.5 : 0.68)} />
+          <Text
+            style={[
+              s.logoutText,
+              {
+                color: alpha(theme.text, theme.isDark ? 0.5 : 0.68),
+                textDecorationColor: alpha(theme.text, theme.isDark ? 0.3 : 0.45),
+              },
+            ]}
+            maxFontSizeMultiplier={1.2}
+          >
+            {t("auth.sign_out")}
+          </Text>
         </TouchableOpacity>
       </Animated.View>
     </AuthScreen>
@@ -225,10 +239,8 @@ export default function CompleteProfile() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  topRow: {
-    marginTop: 4,
-    marginBottom: 24,
-  },
+  header: { position: "relative" },
+  airTop: { flex: 0.55, minHeight: 12 },
   body: {
     paddingTop: 14,
     gap: 12,
@@ -249,8 +261,6 @@ const s = StyleSheet.create({
   logoutText: {
     fontFamily: FONTS.sans,
     fontSize: 13,
-    color: alpha(authT.textOnLight, 0.55),
     textDecorationLine: "underline",
-    textDecorationColor: alpha(authT.textOnLight, 0.2),
   },
 });
