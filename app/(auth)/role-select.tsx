@@ -1,4 +1,4 @@
-// app/(auth)/role-select.tsx — role selection (inverted gradient)
+// app/(auth)/role-select.tsx — role selection (flat theme-aware, v2)
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -15,15 +15,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { api } from "@/lib/api";
-import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
-  AuthHeadline,
   AuthCTA,
   AuthBackButton,
   AuthLink,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
 } from "@/components/auth";
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
@@ -36,6 +35,8 @@ function RoleCard({
   meta,
   isSelected,
   onPress,
+  theme,
+  dot,
 }: {
   icon: keyof typeof Feather.glyphMap;
   title: string;
@@ -43,6 +44,8 @@ function RoleCard({
   meta?: string;
   isSelected: boolean;
   onPress: () => void;
+  theme: ReturnType<typeof useAppTheme>;
+  dot: string;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const radioDot = useRef(new Animated.Value(0)).current;
@@ -66,7 +69,11 @@ function RoleCard({
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        style={[s.card, isSelected && s.cardSelected]}
+        style={[
+          s.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+          isSelected && { borderColor: dot },
+        ]}
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
@@ -75,22 +82,18 @@ function RoleCard({
         accessibilityLabel={title}
         accessibilityHint={subtitle}
       >
-        <View style={[s.cardIcon, isSelected && s.cardIconSelected]}>
-          <Feather
-            name={icon}
-            size={20}
-            color={isSelected ? authT.textOnLight : authT.textOnDark}
-          />
+        <View style={[s.cardIcon, { backgroundColor: alpha(theme.text, 0.07), borderColor: alpha(theme.text, 0.12) }]}>
+          <Feather name={icon} size={20} color={theme.text} />
         </View>
 
         <View style={s.cardText}>
-          <Text style={s.cardTitle}>{title}</Text>
-          <Text style={s.cardSub}>{subtitle}</Text>
-          {!!meta && <Text style={s.cardMeta}>{meta.toUpperCase()}</Text>}
+          <Text style={[s.cardTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{title}</Text>
+          <Text style={[s.cardSub, { color: alpha(theme.text, 0.55) }]} maxFontSizeMultiplier={1.2}>{subtitle}</Text>
+          {!!meta && <Text style={[s.cardMeta, { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{meta.toUpperCase()}</Text>}
         </View>
 
-        <View style={[s.radio, isSelected && s.radioSelected]}>
-          <Animated.View style={[s.radioInner, { transform: [{ scale: radioDot }] }]} />
+        <View style={[s.radio, { borderColor: alpha(theme.text, 0.3) }, isSelected && { borderColor: dot }]}>
+          <Animated.View style={[s.radioInner, { backgroundColor: dot, transform: [{ scale: radioDot }] }]} />
         </View>
       </Pressable>
     </Animated.View>
@@ -101,6 +104,8 @@ function RoleCard({
 export default function RoleSelect() {
   const router = useRouter();
   const { t } = useTranslation();
+  const theme = useAppTheme();
+  const dot = theme.brandDot;
   const { user, signIn } = useAuth();
   // Pré-sélection possible via param (ex. lien « Vous êtes un pro ? » du welcome)
   const params = useLocalSearchParams<{ role?: string }>();
@@ -109,6 +114,12 @@ export default function RoleSelect() {
   const [selected, setSelected] = useState<"CLIENT" | "PROVIDER" | null>(initialRole);
   const [submitting, setSubmitting] = useState(false);
   const isAuthenticated = !!user;
+
+  // ext.role_title porte un balisage hérité "{accent}...{/accent}" (pensé pour
+  // l'ancien AuthHeadline, retiré de cet écran) — on le nettoie pour éviter
+  // d'afficher les accolades brutes. Dans les 3 langues (fr/en/nl) le titre se
+  // termine déjà par "?" → pas de point vert ajouté (cf. plan, cas "?").
+  const roleTitle = t('ext.role_title').replace(/\{\/?accent\}/g, '');
 
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(16)).current;
@@ -168,22 +179,25 @@ export default function RoleSelect() {
   };
 
   return (
-    <AuthScreen variant="inverted">
+    <AuthScreen variant="flat">
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
         <View style={s.topRow}>
-          {!isAuthenticated ? <AuthBackButton onPress={handleBack} /> : <View style={{ width: 36 }} />}
-          <Text style={s.eyebrow}>{t('ext.role_signup')}</Text>
-          <View style={{ width: 36 }} />
+          {!isAuthenticated ? <AuthBackButton onPress={handleBack} themed /> : <View style={{ width: 36 }} />}
+          <View style={{ flex: 1 }} />
         </View>
 
-        <View style={s.header}>
-          <AuthHeadline
-            kicker={t('ext.role_step')}
-            title={t('ext.role_title')}
-            subtitle={t('ext.role_subtitle')}
-            align="left"
-          />
-        </View>
+        <AuthMasthead meta={t('ext.role_step')} />
+
+        <View style={s.airTop} />
+
+        <AuthEyebrow label={t('ext.role_signup')} />
+
+        <Text style={[s.headline, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
+          {roleTitle}
+        </Text>
+        <Text style={[s.subhead, { color: alpha(theme.text, 0.56) }]} maxFontSizeMultiplier={1.2}>
+          {t('ext.role_subtitle')}
+        </Text>
 
         <View style={s.cards}>
           <RoleCard
@@ -192,6 +206,8 @@ export default function RoleSelect() {
             subtitle={t('ext.role_client_sub')}
             isSelected={selected === "CLIENT"}
             onPress={() => select("CLIENT")}
+            theme={theme}
+            dot={dot}
           />
           <RoleCard
             icon="tool"
@@ -200,12 +216,14 @@ export default function RoleSelect() {
             meta={t('ext.role_provider_meta')}
             isSelected={selected === "PROVIDER"}
             onPress={() => select("PROVIDER")}
+            theme={theme}
+            dot={dot}
           />
         </View>
 
         <View style={s.switchNote}>
-          <Feather name="refresh-cw" size={11} color={alpha(authT.textOnDark, 0.3)} />
-          <Text style={s.switchNoteText}>{t('ext.role_switch_note').toUpperCase()}</Text>
+          <Feather name="refresh-cw" size={11} color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)} />
+          <Text style={[s.switchNoteText, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]} maxFontSizeMultiplier={1.2}>{t('ext.role_switch_note').toUpperCase()}</Text>
         </View>
 
         <View style={s.spacer} />
@@ -215,6 +233,7 @@ export default function RoleSelect() {
           onPress={confirm}
           loading={submitting}
           disabled={!selected}
+          variant={theme.isDark ? "standard" : "inverted"}
         />
 
         {!isAuthenticated && (
@@ -225,6 +244,7 @@ export default function RoleSelect() {
               feedback.haptic('selection');
               router.push("/(auth)/login");
             }}
+            onDark={theme.isDark}
           />
         )}
       </Animated.View>
@@ -237,52 +257,42 @@ const s = StyleSheet.create({
   topRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginTop: 4,
-    marginBottom: 24,
   },
-  eyebrow: {
-    fontFamily: FONTS.mono,
-    fontSize: 10,
-    letterSpacing: 2.5,
-    color: alpha(authT.textOnDark, 0.5),
-    textTransform: "uppercase",
+  airTop: { flex: 0.55, minHeight: 18 },
+  headline: {
+    fontFamily: FONTS.bebas,
+    fontSize: 44,
+    lineHeight: 41,
+    letterSpacing: 0.6,
+    textAlign: "left",
   },
-  header: {
-    marginBottom: 24,
+  subhead: {
+    fontFamily: FONTS.sans,
+    fontSize: 13.5,
+    lineHeight: 20,
+    marginTop: 16,
+    maxWidth: 240,
+    textAlign: "left",
   },
 
-  // Cards — stay dark always; selection is signaled by border + filled icon + radio.
-  cards: {
-    gap: 14,
-  },
+  // Cards
+  cards: { gap: 12, marginTop: 26 },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
-    backgroundColor: alpha(authT.dark, 0.85),
+    gap: 16,
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.14),
-    borderRadius: 22,
-    padding: 22,
-  },
-  cardSelected: {
-    backgroundColor: alpha(authT.dark, 0.95),
-    borderColor: authT.textOnDark,
+    borderRadius: 18,
+    padding: 18,
   },
   cardIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: alpha(authT.textOnDark, 0.08),
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.14),
     alignItems: "center",
     justifyContent: "center",
-  },
-  cardIconSelected: {
-    backgroundColor: authT.textOnDark,
-    borderColor: authT.textOnDark,
   },
   cardText: {
     flex: 1,
@@ -290,7 +300,6 @@ const s = StyleSheet.create({
   cardTitle: {
     fontFamily: FONTS.bebas,
     fontSize: 26,
-    color: authT.textOnDark,
     letterSpacing: 2,
     lineHeight: 30,
     marginBottom: 3,
@@ -298,14 +307,12 @@ const s = StyleSheet.create({
   cardSub: {
     fontFamily: FONTS.sansLight,
     fontSize: 12,
-    color: alpha(authT.textOnDark, 0.55),
     lineHeight: 17,
   },
   cardMeta: {
     fontFamily: FONTS.mono,
     fontSize: 8.5,
     letterSpacing: 1.4,
-    color: COLORS.greenBrand,
     marginTop: 5,
   },
   switchNote: {
@@ -318,25 +325,19 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono,
     fontSize: 8.5,
     letterSpacing: 1.3,
-    color: alpha(authT.textOnDark, 0.3),
   },
   radio: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: alpha(authT.textOnDark, 0.3),
     alignItems: "center",
     justifyContent: "center",
-  },
-  radioSelected: {
-    borderColor: authT.textOnDark,
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: authT.textOnDark,
   },
 
   spacer: {
