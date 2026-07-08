@@ -139,7 +139,9 @@ function buildTheme(isDark: boolean): ThemeTokens {
     greenText:    isDark ? '#46DC93' : '#0E7A47',
     // Point vert du wordmark (charte : « the logo dot, brighter #2BD183 on dark »).
     // Fill de marque — exception documentée à la règle « fills = COLORS.greenBrand ».
-    brandDot:     isDark ? '#2BD183' : COLORS.greenBrand, // #2BD183 = GBASE.green (déclaré après buildTheme)
+    // Littéral volontaire : même hex que GBASE.green, mais découplé sémantiquement —
+    // GBASE est la palette Pro graphite, pas une source du thème global.
+    brandDot:     isDark ? '#2BD183' : COLORS.greenBrand,
     // ── Status badges ──
     badgeDoneBg:       isDark ? '#1A2A1A'               : 'rgba(70,220,147,0.1)',
     badgeDoneText:     isDark ? '#46DC93'               : '#0E7A47',

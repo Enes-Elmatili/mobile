@@ -2,8 +2,9 @@
  * AuthScreen — shared layout shell for all auth pages.
  *
  * Renders an inverted gradient (dark top → light bottom) so headlines sit on
- * dark and inputs/CTA sit on light. SafeAreaView wraps content with consistent
- * horizontal padding. KeyboardAvoidingView is opt-in for form pages.
+ * dark and inputs/CTA sit on light, or a "flat" theme-aware solid background
+ * (theme.bg) for the v2 flat screens. SafeAreaView wraps content with
+ * consistent horizontal padding. KeyboardAvoidingView is opt-in for form pages.
  */
 import React from "react";
 import {
@@ -25,7 +26,11 @@ type Variant = "inverted" | "standard" | "flat";
 
 type Props = {
   children: React.ReactNode;
-  /** "inverted" (default) = dark top → light bottom. "standard" = welcome's light top → dark bottom. */
+  /**
+   * "inverted" (default) = dark top → light bottom. "standard" = welcome's
+   * light top → dark bottom. "flat" = no gradient, theme-aware solid theme.bg
+   * (statusBar follows the theme).
+   */
   variant?: Variant;
   /** Wrap content in KeyboardAvoidingView + ScrollView for form pages. */
   scrollable?: boolean;

@@ -293,6 +293,9 @@ export default function Login() {
     else router.replace("/(auth)/welcome");
   };
 
+  // Style thème partagé des boutons sociaux (Apple / Google).
+  const socialBtnTheme = { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) };
+
   return (
     <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
@@ -313,7 +316,7 @@ export default function Login() {
           <View style={s.socialRow}>
             {Platform.OS === "ios" && (
               <TouchableOpacity
-                style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
+                style={[s.socialBtn, socialBtnTheme]}
                 onPress={handleAppleSignIn}
                 disabled={isBusy}
                 activeOpacity={0.7}
@@ -332,7 +335,7 @@ export default function Login() {
             )}
 
             <TouchableOpacity
-              style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
+              style={[s.socialBtn, socialBtnTheme]}
               onPress={() => googlePromptAsync()}
               disabled={isBusy || !googleRequest}
               activeOpacity={0.7}

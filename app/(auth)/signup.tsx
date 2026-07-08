@@ -512,6 +512,9 @@ export default function Signup() {
 
   const isBusy = !!socialLoading;
 
+  // Style thème partagé des boutons sociaux (Apple / Google).
+  const socialBtnTheme = { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) };
+
   // ── Creating phase ──
   if (phase === "creating") {
     return (
@@ -565,7 +568,7 @@ export default function Signup() {
             <View style={s.socialRow}>
               {Platform.OS === "ios" && (
                 <TouchableOpacity
-                  style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
+                  style={[s.socialBtn, socialBtnTheme]}
                   onPress={handleAppleSignIn}
                   disabled={isBusy}
                   activeOpacity={0.7}
@@ -583,7 +586,7 @@ export default function Signup() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
+                style={[s.socialBtn, socialBtnTheme]}
                 onPress={() => googlePromptAsync()}
                 disabled={isBusy || !googleRequest}
                 activeOpacity={0.7}

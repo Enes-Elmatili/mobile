@@ -26,9 +26,10 @@ type Props = {
 
 export function AuthBackButton({ onPress, style, themed = false }: Props) {
   const theme = useAppTheme();
-  const iconColor = themed ? theme.text : authT.textOnDark;
-  const borderColor = themed ? alpha(theme.text, 0.18) : alpha(authT.textOnDark, 0.18);
-  const backgroundColor = themed ? alpha(theme.text, 0.05) : alpha(authT.textOnDark, 0.05);
+  const base = themed ? theme.text : authT.textOnDark;
+  const iconColor = base;
+  const borderColor = alpha(base, 0.18);
+  const backgroundColor = alpha(base, 0.05);
 
   return (
     <Pressable
