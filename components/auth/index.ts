@@ -13,4 +13,5 @@ export { AuthAddressAutocomplete } from "./AuthAddressAutocomplete";
 export type { ParsedAddress } from "./AuthAddressAutocomplete";
 export { AuthMasthead } from "./AuthMasthead";
 export { AuthEyebrow } from "./AuthEyebrow";
+export { AuthStepper } from "./AuthStepper";
 export { authT, alpha, invertedGradient, standardGradient } from "./tokens";

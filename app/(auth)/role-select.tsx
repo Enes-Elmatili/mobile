@@ -23,6 +23,7 @@ import {
   AuthLink,
   AuthMasthead,
   AuthEyebrow,
+  AuthStepper,
 } from "@/components/auth";
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
@@ -186,7 +187,8 @@ export default function RoleSelect() {
           <View style={{ flex: 1 }} />
         </View>
 
-        <AuthMasthead meta={t('ext.role_step')} />
+        <AuthMasthead />
+        <AuthStepper total={3} current={1} accessibilityLabel={t('ext.role_step')} />
 
         <View style={s.airTop} />
 
@@ -213,7 +215,6 @@ export default function RoleSelect() {
             icon="tool"
             title={t('ext.role_provider')}
             subtitle={t('ext.role_provider_sub')}
-            meta={t('ext.role_provider_meta')}
             isSelected={selected === "PROVIDER"}
             onPress={() => select("PROVIDER")}
             theme={theme}
