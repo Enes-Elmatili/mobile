@@ -102,7 +102,7 @@ export default function Welcome() {
             prefix={t('auth.welcome_already')}
             action={t('auth.welcome_signin')}
             onPress={handleSignIn}
-            onDark={theme.isDark}
+            themed
           />
         </View>
 

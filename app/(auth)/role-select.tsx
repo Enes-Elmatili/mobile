@@ -24,6 +24,7 @@ import {
   AuthMasthead,
   AuthEyebrow,
   AuthStepper,
+  stripAccent,
 } from "@/components/auth";
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
@@ -120,7 +121,7 @@ export default function RoleSelect() {
   // l'ancien AuthHeadline, retiré de cet écran) — on le nettoie pour éviter
   // d'afficher les accolades brutes. Dans les 3 langues (fr/en/nl) le titre se
   // termine déjà par "?" → pas de point vert ajouté (cf. plan, cas "?").
-  const roleTitle = t('ext.role_title').replace(/\{\/?accent\}/g, '');
+  const roleTitle = stripAccent(t('ext.role_title'));
 
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(16)).current;
@@ -247,7 +248,7 @@ export default function RoleSelect() {
               feedback.haptic('selection');
               router.push("/(auth)/login");
             }}
-            onDark={theme.isDark}
+            themed
           />
         )}
       </Animated.View>
