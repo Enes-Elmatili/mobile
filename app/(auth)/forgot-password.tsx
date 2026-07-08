@@ -1,4 +1,4 @@
-// app/(auth)/forgot-password.tsx — forgot password (inverted gradient)
+// app/(auth)/forgot-password.tsx — forgot password (flat theme-aware, v2 éditorial)
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -13,15 +13,15 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import { feedback } from "@/lib/feedback/feedback";
-import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
   AuthScreen,
   AuthHeadline,
   AuthCTA,
   AuthBackButton,
   AuthInput,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
 } from "@/components/auth";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -29,6 +29,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export default function ForgotPassword() {
   const router = useRouter();
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -75,47 +76,57 @@ export default function ForgotPassword() {
   };
 
   return (
-    <AuthScreen variant="inverted" scrollable>
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        <View style={s.topRow}>
-          <AuthBackButton onPress={handleBack} />
+        <View style={s.header}>
+          <View style={s.backAbs}>
+            <AuthBackButton onPress={handleBack} themed />
+          </View>
+          <AuthMasthead />
         </View>
 
-        <View style={[s.iconWrap, sent && s.iconWrapSent]}>
+        <View style={s.airTop} />
+
+        <View
+          style={[
+            s.iconWrap,
+            sent
+              ? { backgroundColor: alpha(theme.brandDot, 0.12), borderColor: alpha(theme.brandDot, 0.35) }
+              : { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+          ]}
+        >
           <Feather
             name={sent ? "check-circle" : "unlock"}
             size={34}
-            color={sent ? COLORS.greenBrand : authT.textOnDark}
+            color={sent ? theme.greenText : theme.text}
           />
         </View>
 
+        <AuthEyebrow label={t('auth.login')} />
         <AuthHeadline
+          themed
           title={sent ? t('auth.forgot_password_sent_title') : t('auth.forgot_password_title')}
-          align="left"
+          subtitle={sent ? t('auth.forgot_password_sent_sub') : t('auth.forgot_password_sub')}
         />
 
         <View style={s.body}>
           {sent ? (
             <>
-              <Text style={s.subtitle}>
-                {t('auth.forgot_password_sent_sub')}{"\n"}
-                <Text style={s.emailText}>{email.trim().toLowerCase()}</Text>
+              <Text style={[s.emailText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
+                {email.trim().toLowerCase()}
               </Text>
 
-              <View style={s.infoCard}>
-                <Feather name="info" size={16} color={alpha(authT.textOnDark, 0.55)} style={{ marginTop: 1 }} />
-                <Text style={s.infoText}>
+              <View style={[s.infoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+                <Feather name="info" size={16} color={alpha(theme.text, 0.55)} style={{ marginTop: 1 }} />
+                <Text style={[s.infoText, { color: alpha(theme.text, 0.55) }]} maxFontSizeMultiplier={1.2}>
                   {t('auth.forgot_password_info')}
                 </Text>
               </View>
             </>
           ) : (
             <>
-              <Text style={s.subtitle}>
-                {t('auth.forgot_password_sub')}
-              </Text>
-
               <AuthInput
+                themed
                 label={t('auth.email_label')}
                 icon="mail"
                 placeholder={t('auth.email_placeholder_value')}
@@ -145,11 +156,23 @@ export default function ForgotPassword() {
           onPress={sent ? handleBack : handleSubmit}
           loading={loading}
           disabled={!sent && !email.trim()}
+          variant="flat"
         />
 
         {!sent && (
           <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
-            <Text style={s.secondaryLinkText}>{t('auth.back_to_login_link')}</Text>
+            <Text
+              style={[
+                s.secondaryLinkText,
+                {
+                  color: alpha(theme.text, theme.isDark ? 0.5 : 0.68),
+                  textDecorationColor: alpha(theme.text, theme.isDark ? 0.3 : 0.45),
+                },
+              ]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {t('auth.back_to_login_link')}
+            </Text>
           </TouchableOpacity>
         )}
       </Animated.View>
@@ -159,50 +182,32 @@ export default function ForgotPassword() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: 24,
-  },
+  header: { position: "relative" },
+  backAbs: { position: "absolute", left: 0, top: 11, zIndex: 1 },
+  airTop: { flex: 0.55, minHeight: 12 },
   iconWrap: {
     width: 72,
     height: 72,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: alpha(authT.textOnDark, 0.14),
-    backgroundColor: alpha(authT.dark, 0.85),
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-start",
     marginBottom: 18,
   },
-  iconWrapSent: {
-    backgroundColor: alpha(COLORS.greenBrand, 0.12),
-    borderColor: alpha(COLORS.greenBrand, 0.35),
-  },
   body: {
     paddingTop: 18,
     gap: 18,
   },
-  subtitle: {
-    fontFamily: FONTS.sans,
-    fontSize: 15,
-    lineHeight: 22,
-    color: alpha(authT.textOnDark, 0.65),
-  },
   emailText: {
     fontFamily: FONTS.monoMedium,
     fontSize: 14,
-    color: authT.textOnDark,
   },
   infoCard: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.14),
     borderRadius: 18,
     padding: 14,
   },
@@ -211,7 +216,6 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize: 13,
     lineHeight: 20,
-    color: alpha(authT.textOnDark, 0.55),
   },
   spacer: { flex: 1, minHeight: 24 },
   secondaryLink: {
@@ -222,8 +226,6 @@ const s = StyleSheet.create({
   secondaryLinkText: {
     fontFamily: FONTS.sans,
     fontSize: 13,
-    color: alpha(authT.textOnLight, 0.5),
     textDecorationLine: "underline",
-    textDecorationColor: alpha(authT.textOnLight, 0.2),
   },
 });
