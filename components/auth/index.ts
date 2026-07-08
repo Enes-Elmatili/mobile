@@ -3,7 +3,7 @@
  * Welcome screen lives separately but uses the same tokens for consistency.
  */
 export { AuthScreen } from "./AuthScreen";
-export { AuthHeadline } from "./AuthHeadline";
+export { AuthHeadline, stripAccent } from "./AuthHeadline";
 export { AuthCTA } from "./AuthCTA";
 export { AuthBackButton } from "./AuthBackButton";
 export { AuthInput } from "./AuthInput";

@@ -16,10 +16,10 @@ import {
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
-type Variant = "inverted" | "standard";
+type Variant = "inverted" | "standard" | "flat";
 
 type Props = {
   label: string;
@@ -32,13 +32,19 @@ type Props = {
    * Match the AuthScreen variant.
    * "inverted" (default) = dark pill on the LIGHT zone of an inverted gradient.
    * "standard" = white pill on the DARK zone of welcome's standard gradient.
+   * "flat" = theme-aware pill for flat (theme.bg) screens — resolves internally
+   *   to "standard" in dark mode (light pill) and "inverted" in light mode
+   *   (dark pill), i.e. the same ternary flat screens applied manually.
    */
   variant?: Variant;
 };
 
 export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant = "inverted" }: Props) {
+  const theme = useAppTheme();
   const arrowAnim = useRef(new Animated.Value(0)).current;
-  const isStandard = variant === "standard";
+  const resolvedVariant: "inverted" | "standard" =
+    variant === "flat" ? (theme.isDark ? "standard" : "inverted") : variant;
+  const isStandard = resolvedVariant === "standard";
   const pillBg = isStandard ? authT.textOnDark : alpha(authT.dark, 0.95);
   const labelColor = isStandard ? authT.textOnLight : authT.textOnDark;
   const arrowColor = isStandard ? authT.textOnLight : authT.textOnDark;

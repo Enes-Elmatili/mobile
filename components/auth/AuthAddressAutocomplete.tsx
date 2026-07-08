@@ -10,14 +10,17 @@
  * Fallback de saisie manuelle : si l'autocomplete Google échoue (onFail) ou via
  * le lien « Saisir manuellement », un formulaire rue / code postal / ville prend
  * le relais pour ne jamais bloquer l'inscription.
+ *
+ * Pass `themed` to opt into theme-aware colors (field, dropdown, fallback) for
+ * flat v2 screens — default false = gradient zone rendering, strictly unchanged.
  */
-import React, { useRef, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, StyleSheet, Platform, TouchableOpacity } from "react-native";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 import type { GooglePlaceDetail, AddressComponent } from "react-native-google-places-autocomplete";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 import { AuthInput } from "./AuthInput";
 
@@ -76,6 +79,13 @@ type Props = {
    * (sinon address/postalCode/city gardent l'ancienne valeur).
    */
   onChangeText?: (text: string) => void;
+  /**
+   * Use theme-aware colors (derived from useAppTheme) instead of the fixed
+   * gradient zone tones — for flat (theme.bg) screens. Covers the field, the
+   * suggestions dropdown and the manual-entry fallback. Defaults to false —
+   * strictly unchanged behavior for the existing gradient screens.
+   */
+  themed?: boolean;
 };
 
 export function AuthAddressAutocomplete({
@@ -83,8 +93,10 @@ export function AuthAddressAutocomplete({
   error,
   label,
   onChangeText,
+  themed = false,
 }: Props) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const resolvedLabel = label === undefined ? t("auth.address_label") : label;
   const [focused, setFocused] = useState(false);
   const [placeSelected, setPlaceSelected] = useState(false);
@@ -134,11 +146,17 @@ export function AuthAddressAutocomplete({
     onChangeText?.("");
   }, [onChangeText]);
 
+  // Couleurs du lien « saisie manuelle / recherche » — zone claire du gradient
+  // par défaut, dérivées du thème quand `themed`.
+  const manualIconColor = themed ? alpha(theme.text, 0.55) : alpha(authT.textOnLight, 0.55);
+  const manualLinkColor = themed ? alpha(theme.text, 0.6) : alpha(authT.textOnLight, 0.6);
+
   // ── Mode saisie manuelle ────────────────────────────────────────────────────
   if (manual) {
     return (
       <View style={s.wrap}>
         <AuthInput
+          themed={themed}
           label={resolvedLabel}
           icon="map-pin"
           placeholder={t("auth.address_street_placeholder")}
@@ -152,6 +170,7 @@ export function AuthAddressAutocomplete({
         <View style={s.manualRow}>
           <View style={s.manualPostal}>
             <AuthInput
+              themed={themed}
               label={t("auth.postal_label")}
               icon="hash"
               placeholder="1050"
@@ -166,6 +185,7 @@ export function AuthAddressAutocomplete({
           </View>
           <View style={s.manualCity}>
             <AuthInput
+              themed={themed}
               label={t("auth.city_label")}
               icon="map"
               placeholder="Ixelles"
@@ -187,8 +207,10 @@ export function AuthAddressAutocomplete({
           accessibilityRole="button"
           accessibilityLabel={t("auth.address_search_a11y")}
         >
-          <Feather name="search" size={11} color={alpha(authT.textOnLight, 0.55)} />
-          <Text style={s.manualLink}>{t("auth.address_search_a11y")}</Text>
+          <Feather name="search" size={11} color={manualIconColor} />
+          <Text style={[s.manualLink, themed && { color: manualLinkColor }]}>
+            {t("auth.address_search_a11y")}
+          </Text>
         </TouchableOpacity>
 
         {effectiveError ? (
@@ -204,11 +226,14 @@ export function AuthAddressAutocomplete({
   // ── Mode autocomplete Google ────────────────────────────────────────────────
   return (
     <View style={s.wrap}>
-      {resolvedLabel ? <Text style={s.label}>{resolvedLabel}</Text> : null}
+      {resolvedLabel ? (
+        <Text style={[s.label, themed && { color: alpha(theme.text, 0.55) }]}>{resolvedLabel}</Text>
+      ) : null}
       <View
         style={[
           s.field,
-          focused && s.fieldFocused,
+          themed && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+          focused && (themed ? { borderColor: alpha(theme.text, 0.4) } : s.fieldFocused),
           !!effectiveError && s.fieldError,
         ]}
       >
@@ -216,7 +241,11 @@ export function AuthAddressAutocomplete({
         <Feather
           name="map-pin"
           size={16}
-          color={alpha(authT.textOnDark, focused ? 0.85 : 0.55)}
+          color={
+            themed
+              ? alpha(theme.text, focused ? 0.85 : 0.55)
+              : alpha(authT.textOnDark, focused ? 0.85 : 0.55)
+          }
           style={s.icon}
         />
 
@@ -247,7 +276,9 @@ export function AuthAddressAutocomplete({
             switchToManual();
           }}
           textInputProps={{
-            placeholderTextColor: alpha(authT.textOnDark, 0.4),
+            placeholderTextColor: themed
+              ? alpha(theme.text, 0.35)
+              : alpha(authT.textOnDark, 0.4),
             onFocus: () => setFocused(true),
             onBlur: () => {
               setFocused(false);
@@ -263,7 +294,7 @@ export function AuthAddressAutocomplete({
               // Invalide l'adresse parsée côté parent (donnée périmée sinon)
               onChangeText?.(text);
             },
-            selectionColor: authT.textOnDark,
+            selectionColor: themed ? theme.text : authT.textOnDark,
           }}
           styles={{
             container: {
@@ -279,7 +310,7 @@ export function AuthAddressAutocomplete({
               height: 44,
               fontSize: 15,
               fontFamily: FONTS.sans,
-              color: authT.textOnDark,
+              color: themed ? theme.text : authT.textOnDark,
               backgroundColor: "transparent",
               paddingVertical: 0,
               paddingHorizontal: 0,
@@ -289,21 +320,24 @@ export function AuthAddressAutocomplete({
               // Dropdown matches the dark auth form aesthetic instead of
               // appearing as a jarring white card. Slightly elevated tone
               // (rgba(255,255,255,0.04) over the dark bg) to read as a panel.
+              // When `themed`, it becomes a theme card (cardBg/borderLight):
+              // white panel + dark text in light mode, elevated graphite +
+              // light text in dark mode — with a softer shadow on light bg.
               position: "absolute",
               top: 50,
               left: -38,
               right: -14,
               maxHeight: 220, // ~4 results — keeps it visible above keyboard
-              backgroundColor: "#171717",
+              backgroundColor: themed ? theme.cardBg : "#171717",
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: alpha(authT.textOnDark, 0.1),
+              borderColor: themed ? theme.borderLight : alpha(authT.textOnDark, 0.1),
               overflow: "hidden",
               zIndex: 9999,
               ...Platform.select({
                 ios: {
                   shadowColor: "#000",
-                  shadowOpacity: 0.5,
+                  shadowOpacity: themed && !theme.isDark ? 0.14 : 0.5,
                   shadowRadius: 24,
                   shadowOffset: { width: 0, height: 8 },
                 },
@@ -319,13 +353,13 @@ export function AuthAddressAutocomplete({
             description: {
               fontSize: 14,
               fontFamily: FONTS.sans,
-              color: authT.textOnDark,
+              color: themed ? theme.text : authT.textOnDark,
             },
             predefinedPlacesDescription: {
-              color: alpha(authT.textOnDark, 0.5),
+              color: themed ? alpha(theme.text, 0.5) : alpha(authT.textOnDark, 0.5),
             },
             separator: {
-              backgroundColor: alpha(authT.textOnDark, 0.06),
+              backgroundColor: themed ? alpha(theme.text, 0.06) : alpha(authT.textOnDark, 0.06),
               height: 1,
             },
             poweredContainer: { display: "none" },
@@ -341,8 +375,10 @@ export function AuthAddressAutocomplete({
         accessibilityRole="button"
         accessibilityLabel={t("auth.address_manual_a11y")}
       >
-        <Feather name="edit-3" size={11} color={alpha(authT.textOnLight, 0.55)} />
-        <Text style={s.manualLink}>{t("auth.address_manual_link")}</Text>
+        <Feather name="edit-3" size={11} color={manualIconColor} />
+        <Text style={[s.manualLink, themed && { color: manualLinkColor }]}>
+          {t("auth.address_manual_link")}
+        </Text>
       </TouchableOpacity>
 
       {effectiveError ? (

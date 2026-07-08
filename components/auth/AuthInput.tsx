@@ -3,6 +3,8 @@
  *
  * Dark text on a near-white surface, with a subtle border. Optional left icon
  * (Feather), trailing toggle (e.g. password eye), focus state, error state.
+ * Pass `themed` to opt into theme-aware colors for flat v2 screens (default
+ * false = gradient zone rendering, strictly unchanged).
  *
  * Uses the React 19 ref-as-prop pattern — pass `inputRef` to access the
  * underlying TextInput (e.g. for focus chains).
@@ -18,7 +20,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
 type Props = TextInputProps & {
@@ -30,6 +32,12 @@ type Props = TextInputProps & {
   label?: string;
   /** Ref to the underlying TextInput for imperative focus. */
   inputRef?: React.Ref<TextInput>;
+  /**
+   * Use theme-aware colors (derived from useAppTheme) instead of the fixed
+   * gradient zone tones — for flat (theme.bg) screens. Defaults to false —
+   * strictly unchanged behavior for the existing gradient screens.
+   */
+  themed?: boolean;
 };
 
 export function AuthInput({
@@ -42,18 +50,29 @@ export function AuthInput({
   onBlur,
   style,
   inputRef,
+  themed = false,
   ...rest
 }: Props) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const [focused, setFocused] = useState(false);
+
+  const iconColor = themed
+    ? alpha(theme.text, focused ? 0.85 : 0.55)
+    : alpha(authT.textOnDark, focused ? 0.85 : 0.55);
+  const trailingColor = themed ? alpha(theme.text, 0.6) : alpha(authT.textOnDark, 0.6);
+  const placeholderColor = themed ? alpha(theme.text, 0.35) : alpha(authT.textOnDark, 0.4);
 
   return (
     <View style={s.wrap}>
-      {label && <Text style={s.label}>{label}</Text>}
+      {label && (
+        <Text style={[s.label, themed && { color: alpha(theme.text, 0.55) }]}>{label}</Text>
+      )}
       <View
         style={[
           s.field,
-          focused && s.fieldFocused,
+          themed && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+          focused && (themed ? { borderColor: alpha(theme.text, 0.4) } : s.fieldFocused),
           !!error && s.fieldError,
         ]}
       >
@@ -61,7 +80,7 @@ export function AuthInput({
           <Feather
             name={icon}
             size={16}
-            color={alpha(authT.textOnDark, focused ? 0.85 : 0.55)}
+            color={iconColor}
             style={s.icon}
           />
         )}
@@ -76,8 +95,8 @@ export function AuthInput({
             setFocused(false);
             onBlur?.(e);
           }}
-          placeholderTextColor={alpha(authT.textOnDark, 0.4)}
-          style={[s.input, style]}
+          placeholderTextColor={placeholderColor}
+          style={[s.input, themed && { color: theme.text }, style]}
         />
         {trailingIcon && (
           <Pressable
@@ -90,7 +109,7 @@ export function AuthInput({
             <Feather
               name={trailingIcon}
               size={16}
-              color={alpha(authT.textOnDark, 0.6)}
+              color={trailingColor}
             />
           </Pressable>
         )}

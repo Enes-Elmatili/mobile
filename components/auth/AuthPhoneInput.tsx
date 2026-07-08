@@ -8,6 +8,8 @@
  * (the older lib doesn't pass `withFlagButton` so flags rendered as null).
  *
  * Visually identical to <AuthInput>: same height, border, focus/error palette.
+ * Pass `themed` to opt into theme-aware colors for flat v2 screens (default
+ * false = gradient zone rendering, strictly unchanged).
  *
  * Emits via onChangeFormattedText:
  *   "+32470123456"   (E.164, dial code prefixed)
@@ -19,7 +21,7 @@ import CountryPicker from "react-native-country-picker-modal";
 import type { Country, CountryCode } from "react-native-country-picker-modal";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { FONTS } from "@/hooks/use-app-theme";
+import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
 
 type Props = {
@@ -31,6 +33,12 @@ type Props = {
   placeholder?: string;
   returnKeyType?: "done" | "next" | "go" | "search" | "send";
   onSubmitEditing?: () => void;
+  /**
+   * Use theme-aware colors (derived from useAppTheme) instead of the fixed
+   * gradient zone tones — for flat (theme.bg) screens. Defaults to false —
+   * strictly unchanged behavior for the existing gradient screens.
+   */
+  themed?: boolean;
 };
 
 const DEFAULT_COUNTRY: { cca2: CountryCode; callingCode: string } = {
@@ -47,8 +55,10 @@ export function AuthPhoneInput({
   placeholder = "470 12 34 56",
   returnKeyType = "next",
   onSubmitEditing,
+  themed = false,
 }: Props) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const resolvedLabel = label === undefined ? t("auth.phone_label") : label;
   const [focused, setFocused] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -74,11 +84,14 @@ export function AuthPhoneInput({
 
   return (
     <View style={s.wrap}>
-      {resolvedLabel ? <Text style={s.label}>{resolvedLabel}</Text> : null}
+      {resolvedLabel ? (
+        <Text style={[s.label, themed && { color: alpha(theme.text, 0.55) }]}>{resolvedLabel}</Text>
+      ) : null}
       <View
         style={[
           s.field,
-          focused && s.fieldFocused,
+          themed && { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+          focused && (themed ? { borderColor: alpha(theme.text, 0.4) } : s.fieldFocused),
           !!error && s.fieldError,
         ]}
       >
@@ -102,26 +115,30 @@ export function AuthPhoneInput({
             // Keep the picker's filter input hint localized.
             filterProps={{ placeholder: t("auth.country_search_placeholder"), autoFocus: true }}
           />
-          <Text style={s.dialCode}>+{country.callingCode}</Text>
-          <Feather name="chevron-down" size={14} color={alpha(authT.textOnDark, 0.5)} />
+          <Text style={[s.dialCode, themed && { color: theme.text }]}>+{country.callingCode}</Text>
+          <Feather
+            name="chevron-down"
+            size={14}
+            color={themed ? alpha(theme.text, 0.5) : alpha(authT.textOnDark, 0.5)}
+          />
         </TouchableOpacity>
 
         {/* Subtle separator between chip and number */}
-        <View style={s.divider} />
+        <View style={[s.divider, themed && { backgroundColor: alpha(theme.text, 0.12) }]} />
 
         {/* Local number input */}
         <TextInput
-          style={s.numberInput}
+          style={[s.numberInput, themed && { color: theme.text }]}
           value={number}
           onChangeText={setNumber}
           placeholder={placeholder}
-          placeholderTextColor={alpha(authT.textOnDark, 0.4)}
+          placeholderTextColor={themed ? alpha(theme.text, 0.35) : alpha(authT.textOnDark, 0.4)}
           keyboardType="phone-pad"
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          selectionColor={authT.textOnDark}
+          selectionColor={themed ? theme.text : authT.textOnDark}
           autoCorrect={false}
           textContentType="telephoneNumber"
         />
