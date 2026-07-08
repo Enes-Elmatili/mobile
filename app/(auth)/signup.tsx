@@ -1,4 +1,4 @@
-// app/(auth)/signup.tsx — signup multi-phase (inverted gradient)
+// app/(auth)/signup.tsx — signup multi-phase (flat theme-aware, v2 éditorial)
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -26,9 +26,8 @@ import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useTranslation } from "react-i18next";
-import { FONTS, COLORS } from "@/hooks/use-app-theme";
+import { FONTS, COLORS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import { toFeatherName } from "@/lib/iconMapper";
-import { CLIENT_FLOW, PROVIDER_FLOW } from "@/constants/onboardingFlows";
 import { getRequiredDocuments } from "@/constants/kycRequirements";
 import Slider from "@react-native-community/slider";
 import {
@@ -40,8 +39,9 @@ import {
   AuthLink,
   AuthPhoneInput,
   AuthAddressAutocomplete,
-  authT,
-  alpha,
+  AuthMasthead,
+  AuthEyebrow,
+  AuthStepper,
 } from "@/components/auth";
 import type { ParsedAddress } from "@/components/auth";
 
@@ -50,16 +50,16 @@ WebBrowser.maybeCompleteAuthSession();
 const { height: SCREEN_H } = Dimensions.get("window");
 
 // ── SVG logos ───────────────────────────────────────────────────────────────
-function AppleLogo() {
+function AppleLogo({ color }: { color: string }) {
   return (
     <Svg width={15} height={18} viewBox="0 0 15 18" fill="none">
       <Path
         d="M12.4 9.6C12.4 7.8 13.5 6.7 13.5 6.7C12.5 5.3 11 5.2 10.4 5.2C9.1 5.1 7.9 6 7.2 6C6.5 6 5.5 5.2 4.4 5.2C2.8 5.3 1 6.4 1 9.1C1 10.9 1.7 12.8 2.6 14C3.3 15 4 15.8 5 15.8C5.9 15.8 6.3 15.2 7.5 15.2C8.7 15.2 9 15.8 10 15.8C11 15.8 11.7 14.9 12.4 13.9C13 13.1 13.3 12.2 13.3 12.1C13.3 12.1 12.4 11.8 12.4 9.6Z"
-        fill={alpha(authT.textOnDark, 0.85)}
+        fill={color}
       />
       <Path
         d="M9.5 3.5C10.1 2.8 10.5 1.8 10.4 0.8C9.5 0.9 8.4 1.4 7.8 2.2C7.2 2.9 6.7 3.9 6.9 4.9C7.9 4.9 8.9 4.3 9.5 3.5Z"
-        fill={alpha(authT.textOnDark, 0.85)}
+        fill={color}
       />
     </Svg>
   );
@@ -79,7 +79,7 @@ function GoogleLogo() {
 type ToastType = "success" | "error" | "info";
 
 // ── Spinner ─────────────────────────────────────────────────────────────────
-function Spinner({ color = authT.textOnDark }: { color?: string }) {
+function Spinner({ color }: { color: string }) {
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const a = Animated.loop(
@@ -106,8 +106,10 @@ function Spinner({ color = authT.textOnDark }: { color?: string }) {
 }
 
 // ── Password strength ───────────────────────────────────────────────────────
+// Couleurs sémantiques conservées (rouge/ambre/vert) ; rails neutres dérivés du thème.
 function StrengthBar({ password }: { password: string }) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
   const checks = [
     password.length >= 8,
     /[A-Z]/.test(password),
@@ -125,12 +127,18 @@ function StrengthBar({ password }: { password: string }) {
             key={i}
             style={[
               str.segment,
-              { backgroundColor: i < score ? barColors[score - 1] : alpha(authT.textOnLight, 0.1) },
+              { backgroundColor: i < score ? barColors[score - 1] : alpha(theme.text, 0.11) },
             ]}
           />
         ))}
       </View>
-      <Text style={[str.label, { color: score > 0 ? barColors[score - 1] : alpha(authT.textOnLight, 0.3) }]}>
+      <Text
+        style={[
+          str.label,
+          { color: score > 0 ? barColors[score - 1] : alpha(theme.text, theme.isDark ? 0.3 : 0.45) },
+        ]}
+        maxFontSizeMultiplier={1.2}
+      >
         {score > 0 ? labels[score - 1] : ""}
       </Text>
     </View>
@@ -162,6 +170,7 @@ export default function Signup() {
   const router = useRouter();
   const { refreshMe, signIn } = useAuth();
   const { t } = useTranslation();
+  const theme = useAppTheme();
 
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => {
@@ -491,17 +500,9 @@ export default function Signup() {
     }
   };
 
-  // Progress — stepper unifié 01→06 (provider) / 01→03 (client).
-  // identity(01) → billing/coordonnées(02) → zone/activité(03) ; la suite
-  // (vérification, documents, paiements) vit sur les écrans suivants.
-  const flow = isProvider ? PROVIDER_FLOW : CLIENT_FLOW;
-  const totalSteps = flow.totalSteps;
-  const stepNum =
-    phase === "identity"
-      ? flow.steps.IDENTITY
-      : phase === "billing"
-        ? flow.steps.COORDS
-        : PROVIDER_FLOW.steps.ACTIVITY;
+  // Progress — le stepper macro (role-select 1/3 → signup 2/3 → verify 3/3)
+  // vit sous le masthead ; la progression interne (identité → coordonnées →
+  // activité) est portée par l'eyebrow par phase.
   const phaseLabel =
     phase === "identity"
       ? t('auth.su_phase_identity')
@@ -514,11 +515,20 @@ export default function Signup() {
   // ── Creating phase ──
   if (phase === "creating") {
     return (
-      <View style={s.creatingRoot}>
-        <StatusBar barStyle="light-content" />
-        <Spinner color={authT.textOnDark} />
-        <Text style={s.creatingText}>{t('auth.creating_account')}</Text>
-        {isProvider && <Text style={s.creatingSub}>{t('auth.configuring_provider')}</Text>}
+      <View style={[s.creatingRoot, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <Spinner color={theme.text} />
+        <Text style={[s.creatingText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
+          {t('auth.creating_account')}
+        </Text>
+        {isProvider && (
+          <Text
+            style={[s.creatingSub, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+            maxFontSizeMultiplier={1.2}
+          >
+            {t('auth.configuring_provider')}
+          </Text>
+        )}
       </View>
     );
   }
@@ -526,30 +536,27 @@ export default function Signup() {
   // ── Headline per phase ──
   const headlineProps =
     phase === "billing"
-      ? { kicker: t('auth.su_kicker'), title: t('auth.su_coords_title'), subtitle: t('auth.su_coords_sub') }
+      ? { title: t('auth.su_coords_title'), subtitle: t('auth.su_coords_sub') }
       : isProvider && phase === "zone"
-        ? { kicker: t('auth.su_kicker'), title: t('auth.su_activity_title'), subtitle: t('auth.su_activity_sub') }
-        : { kicker: t('auth.su_kicker'), title: t('auth.su_identity_title'), subtitle: t('auth.su_identity_sub') };
+        ? { title: t('auth.su_activity_title'), subtitle: t('auth.su_activity_sub') }
+        : { title: t('auth.su_identity_title'), subtitle: t('auth.su_identity_sub') };
 
   return (
-    <AuthScreen variant="inverted" scrollable>
+    <AuthScreen variant="flat" scrollable>
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        {/* Top row: back + step indicator */}
-        <View style={s.topRow}>
-          <AuthBackButton onPress={goBack} />
-          <View style={s.stepIndicator}>
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <View key={i} style={[s.stepBar, i < stepNum ? s.stepBarActive : s.stepBarInactive]} />
-            ))}
-            <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>{phaseLabel} · {String(stepNum).padStart(2, "0")}</Text>
-              {" / "}
-              {String(totalSteps).padStart(2, "0")}
-            </Text>
+        {/* Header : back flottant + masthead + stepper macro (2/3) */}
+        <View style={s.header}>
+          <View style={s.backAbs}>
+            <AuthBackButton onPress={goBack} themed />
           </View>
+          <AuthMasthead />
+          <AuthStepper total={3} current={2} accessibilityLabel={t('ext.signup_step')} />
         </View>
 
-        <AuthHeadline {...headlineProps} align="left" />
+        <View style={s.airTop} />
+
+        <AuthEyebrow label={phaseLabel} />
+        <AuthHeadline themed {...headlineProps} />
 
         {/* === IDENTITY PHASE === */}
         {phase === "identity" && (
@@ -558,7 +565,7 @@ export default function Signup() {
             <View style={s.socialRow}>
               {Platform.OS === "ios" && (
                 <TouchableOpacity
-                  style={s.socialBtn}
+                  style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
                   onPress={handleAppleSignIn}
                   disabled={isBusy}
                   activeOpacity={0.7}
@@ -566,17 +573,17 @@ export default function Signup() {
                   accessibilityLabel={t("auth.su_continue_apple")}
                 >
                   {socialLoading === "apple" ? (
-                    <Spinner color={authT.textOnDark} />
+                    <Spinner color={theme.text} />
                   ) : (
                     <>
-                      <AppleLogo />
-                      <Text style={s.socialText}>Apple</Text>
+                      <AppleLogo color={theme.text} />
+                      <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Apple</Text>
                     </>
                   )}
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={s.socialBtn}
+                style={[s.socialBtn, { backgroundColor: theme.cardBg, borderColor: alpha(theme.text, 0.15) }]}
                 onPress={() => googlePromptAsync()}
                 disabled={isBusy || !googleRequest}
                 activeOpacity={0.7}
@@ -584,25 +591,31 @@ export default function Signup() {
                 accessibilityLabel={t("auth.su_continue_google")}
               >
                 {socialLoading === "google" ? (
-                  <Spinner color={authT.textOnDark} />
+                  <Spinner color={theme.text} />
                 ) : (
                   <>
                     <GoogleLogo />
-                    <Text style={s.socialText}>Google</Text>
+                    <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Google</Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
 
             <View style={s.divider}>
-              <View style={s.dividerLine} />
-              <Text style={s.dividerLabel}>{t('auth.su_or')}</Text>
-              <View style={s.dividerLine} />
+              <View style={[s.dividerLine, { backgroundColor: alpha(theme.text, 0.11) }]} />
+              <Text
+                style={[s.dividerLabel, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                maxFontSizeMultiplier={1.2}
+              >
+                {t('auth.su_or')}
+              </Text>
+              <View style={[s.dividerLine, { backgroundColor: alpha(theme.text, 0.11) }]} />
             </View>
 
             {/* Form */}
             <View style={s.form}>
               <AuthInput
+                themed
                 label={t('auth.su_name_label')}
                 icon="user"
                 placeholder={t('auth.su_name_placeholder')}
@@ -616,6 +629,7 @@ export default function Signup() {
                 onSubmitEditing={() => emailRef.current?.focus()}
               />
               <AuthInput
+                themed
                 inputRef={emailRef}
                 label={t('auth.su_email_label')}
                 icon="mail"
@@ -631,6 +645,7 @@ export default function Signup() {
                 onSubmitEditing={() => pwdRef.current?.focus()}
               />
               <AuthInput
+                themed
                 inputRef={pwdRef}
                 label={t('auth.su_pwd_label')}
                 icon="lock"
@@ -651,11 +666,19 @@ export default function Signup() {
 
             {/* CGU */}
             <View style={s.cguRow}>
-              <Feather name="shield" size={13} color={alpha(authT.textOnLight, 0.3)} style={{ marginTop: 1 }} />
-              <Text style={s.cguText}>
+              <Feather
+                name="shield"
+                size={13}
+                color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)}
+                style={{ marginTop: 1 }}
+              />
+              <Text
+                style={[s.cguText, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+                maxFontSizeMultiplier={1.2}
+              >
                 {t('auth.su_cgu_pre')}
                 <Text
-                  style={s.cguLink}
+                  style={[s.cguLink, { color: theme.text }]}
                   onPress={() => router.push("/settings/cgu")}
                   accessibilityRole="link"
                 >
@@ -663,7 +686,7 @@ export default function Signup() {
                 </Text>
                 {t('auth.su_cgu_mid')}
                 <Text
-                  style={s.cguLink}
+                  style={[s.cguLink, { color: theme.text }]}
                   onPress={() => router.push("/settings/privacy")}
                   accessibilityRole="link"
                 >
@@ -680,11 +703,13 @@ export default function Signup() {
           <View style={s.body}>
             <View style={s.form}>
               <AuthPhoneInput
+                themed
                 onChangeFormattedText={(e164) => { setPhone(e164); if (phoneError) setPhoneError(""); }}
                 onChangeText={() => { if (phoneError) setPhoneError(""); }}
                 error={phoneError || undefined}
               />
               <AuthAddressAutocomplete
+                themed
                 onAddressSelected={(p: ParsedAddress) => {
                   setAddress(p.street);
                   setPostalCode(p.postalCode);
@@ -706,16 +731,29 @@ export default function Signup() {
               />
               {!!postalCode && !!billingCity && (
                 <View style={s.autofillRow}>
-                  <Feather name="zap" size={11} color={alpha(authT.textOnLight, 0.45)} />
-                  <Text style={s.autofillText}>
+                  <Feather name="zap" size={11} color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)} />
+                  <Text
+                    style={[s.autofillText, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
                     {postalCode} {billingCity} — {t('auth.su_autofill_suffix')}
                   </Text>
                 </View>
               )}
             </View>
             <View style={s.cguRow}>
-              <Feather name="lock" size={13} color={alpha(authT.textOnLight, 0.3)} style={{ marginTop: 1 }} />
-              <Text style={s.cguText}>{t('auth.su_billing_note')}</Text>
+              <Feather
+                name="lock"
+                size={13}
+                color={alpha(theme.text, theme.isDark ? 0.3 : 0.45)}
+                style={{ marginTop: 1 }}
+              />
+              <Text
+                style={[s.cguText, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+                maxFontSizeMultiplier={1.2}
+              >
+                {t('auth.su_billing_note')}
+              </Text>
             </View>
           </View>
         )}
@@ -724,12 +762,18 @@ export default function Signup() {
         {phase === "zone" && isProvider && (
           <View style={s.body}>
             <View>
-              <Text style={s.sectionLabel}>{t('auth.su_zone_city')}</Text>
+              <Text style={[s.sectionLabel, { color: alpha(theme.text, 0.55) }]} maxFontSizeMultiplier={1.2}>
+                {t('auth.su_zone_city')}
+              </Text>
               <View style={s.cityDropdown}>
                 {CITY_OPTIONS.map((opt) => (
                   <TouchableOpacity
                     key={opt.value}
-                    style={[s.cityOption, city === opt.value && s.cityOptionActive]}
+                    style={[
+                      s.cityOption,
+                      { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+                      city === opt.value && { backgroundColor: theme.text, borderColor: theme.text },
+                    ]}
                     onPress={() => {
                       feedback.haptic('selection');
                       setCity(opt.value);
@@ -739,21 +783,36 @@ export default function Signup() {
                     <Feather
                       name="map-pin"
                       size={15}
-                      color={city === opt.value ? authT.textOnLight : alpha(authT.textOnDark, 0.6)}
+                      color={city === opt.value ? theme.bg : alpha(theme.text, 0.6)}
                     />
-                    <Text style={[s.cityOptionText, city === opt.value && s.cityOptionTextActive]}>{opt.label}</Text>
-                    {city === opt.value && <Feather name="check-circle" size={18} color={authT.textOnLight} />}
+                    <Text
+                      style={[
+                        s.cityOptionText,
+                        { color: city === opt.value ? theme.bg : alpha(theme.text, 0.85) },
+                      ]}
+                      maxFontSizeMultiplier={1.2}
+                    >
+                      {opt.label}
+                    </Text>
+                    {city === opt.value && <Feather name="check-circle" size={18} color={theme.brandDot} />}
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
             <View>
-              <Text style={s.sectionLabel}>{t('auth.su_zone_radius')}</Text>
-              <View style={s.sliderWrap}>
+              <Text style={[s.sectionLabel, { color: alpha(theme.text, 0.55) }]} maxFontSizeMultiplier={1.2}>
+                {t('auth.su_zone_radius')}
+              </Text>
+              <View style={[s.sliderWrap, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
                 <View style={s.sliderValueRow}>
-                  <Text style={s.sliderValue}>{radius} km</Text>
-                  <Text style={s.sliderAnnotation}>
+                  <Text style={[s.sliderValue, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
+                    {radius} km
+                  </Text>
+                  <Text
+                    style={[s.sliderAnnotation, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
                     {radius <= 3
                       ? t('auth.su_radius_near')
                       : radius <= 8
@@ -767,28 +826,45 @@ export default function Signup() {
                   step={1}
                   value={radius}
                   onValueChange={(v: number) => setRadius(v)}
-                  minimumTrackTintColor={authT.textOnDark}
-                  maximumTrackTintColor={alpha(authT.textOnDark, 0.15)}
-                  thumbTintColor={authT.textOnDark}
+                  minimumTrackTintColor={theme.text}
+                  maximumTrackTintColor={alpha(theme.text, 0.15)}
+                  thumbTintColor={theme.text}
                   style={{ width: "100%", height: 40 }}
                 />
                 <View style={s.sliderLabels}>
-                  <Text style={s.sliderLabelText}>1 km</Text>
-                  <Text style={s.sliderLabelText}>15 km</Text>
+                  <Text
+                    style={[s.sliderLabelText, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    1 km
+                  </Text>
+                  <Text
+                    style={[s.sliderLabelText, { color: alpha(theme.text, theme.isDark ? 0.3 : 0.45) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    15 km
+                  </Text>
                 </View>
               </View>
             </View>
 
             <View>
-              <Text style={s.sectionLabel}>{t('auth.su_zone_cats')}</Text>
+              <Text style={[s.sectionLabel, { color: alpha(theme.text, 0.55) }]} maxFontSizeMultiplier={1.2}>
+                {t('auth.su_zone_cats')}
+              </Text>
               {catsLoading ? (
                 <View style={s.centered}>
-                  <ActivityIndicator size="large" color={alpha(authT.textOnDark, 0.6)} />
+                  <ActivityIndicator size="large" color={alpha(theme.text, 0.6)} />
                 </View>
               ) : catsError && categories.length === 0 ? (
                 <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
-                  <Feather name="refresh-cw" size={24} color={alpha(authT.textOnDark, 0.5)} />
-                  <Text style={s.retryText}>{t('common.retry')}</Text>
+                  <Feather name="refresh-cw" size={24} color={alpha(theme.text, theme.isDark ? 0.5 : 0.68)} />
+                  <Text
+                    style={[s.retryText, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    {t('common.retry')}
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <View style={s.catGrid}>
@@ -799,16 +875,24 @@ export default function Signup() {
                       return (
                         <TouchableOpacity
                           key={cat.id}
-                          style={[s.chip, sel && s.chipActive]}
+                          style={[
+                            s.chip,
+                            { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
+                            sel && { backgroundColor: theme.text, borderColor: theme.text },
+                          ]}
                           onPress={() => toggleCat(cat.id)}
                           activeOpacity={0.7}
                         >
                           <Feather
                             name={toFeatherName(cat.icon, "briefcase") as any}
                             size={15}
-                            color={sel ? authT.textOnLight : alpha(authT.textOnDark, 0.55)}
+                            color={sel ? theme.bg : alpha(theme.text, 0.55)}
                           />
-                          <Text numberOfLines={1} style={[s.chipText, sel && s.chipTextActive]}>
+                          <Text
+                            numberOfLines={1}
+                            style={[s.chipText, { color: sel ? theme.bg : alpha(theme.text, 0.9) }]}
+                            maxFontSizeMultiplier={1.2}
+                          >
                             {cat.name}
                           </Text>
                         </TouchableOpacity>
@@ -817,7 +901,10 @@ export default function Signup() {
                 </View>
               )}
               {selectedCats.length > 0 && (
-                <Text style={s.catCount}>
+                <Text
+                  style={[s.catCount, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+                  maxFontSizeMultiplier={1.2}
+                >
                   {t('auth.su_cat_count', {
                     count: selectedCats.length,
                     docs: getRequiredDocuments(
@@ -848,6 +935,7 @@ export default function Signup() {
             (phase === "billing" && !canBilling) ||
             (phase === "zone" && !canZone)
           }
+          variant="flat"
         />
 
         {/* Raison de désactivation du CTA — sinon bouton grisé inexpliqué */}
@@ -860,11 +948,19 @@ export default function Signup() {
                 : phase === "zone" && !canZone
                   ? t("auth.su_err_activity")
                   : null;
-          return hint ? <Text style={s.ctaHint}>{hint}</Text> : null;
+          return hint ? (
+            <Text
+              style={[s.ctaHint, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {hint}
+            </Text>
+          ) : null;
         })()}
 
         {phase === "identity" && (
           <AuthLink
+            themed
             prefix={t('auth.su_already')}
             action={t('auth.su_signin')}
             onPress={() => {
@@ -884,7 +980,6 @@ const s = StyleSheet.create({
 
   creatingRoot: {
     flex: 1,
-    backgroundColor: authT.dark,
     justifyContent: "center",
     alignItems: "center",
     gap: 14,
@@ -892,38 +987,16 @@ const s = StyleSheet.create({
   creatingText: {
     fontFamily: FONTS.sansMedium,
     fontSize: 14,
-    color: authT.textOnDark,
     marginTop: 8,
   },
   creatingSub: {
     fontFamily: FONTS.sans,
     fontSize: 12,
-    color: alpha(authT.textOnDark, 0.55),
   },
 
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 2,
-    marginBottom: 16,
-  },
-  stepIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  stepBar: { height: 2, borderRadius: 2 },
-  stepBarActive: { width: 22, backgroundColor: authT.textOnDark },
-  stepBarInactive: { width: 12, backgroundColor: alpha(authT.textOnDark, 0.15) },
-  stepLabel: {
-    fontFamily: FONTS.mono,
-    fontSize: 10,
-    letterSpacing: 2,
-    color: alpha(authT.textOnDark, 0.3),
-    marginLeft: 4,
-  },
-  stepLabelBold: { color: alpha(authT.textOnDark, 0.6) },
+  header: { position: "relative" },
+  backAbs: { position: "absolute", left: 0, top: 11, zIndex: 1 },
+  airTop: { flex: 0.55, minHeight: 12 },
 
   body: {
     paddingTop: 14,
@@ -938,9 +1011,7 @@ const s = StyleSheet.create({
   socialBtn: {
     flex: 1,
     height: 52,
-    backgroundColor: alpha(authT.dark, 0.85),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.16),
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -950,7 +1021,6 @@ const s = StyleSheet.create({
   socialText: {
     fontFamily: FONTS.sansMedium,
     fontSize: 13,
-    color: alpha(authT.textOnDark, 0.85),
     letterSpacing: 0.2,
   },
   divider: {
@@ -961,12 +1031,10 @@ const s = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: alpha(authT.textOnLight, 0.18),
   },
   dividerLabel: {
     fontFamily: FONTS.mono,
     fontSize: 10,
-    color: alpha(authT.textOnLight, 0.55),
     letterSpacing: 2,
   },
 
@@ -986,19 +1054,16 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize: 11,
     lineHeight: 16,
-    color: alpha(authT.textOnLight, 0.5),
   },
   cguLink: {
-    color: authT.textOnLight,
     textDecorationLine: "underline",
   },
 
-  // Zone — section labels (sit in light/transition zone)
+  // Zone — section labels
   sectionLabel: {
     fontFamily: FONTS.mono,
     fontSize: 10,
     letterSpacing: 2,
-    color: alpha(authT.textOnLight, 0.55),
     marginBottom: 10,
   },
 
@@ -1012,30 +1077,18 @@ const s = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     paddingHorizontal: 14,
-    backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.16),
     borderRadius: 18,
-  },
-  cityOptionActive: {
-    backgroundColor: authT.textOnDark,
-    borderColor: authT.textOnDark,
   },
   cityOptionText: {
     flex: 1,
     fontFamily: FONTS.sansMedium,
     fontSize: 14,
-    color: alpha(authT.textOnDark, 0.85),
-  },
-  cityOptionTextActive: {
-    color: authT.textOnLight,
   },
 
   // Slider
   sliderWrap: {
-    backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.16),
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingTop: 14,
@@ -1050,14 +1103,12 @@ const s = StyleSheet.create({
   sliderValue: {
     fontFamily: FONTS.bebas,
     fontSize: 28,
-    color: authT.textOnDark,
     letterSpacing: 1.5,
   },
   sliderAnnotation: {
     fontFamily: FONTS.mono,
     fontSize: 8.5,
     letterSpacing: 1.2,
-    color: alpha(authT.textOnDark, 0.4),
     flexShrink: 1,
   },
   sliderLabels: {
@@ -1068,7 +1119,6 @@ const s = StyleSheet.create({
   sliderLabelText: {
     fontFamily: FONTS.mono,
     fontSize: 10,
-    color: alpha(authT.textOnDark, 0.45),
     letterSpacing: 1,
   },
 
@@ -1082,7 +1132,6 @@ const s = StyleSheet.create({
   retryText: {
     fontFamily: FONTS.sansMedium,
     fontSize: 12,
-    color: alpha(authT.textOnDark, 0.55),
     textDecorationLine: "underline",
   },
   catGrid: {
@@ -1096,31 +1145,20 @@ const s = StyleSheet.create({
     gap: 6,
     height: 44,
     paddingHorizontal: 14,
-    backgroundColor: alpha(authT.dark, 0.7),
     borderWidth: 1,
-    borderColor: alpha(authT.textOnDark, 0.16),
     borderRadius: 100,
     minWidth: "47%",
     flexGrow: 1,
-  },
-  chipActive: {
-    backgroundColor: authT.textOnDark,
-    borderColor: authT.textOnDark,
   },
   chipText: {
     flex: 1,
     fontFamily: FONTS.sansMedium,
     fontSize: 12,
-    color: alpha(authT.textOnDark, 0.9),
     letterSpacing: 0.2,
-  },
-  chipTextActive: {
-    color: authT.textOnLight,
   },
   catCount: {
     fontFamily: FONTS.mono,
     fontSize: 9,
-    color: alpha(authT.textOnLight, 0.6),
     letterSpacing: 1.2,
     marginTop: 10,
   },
@@ -1135,7 +1173,6 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono,
     fontSize: 8.5,
     letterSpacing: 1.2,
-    color: alpha(authT.textOnLight, 0.5),
   },
 
   spacer: { flex: 1, minHeight: 24 },
@@ -1144,7 +1181,6 @@ const s = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize: 11.5,
     lineHeight: 16,
-    color: alpha(authT.textOnLight, 0.55),
     textAlign: "center",
     marginTop: 8,
     marginBottom: 2,
