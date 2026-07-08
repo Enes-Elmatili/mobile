@@ -20,7 +20,6 @@ import {
   AuthCTA,
   AuthLink,
   AuthMasthead,
-  AuthEyebrow,
 } from "@/components/auth";
 
 export default function Welcome() {
@@ -66,12 +65,9 @@ export default function Welcome() {
   return (
     <AuthScreen variant="flat">
       <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
-        {/* « BE · IXELLES » : marque géographique, identique dans les 3 langues — volontairement hors i18n */}
-        <AuthMasthead meta="BE · Ixelles" />
+        <AuthMasthead />
 
         <View style={s.airTop} />
-
-        <AuthEyebrow label={t('auth.welcome_eyebrow')} />
 
         <Text style={[s.headline, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
           {t('auth.welcome_l1')}{"\n"}
@@ -154,11 +150,12 @@ const s = StyleSheet.create({
 
   steps: {
     flexDirection: "row",
+    justifyContent: "space-between",
     borderTopWidth: 1,
     paddingTop: 18,
     marginBottom: 30,
   },
-  step: { flex: 1 },
+  step: {},
   stepNum: {
     fontFamily: FONTS.monoMedium,
     fontSize: 11,

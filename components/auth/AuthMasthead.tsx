@@ -13,7 +13,7 @@ type Props = {
 export function AuthMasthead({ meta }: Props) {
   const theme = useAppTheme();
   return (
-    <View style={s.row}>
+    <View style={[s.row, !meta && { justifyContent: "center" }]}>
       <Image
         source={
           theme.isDark
