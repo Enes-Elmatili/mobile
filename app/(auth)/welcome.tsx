@@ -94,7 +94,7 @@ export default function Welcome() {
         <AuthCTA
           label={t('auth.welcome_cta')}
           onPress={handlePrimary}
-          variant={theme.isDark ? "standard" : "inverted"}
+          variant="flat"
         />
 
         <View style={s.signinWrap}>

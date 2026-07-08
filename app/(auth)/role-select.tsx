@@ -236,7 +236,7 @@ export default function RoleSelect() {
           onPress={confirm}
           loading={submitting}
           disabled={!selected}
-          variant={theme.isDark ? "standard" : "inverted"}
+          variant="flat"
         />
 
         {!isAuthenticated && (
