@@ -24,6 +24,7 @@ import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
+import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useTranslation } from "react-i18next";
 import { FONTS, COLORS, useAppTheme, alpha } from "@/hooks/use-app-theme";
@@ -182,17 +183,11 @@ export default function Signup() {
   const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
 
   // Google Auth — native PKCE auth-code flow via the Expo Google provider.
-  // Google's iOS/Android OAuth clients reject the implicit token flow (the old
-  // auth.expo.io proxy setup), so Google.useAuthRequest selects the right
-  // per-platform client, builds the native reverse-client-id redirect, runs
-  // PKCE, and returns an id_token that the backend verifies by audience.
-  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    scopes: ["openid", "profile", "email"],
-  });
+  // Config partagée dans lib/googleAuth : sur iOS le redirect doit être le
+  // scheme reverse-client-id, le défaut du provider (bundle ID) est refusé
+  // par Google avec redirect_uri_mismatch.
+  const [googleRequest, googleResponse, googlePromptAsync] =
+    Google.useAuthRequest(GOOGLE_AUTH_CONFIG);
 
   useEffect(() => {
     if (!googleResponse) return;
