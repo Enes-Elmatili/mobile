@@ -156,11 +156,18 @@ export default function RoleSelect() {
       setSubmitting(true);
       try {
         const res = await api.auth.assignRole(selected);
-        if (res?.token) await signIn(res.token);
+        if (res?.token) await signIn(res.token, res.missingFields ?? []);
         // Navigation explicite pour les DEUX rôles — on ne dépend plus de la
         // chaîne implicite refreshMe → redirect (spinner infini si res.token absent).
         if (selected === "PROVIDER") {
           router.replace("/onboarding/documents");
+        } else if (res?.profileIncomplete) {
+          // Client : compléter le profil (tél/adresse) avant le dashboard,
+          // cohérent avec le gate login/social.
+          router.replace({
+            pathname: "/(auth)/complete-profile",
+            params: { missingFields: (res.missingFields ?? []).join(",") },
+          });
         } else {
           router.replace("/(tabs)/dashboard");
         }
