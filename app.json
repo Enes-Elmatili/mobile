@@ -8,7 +8,8 @@
     "userInterfaceStyle": "automatic",
     "scheme": [
       "fixed",
-      "exp+fixed-app"
+      "exp+fixed-app",
+      "com.googleusercontent.apps.710118047947-0707kj90f8bijv76pi8obqis2agmp69d"
     ],
     "updates": {
       "fallbackToCacheTimeout": 0
@@ -35,14 +36,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Votre position permet de trouver les prestataires autour de vous et d'assurer un suivi précis de l'intervention.",
-        "NSMicrophoneUsageDescription": "FIXED utilise votre micro pour les appels vocaux avec votre prestataire ou client.",
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.710118047947-0707kj90f8bijv76pi8obqis2agmp69d"
-            ]
-          }
-        ]
+        "NSMicrophoneUsageDescription": "FIXED utilise votre micro pour les appels vocaux avec votre prestataire ou client."
       },
       "entitlements": {
         "com.apple.developer.in-app-payments": [
