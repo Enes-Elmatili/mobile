@@ -412,15 +412,25 @@ export default function WalletTab() {
         showSocketToast("Impossible d'ouvrir le dashboard Stripe.", 'error');
       }
     } catch (e: any) {
-      // Backend returns 400 with needsOnboarding on mode mismatch
-      if (e?.code === 'STRIPE_MODE_MISMATCH' || e?.needsOnboarding) {
+      // api.ts place le corps de la réponse dans e.data → code/needsOnboarding
+      // sont là-dedans, pas à la racine de l'erreur (sinon on affichait juste le
+      // message « Aucun compte Stripe Connect lié » en cul-de-sac).
+      const body = e?.data ?? e;
+      const needsOnboarding =
+        body?.needsOnboarding ||
+        body?.code === 'STRIPE_MODE_MISMATCH' ||
+        body?.code === 'NO_STRIPE_ACCOUNT';
+      if (needsOnboarding) {
         try {
           const Linking = await import('expo-linking');
           const returnUrl = Linking.createURL('connect/success');
           const refreshUrl = Linking.createURL('connect/reauth');
           const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
           if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
-        } catch { /* silent */ }
+          else showSocketToast("Impossible de lancer la configuration Stripe.", 'error');
+        } catch (onbErr: any) {
+          showSocketToast(onbErr?.message || 'Erreur Stripe', 'error');
+        }
       } else {
         showSocketToast(e?.message || 'Erreur Stripe', 'error');
       }
