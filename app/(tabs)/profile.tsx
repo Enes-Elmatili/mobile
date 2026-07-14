@@ -224,6 +224,7 @@ export default function Profile() {
   const router = useRouter();
   const theme = useAppTheme();
   const tabBarPadding = useTabBarPadding();
+  const insets = useSafeAreaInsets();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   // Dynamic sizing — sheet wraps its content
@@ -1142,42 +1143,7 @@ export default function Profile() {
               </>
             )}
 
-            {/* ── Save button (contraste brutal disabled vs active) ── */}
-            {(() => {
-              const u = user as any;
-              const baseDirty =
-                editName.trim() !== ((u?.name || '').trim()) ||
-                editPhone.trim() !== ((u?.phone || '').trim()) ||
-                editCity.trim() !== ((u?.city || '').trim());
-              // Pour les providers, on accepte aussi les modifs sur description / vatNumber
-              // (mais on ne peut pas comparer à l'état d'origine simplement, donc on laisse
-              // le bouton actif tant qu'au moins une cat est sélectionnée).
-              const noProviderCats = !isClientOnly && selectedCatIds.length === 0;
-              const disabled = saving || noProviderCats || (!baseDirty && isClientOnly);
-              return (
-                <TouchableOpacity
-                  style={[
-                    em.saveBtn,
-                    disabled
-                      ? { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderLight }
-                      : { backgroundColor: theme.accent },
-                  ]}
-                  onPress={saveEditInfo}
-                  disabled={disabled}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[em.saveBtnText, { color: disabled ? theme.textMuted : theme.accentText }]}>
-                    {saving
-                      ? t('common.saving')
-                      : noProviderCats
-                        ? t('profile.select_service_required')
-                        : !baseDirty && isClientOnly
-                          ? t('profile.no_changes')
-                          : t('profile.save_changes')}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })()}
+            {/* Bouton Enregistrer déplacé en footer collant (toujours visible) ↓ */}
 
             {/* ── Section: Sécurité (email accounts only) ── */}
             {isEmailAccount && (
@@ -1349,6 +1315,42 @@ export default function Profile() {
               Conformément au RGPD · Conservation 7 ans des données comptables
             </Text>
           </ScrollView>
+
+          {/* ── Footer collant : bouton Enregistrer toujours visible ── */}
+          <View style={[em.footer, { backgroundColor: theme.bg, borderTopColor: theme.borderLight, paddingBottom: insets.bottom + 12 }]}>
+            {(() => {
+              const u = user as any;
+              const baseDirty =
+                editName.trim() !== ((u?.name || '').trim()) ||
+                editPhone.trim() !== ((u?.phone || '').trim()) ||
+                editCity.trim() !== ((u?.city || '').trim());
+              const noProviderCats = !isClientOnly && selectedCatIds.length === 0;
+              const disabled = saving || noProviderCats || (!baseDirty && isClientOnly);
+              return (
+                <TouchableOpacity
+                  style={[
+                    em.saveBtn,
+                    disabled
+                      ? { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderLight }
+                      : { backgroundColor: theme.accent },
+                  ]}
+                  onPress={saveEditInfo}
+                  disabled={disabled}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[em.saveBtnText, { color: disabled ? theme.textMuted : theme.accentText }]}>
+                    {saving
+                      ? t('common.saving')
+                      : noProviderCats
+                        ? t('profile.select_service_required')
+                        : !baseDirty && isClientOnly
+                          ? t('profile.no_changes')
+                          : t('profile.save_changes')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })()}
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1627,6 +1629,10 @@ const em = StyleSheet.create({
   // ── Save button ──
   saveBtn: {
     borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 16, marginBottom: 8,
+  },
+  footer: {
+    paddingHorizontal: 20, paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   saveBtnText: { fontSize: 15, fontFamily: FONTS.sansMedium, letterSpacing: 0.3 },
 
