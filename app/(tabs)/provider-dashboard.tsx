@@ -52,6 +52,7 @@ interface WalletData {
   totalEarnings: number;
   monthEarnings: number;
   escrowAmount: number;
+  stripeAvailable: number; // solde Stripe réel (cents) — cohérent avec l'onglet Gains
 }
 
 interface ProviderStats {
@@ -459,7 +460,7 @@ function CockpitIsland({
       {/* Wallet */}
       <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletBtn} accessibilityLabel={t('provider.balance_label')} accessibilityRole="button">
         <Feather name="credit-card" size={16} color={theme.text} />
-        <Text style={[ci.walletAmount, { color: theme.text }]}>{formatEuros(wallet?.balance || 0)}</Text>
+        <Text style={[ci.walletAmount, { color: theme.text }]}>{formatEuros((wallet?.stripeAvailable ?? 0) / 100)}</Text>
       </TouchableOpacity>
 
     </Animated.View>
@@ -682,19 +683,23 @@ export default function ProviderDashboard() {
       api.user.me(),
       api.dashboard.provider(),
       api.providers.missions(),
+      api.connect.balance(),
     ]);
 
     const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
     const monthEarnings = dashData?.stats?.monthEarnings?.total || 0;
+    // Vrai solde Stripe (cents) — même source que l'onglet Gains
+    const stripeAvailable = results[4].status === 'fulfilled' ? ((results[4].value as any)?.available ?? 0) : 0;
 
     if (results[0].status === 'fulfilled') {
       const w = results[0].value as any;
       setWallet({
-        balance:       w.balance        || 0,
-        pendingAmount: w.pendingAmount  || 0,
-        totalEarnings: w.totalEarnings  || 0,
+        balance:         w.balance        || 0,
+        pendingAmount:   w.pendingAmount  || 0,
+        totalEarnings:   w.totalEarnings  || 0,
         monthEarnings,
-        escrowAmount:  w.escrowAmount   || 0,
+        escrowAmount:    w.escrowAmount   || 0,
+        stripeAvailable,
       });
     } else {
       devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
@@ -1212,8 +1217,8 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
   earningsHero: {
-    fontSize: 34, fontFamily: FONTS.bebas,
-    letterSpacing: -1.5, lineHeight: 40,
+    fontSize: 30, fontFamily: FONTS.bebas,
+    letterSpacing: -1, lineHeight: 34,
     textAlign: 'center',
   },
   pendingSubtext: { fontSize: 12, fontFamily: FONTS.mono, marginTop: 4, textAlign: 'center' },
