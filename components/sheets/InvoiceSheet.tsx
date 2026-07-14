@@ -400,30 +400,30 @@ export default function InvoiceSheet({
 
         <InvoiceDivider color={borderColor} />
 
-        {/* Actions: 2 buttons only */}
+        {/* Actions : Download (primaire, plein) + Close (secondaire, sans cadre) */}
         <View style={s.actions}>
           <TouchableOpacity
-            style={[s.btnOutline, { borderColor: borderColor }]}
+            style={[s.btnPrimary, { backgroundColor: accentBg }]}
             onPress={handleDownloadPDF}
             activeOpacity={0.78}
             disabled={downloading}
           >
             {downloading ? (
-              <ActivityIndicator size="small" color={textSecondary} />
+              <ActivityIndicator size="small" color={accentText} />
             ) : (
-              <Feather name="download" size={18} color={textSecondary} />
+              <Feather name="download" size={18} color={accentText} />
             )}
-            <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
+            <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
               {downloading ? t('ext.invoice_downloading') : t('ext.invoice_download_pdf')}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[s.btnPrimary, { backgroundColor: accentBg }]}
+            style={s.btnGhost}
             onPress={onClose}
-            activeOpacity={0.78}
+            activeOpacity={0.6}
           >
-            <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
+            <Text style={[s.btnGhostText, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
               {t('ext.invoice_close_btn')}
             </Text>
           </TouchableOpacity>
@@ -818,11 +818,9 @@ const s = StyleSheet.create({
 
   // ── Buttons ──
   actions: {
-    flexDirection: 'row',
-    gap: 10,
+    gap: 6,
   },
   btnOutline: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -835,11 +833,11 @@ const s = StyleSheet.create({
     fontSize: 15,
   },
   btnPrimary: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 46,
+    gap: 8,
+    height: 50,
     borderRadius: 12,
     // Raised tactile : top highlight + bottom chamfer + drop shadow renforcée.
     borderTopWidth: 1.5,
@@ -857,6 +855,15 @@ const s = StyleSheet.create({
     }),
   },
   btnPrimaryText: {
+    fontSize: 15,
+  },
+  // Close : bouton secondaire sans cadre ni fond (texte seul), sous le CTA principal
+  btnGhost: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+  },
+  btnGhostText: {
     fontSize: 15,
   },
 });
