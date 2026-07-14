@@ -299,6 +299,7 @@
     "strip_address": "Address",
     "strip_status": "Status",
     "verified": "Verified",
+    "vat_label": "VAT no.",
     "active": "Active",
     "default_city": "Brussels",
     "save_error": "Unable to save.",

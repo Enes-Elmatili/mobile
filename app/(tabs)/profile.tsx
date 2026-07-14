@@ -132,8 +132,8 @@ function StatBadge({
       <View style={[sb.iconBox, { backgroundColor: iconBg }]}>
         <Feather name={icon as any} size={16} color={iconColor} />
       </View>
-      <Text style={[sb.value, { color: valueColor || t.textAlt }]}>{value}</Text>
-      <Text style={[sb.label, { color: labelColor || t.textMuted }]}>{label}</Text>
+      <Text style={[sb.value, { color: valueColor || t.textAlt }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
+      <Text style={[sb.label, { color: labelColor || t.textMuted }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -235,6 +235,7 @@ export default function Profile() {
   // Provider-only : description ("À propos") visible par les clients + numéro TVA
   const [editProviderBio, setEditProviderBio] = useState('');
   const [editVatNumber,   setEditVatNumber]   = useState('');
+  const [vatNumber,       setVatNumber]       = useState('');
   const [saving,      setSaving]      = useState(false);
   // Password change (email accounts only)
   const [pwdSheetOpen, setPwdSheetOpen] = useState(false);
@@ -314,6 +315,7 @@ export default function Profile() {
         const prov = provRes?.data ?? provRes;
         const provider = prov?.provider ?? prov;
         setIsVerified(provider?.validationStatus === 'ACTIVE');
+        setVatNumber(provider?.vatNumber || '');
         const avgRating: number = provider?.avgRating ?? 0;
         const jobsCompleted: number = provider?.jobsCompleted ?? 0;
         const totalRequests: number = provider?.totalRequests ?? 0;
@@ -694,6 +696,9 @@ export default function Profile() {
                   </View>
                 )}
               </View>
+              {!isClientOnly && vatNumber ? (
+                <Text style={s.heroVat}>{t('profile.vat_label')} · {vatNumber}</Text>
+              ) : null}
             </View>
           </View>
 
@@ -708,11 +713,6 @@ export default function Profile() {
               <StatBadge
                 icon="zap" iconColor="rgba(255,255,255,0.6)" iconBg="rgba(255,255,255,0.07)"
                 value={profileStats.missions} label={t('profile.stat_missions')}
-                valueColor="rgba(255,255,255,0.85)" labelColor="rgba(255,255,255,0.3)"
-              />
-              <StatBadge
-                icon="credit-card" iconColor={theme.greenText} iconBg="rgba(21,193,110,0.1)"
-                value={profileStats.earnings} label={t('profile.stat_wallet')}
                 valueColor="rgba(255,255,255,0.85)" labelColor="rgba(255,255,255,0.3)"
               />
               <StatBadge
@@ -1432,6 +1432,10 @@ const s = StyleSheet.create({
     color: 'rgba(255,255,255,0.3)', marginBottom: 10,
   },
   heroBadges: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroVat: {
+    fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.45)', marginTop: 8,
+  },
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: 'rgba(255,255,255,0.07)',

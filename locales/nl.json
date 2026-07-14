@@ -299,6 +299,7 @@
     "strip_address": "Adres",
     "strip_status": "Status",
     "verified": "Geverifieerd",
+    "vat_label": "Btw-nr.",
     "active": "Actief",
     "default_city": "Brussel",
     "save_error": "Opslaan mislukt.",

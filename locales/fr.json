@@ -299,6 +299,7 @@
     "strip_address": "Adresse",
     "strip_status": "Statut",
     "verified": "Vérifié",
+    "vat_label": "N° TVA",
     "active": "Actif",
     "default_city": "Bruxelles",
     "save_error": "Impossible de sauvegarder.",
