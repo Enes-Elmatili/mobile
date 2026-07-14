@@ -77,7 +77,7 @@ export default function InvoicesScreen() {
 
     return (
       <TouchableOpacity
-        style={[s.card, { backgroundColor: theme.cardBg }]}
+        style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
         onPress={() => setSelectedInvoice(item)}
         activeOpacity={0.75}
       >
@@ -194,9 +194,6 @@ export default function InvoicesScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.textMuted} />
           }
-          ItemSeparatorComponent={() => (
-            <View style={[s.separator, { backgroundColor: theme.border }]} />
-          )}
         />
       )}
 
@@ -244,7 +241,11 @@ const s = StyleSheet.create({
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 14, paddingHorizontal: 4,
+    padding: 14, borderRadius: 16, marginBottom: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 2 },
+    }),
   },
   iconWrap: {
     width: 40, height: 40, borderRadius: 10,
