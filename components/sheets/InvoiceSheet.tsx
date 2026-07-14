@@ -596,7 +596,7 @@ export default function InvoiceSheet({
       }}
     >
       <BottomSheetScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
+        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 16 }]}
         showsVerticalScrollIndicator={false}
       >
         {isProvider ? providerContent : clientContent}
