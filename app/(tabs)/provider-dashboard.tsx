@@ -57,6 +57,7 @@ interface WalletData {
 interface ProviderStats {
   jobsCompleted: number;
   avgRating: number;
+  totalRatings: number;
   rankScore: number;
 }
 
@@ -529,7 +530,9 @@ function StatsSection({ loading, stats }: { loading: boolean; stats: ProviderSta
       <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
       <View style={ss.kpiItem}>
         <Text style={[ss.kpiNum, ss.kpiGold]}>
-          {stats.avgRating.toFixed(1)}<Text style={ss.kpiStar}> ★</Text>
+          {stats.totalRatings > 0
+            ? <>{stats.avgRating.toFixed(1)}<Text style={ss.kpiStar}> ★</Text></>
+            : <Text style={{ color: t.textMuted }}>—</Text>}
         </Text>
         <Text style={[ss.kpiLabel, { color: t.textMuted }]}>NOTE</Text>
       </View>
@@ -585,7 +588,7 @@ export default function ProviderDashboard() {
   const [heading,       setHeading]        = useState(0);
   const [, setLocationError] = useState(false);
   const [wallet,        setWallet]         = useState<WalletData | null>(null);
-  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 5.0, rankScore: 100 });
+  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 0, totalRatings: 0, rankScore: 0 });
   const [statsLoading,  setStatsLoading]  = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
 
@@ -701,7 +704,8 @@ export default function ProviderDashboard() {
       const u = (results[1].value as any)?.user || (results[1].value as any)?.data || results[1].value;
       setStats({
         jobsCompleted: u.jobsCompleted ?? u.completedMissions ?? u.totalCompleted ?? 0,
-        avgRating:     u.avgRating     ?? u.averageRating      ?? u.rating        ?? 5.0,
+        avgRating:     u.avgRating     ?? u.averageRating      ?? u.rating        ?? 0,
+        totalRatings:  u.totalRatings  ?? 0,
         rankScore:     u.rankScore     ?? u.rank               ?? u.score         ?? 0,
       });
     } else {
