@@ -460,7 +460,7 @@ function CockpitIsland({
       {/* Wallet */}
       <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletBtn} accessibilityLabel={t('provider.balance_label')} accessibilityRole="button">
         <Feather name="credit-card" size={16} color={theme.text} />
-        <Text style={[ci.walletAmount, { color: theme.text }]}>{formatEuros((wallet?.stripeAvailable ?? 0) / 100)}</Text>
+        <Text style={[ci.walletAmount, { color: theme.text }]} numberOfLines={1}>{formatEuros((wallet?.stripeAvailable ?? 0) / 100, 0)}</Text>
       </TouchableOpacity>
 
     </Animated.View>
@@ -1217,8 +1217,8 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
   earningsHero: {
-    fontSize: 30, fontFamily: FONTS.bebas,
-    letterSpacing: -1, lineHeight: 34,
+    fontSize: 34, fontFamily: FONTS.bebas,
+    letterSpacing: -1.5, lineHeight: 40,
     textAlign: 'center',
   },
   pendingSubtext: { fontSize: 12, fontFamily: FONTS.mono, marginTop: 4, textAlign: 'center' },
