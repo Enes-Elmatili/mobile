@@ -1043,6 +1043,7 @@ export default function ProviderDashboard() {
               onToggle={handleToggleOnline}
               onWalletPress={() => router.push('/wallet')}
             />
+            <View style={s.tiActions}>
             <TouchableOpacity
               style={[s.recenterBtn, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)' }]}
               onPress={() => router.push('/messages')}
@@ -1072,6 +1073,7 @@ export default function ProviderDashboard() {
                 </View>
               )}
             </TouchableOpacity>
+            </View>
           </View>
 
           {/* Separateur */}
@@ -1186,6 +1188,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  tiActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 
   tiSep: {
