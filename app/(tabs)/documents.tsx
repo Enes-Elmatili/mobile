@@ -680,7 +680,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12,
   },
-  headerTitle: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1, lineHeight: 30 },
+  headerTitle: { fontFamily: FONTS.bebas, fontSize: 34, letterSpacing: 0.5, lineHeight: 34 },
   headerSub: { fontFamily: FONTS.sans, fontSize: 12, marginTop: 3 },
   helpBtn: {
     width: 40, height: 40, borderRadius: 20,

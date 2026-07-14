@@ -263,7 +263,7 @@ const s = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 20, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 22, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   emptyTitle: { fontSize: 22, fontFamily: FONTS.bebas, marginBottom: 20 },

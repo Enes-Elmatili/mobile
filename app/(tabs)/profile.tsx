@@ -1401,7 +1401,7 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.9,
     textTransform: 'uppercase', marginBottom: 6,
   },
-  headerTitle: { fontSize: 44, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
   settingsBtn: {
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',

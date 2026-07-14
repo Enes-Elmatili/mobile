@@ -245,7 +245,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 0.5,
   },
   backBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, letterSpacing: -0.3 },
+  headerTitle: { fontSize: 22, letterSpacing: 0.5 },
 
   summaryCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
