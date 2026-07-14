@@ -590,6 +590,7 @@ class ApiClient {
 
   connect = {
     status: () => this.request('/connect/status'),
+    balance: () => this.request('/connect/balance'),
     onboarding: (returnUrl?: string, refreshUrl?: string) => this.post('/connect/onboarding', { returnUrl, refreshUrl }),
     dashboard: () => this.post('/connect/dashboard', {}),
   };

@@ -327,6 +327,10 @@ export default function WalletTab() {
   const [withdrawals, setWithdrawals]   = useState<any[]>([]);
   const [stripeReady, setStripeReady]   = useState(false);
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeData, setStripeData]     = useState<{
+    needsOnboarding?: boolean; payoutsEnabled?: boolean; available: number; pending: number;
+    lastPayout: { amount: number; currency?: string; status?: string; arrivalDate: number | null } | null;
+  } | null>(null);
   const [filter, setFilter]             = useState<Filter>('all');
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [balanceError, setBalanceError] = useState(false);
@@ -337,11 +341,12 @@ export default function WalletTab() {
 
   const load = useCallback(async () => {
     try {
-      const [balData, txData, wdData, connectData] = await Promise.allSettled([
+      const [balData, txData, wdData, connectData, stripeBalData] = await Promise.allSettled([
         api.wallet.balance(),
         api.wallet.transactions(50),
         api.wallet.withdraws(),
         api.connect.status(),
+        api.connect.balance(),
       ]);
 
       if (balData.status === 'fulfilled') {
@@ -366,6 +371,9 @@ export default function WalletTab() {
       if (connectData.status === 'fulfilled') {
         const c = connectData.value as any;
         setStripeReady(!!c?.isStripeReady);
+      }
+      if (stripeBalData.status === 'fulfilled') {
+        setStripeData(stripeBalData.value as any);
       }
     } catch (e) {
       devError('[WalletTab] load error:', e);
@@ -557,31 +565,32 @@ export default function WalletTab() {
       {/* -- Hero solde -- */}
       <View style={[styles.hero, { backgroundColor: t.heroBg }]}>
         <Text style={[styles.heroLabel, { color: t.heroSub }]}>{tr('ext.wallet_available_balance')}</Text>
-        <Text style={[styles.heroAmount, { color: t.heroText }]}>{fmtEur(fromCents(balance))}</Text>
+        <Text style={[styles.heroAmount, { color: t.heroText }]}>{fmtEur(fromCents(stripeData ? stripeData.available : balance))}</Text>
 
-        {/* Sous-stats inline */}
+        {/* Sous-stats : en transit (pending Stripe, pas encore settle) */}
         <View style={styles.heroStats}>
-          {escrowAmount > 0 && (
+          {(stripeData?.pending ?? 0) > 0 && (
             <View style={styles.heroStatItem}>
               <Feather name="clock" size={13} color={t.heroSub} />
-              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(escrowAmount))} {tr('ext.wallet_in_validation')}</Text>
-            </View>
-          )}
-          {pendingWithdrawTotal > 0 && (
-            <View style={styles.heroStatItem}>
-              <Feather name="arrow-up" size={13} color={t.heroSub} />
-              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(pendingWithdrawTotal))} {tr('ext.wallet_in_withdrawal')}</Text>
+              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(stripeData!.pending))} {tr('ext.wallet_in_transit')}</Text>
             </View>
           )}
         </View>
 
-        {/* Total gagné */}
+        {/* Dernier virement (payout Stripe vers la banque) */}
         <View style={[styles.heroTotalRow, { borderTopColor: 'rgba(255,255,255,0.12)' }]}>
-          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>{tr('ext.wallet_total_earned')}</Text>
-          <Text style={[styles.heroTotalValue, { color: t.heroText }]}>{fmtEur(fromCents(totalEarnings))}</Text>
+          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>{tr('ext.wallet_last_payout')}</Text>
+          {stripeData?.lastPayout ? (
+            <Text style={[styles.heroTotalValue, { color: t.heroText }]}>
+              {fmtEur(fromCents(stripeData.lastPayout.amount))}
+              {stripeData.lastPayout.arrivalDate ? ` · ${fmtDate(new Date(stripeData.lastPayout.arrivalDate).toISOString())}` : ''}
+            </Text>
+          ) : (
+            <Text style={[styles.heroTotalLabel, { color: t.heroSubFaint }]}>{tr('ext.wallet_no_payout')}</Text>
+          )}
         </View>
 
-        {!stripeReady && (
+        {(stripeData ? !stripeData.payoutsEnabled : !stripeReady) && (
           <View style={styles.payoutNotice}>
             <Feather name="info" size={14} color={t.heroSub} />
             <Text style={[styles.payoutNoticeText, { color: t.heroSubFaint }]}>{tr('wallet.configure_stripe')}</Text>
