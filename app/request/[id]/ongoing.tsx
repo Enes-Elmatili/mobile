@@ -37,6 +37,7 @@ import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { cleanName } from '@/lib/displayName';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useTranslation } from 'react-i18next';
 
@@ -774,7 +775,7 @@ export default function MissionOngoing() {
                   </Text>
                 )}
                 <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }} numberOfLines={1}>
-                  {request.client?.name || t('provider.client')}{distance ? ` · ${t('missions.distance_from_you', { distance })}` : ''}
+                  {cleanName(request.client?.name, { fallback: t('provider.client') })}{distance ? ` · ${t('missions.distance_from_you', { distance })}` : ''}
                 </Text>
               </View>
             );
@@ -785,10 +786,10 @@ export default function MissionOngoing() {
 
           {/* Client row — identité + actions rapides */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Avatar avatarUrl={request.client?.avatarUrl} name={request.client?.name ?? undefined} size={40} />
+            <Avatar avatarUrl={request.client?.avatarUrl} name={cleanName(request.client?.name, { fallback: t('provider.client') })} size={40} />
             <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
-                {request.client?.name || t('provider.client')}
+                {cleanName(request.client?.name, { fallback: t('provider.client') })}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Feather name="user" size={11} color={theme.textMuted} />

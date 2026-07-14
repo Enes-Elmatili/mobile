@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { cleanName } from '@/lib/displayName';
 import type { DiscoveredProvider } from '../../hooks/useProviderDiscovery';
 
 interface Props {
@@ -25,6 +26,7 @@ export function ProviderCard({ provider, onPress }: Props) {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const isOnline = provider.status === 'ONLINE' || provider.status === 'READY';
+  const providerName = cleanName(provider.name);
 
   return (
     <TouchableOpacity
@@ -36,7 +38,7 @@ export function ProviderCard({ provider, onPress }: Props) {
       {/* Avatar */}
       <View style={styles.avatarContainer}>
         <View style={[styles.avatar, { backgroundColor: theme.accent }]}>
-          <Text style={[styles.avatarInitial, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{initials(provider.name)}</Text>
+          <Text style={[styles.avatarInitial, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{initials(providerName)}</Text>
         </View>
         {isOnline && (
           <View
@@ -49,7 +51,7 @@ export function ProviderCard({ provider, onPress }: Props) {
       {/* Infos */}
       <View style={styles.info}>
         <Text style={[styles.name, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-          {provider.name}
+          {providerName}
         </Text>
 
         <View style={styles.metaRow}>

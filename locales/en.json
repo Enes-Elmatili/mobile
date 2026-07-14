@@ -1205,6 +1205,8 @@
     "wallet_in_transit": "in transit",
     "wallet_last_payout": "Last payout",
     "wallet_no_payout": "No payout yet",
+    "display_name_fallback": "User",
+    "display_email_private": "Private Apple email",
     "wallet_balance_unavailable": "Balance unavailable. Tap to retry.",
     "wallet_stripe_setup_failed": "Couldn't start Stripe setup.",
     "wallet_stripe_open_failed": "Couldn't open the Stripe dashboard.",

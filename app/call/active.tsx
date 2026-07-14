@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useCall, type CallEndReason } from '@/lib/webrtc/CallContext';
+import { cleanName } from '@/lib/displayName';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ export default function ActiveCallScreen() {
   const isConnected = callState === 'connected';
   const isEnded = callState === 'ended';
 
-  const initials = (callInfo?.remoteName || '?')
+  const initials = cleanName(callInfo?.remoteName, { fallback: '?' })
     .split(' ')
     .map(w => w[0])
     .slice(0, 2)
@@ -115,7 +116,7 @@ export default function ActiveCallScreen() {
           </View>
         </View>
 
-        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{callInfo?.remoteName || t('ext.call_unknown')}</Text>
+        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{cleanName(callInfo?.remoteName, { fallback: t('ext.call_unknown') })}</Text>
         <Text style={[cs.status, { color: theme.heroSub, fontFamily: isConnected ? FONTS.mono : FONTS.sans }]}>
           {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, endReason, t)}
         </Text>

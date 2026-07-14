@@ -1205,6 +1205,8 @@
     "wallet_in_transit": "onderweg",
     "wallet_last_payout": "Laatste uitbetaling",
     "wallet_no_payout": "Nog geen uitbetaling",
+    "display_name_fallback": "Gebruiker",
+    "display_email_private": "Privé Apple-e-mail",
     "wallet_balance_unavailable": "Saldo niet beschikbaar. Tik om opnieuw te proberen.",
     "wallet_stripe_setup_failed": "Kan de Stripe-configuratie niet starten.",
     "wallet_stripe_open_failed": "Kan het Stripe-dashboard niet openen.",

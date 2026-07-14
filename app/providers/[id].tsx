@@ -23,6 +23,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
 import IconBtn from '@/components/ui/IconBtn';
 import { resolveAvatarUrl } from '@/lib/avatarUrl';
+import { cleanName } from '@/lib/displayName';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function avatarInitials(name?: string): string {
 
 function ReviewCard({ review }: { review: Review }) {
   const theme = useAppTheme();
-  const clientName = review.client?.name || review.client?.email?.split('@')[0] || 'Client';
+  const clientName = cleanName(review.client?.name, { email: review.client?.email, fallback: 'Client' });
   const initials   = avatarInitials(clientName);
 
   return (
@@ -145,7 +146,7 @@ export default function ProviderDetailScreen() {
 
   // ── Callbacks (déclarés AVANT les early returns pour respecter Rules of Hooks) ──
   // firstName est calculé ici (accepte provider null) pour rester avant les returns.
-  const firstNameCb = provider?.name?.split(' ')[0] || provider?.name;
+  const firstNameCb = cleanName(provider?.name).split(' ')[0];
 
   const handleRequestProvider = useCallback(async () => {
     if (!id) return;
@@ -208,7 +209,8 @@ export default function ProviderDetailScreen() {
   const jobsDone     = provider.jobsCompleted ?? 0;
   const isOnline     = provider.status === 'ONLINE' || provider.status === 'READY';
   const isVerified   = provider.validationStatus === 'ACTIVE';
-  const initials     = avatarInitials(provider.name);
+  const providerName = cleanName(provider.name);
+  const initials     = avatarInitials(providerName);
   const displayedReviews = showAll ? reviews : reviews.slice(0, 3);
   const acceptRate   = provider.totalRequests > 0
     ? Math.round((provider.acceptedRequests / provider.totalRequests) * 100)
@@ -284,7 +286,7 @@ export default function ProviderDetailScreen() {
           </View>
 
           {/* Name — Bebas 34px centered */}
-          <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{provider.name}</Text>
+          <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{providerName}</Text>
 
           {/* Subtitle — mono 11px, textMuted, letterSpacing 1 */}
           {subtitleText.length > 0 && (

@@ -18,6 +18,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
+import { cleanName } from '@/lib/displayName';
 
 // ─── Grayscale map style (cohérent avec MissionView) ─────────────────────────
 const MAP_STYLE = [
@@ -284,7 +285,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   const address      = ticket.address || '';
   const isDone       = ticket.status === 'DONE';
   const isOngoing    = ticket.status === 'ONGOING' || ticket.status === 'ACCEPTED';
-  const providerName = ticket.provider?.name || t('mission_view.provider');
+  const providerName = cleanName(ticket.provider?.name, { fallback: t('mission_view.provider') });
   const hasRating    = ticket.clientRating != null;
   const showRatingBlock = isDone && !hasRating && !ratingSubmitted;
 

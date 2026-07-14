@@ -34,6 +34,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { toFeatherName } from '@/lib/iconMapper';
 import { formatEURInt } from '@/lib/format';
 import { resolveAvatarUrl } from '@/lib/avatarUrl';
+import { cleanName, cleanEmail } from '@/lib/displayName';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tokenStorage } from '../../lib/storage';
 import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
@@ -252,8 +253,8 @@ export default function Profile() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
 
-  const displayName = (user as any)?.name || user?.email?.split('@')[0] || 'Prestataire';
-  const email = user?.email || '';
+  const displayName = cleanName((user as any)?.name, { email: user?.email, fallback: 'Prestataire' });
+  const email = cleanEmail(user?.email);
   // Rôles traduits (pas l'enum brut "CLIENT · PROVIDER" à l'écran).
   const ROLE_LABELS: Record<string, string> = { CLIENT: 'Client', PROVIDER: 'Prestataire', ADMIN: 'Admin' };
   const roles = (user?.roles || []).map(r => ROLE_LABELS[r] || r).join(' · ') || 'Client';

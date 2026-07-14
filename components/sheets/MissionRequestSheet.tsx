@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { feedback } from '@/lib/feedback/feedback';
+import { cleanName } from '@/lib/displayName';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -278,7 +279,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
           {request?.address    && <DetailRow icon="map-pin"     value={request.address} textColor={theme.textSub} />}
           {request?.distance   && <DetailRow icon="navigation"  value={`${request.distance} ${t('mission_sheet.from_you')}`} textColor={theme.textSub} />}
           {request?.scheduledAt && <DetailRow icon="clock"       value={request.scheduledAt} textColor={theme.textSub} />}
-          {request?.clientName && <DetailRow icon="user"         value={request.clientName} textColor={theme.textSub} />}
+          {request?.clientName && <DetailRow icon="user"         value={cleanName(request.clientName)} textColor={theme.textSub} />}
         </View>
 
         {/* Prix estimé */}

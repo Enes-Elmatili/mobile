@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
+import { cleanName } from '@/lib/displayName';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import MissionSelector from '@/components/support/MissionSelector';
 import ProblemSelector, { type ProblemOption } from '@/components/support/ProblemSelector';
@@ -385,7 +386,7 @@ export default function SupportScreen() {
             <ResolutionView
               problem={selectedProblem}
               mission={selectedMission}
-              userName={user?.name || t('ext.missions_client')}
+              userName={cleanName(user?.name, { email: user?.email, fallback: t('ext.missions_client') })}
               userId={user?.id || ''}
               onBack={handleBackToProblems}
               onDone={handleDone}

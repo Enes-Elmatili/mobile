@@ -12,6 +12,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { devLog, devError } from '../../lib/logger';
 import { feedback } from '@/lib/feedback/feedback';
+import { cleanName } from '@/lib/displayName';
 import {
   useSocket,
   onIncomingMessage,
@@ -81,7 +82,7 @@ export default function ConversationScreen() {
   const isNearBottomRef = useRef(true);
 
   const [contactName, setContactName] = useState<string | null>(name || null);
-  const headerName = contactName || displayLabel(userId ?? '');
+  const headerName = cleanName(contactName, { fallback: displayLabel(userId ?? '') });
 
   // ── Conversation open/closed state (tied to an active Request between users)
   // null = loading, true = open, false = closed

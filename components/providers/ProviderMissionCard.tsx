@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useTranslation } from 'react-i18next';
 import { translateCategory } from '@/lib/categoryLabel';
+import { cleanName } from '@/lib/displayName';
 
 const NET_RATE = 0.85;
 const TIMER_DURATION = 15;
@@ -176,7 +177,7 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
           {mission.client?.name && (
             <View style={s.meta}>
               <Feather name="user" size={14} color={theme.textMuted} />
-              <Text style={[s.metaText, { color: theme.textSub }]}>{mission.client.name}</Text>
+              <Text style={[s.metaText, { color: theme.textSub }]}>{cleanName(mission.client.name)}</Text>
             </View>
           )}
         </View>

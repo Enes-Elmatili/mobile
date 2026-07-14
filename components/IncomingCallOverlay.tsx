@@ -10,6 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
+import { cleanName } from '@/lib/displayName';
 import { RINGTONE_SOUND } from '@/hooks/useSoundManager';
 import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -97,7 +98,7 @@ export default function IncomingCallOverlay() {
 
   if (!incoming) return null;
 
-  const initials = (incoming.callerName || '?')
+  const initials = cleanName(incoming.callerName, { fallback: '?' })
     .split(' ')
     .map(w => w[0])
     .slice(0, 2)
@@ -119,7 +120,7 @@ export default function IncomingCallOverlay() {
 
         {/* Info */}
         <View style={s.info}>
-          <Text style={[s.name, { color: theme.text }]} numberOfLines={1}>{incoming.callerName}</Text>
+          <Text style={[s.name, { color: theme.text }]} numberOfLines={1}>{cleanName(incoming.callerName, { fallback: t('ext.call_unknown') })}</Text>
           <Text style={[s.label, { color: theme.textMuted }]}>{t('provider.incoming_call')}</Text>
         </View>
 

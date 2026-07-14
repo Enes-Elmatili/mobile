@@ -37,6 +37,7 @@ import { PulseDot } from '@/components/ui/PulseDot';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
+import { cleanName } from '@/lib/displayName';
 import FixedCard from '@/components/ui/Card';
 import FixedSectionHeader from '@/components/ui/SectionHeader';
 import FixedIconBtn from '@/components/ui/IconBtn';
@@ -476,14 +477,14 @@ function MissionIsland({
               borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
             }}>
               <FixedAvatar
-                name={activeMission.provider.name || 'P'}
+                name={cleanName(activeMission.provider.name, { fallback: 'P' })}
                 avatarUrl={activeMission.provider.avatarUrl}
                 size={40}
                 verified
               />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.heroText }}>
-                  {activeMission.provider.name}
+                  {cleanName(activeMission.provider.name)}
                 </Text>
                 <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.heroSub }}>
                   {t('dashboard.provider_on_way')}
@@ -871,7 +872,7 @@ function UpcomingIslandCard({
           <View style={uc.statusBadge}>
             <View style={[uc.statusDot, { backgroundColor: COLORS.greenBrand }]} />
             <Text style={[uc.statusText, { color: theme.greenText }]}>
-              {request.provider?.name ? `${request.provider.name}` : t('dashboard.confirmed')}
+              {request.provider?.name ? cleanName(request.provider.name) : t('dashboard.confirmed')}
             </Text>
           </View>
         ) : (
@@ -1275,7 +1276,7 @@ export default function Dashboard() {
     return <DashboardSkeleton theme={theme} />;
   }
 
-  const name = data?.me?.name || user?.email?.split('@')[0] || '';
+  const name = cleanName(data?.me?.name, { email: user?.email, fallback: '' });
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>

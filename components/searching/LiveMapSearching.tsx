@@ -19,6 +19,7 @@ import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { formatEUR } from '@/lib/format';
+import { cleanName } from '@/lib/displayName';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface NearbyProvider {
@@ -165,7 +166,7 @@ function ProviderPin({ p, delay, theme }: { p: NearbyProvider; delay: number; th
       <Float delay={delay}>
         <View style={[s.pinCard, { backgroundColor: theme.cardBg, shadowColor: theme.text }]}>
           <View style={[s.pinAvatar, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-            <Text style={[s.pinAvatarText, { color: theme.text }]}>{initials(p.name)}</Text>
+            <Text style={[s.pinAvatarText, { color: theme.text }]}>{initials(cleanName(p.name))}</Text>
           </View>
           {typeof p.rating === 'number' && p.rating > 0 && (
             <View style={s.pinRating}>

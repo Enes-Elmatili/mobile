@@ -25,6 +25,7 @@ import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import { translateCategory } from '@/lib/categoryLabel';
 import i18n from '@/lib/i18n';
+import { cleanName } from '@/lib/displayName';
 
 const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
 const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
@@ -422,7 +423,7 @@ function MissionCard({
           <View style={mc.info}>
             <Text style={[mc.title, { color: t.text }]} numberOfLines={1}>{mission.title}</Text>
             {mission.client?.name && (
-              <Text style={[mc.client, { color: t.textSub }]} numberOfLines={1}>{mission.client.name}</Text>
+              <Text style={[mc.client, { color: t.textSub }]} numberOfLines={1}>{cleanName(mission.client.name)}</Text>
             )}
             <View style={mc.addrRow}>
               <Feather name="map-pin" size={11} color={t.textMuted} />
@@ -919,8 +920,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           <Text style={[sd.title, { color: t.text }]}>{mission.title}</Text>
           {mission.client?.name && (
             <View style={sd.clientRow}>
-              <ClientAvatar name={mission.client.name} size={24} />
-              <Text style={[sd.clientName, { color: t.textSub }]}>{mission.client.name}</Text>
+              <ClientAvatar name={cleanName(mission.client.name)} size={24} />
+              <Text style={[sd.clientName, { color: t.textSub }]}>{cleanName(mission.client.name)}</Text>
             </View>
           )}
         </View>
@@ -1016,9 +1017,9 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           <>
             <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('ext.missions_client')}</Text>
             <View style={sd.clientCard}>
-              <ClientAvatar name={mission.client.name} size={44} />
+              <ClientAvatar name={cleanName(mission.client.name)} size={44} />
               <View style={{ flex: 1 }}>
-                <Text style={[sd.clientCardName, { color: t.text }]}>{mission.client.name}</Text>
+                <Text style={[sd.clientCardName, { color: t.text }]}>{cleanName(mission.client.name)}</Text>
               </View>
               {mission.client.id && (
                 <TouchableOpacity
@@ -1248,9 +1249,9 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
             <View style={[sd.sep, { backgroundColor: t.border }]} />
             <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('ext.missions_client')}</Text>
             <View style={sd.clientCard}>
-              <ClientAvatar name={item.client.name} size={44} />
+              <ClientAvatar name={cleanName(item.client.name)} size={44} />
               <View style={{ flex: 1 }}>
-                <Text style={[sd.clientCardName, { color: t.text }]}>{item.client.name}</Text>
+                <Text style={[sd.clientCardName, { color: t.text }]}>{cleanName(item.client.name)}</Text>
                 {item.client.city ? (
                   <Text style={{ color: t.textMuted, fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 }}>{item.client.city}</Text>
                 ) : null}

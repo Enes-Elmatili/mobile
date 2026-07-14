@@ -12,6 +12,7 @@ import { api } from '../../lib/api';
 import { onIncomingMessage, useSocket } from '../../lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import Avatar from '@/components/ui/Avatar';
+import { cleanName } from '@/lib/displayName';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -120,7 +121,7 @@ export default function MessagesInbox() {
 
       setConversations(convos.map(c => ({
         ...c,
-        displayName: contactNameCache.get(c.userId) || c.displayName,
+        displayName: cleanName(contactNameCache.get(c.userId), { fallback: c.displayName }),
       })));
       setLoadError(false);
     } catch {

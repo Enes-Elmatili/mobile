@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { cleanName } from '@/lib/displayName';
 
 // Locale BCP-47 dérivée de la langue i18n active. Évite les hardcodes
 // `fr-BE` qui forcent un format date FR même sur device NL/EN.
@@ -287,7 +288,7 @@ export default function InvoiceSheet({
     : `#FIXED-${String(invoice.id).slice(-5).toUpperCase()}`;
 
   const displayProviderName =
-    providerName || invoice.request?.provider?.name || t('ext.invoice_provider_fallback');
+    cleanName(providerName || invoice.request?.provider?.name, { fallback: t('ext.invoice_provider_fallback') });
   const displayServiceTitle =
     serviceTitle || invoice.request?.serviceType || t('ext.invoice_service_fallback');
   const displayDate = missionDate || (invoice.issuedAt ? fmtDate(invoice.issuedAt) : '');

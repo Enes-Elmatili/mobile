@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR } from '@/lib/format';
+import { cleanName } from '@/lib/displayName';
 
 interface MissionData {
   id: number;
@@ -240,7 +241,7 @@ export default function EarlyScreen() {
               <View style={s.row}>
                 <Feather name="user" size={16} color={theme.textMuted} />
                 <Text style={[s.rowText, { color: theme.text, fontFamily: FONTS.sans }]}>
-                  {mission.client.name}
+                  {cleanName(mission.client.name)}
                 </Text>
               </View>
             </>

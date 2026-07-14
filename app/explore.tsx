@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { cleanName } from '@/lib/displayName';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,8 @@ function distanceLabel(m?: number) {
 function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () => void }) {
   const theme = useAppTheme();
   const isOnline = provider.status === 'ONLINE' || provider.status === 'READY';
-  const init = initials(provider.name);
+  const providerName = cleanName(provider.name, { fallback: 'Prestataire' });
+  const init = initials(providerName);
   const cat = provider.categories?.[0]?.name;
 
   return (
@@ -71,7 +73,7 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
         {isOnline && <View style={[pc.dot, { borderColor: theme.cardBg }]} />}
       </View>
       <View style={pc.info}>
-        <Text style={[pc.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{provider.name || 'Prestataire'}</Text>
+        <Text style={[pc.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{providerName}</Text>
         <View style={pc.subRow}>
           <Text style={[pc.sub, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
             {cat ?? provider.city ?? ''}
@@ -250,7 +252,7 @@ export default function ExploreScreen() {
                 >
                   <View style={[pin.wrap, { backgroundColor: theme.heroBg, borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, isSelected && { backgroundColor: theme.accent, transform: [{ scale: 1.2 }] }]}>
                     <Text style={[pin.text, { color: theme.heroText, fontFamily: FONTS.sansMedium }]}>
-                      {initials(p.name)}
+                      {initials(cleanName(p.name, { fallback: 'Prestataire' }))}
                     </Text>
                   </View>
                 </Marker>
@@ -288,10 +290,10 @@ export default function ExploreScreen() {
           activeOpacity={0.85}
         >
           <View style={[s.calloutAvatar, { backgroundColor: theme.surface }]}>
-            <Text style={[s.calloutAvatarText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{initials(selectedProvider.name)}</Text>
+            <Text style={[s.calloutAvatarText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{initials(cleanName(selectedProvider.name, { fallback: 'Prestataire' }))}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.calloutName, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{selectedProvider.name || 'Prestataire'}</Text>
+            <Text style={[s.calloutName, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{cleanName(selectedProvider.name, { fallback: 'Prestataire' })}</Text>
             <Text style={[s.calloutSub, { color: theme.heroSub }]}>
               {selectedProvider.categories?.[0]?.name ?? selectedProvider.city ?? ''}
             </Text>

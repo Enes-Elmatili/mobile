@@ -24,6 +24,7 @@ import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
 import { PulseDot } from '@/components/ui/PulseDot';
 import { BASE_REQUIREMENTS } from "@/constants/kycRequirements";
+import { cleanName } from "@/lib/displayName";
 
 // Libellés traduits des documents (au lieu de la clé technique « id_front »)
 const DOC_LABELS: Record<string, string> = Object.fromEntries(
@@ -333,7 +334,7 @@ export default function PendingValidation() {
     Animated.spring(successScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
   }, [status]);
 
-  const firstName = (u?.name || "").trim().split(/\s+/)[0] || "";
+  const firstName = cleanName(u?.name, { email: u?.email, fallback: "" }).trim().split(/\s+/)[0] || "";
   const rejectedDocs = documents.filter(d => d.status === "REJECTED");
 
   // ── PENDING : attente active ────────────────────────────────────────────────

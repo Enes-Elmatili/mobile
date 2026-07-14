@@ -27,6 +27,7 @@ import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
 import LiveMapSearching from '@/components/searching/LiveMapSearching';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { isOpaqueName } from '@/lib/displayName';
 
 const { width, height } = Dimensions.get('window');
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
@@ -146,12 +147,15 @@ const cm = StyleSheet.create({
 const providerDisplayName = (provider: any): string => {
   // Try provider.name first, then user.name (joined via backend include)
   const candidates = [provider?.name, provider?.user?.name, provider?.firstName];
+  const email = provider?.user?.email ?? provider?.email;
   for (const raw of candidates) {
     if (!raw) continue;
     // Slug detection: all lowercase alphanumeric, no spaces, 6+ chars = probably a hash
     if (/^[a-z0-9]{6,}$/.test(raw)) continue;
     // Email detection: skip if it looks like an email
     if (raw.includes('@')) continue;
+    // Token opaque du relay « Sign in with Apple »
+    if (isOpaqueName(raw, email)) continue;
     return raw;
   }
   return 'Prestataire';

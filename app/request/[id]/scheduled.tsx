@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useSocket } from '@/lib/SocketContext';
 import { devError } from '@/lib/logger';
+import { cleanName } from '@/lib/displayName';
 
 // Format "Mer 8 à 19:00"
 function formatScheduled(iso?: string | null): string {
@@ -115,7 +116,7 @@ export default function ScheduledConfirmation() {
       // → reste sur le récap, affiche juste "Confirmé par X" en badge.
       if (status === 'ACCEPTED' && isStillFuture) {
         setIsAccepted(true);
-        setProviderName(r.provider?.name || '');
+        setProviderName(cleanName(r.provider?.name, { fallback: '' }));
       } else if (status === 'ONGOING' || (status === 'ACCEPTED' && !isStillFuture)) {
         // Mission vraiment en cours (ONGOING) OU ACCEPTED dont l'heure est passée
         // → basculer vers le flow actif missionview.

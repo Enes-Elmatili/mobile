@@ -27,6 +27,7 @@ import { resolveRequestDestination, navigateToDestination } from '@/lib/requestD
 import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
 import { feedback } from '@/lib/feedback/feedback';
+import { cleanName } from '@/lib/displayName';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ============================================================================
@@ -301,7 +302,7 @@ export default function RatingScreen() {
     );
   }
 
-  const providerName = request?.provider?.name || t('rating.provider_fallback');
+  const providerName = cleanName(request?.provider?.name, { fallback: t('rating.provider_fallback') });
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>

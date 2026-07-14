@@ -30,6 +30,7 @@ import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { formatEURCents as formatEuros } from '@/lib/format';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devWarn, devLog } from '@/lib/logger';
+import { cleanName } from '@/lib/displayName';
 
 const TIMER_DURATION = 60;
 
@@ -252,7 +253,7 @@ function IncomingJobCard({
             <View style={jc.infoContent}>
               <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.client_label')}</Text>
               <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]}>
-                {request.client.name}{request.client.city ? ` · ${request.client.city}` : ''}
+                {cleanName(request.client.name)}{request.client.city ? ` · ${request.client.city}` : ''}
               </Text>
             </View>
           </View>

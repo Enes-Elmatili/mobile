@@ -21,6 +21,7 @@ import { useInvoice } from '@/hooks/useInvoice';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { formatEUR, formatEURCents } from '@/lib/format';
+import { cleanName } from '@/lib/displayName';
 import { useTranslation } from 'react-i18next';
 
 export default function EarningsScreen() {
@@ -200,7 +201,7 @@ export default function EarningsScreen() {
           {[
             { icon: 'tool', text: request?.serviceType },
             { icon: 'map-pin', text: request?.address },
-            { icon: 'user', text: request?.client?.name },
+            { icon: 'user', text: request?.client?.name ? cleanName(request.client.name) : undefined },
           ].filter(r => r.text).map((row, i) => (
             <View key={i} style={[s.missionRow, i < 2 && [s.missionRowBorder, { borderBottomColor: theme.border }]]}>
               <Feather name={row.icon as any} size={15} color={theme.textMuted} />
