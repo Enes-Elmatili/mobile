@@ -73,9 +73,15 @@ interface Opportunity {
   lng: number;
   price: number | null;
   preferredTimeStart: string;
+  urgent?: boolean;
+  // Infos d'accès (déjà renvoyées par l'API — champs scalaires de Request)
+  accessFloor?: number | null;
+  accessHasElevator?: boolean | null;
+  accessBuildingType?: string | null; // "apartment" | "house" | "office"
+  accessNotes?: string | null;
   category: { id: number; name: string; icon: string | null };
   subcategory: { id: number; name: string } | null;
-  client: { name: string };
+  client: { name: string; avatarUrl?: string | null; city?: string | null };
 }
 
 function formatScheduledDate(iso: string, tr?: (k: string, opts?: any) => string): { day: string; time: string; relative: string } {
@@ -616,11 +622,12 @@ const es = StyleSheet.create({
 // ============================================================================
 
 function OpportunityCard({
-  item, theme, onAccept, onDecline, accepting,
+  item, theme, onAccept, onDecline, onOpen, accepting,
 }: {
   item: Opportunity; theme: ReturnType<typeof useAppTheme>;
   onAccept: (id: number) => void;
   onDecline: (id: number) => void;
+  onOpen: (item: Opportunity) => void;
   accepting: number | null;
 }) {
   const { t: tr } = useTranslation();
@@ -645,37 +652,47 @@ function OpportunityCard({
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
-        <View style={opp.cardHead}>
-          <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
-            <Feather name={getServiceIcon(item.category.name) as any} size={14} color={theme.text} />
-            <Text style={[opp.catBadgeText, { color: theme.text }]}>{translateCategory(tr, item.category)}</Text>
+        <TouchableOpacity activeOpacity={0.85} onPress={() => { feedback.haptic('light'); onOpen(item); }}>
+          <View style={opp.cardHead}>
+            <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
+              <Feather name={getServiceIcon(item.category.name) as any} size={14} color={theme.text} />
+              <Text style={[opp.catBadgeText, { color: theme.text }]}>{translateCategory(tr, item.category)}</Text>
+            </View>
+            <View style={opp.headRight}>
+              {item.urgent ? (
+                <View style={[opp.urgentBadge, { backgroundColor: theme.accent }]}>
+                  <Feather name="zap" size={11} color={theme.accentText} />
+                </View>
+              ) : null}
+              <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
+                <Text style={[opp.relText, { color: theme.textSub }]}>{relative}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={theme.textMuted} />
+            </View>
           </View>
-          <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
-            <Text style={[opp.relText, { color: theme.textSub }]}>{relative}</Text>
-          </View>
-        </View>
 
-        <Text style={[opp.serviceName, { color: theme.text }]} numberOfLines={1}>
-          {item.serviceType}
-        </Text>
-        {item.description ? (
-          <Text style={[opp.desc, { color: theme.textSub }]} numberOfLines={2}>
-            {item.description}
+          <Text style={[opp.serviceName, { color: theme.text }]} numberOfLines={1}>
+            {item.serviceType}
           </Text>
-        ) : null}
-
-        <View style={opp.infoRow}>
-          <View style={opp.infoItem}>
-            <Feather name="calendar" size={14} color={theme.textMuted} />
-            <Text style={[opp.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
-          </View>
-          <View style={opp.infoItem}>
-            <Feather name="map-pin" size={14} color={theme.textMuted} />
-            <Text style={[opp.infoText, { color: theme.textSub }]} numberOfLines={1}>
-              {item.address.split(',')[0]}
+          {item.description ? (
+            <Text style={[opp.desc, { color: theme.textSub }]} numberOfLines={2}>
+              {item.description}
             </Text>
+          ) : null}
+
+          <View style={opp.infoRow}>
+            <View style={opp.infoItem}>
+              <Feather name="calendar" size={14} color={theme.textMuted} />
+              <Text style={[opp.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
+            </View>
+            <View style={opp.infoItem}>
+              <Feather name="map-pin" size={14} color={theme.textMuted} />
+              <Text style={[opp.infoText, { color: theme.textSub }]} numberOfLines={1}>
+                {item.address.split(',')[0]}
+              </Text>
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={opp.cardFoot}>
           {net ? (
@@ -730,6 +747,8 @@ const opp = StyleSheet.create({
   catBadgeText: { fontSize: 12, fontFamily: FONTS.sansMedium },
   relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   relText: { fontSize: 11, fontFamily: FONTS.sansMedium },
+  headRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  urgentBadge: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   serviceName: { fontSize: 17, fontFamily: FONTS.sansMedium, marginBottom: 4 },
   desc: { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18, marginBottom: 10 },
   infoRow: { gap: 6, marginBottom: 14 },
@@ -1090,6 +1109,186 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   );
 }
 
+// ============================================================================
+// OPPORTUNITY DETAIL -- Bottom Sheet (avant acceptation)
+// ============================================================================
+
+function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
+  opportunity: Opportunity;
+  onAccept: () => void;
+  onDecline: () => void;
+  accepting: boolean;
+}) {
+  const t = useAppTheme();
+  const { t: tr } = useTranslation();
+  const tabBarPadding = useTabBarPadding();
+  const item = opportunity;
+  const net = item.price ? item.price * NET_RATE : null;
+  const { day, time, relative } = formatScheduledDate(item.preferredTimeStart, tr);
+  const lat = item.lat, lng = item.lng;
+  const hasCoords = !!(lat && lng);
+  const address = item.address || '';
+
+  const buildingLabel =
+    item.accessBuildingType === 'house'     ? 'Maison'
+    : item.accessBuildingType === 'office'    ? 'Bureau'
+    : item.accessBuildingType === 'apartment' ? 'Appartement'
+    : null;
+  const accessRows: { icon: string; text: string }[] = [];
+  if (item.accessFloor != null)
+    accessRows.push({ icon: 'corner-right-up', text: item.accessFloor === 0 ? 'Rez-de-chaussée' : `${item.accessFloor}e étage` });
+  if (item.accessHasElevator != null)
+    accessRows.push({ icon: 'chevrons-up', text: item.accessHasElevator ? 'Ascenseur disponible' : 'Sans ascenseur' });
+  if (buildingLabel) accessRows.push({ icon: 'home', text: buildingLabel });
+
+  return (
+    <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
+      {/* -- Mini-carte -- */}
+      {hasCoords ? (
+        <View style={sd.mapContainer}>
+          <MapView
+            provider={PROVIDER_DEFAULT}
+            customMapStyle={t.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+            style={sd.map}
+            initialRegion={{ latitude: lat, longitude: lng, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
+            scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
+            showsPointsOfInterest={false} showsBuildings={false}
+          >
+            <Marker coordinate={{ latitude: lat, longitude: lng }} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={[sd.markerOuter, { backgroundColor: t.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,26,26,0.12)' }]}><View style={[sd.markerInner, { backgroundColor: t.accent, borderColor: t.cardBg }]} /></View>
+            </Marker>
+          </MapView>
+          <View style={sd.mapOverlay}>
+            <View style={[sd.mapAddrBadge, { backgroundColor: t.isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.94)' }]}>
+              <Feather name="map-pin" size={11} color={t.textSub} />
+              <Text style={[sd.mapAddrText, { color: t.text }]} numberOfLines={1}>{address}</Text>
+            </View>
+          </View>
+          {item.urgent ? (
+            <View style={[sd.mapStatusPill, { backgroundColor: t.accent }]}>
+              <Feather name="zap" size={10} color={t.accentText} />
+              <Text style={[sd.mapStatusText, { color: t.accentText }]}>Urgent</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View style={[sd.mapFallback, { backgroundColor: t.surface }]}>
+          <Feather name="map" size={24} color={t.textMuted} />
+          <Text style={[sd.mapFallbackText, { color: t.textMuted }]}>{address || tr('ext.missions_no_address')}</Text>
+        </View>
+      )}
+
+      <View style={sd.body}>
+        {/* Titre + catégorie */}
+        <Text style={[sd.title, { color: t.text }]}>{item.serviceType}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 4 }}>
+          <Feather name={getServiceIcon(item.category.name) as any} size={13} color={t.textMuted} />
+          <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13 }}>{translateCategory(tr, item.category)}</Text>
+          <Text style={{ color: t.textMuted, fontSize: 13 }}>·</Text>
+          <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13 }}>{relative}</Text>
+        </View>
+
+        {/* Gains */}
+        <View style={[sd.earningsBlock, { backgroundColor: t.surfaceAlt }]}>
+          <View>
+            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('missions.net_gain')}</Text>
+            {net ? (
+              <Text style={[sd.earningsNet, { color: t.text }]}>{formatEuros(net)}</Text>
+            ) : (
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>{tr('missions.price_tbd')}</Text>
+            )}
+          </View>
+          <View style={[sd.earningsDivider, { backgroundColor: t.border }]} />
+          <View>
+            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('ext.missions_gross_client')}</Text>
+            {item.price ? (
+              <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(item.price)}</Text>
+            ) : (
+              <Text style={[sd.earningsZero, { color: t.textMuted }]}>—</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={[sd.sep, { backgroundColor: t.border }]} />
+
+        {/* Détails mission */}
+        <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('missions.mission_details')}</Text>
+        <View style={sd.infoRow}>
+          <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="calendar" size={12} color={t.textMuted} /></View>
+          <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{day} · {time}</Text></View>
+        </View>
+        {address ? (
+          <View style={sd.infoRow}>
+            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="map-pin" size={12} color={t.textMuted} /></View>
+            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{address}</Text></View>
+          </View>
+        ) : null}
+        {accessRows.map((a, i) => (
+          <View style={sd.infoRow} key={`acc-${i}`}>
+            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name={a.icon as any} size={12} color={t.textMuted} /></View>
+            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{a.text}</Text></View>
+          </View>
+        ))}
+        {item.accessNotes ? (
+          <View style={sd.infoRow}>
+            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="info" size={12} color={t.textMuted} /></View>
+            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{item.accessNotes}</Text></View>
+          </View>
+        ) : null}
+        {item.description ? (
+          <View style={sd.infoRow}>
+            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="file-text" size={12} color={t.textMuted} /></View>
+            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{item.description}</Text></View>
+          </View>
+        ) : null}
+
+        {/* Client */}
+        {item.client?.name ? (
+          <>
+            <View style={[sd.sep, { backgroundColor: t.border }]} />
+            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('ext.missions_client')}</Text>
+            <View style={sd.clientCard}>
+              <ClientAvatar name={item.client.name} size={44} />
+              <View style={{ flex: 1 }}>
+                <Text style={[sd.clientCardName, { color: t.text }]}>{item.client.name}</Text>
+                {item.client.city ? (
+                  <Text style={{ color: t.textMuted, fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 }}>{item.client.city}</Text>
+                ) : null}
+              </View>
+            </View>
+          </>
+        ) : null}
+      </View>
+
+      {/* -- CTA Refuser / Accepter -- */}
+      <View style={[sd.actionsBlock, { flexDirection: 'row', gap: 10 }]}>
+        <TouchableOpacity
+          style={[opp.declineBtn, { borderColor: t.border, flex: 1, justifyContent: 'center' }]}
+          onPress={onDecline} disabled={accepting} activeOpacity={0.7}
+          accessibilityRole="button" accessibilityLabel={tr('ext.missions_refuse')}
+        >
+          <Feather name="x" size={18} color={t.textSub} />
+          <Text style={[opp.declineText, { color: t.textSub }]}>{tr('ext.missions_refuse')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[opp.acceptBtn, { backgroundColor: t.accent, flex: 2, justifyContent: 'center' }]}
+          onPress={onAccept} disabled={accepting} activeOpacity={0.85}
+          accessibilityRole="button" accessibilityLabel={tr('provider.accept')}
+        >
+          {accepting ? (
+            <ActivityIndicator size="small" color={t.accentText} />
+          ) : (
+            <>
+              <Feather name="check-circle" size={18} color={t.accentText} />
+              <Text style={[opp.acceptText, { color: t.accentText }]}>{tr('provider.accept')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </BottomSheetScrollView>
+  );
+}
+
 const sd = StyleSheet.create({
   scroll: { paddingBottom: 80 },
   mapContainer: { height: 150, marginTop: 8, overflow: 'hidden', position: 'relative' },
@@ -1152,6 +1351,7 @@ export default function Missions() {
   const [refreshing,      setRefreshing]      = useState(false);
   const [error,           setError]           = useState<string | null>(null);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
   const [loadingDetails,  setLoadingDetails]  = useState(false);
   const [tab,             setTab]             = useState<Tab>('opportunities');
   const [historyFilter,   setHistoryFilter]   = useState<string>('all');
@@ -1379,7 +1579,14 @@ export default function Missions() {
   }, [tab, upcomingMissions, filteredHistory, selectedDay, searchQuery]);
 
   // -- Actions --
+  const openOpportunity = useCallback((item: Opportunity) => {
+    setSelectedMission(null);
+    setSelectedOpportunity(item);
+    bottomSheetRef.current?.expand();
+  }, []);
+
   const handleMissionPress = async (missionId: string) => {
+    setSelectedOpportunity(null);
     setLoadingDetails(true);
     bottomSheetRef.current?.expand();
     try {
@@ -1557,7 +1764,7 @@ export default function Missions() {
             data={opportunities}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} onDecline={handleDeclineOpp} accepting={acceptingOpp} />
+              <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} onDecline={handleDeclineOpp} onOpen={openOpportunity} accepting={acceptingOpp} />
             )}
             contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }, !opportunities.length && s.listEmpty]}
             showsVerticalScrollIndicator={false}
@@ -1640,6 +1847,19 @@ export default function Missions() {
               } else {
                 router.replace({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
               }
+            }}
+          />
+        ) : selectedOpportunity ? (
+          <OpportunityDetail
+            opportunity={selectedOpportunity}
+            accepting={acceptingOpp === selectedOpportunity.id}
+            onAccept={() => {
+              bottomSheetRef.current?.close();
+              handleAcceptOpp(selectedOpportunity.id);
+            }}
+            onDecline={() => {
+              bottomSheetRef.current?.close();
+              handleDeclineOpp(selectedOpportunity.id);
             }}
           />
         ) : null}
