@@ -319,12 +319,12 @@ export default function InvoiceSheet({
       </View>
       <View style={[s.paymentMethodPill, { backgroundColor: surfaceBg }]}>
         <Feather
-          name={paymentMethod === 'card' ? 'credit-card' : 'dollar-sign'}
+          name={paymentMethod === 'cash' ? 'dollar-sign' : 'credit-card'}
           size={12}
           color={textMuted}
         />
         <Text style={[s.paymentMethodText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
-          {paymentMethod === 'card' ? t('ext.invoice_payment_card') : t('ext.invoice_payment_cash')}
+          {paymentMethod === 'cash' ? t('ext.invoice_payment_cash') : t('ext.invoice_payment_card')}
         </Text>
       </View>
     </View>
