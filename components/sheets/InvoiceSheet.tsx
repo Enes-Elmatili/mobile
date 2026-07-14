@@ -89,7 +89,7 @@ function InvoiceDivider({ color }: { color: string }) {
       style={{
         height: 0.5,
         backgroundColor: color,
-        marginVertical: 14,
+        marginVertical: 10,
       }}
     />
   );
@@ -609,7 +609,7 @@ export default function InvoiceSheet({
 
 const s = StyleSheet.create({
   indicator: { width: 36, height: 4 },
-  scroll: { paddingBottom: 48 },
+  scroll: { paddingBottom: 24 },
 
   // ── Header ──
   headerRow: {
@@ -737,9 +737,9 @@ const s = StyleSheet.create({
     fontSize: 16,
   },
   grandTotalValue: {
-    fontSize: 40,
+    fontSize: 30,
     fontVariant: ['tabular-nums'],
-    letterSpacing: -1,
+    letterSpacing: -0.5,
     textAlign: 'right',
   },
 
@@ -791,7 +791,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 16,
+    marginTop: 10,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -825,7 +825,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 55,
+    height: 48,
     borderRadius: 12,
     borderWidth: 1.5,
   },
@@ -836,7 +836,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 55,
+    height: 48,
     borderRadius: 12,
     // Raised tactile : top highlight + bottom chamfer + drop shadow renforcée.
     borderTopWidth: 1.5,
