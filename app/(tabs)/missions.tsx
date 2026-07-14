@@ -452,7 +452,7 @@ function MissionCard({
                 activeOpacity={0.8}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 accessibilityRole="button"
-                accessibilityLabel="Itinéraire vers la mission"
+                accessibilityLabel={tr('ext.missions_directions_a11y')}
               >
                 <Feather name="navigation" size={15} color={t.text} />
               </TouchableOpacity>
@@ -1036,7 +1036,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
                   activeOpacity={0.8}
                   hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
                   accessibilityRole="button"
-                  accessibilityLabel="Envoyer un message au client"
+                  accessibilityLabel={tr('ext.missions_message_client_a11y')}
                 >
                   <Feather name="message-circle" size={16} color={t.text} />
                 </TouchableOpacity>
@@ -1058,7 +1058,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
                   activeOpacity={0.8}
                   hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
                   accessibilityRole="button"
-                  accessibilityLabel="Appeler le client"
+                  accessibilityLabel={tr('missions.call_client_a11y')}
                 >
                   <Feather name="phone" size={16} color={t.accentText} />
                 </TouchableOpacity>
@@ -1130,15 +1130,15 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
   const address = item.address || '';
 
   const buildingLabel =
-    item.accessBuildingType === 'house'     ? 'Maison'
-    : item.accessBuildingType === 'office'    ? 'Bureau'
-    : item.accessBuildingType === 'apartment' ? 'Appartement'
+    item.accessBuildingType === 'house'     ? tr('ext.missions_building_house')
+    : item.accessBuildingType === 'office'    ? tr('ext.missions_building_office')
+    : item.accessBuildingType === 'apartment' ? tr('ext.missions_building_apartment')
     : null;
   const accessRows: { icon: string; text: string }[] = [];
   if (item.accessFloor != null)
-    accessRows.push({ icon: 'corner-right-up', text: item.accessFloor === 0 ? 'Rez-de-chaussée' : `${item.accessFloor}e étage` });
+    accessRows.push({ icon: 'corner-right-up', text: item.accessFloor === 0 ? tr('ext.missions_ground_floor') : tr('ext.missions_floor_n', { n: item.accessFloor }) });
   if (item.accessHasElevator != null)
-    accessRows.push({ icon: 'chevrons-up', text: item.accessHasElevator ? 'Ascenseur disponible' : 'Sans ascenseur' });
+    accessRows.push({ icon: 'chevrons-up', text: item.accessHasElevator ? tr('ext.missions_elevator_available') : tr('ext.missions_no_elevator') });
   if (buildingLabel) accessRows.push({ icon: 'home', text: buildingLabel });
 
   return (
@@ -1167,7 +1167,7 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
           {item.urgent ? (
             <View style={[sd.mapStatusPill, { backgroundColor: t.accent }]}>
               <Feather name="zap" size={10} color={t.accentText} />
-              <Text style={[sd.mapStatusText, { color: t.accentText }]}>Urgent</Text>
+              <Text style={[sd.mapStatusText, { color: t.accentText }]}>{tr('ext.missions_urgent')}</Text>
             </View>
           ) : null}
         </View>
@@ -1705,7 +1705,7 @@ export default function Missions() {
               activeOpacity={0.7}
               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
               accessibilityRole="button"
-              accessibilityLabel="Rechercher"
+              accessibilityLabel={tr('common.search')}
             >
               <Feather name="search" size={20} color={t.text} />
             </TouchableOpacity>
@@ -1730,7 +1730,7 @@ export default function Missions() {
                 style={{ paddingHorizontal: 10 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
-                accessibilityLabel="Effacer la recherche"
+                accessibilityLabel={tr('ext.missions_clear_search_a11y')}
               >
                 <Feather name="x-circle" size={16} color={t.textMuted} />
               </TouchableOpacity>

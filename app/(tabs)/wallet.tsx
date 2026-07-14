@@ -18,6 +18,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devError } from '@/lib/logger';
 import { formatEUR as fmtEur } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
 
 // --- Formatage ---
 const fromCents = (n: number) => n / 100;
@@ -33,29 +34,29 @@ function dateGroup(iso: string): string {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const txDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diff = (today.getTime() - txDay.getTime()) / 86_400_000;
-  if (diff === 0) return "Aujourd'hui";
-  if (diff === 1) return 'Hier';
-  if (diff < 7) return `Il y a ${Math.floor(diff)} jours`;
+  if (diff === 0) return i18n.t('ext.wallet_date_today');
+  if (diff === 1) return i18n.t('ext.wallet_date_yesterday');
+  if (diff < 7) return i18n.t('ext.wallet_date_days_ago', { n: Math.floor(diff) });
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 // --- Label lisible depuis la reference ---
 function readableLabel(type: string, reference?: string | null): string {
-  if (!reference) return type === 'CREDIT' ? 'Crédit' : type === 'DEBIT' ? 'Débit' : type;
+  if (!reference) return type === 'CREDIT' ? i18n.t('ext.wallet_label_credit') : type === 'DEBIT' ? i18n.t('ext.wallet_label_debit') : type;
   const m = reference.match(/request[_-](\d+)/i);
-  if (m) return `Mission #${m[1]}`;
-  if (/withdraw|retrait/i.test(reference)) return 'Retrait bancaire';
-  if (/stripe_transfer/i.test(reference)) return 'Virement Stripe';
+  if (m) return i18n.t('ext.wallet_tx_mission', { id: m[1] });
+  if (/withdraw|retrait/i.test(reference)) return i18n.t('ext.wallet_tx_withdraw');
+  if (/stripe_transfer/i.test(reference)) return i18n.t('ext.wallet_tx_stripe_transfer');
   return reference.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).slice(0, 36);
 }
 
 // --- Onglets de filtre ---
 type Filter = 'all' | 'gains' | 'pending' | 'withdrawals';
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'Tout' },
-  { key: 'gains', label: 'Gains' },
-  { key: 'pending', label: 'En attente' },
-  { key: 'withdrawals', label: 'Retraits' },
+  { key: 'all', label: 'ext.wallet_filter_all' },
+  { key: 'gains', label: 'ext.wallet_earnings_title' },
+  { key: 'pending', label: 'wallet.pending' },
+  { key: 'withdrawals', label: 'ext.wallet_filter_withdrawals' },
 ];
 
 // --- Statut des retraits ---
@@ -405,11 +406,11 @@ export default function WalletTab() {
         const refreshUrl = Linking.createURL('connect/reauth');
         const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
         if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
-        else showSocketToast("Impossible de lancer la configuration Stripe.", 'error');
+        else showSocketToast(tr('ext.wallet_stripe_setup_failed'), 'error');
       } else if (res?.url) {
         await WebBrowser.openBrowserAsync(res.url);
       } else {
-        showSocketToast("Impossible d'ouvrir le dashboard Stripe.", 'error');
+        showSocketToast(tr('ext.wallet_stripe_open_failed'), 'error');
       }
     } catch (e: any) {
       // api.ts place le corps de la réponse dans e.data → code/needsOnboarding
@@ -427,12 +428,12 @@ export default function WalletTab() {
           const refreshUrl = Linking.createURL('connect/reauth');
           const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
           if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
-          else showSocketToast("Impossible de lancer la configuration Stripe.", 'error');
+          else showSocketToast(tr('ext.wallet_stripe_setup_failed'), 'error');
         } catch (onbErr: any) {
-          showSocketToast(onbErr?.message || 'Erreur Stripe', 'error');
+          showSocketToast(onbErr?.message || tr('ext.wallet_stripe_error'), 'error');
         }
       } else {
-        showSocketToast(e?.message || 'Erreur Stripe', 'error');
+        showSocketToast(e?.message || tr('ext.wallet_stripe_error'), 'error');
       }
     } finally {
       setStripeLoading(false);
@@ -511,9 +512,9 @@ export default function WalletTab() {
       return (
         <View style={styles.empty}>
           <Feather name="credit-card" size={48} color={t.textDisabled} />
-          <Text style={[styles.emptyTitle, { color: t.textSub }]}>Aucune transaction</Text>
+          <Text style={[styles.emptyTitle, { color: t.textSub }]}>{tr('ext.wallet_no_transactions')}</Text>
           <Text style={[styles.emptySubtitle, { color: t.textMuted }]}>
-            Vos gains apparaitront ici apres vos missions.
+            {tr('ext.wallet_no_tx_sub')}
           </Text>
         </View>
       );
@@ -539,15 +540,15 @@ export default function WalletTab() {
       {/* -- Header -- */}
       <View style={[styles.header, { backgroundColor: t.bg }]}>
         <View>
-          <Text style={[styles.headerGreeting, { color: t.textMuted }]}>SOLDE DISPONIBLE</Text>
-          <Text style={[styles.headerTitle, { color: t.text }]}>Gains</Text>
+          <Text style={[styles.headerGreeting, { color: t.textMuted }]}>{tr('ext.wallet_available_balance')}</Text>
+          <Text style={[styles.headerTitle, { color: t.text }]}>{tr('ext.wallet_earnings_title')}</Text>
         </View>
         <TouchableOpacity
           style={[styles.headerIconBtn, { backgroundColor: t.surface, borderColor: t.borderLight }]}
           onPress={onRefresh}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Actualiser"
+          accessibilityLabel={tr('common.refresh')}
         >
           <Feather name="refresh-cw" size={18} color={t.text} />
         </TouchableOpacity>
@@ -555,7 +556,7 @@ export default function WalletTab() {
 
       {/* -- Hero solde -- */}
       <View style={[styles.hero, { backgroundColor: t.heroBg }]}>
-        <Text style={[styles.heroLabel, { color: t.heroSub }]}>Solde disponible</Text>
+        <Text style={[styles.heroLabel, { color: t.heroSub }]}>{tr('ext.wallet_available_balance')}</Text>
         <Text style={[styles.heroAmount, { color: t.heroText }]}>{fmtEur(fromCents(balance))}</Text>
 
         {/* Sous-stats inline */}
@@ -563,20 +564,20 @@ export default function WalletTab() {
           {escrowAmount > 0 && (
             <View style={styles.heroStatItem}>
               <Feather name="clock" size={13} color={t.heroSub} />
-              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(escrowAmount))} en validation</Text>
+              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(escrowAmount))} {tr('ext.wallet_in_validation')}</Text>
             </View>
           )}
           {pendingWithdrawTotal > 0 && (
             <View style={styles.heroStatItem}>
               <Feather name="arrow-up" size={13} color={t.heroSub} />
-              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(pendingWithdrawTotal))} en retrait</Text>
+              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(pendingWithdrawTotal))} {tr('ext.wallet_in_withdrawal')}</Text>
             </View>
           )}
         </View>
 
         {/* Total gagné */}
         <View style={[styles.heroTotalRow, { borderTopColor: 'rgba(255,255,255,0.12)' }]}>
-          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>Total gagné</Text>
+          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>{tr('ext.wallet_total_earned')}</Text>
           <Text style={[styles.heroTotalValue, { color: t.heroText }]}>{fmtEur(fromCents(totalEarnings))}</Text>
         </View>
 
@@ -607,42 +608,42 @@ export default function WalletTab() {
           activeOpacity={0.8}
         >
           <Feather name="alert-triangle" size={15} color={COLORS.red} />
-          <Text style={[styles.errorBannerText, { color: t.text }]}>Solde indisponible. Appuyez pour réessayer.</Text>
+          <Text style={[styles.errorBannerText, { color: t.text }]}>{tr('ext.wallet_balance_unavailable')}</Text>
           <Feather name="refresh-cw" size={14} color={t.textMuted} />
         </TouchableOpacity>
       )}
 
-      {/* -- Stripe link -- */}
-      <TouchableOpacity
-        style={styles.stripeLink}
-        onPress={handleOpenStripeDashboard}
-        disabled={stripeLoading}
-        activeOpacity={0.7}
-      >
-        {stripeLoading
-          ? <ActivityIndicator size="small" color={t.accent} />
-          : <>
-              <Feather name="credit-card" size={15} color={t.accent} />
-              <Text style={[styles.stripeLinkText, { color: t.text }]}>
-                {stripeReady ? 'Gérer mes paiements' : 'Configurer Stripe'}
-              </Text>
-              <Feather name="chevron-right" size={13} color={t.textVeryMuted} />
-            </>
-        }
-      </TouchableOpacity>
+      {/* -- Stripe + Factures (côte à côte) -- */}
+      <View style={styles.linkRow}>
+        <TouchableOpacity
+          style={[styles.linkCard, { backgroundColor: t.surface, borderColor: t.borderLight }]}
+          onPress={handleOpenStripeDashboard}
+          disabled={stripeLoading}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+        >
+          {stripeLoading
+            ? <ActivityIndicator size="small" color={t.accent} />
+            : <>
+                <Feather name="credit-card" size={18} color={t.accent} />
+                <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={2}>
+                  {stripeReady ? tr('ext.wallet_manage_payments') : tr('ext.wallet_setup_stripe')}
+                </Text>
+              </>
+          }
+        </TouchableOpacity>
 
-      {/* -- Mes factures -- */}
-      <TouchableOpacity
-        style={styles.stripeLink}
-        onPress={() => router.push('/invoices')}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Mes factures"
-      >
-        <Feather name="file-text" size={15} color={t.accent} />
-        <Text style={[styles.stripeLinkText, { color: t.text }]}>Mes factures</Text>
-        <Feather name="chevron-right" size={13} color={t.textVeryMuted} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.linkCard, { backgroundColor: t.surface, borderColor: t.borderLight }]}
+          onPress={() => router.push('/invoices')}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={tr('ext.wallet_my_invoices')}
+        >
+          <Feather name="file-text" size={18} color={t.accent} />
+          <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={2}>{tr('ext.wallet_my_invoices')}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* -- Filtres -- */}
       <View style={styles.filterRow}>
@@ -656,7 +657,7 @@ export default function WalletTab() {
               activeOpacity={0.7}
             >
               <Text style={[styles.filterChipText, { color: active ? t.bg : t.textMuted }]}>
-                {f.label}
+                {tr(f.label)}
               </Text>
             </TouchableOpacity>
           );
@@ -757,6 +758,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8, paddingVertical: 10,
   },
   stripeLinkText: { fontSize: 13, fontFamily: FONTS.sansMedium },
+  linkRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 8 },
+  linkCard: {
+    flex: 1, minHeight: 78,
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 16, paddingHorizontal: 10,
+    borderRadius: 14, borderWidth: 1,
+  },
+  linkCardText: { fontSize: 13, fontFamily: FONTS.sansMedium, textAlign: 'center' },
 
   // Filters
   filterRow: {

@@ -64,6 +64,10 @@ export default function InvoicesScreen() {
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     })
     .reduce((sum, inv) => sum + (inv.amount || 0), 0);
+  const monthlyCount = invoices.filter(inv => {
+    const d = new Date(inv.issuedAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
 
   const renderItem = useCallback(({ item }: { item: Invoice }) => {
     const isPaid = item.status === 'PAID';
@@ -85,13 +89,13 @@ export default function InvoicesScreen() {
           />
         </View>
         <View style={s.cardContent}>
-          <Text style={[s.cardTitle, { color: theme.textAlt, fontFamily: FONTS.mono }]}>{invoiceNum}</Text>
-          <Text style={[s.cardSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            {item.request?.serviceType || 'Service'} · {fmtDate(item.issuedAt)}
+          <Text style={[s.cardTitle, { color: theme.textAlt, fontFamily: FONTS.mono }]} numberOfLines={1}>{invoiceNum}</Text>
+          <Text style={[s.cardSub, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
+            {item.request?.serviceType || t('common.service')} · {fmtDate(item.issuedAt)}
           </Text>
         </View>
         <View style={s.cardRight}>
-          <Text style={[s.cardAmount, { color: theme.textAlt, fontFamily: FONTS.monoMedium }]}>
+          <Text style={[s.cardAmount, { color: theme.textAlt, fontFamily: FONTS.monoMedium }]} numberOfLines={1}>
             {formatEuros(item.amount)}
           </Text>
           <View style={[s.statusPill, {
@@ -120,7 +124,7 @@ export default function InvoicesScreen() {
         <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, letterSpacing: 0.5 }]}>Mes factures</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, letterSpacing: 0.5 }]}>{t('ext.wallet_my_invoices')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -131,17 +135,14 @@ export default function InvoicesScreen() {
         </View>
         <View style={s.summaryContent}>
           <Text style={[s.summaryLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
-            {isProvider ? 'FACTURÉ CE MOIS' : 'TOTAL CE MOIS'}
+            {isProvider ? t('ext.invoice_billed_this_month') : t('ext.invoice_total_this_month')}
           </Text>
           <Text style={[s.summaryValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
             {formatEuros(monthTotal)}
           </Text>
         </View>
         <Text style={[s.summaryCount, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
-          {invoices.filter(inv => {
-            const d = new Date(inv.issuedAt);
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-          }).length} facture{invoices.length !== 1 ? 's' : ''}
+          {monthlyCount} {monthlyCount === 1 ? t('ext.invoice_word_singular') : t('ext.invoice_word_plural')}
         </Text>
       </View>
 
@@ -156,9 +157,9 @@ export default function InvoicesScreen() {
             <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
               <Feather name="wifi-off" size={28} color={theme.textMuted} />
             </View>
-            <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Impossible de charger vos factures</Text>
+            <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_load_failed')}</Text>
             <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-              Vérifiez votre connexion puis réessayez.
+              {t('ext.invoice_check_connection')}
             </Text>
             <TouchableOpacity
               style={[s.retryBtn, { backgroundColor: theme.accent }]}
@@ -174,7 +175,7 @@ export default function InvoicesScreen() {
             <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
               <Feather name="file-text" size={28} color={theme.textMuted} />
             </View>
-            <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>Aucune facture</Text>
+            <Text style={[s.emptyTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_empty_title')}</Text>
             <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               {t('ext.invoice_empty')}
             </Text>
@@ -246,10 +247,10 @@ const s = StyleSheet.create({
     width: 40, height: 40, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardContent: { flex: 1 },
+  cardContent: { flex: 1, minWidth: 0 },
   cardTitle: { fontSize: 14, fontVariant: ['tabular-nums'], marginBottom: 2 },
   cardSub: { fontSize: 12 },
-  cardRight: { alignItems: 'flex-end', gap: 4 },
+  cardRight: { alignItems: 'flex-end', gap: 4, flexShrink: 0, marginLeft: 8 },
   cardAmount: { fontSize: 15, fontVariant: ['tabular-nums'] },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusText: { fontSize: 10 },

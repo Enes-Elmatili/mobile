@@ -79,7 +79,7 @@ export function OfflineBanner() {
         : pendingCount > 0
           ? t('offline.offline', { count: pendingCount })
           : t('offline.offline_zero'))
-    : 'Reconnexion en cours…';
+    : t('offline.reconnecting');
 
   return (
     <>
@@ -91,7 +91,7 @@ export function OfflineBanner() {
             { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent, transform: [{ translateY: slideAnim }] },
           ]}
           accessibilityRole="alert"
-          accessibilityLabel={!isOnline ? t('offline.banner') : 'Reconnexion en cours'}
+          accessibilityLabel={!isOnline ? t('offline.banner') : t('offline.reconnecting')}
           accessibilityLiveRegion="polite"
           pointerEvents="none"
         >
@@ -112,7 +112,7 @@ export function OfflineBanner() {
         >
           <Feather name="wifi" size={16} color={theme.greenText} />
           <Text style={[styles.bannerText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>
-            Connexion rétablie
+            {t('offline.reconnected')}
           </Text>
         </View>
       )}
