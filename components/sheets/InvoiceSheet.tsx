@@ -413,7 +413,7 @@ export default function InvoiceSheet({
             ) : (
               <Feather name="download" size={18} color={textSecondary} />
             )}
-            <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
+            <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
               {downloading ? t('ext.invoice_downloading') : t('ext.invoice_download_pdf')}
             </Text>
           </TouchableOpacity>
@@ -737,7 +737,7 @@ const s = StyleSheet.create({
     fontSize: 16,
   },
   grandTotalValue: {
-    fontSize: 30,
+    fontSize: 26,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
     textAlign: 'right',
@@ -818,14 +818,16 @@ const s = StyleSheet.create({
 
   // ── Buttons ──
   actions: {
+    flexDirection: 'row',
     gap: 10,
   },
   btnOutline: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 48,
+    height: 46,
     borderRadius: 12,
     borderWidth: 1.5,
   },
@@ -833,10 +835,11 @@ const s = StyleSheet.create({
     fontSize: 15,
   },
   btnPrimary: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 48,
+    height: 46,
     borderRadius: 12,
     // Raised tactile : top highlight + bottom chamfer + drop shadow renforcée.
     borderTopWidth: 1.5,
