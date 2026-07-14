@@ -59,7 +59,7 @@ interface ProviderStats {
   jobsCompleted: number;
   avgRating: number;
   totalRatings: number;
-  acceptanceRate: number | null;
+  rank: number | null;
 }
 
 interface IncomingRequest {
@@ -539,8 +539,8 @@ function StatsSection({ loading, stats }: { loading: boolean; stats: ProviderSta
       </View>
       <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
       <View style={ss.kpiItem}>
-        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.acceptanceRate != null ? `${stats.acceptanceRate}%` : '—'}</Text>
-        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>ACCEPT.</Text>
+        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.rank != null ? `#${stats.rank}` : '—'}</Text>
+        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>RANG</Text>
       </View>
     </View>
   );
@@ -589,7 +589,7 @@ export default function ProviderDashboard() {
   const [heading,       setHeading]        = useState(0);
   const [, setLocationError] = useState(false);
   const [wallet,        setWallet]         = useState<WalletData | null>(null);
-  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 0, totalRatings: 0, acceptanceRate: null });
+  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 0, totalRatings: 0, rank: null });
   const [statsLoading,  setStatsLoading]  = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
 
@@ -710,10 +710,10 @@ export default function ProviderDashboard() {
     if (dashData?.provider) {
       const pv = dashData.provider;
       setStats({
-        jobsCompleted:  pv.jobsCompleted ?? 0,
-        avgRating:      pv.avgRating     ?? 0,
-        totalRatings:   pv.totalRatings  ?? 0,
-        acceptanceRate: pv.acceptanceRate ?? null,
+        jobsCompleted: pv.jobsCompleted ?? 0,
+        avgRating:     pv.avgRating     ?? 0,
+        totalRatings:  pv.totalRatings  ?? 0,
+        rank:          pv.rank          ?? null,
       });
     } else if (results[2].status === 'rejected') {
       devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
