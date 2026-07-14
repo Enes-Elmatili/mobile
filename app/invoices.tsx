@@ -1,14 +1,15 @@
 // app/invoices.tsx — Mes Factures
 // Liste scrollable de toutes les factures du client ou provider
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  FlatList, ActivityIndicator, RefreshControl, Platform, StatusBar,
+  SectionList, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
 import { api } from '../lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -16,8 +17,11 @@ import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR as formatEuros } from '@/lib/format';
 
+const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
+const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
+
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString(undefined, {
+  new Date(d).toLocaleDateString(getLocale(), {
     day: 'numeric', month: 'short', year: 'numeric',
   });
 
@@ -68,6 +72,24 @@ export default function InvoicesScreen() {
     const d = new Date(inv.issuedAt);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
+
+  // Regroupement par mois (mois récents en premier) pour une liste plus lisible.
+  const sections = useMemo(() => {
+    const groups = new Map<string, Invoice[]>();
+    for (const inv of invoices) {
+      const d = new Date(inv.issuedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(inv);
+    }
+    return Array.from(groups.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, data]) => {
+        const [y, m] = key.split('-').map(Number);
+        const title = new Date(y, m, 1).toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
+        return { key, title, data };
+      });
+  }, [invoices]);
 
   const renderItem = useCallback(({ item }: { item: Invoice }) => {
     const isPaid = item.status === 'PAID';
@@ -185,12 +207,18 @@ export default function InvoicesScreen() {
           </View>
         )
       ) : (
-        <FlatList
-          data={invoices}
+        <SectionList
+          sections={sections}
           keyExtractor={item => item.id}
           renderItem={renderItem}
+          renderSectionHeader={({ section }) => (
+            <Text style={[s.sectionHeader, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
+              {(section as { title: string }).title}
+            </Text>
+          )}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.textMuted} />
           }
@@ -238,6 +266,11 @@ const s = StyleSheet.create({
   summaryCount: { fontSize: 12 },
 
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+
+  sectionHeader: {
+    fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase',
+    marginTop: 14, marginBottom: 8, marginLeft: 4,
+  },
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
