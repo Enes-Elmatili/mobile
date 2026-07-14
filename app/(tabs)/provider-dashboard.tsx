@@ -58,7 +58,7 @@ interface ProviderStats {
   jobsCompleted: number;
   avgRating: number;
   totalRatings: number;
-  rankScore: number;
+  acceptanceRate: number | null;
 }
 
 interface IncomingRequest {
@@ -538,8 +538,8 @@ function StatsSection({ loading, stats }: { loading: boolean; stats: ProviderSta
       </View>
       <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
       <View style={ss.kpiItem}>
-        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.rankScore}</Text>
-        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>RANG</Text>
+        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.acceptanceRate != null ? `${stats.acceptanceRate}%` : '—'}</Text>
+        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>ACCEPT.</Text>
       </View>
     </View>
   );
@@ -588,7 +588,7 @@ export default function ProviderDashboard() {
   const [heading,       setHeading]        = useState(0);
   const [, setLocationError] = useState(false);
   const [wallet,        setWallet]         = useState<WalletData | null>(null);
-  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 0, totalRatings: 0, rankScore: 0 });
+  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 0, totalRatings: 0, acceptanceRate: null });
   const [statsLoading,  setStatsLoading]  = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
 
@@ -700,16 +700,18 @@ export default function ProviderDashboard() {
       devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
     }
 
-    if (results[1].status === 'fulfilled') {
-      const u = (results[1].value as any)?.user || (results[1].value as any)?.data || results[1].value;
+    // KPI stats depuis /provider/dashboard (results[2]) : /auth/me ne renvoie PAS
+    // ces champs (jobsCompleted/avgRating/totalRatings/rankScore) → d'où les zéros.
+    if (dashData?.provider) {
+      const pv = dashData.provider;
       setStats({
-        jobsCompleted: u.jobsCompleted ?? u.completedMissions ?? u.totalCompleted ?? 0,
-        avgRating:     u.avgRating     ?? u.averageRating      ?? u.rating        ?? 0,
-        totalRatings:  u.totalRatings  ?? 0,
-        rankScore:     u.rankScore     ?? u.rank               ?? u.score         ?? 0,
+        jobsCompleted:  pv.jobsCompleted ?? 0,
+        avgRating:      pv.avgRating     ?? 0,
+        totalRatings:   pv.totalRatings  ?? 0,
+        acceptanceRate: pv.acceptanceRate ?? null,
       });
-    } else {
-      devWarn('Stats failed:', (results[1] as PromiseRejectedResult).reason?.message);
+    } else if (results[2].status === 'rejected') {
+      devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
     }
 
     // Mission active : ACCEPTED/ONGOING/QUOTE_SENT/QUOTE_ACCEPTED, non planifiée future.
