@@ -581,17 +581,6 @@ export default function WalletTab() {
           <Text style={[styles.heroTotalValue, { color: t.heroText }]}>{fmtEur(fromCents(totalEarnings))}</Text>
         </View>
 
-        {/* Bouton retrait — call to action principal (porte depuis l'ancien /wallet) */}
-        <TouchableOpacity
-          style={[styles.withdrawBtn, { backgroundColor: t.isDark ? t.bg : '#FFF' }, fromCents(balance) <= 0 && styles.withdrawBtnDisabled]}
-          onPress={() => setShowWithdraw(true)}
-          disabled={fromCents(balance) <= 0}
-          activeOpacity={0.85}
-        >
-          <Feather name="upload" size={17} color={t.text} />
-          <Text style={[styles.withdrawBtnText, { color: t.text }]}>{tr('ext.wallet_withdraw_funds')}</Text>
-        </TouchableOpacity>
-
         {!stripeReady && (
           <View style={styles.payoutNotice}>
             <Feather name="info" size={14} color={t.heroSub} />
