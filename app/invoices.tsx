@@ -90,8 +90,11 @@ export default function InvoicesScreen() {
         </View>
         <View style={s.cardContent}>
           <Text style={[s.cardTitle, { color: theme.textAlt, fontFamily: FONTS.mono }]} numberOfLines={1}>{invoiceNum}</Text>
-          <Text style={[s.cardSub, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
-            {item.request?.serviceType || t('common.service')} · {fmtDate(item.issuedAt)}
+          <Text style={[s.cardSub, { color: theme.textSub, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
+            {item.request?.serviceType || t('common.service')}
+          </Text>
+          <Text style={[s.cardDate, { color: theme.textMuted, fontFamily: FONTS.sans }]} numberOfLines={1}>
+            {fmtDate(item.issuedAt)}
           </Text>
         </View>
         <View style={s.cardRight}>
@@ -247,10 +250,11 @@ const s = StyleSheet.create({
     width: 40, height: 40, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardContent: { flex: 1, minWidth: 0 },
-  cardTitle: { fontSize: 14, fontVariant: ['tabular-nums'], marginBottom: 2 },
-  cardSub: { fontSize: 12 },
-  cardRight: { alignItems: 'flex-end', gap: 4, flexShrink: 0, marginLeft: 8 },
+  cardContent: { flex: 1, minWidth: 0, gap: 2 },
+  cardTitle: { fontSize: 13, fontVariant: ['tabular-nums'] },
+  cardSub: { fontSize: 14 },
+  cardDate: { fontSize: 11 },
+  cardRight: { alignItems: 'flex-end', gap: 6, flexShrink: 0, marginLeft: 8 },
   cardAmount: { fontSize: 15, fontVariant: ['tabular-nums'] },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusText: { fontSize: 10 },
