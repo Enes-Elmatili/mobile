@@ -626,7 +626,7 @@ export default function WalletTab() {
             ? <ActivityIndicator size="small" color={t.accent} />
             : <>
                 <Feather name="credit-card" size={18} color={t.accent} />
-                <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={2}>
+                <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={1}>
                   {stripeReady ? tr('ext.wallet_manage_payments') : tr('ext.wallet_setup_stripe')}
                 </Text>
               </>
@@ -641,7 +641,7 @@ export default function WalletTab() {
           accessibilityLabel={tr('ext.wallet_my_invoices')}
         >
           <Feather name="file-text" size={18} color={t.accent} />
-          <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={2}>{tr('ext.wallet_my_invoices')}</Text>
+          <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={1}>{tr('ext.wallet_my_invoices')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -760,12 +760,12 @@ const styles = StyleSheet.create({
   stripeLinkText: { fontSize: 13, fontFamily: FONTS.sansMedium },
   linkRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 8 },
   linkCard: {
-    flex: 1, minHeight: 78,
-    alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 16, paddingHorizontal: 10,
-    borderRadius: 14, borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    paddingVertical: 11, paddingHorizontal: 10,
+    borderRadius: 12, borderWidth: 1,
   },
-  linkCardText: { fontSize: 13, fontFamily: FONTS.sansMedium, textAlign: 'center' },
+  linkCardText: { fontSize: 13, fontFamily: FONTS.sansMedium, flexShrink: 1 },
 
   // Filters
   filterRow: {
