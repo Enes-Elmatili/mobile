@@ -318,14 +318,13 @@ export default function Profile() {
         setVatNumber(provider?.vatNumber || '');
         const avgRating: number = provider?.avgRating ?? 0;
         const jobsCompleted: number = provider?.jobsCompleted ?? 0;
-        const totalRequests: number = provider?.totalRequests ?? 0;
-        const acceptedRequests: number = provider?.acceptedRequests ?? 0;
-        const acceptanceRate = totalRequests > 0 ? Math.round((acceptedRequests / totalRequests) * 100) : 0;
+        // Taux d'acceptation FIABLE calculé par le backend (acceptées ÷ acceptées+refusées).
+        const acceptanceRate: number | null = provider?.acceptanceRate ?? null;
         setProfileStats(prev => ({
           ...prev,
           rating: avgRating > 0 ? avgRating.toFixed(1).replace('.', ',') : '—',
           missions: String(jobsCompleted),
-          acceptance: totalRequests > 0 ? `${acceptanceRate}%` : '—',
+          acceptance: acceptanceRate != null ? `${acceptanceRate}%` : '—',
         }));
       }
       // Wallet
