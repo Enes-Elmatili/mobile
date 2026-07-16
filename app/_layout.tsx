@@ -1,6 +1,6 @@
 import i18n from '../lib/i18n'; // i18n — doit être importé avant tout autre module
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import { SocketProvider } from '../lib/SocketContext';
 import { NetworkProvider } from '../lib/NetworkContext';
@@ -24,6 +24,7 @@ import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
@@ -234,8 +235,12 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
+// Garde le splash natif de marque affiché jusqu'à ce que l'app soit prête
+// (polices chargées). Sans ça, iOS le cache dès la 1re frame → flash d'écran vide.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default Sentry.wrap(function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     BebasNeue_400Regular,
     DMSans_300Light,
     DMSans_400Regular,
@@ -245,19 +250,23 @@ export default Sentry.wrap(function RootLayout() {
     DMMono_500Medium,
   });
 
-  if (!fontsLoaded) {
-    const dark = Appearance.getColorScheme() === 'dark';
-    const t = dark ? darkTokens : lightTokens;
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: t.bg }]}>
-        <ActivityIndicator size="large" color={t.text} />
-      </View>
-    );
+  // Cache le splash uniquement quand le premier écran est effectivement rendu
+  // (onLayout) → transition fluide, sans spinner intermédiaire.
+  const onLayoutRootView = useCallback(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError]);
+
+  // Tant que les polices chargent, on ne rend rien : le splash natif reste visible
+  // (auto-hide bloqué ci-dessus). On débloque aussi si le chargement échoue.
+  if (!fontsLoaded && !fontError) {
+    return null;
   }
 
   return (
     <AppErrorBoundary>
-      <GestureHandlerRootView style={styles.container}>
+      <GestureHandlerRootView style={styles.container} onLayout={onLayoutRootView}>
         <NetworkProvider>
           <StripeProvider
             publishableKey={STRIPE_PUBLISHABLE_KEY}

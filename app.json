@@ -17,15 +17,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "splash": {
-      "resizeMode": "cover",
-      "backgroundColor": "#F4F4F2",
-      "dark": {
-        "image": "./assets/splash-screens/splash-1284x2778.png",
-        "resizeMode": "cover",
-        "backgroundColor": "#000000"
-      }
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.thefixed.client",
@@ -118,6 +109,18 @@
       "expo-localization",
       "expo-web-browser",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F4F4F2",
+          "image": "./assets/logo-variants/logo-transparent-black.png",
+          "imageWidth": 200,
+          "dark": {
+            "backgroundColor": "#0A0A0A",
+            "image": "./assets/logo-variants/logo-transparent-white.png"
+          }
+        }
+      ],
       [
         "@sentry/react-native/expo",
         {
