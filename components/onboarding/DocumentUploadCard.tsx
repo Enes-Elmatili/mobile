@@ -117,8 +117,8 @@ export function DocumentUploadCard({
         </View>
       </View>
 
-      {/* Bouton téléverser intégré — uniquement quand la pièce manque */}
-      {(needsUpload || uploading || rejected) && !sent && (
+      {/* Bouton principal — pièce manquante, refusée, ou premier envoi en cours */}
+      {!sent && (
         <TouchableOpacity
           style={styles.uploadBtn}
           onPress={() => onUpload(requirement.type)}
@@ -135,6 +135,30 @@ export function DocumentUploadCard({
               <Feather name="upload" size={14} color={C.white} />
               <Text style={styles.uploadBtnText}>{rejected ? t('onboarding.doc_reupload') : t('onboarding.doc_upload')}</Text>
               <Text style={styles.uploadHint}>{t('onboarding.doc_hint')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Remplacer — doc envoyé mais pas encore validé : le presta peut corriger
+          une photo floue/illisible tant que l'admin ne l'a pas approuvé.
+          Une pièce APPROUVÉE reste verrouillée (pas de bouton). */}
+      {sent && !approved && (
+        <TouchableOpacity
+          style={styles.replaceBtn}
+          onPress={() => onUpload(requirement.type)}
+          disabled={uploading}
+          activeOpacity={0.6}
+        >
+          {uploading ? (
+            <>
+              <ActivityIndicator size="small" color={C.grey} />
+              <Text style={styles.replaceText}>{t('onboarding.doc_uploading')}</Text>
+            </>
+          ) : (
+            <>
+              <Feather name="refresh-cw" size={12} color={C.grey} />
+              <Text style={styles.replaceText}>{t('onboarding.doc_replace')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -244,5 +268,25 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     letterSpacing: 1,
     color: C.faint,
+  },
+  replaceBtn: {
+    marginTop: 11,
+    alignSelf: "flex-start",
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  replaceText: {
+    fontFamily: FONTS.mono,
+    fontSize: 9.5,
+    letterSpacing: 1,
+    color: C.grey,
+    textTransform: "uppercase",
   },
 });

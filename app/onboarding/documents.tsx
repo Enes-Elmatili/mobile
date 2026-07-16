@@ -2,10 +2,11 @@
 // Redesign onboarding : chaque pièce affiche son état, la progression est
 // matérialisée (barre + « X / N envoyés ») et le CTA désactivé explique pourquoi.
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Platform, ActionSheetIOS, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
 import { feedback } from "@/lib/feedback/feedback";
@@ -87,7 +88,29 @@ export default function OnboardingDocuments() {
     })();
   }, []);
 
-  const handleUpload = async (docType: DocumentType | string) => {
+  // Envoi effectif d'un fichier (image OU pdf) vers le backend.
+  // isImage=false → on NE stocke PAS d'uri locale : la carte afficherait sinon
+  // une <Image> cassée pour un PDF. Le statut « envoyé » vient de serverDocs.
+  const doUpload = async (
+    docType: DocumentType | string,
+    file: { uri: string; name: string; type: string; isImage: boolean },
+  ) => {
+    setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: true } }));
+    try {
+      const formData = new FormData();
+      formData.append("file", { uri: file.uri, name: file.name, type: file.type } as any);
+      formData.append("docKey", docType);
+      await api.providerDocs.upload(formData);
+      feedback.success(t('onboarding.docs_sent_toast'));
+      setUploads(prev => ({ ...prev, [docType]: { uri: file.isImage ? file.uri : null, uploading: false } }));
+      setServerDocs(prev => ({ ...prev, [docType]: { status: "PENDING" } }));
+    } catch (e: any) {
+      setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: false } }));
+      feedback.error(e?.message || t('onboarding.docs_upload_error'));
+    }
+  };
+
+  const pickImage = async (docType: DocumentType | string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       feedback.error(t('onboarding.docs_perm_error'));
@@ -95,20 +118,55 @@ export default function OnboardingDocuments() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
     if (result.canceled || !result.assets[0]) return;
-
     const asset = result.assets[0];
-    setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: true } }));
-    try {
-      const formData = new FormData();
-      formData.append("file", { uri: asset.uri, name: asset.fileName || `${docType}_${Date.now()}.jpg`, type: asset.mimeType || "image/jpeg" } as any);
-      formData.append("docKey", docType);
-      await api.providerDocs.upload(formData);
-      feedback.success(t('onboarding.docs_sent_toast'));
-      setUploads(prev => ({ ...prev, [docType]: { uri: asset.uri, uploading: false } }));
-      setServerDocs(prev => ({ ...prev, [docType]: { status: "PENDING" } }));
-    } catch (e: any) {
-      setUploads(prev => ({ ...prev, [docType]: { ...prev[docType], uploading: false } }));
-      feedback.error(e?.message || t('onboarding.docs_upload_error'));
+    await doUpload(docType, {
+      uri: asset.uri,
+      name: asset.fileName || `${docType}_${Date.now()}.jpg`,
+      type: asset.mimeType || "image/jpeg",
+      isImage: true,
+    });
+  };
+
+  const pickPdf = async (docType: DocumentType | string) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "application/pdf",
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    await doUpload(docType, {
+      uri: asset.uri,
+      name: asset.name || `${docType}_${Date.now()}.pdf`,
+      type: asset.mimeType || "application/pdf",
+      isImage: false,
+    });
+  };
+
+  // Laisse le presta choisir la source : photo (galerie) ou document PDF.
+  // Un scan PDF propre règle le problème des photos floues/illisibles.
+  const handleUpload = (docType: DocumentType | string) => {
+    const photoLabel = t('onboarding.doc_source_photo');
+    const pdfLabel = t('onboarding.doc_source_pdf');
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: t('onboarding.doc_source_title'),
+          options: [photoLabel, pdfLabel, t('common.cancel')],
+          cancelButtonIndex: 2,
+          userInterfaceStyle: "dark",
+        },
+        (idx) => {
+          if (idx === 0) pickImage(docType);
+          else if (idx === 1) pickPdf(docType);
+        },
+      );
+    } else {
+      Alert.alert(t('onboarding.doc_source_title'), undefined, [
+        { text: photoLabel, onPress: () => pickImage(docType) },
+        { text: pdfLabel, onPress: () => pickPdf(docType) },
+        { text: t('common.cancel'), style: "cancel" },
+      ]);
     }
   };
 
