@@ -959,7 +959,7 @@ export default function Profile() {
                     placeholder="Jean Dupont"
                     placeholderTextColor={theme.textVeryMuted}
                     autoCapitalize="words"
-                    editable={!saving}
+                    editable={true}
                   />
                 </View>
               </View>
@@ -980,7 +980,7 @@ export default function Profile() {
                     placeholder="+32 4XX XX XX XX"
                     placeholderTextColor={theme.textVeryMuted}
                     keyboardType="phone-pad"
-                    editable={!saving}
+                    editable={true}
                   />
                 </View>
               </View>
@@ -1001,7 +1001,7 @@ export default function Profile() {
                     placeholder="Ixelles, Bruxelles…"
                     placeholderTextColor={theme.textVeryMuted}
                     autoCapitalize="words"
-                    editable={!saving}
+                    editable={true}
                   />
                 </View>
               </View>
@@ -1033,7 +1033,7 @@ export default function Profile() {
                     placeholderTextColor={theme.textVeryMuted}
                     multiline
                     maxLength={2000}
-                    editable={!saving}
+                    editable={true}
                   />
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
                     <Text style={{ fontSize: 10, fontFamily: FONTS.mono, color: theme.textVeryMuted }}>
@@ -1059,7 +1059,7 @@ export default function Profile() {
                         autoCapitalize="characters"
                         autoCorrect={false}
                         maxLength={20}
-                        editable={!saving}
+                        editable={true}
                       />
                     </View>
                   </View>

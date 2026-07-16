@@ -12,6 +12,7 @@ import {
   Animated,
   Easing,
   ActivityIndicator,
+  InteractionManager,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -104,6 +105,16 @@ export default function VerifyEmail() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Focus APRÈS la transition de navigation (et l'anim d'entrée). Un `autoFocus`
+  // ouvrait le clavier pendant que l'écran se posait encore → il apparaissait
+  // puis disparaissait (flicker). runAfterInteractions attend que tout soit stable.
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      inputRef.current?.focus();
+    });
+    return () => task.cancel();
   }, []);
 
   // Shake (erreur de code)
@@ -321,10 +332,9 @@ export default function VerifyEmail() {
                 textContentType="oneTimeCode"
                 autoComplete="one-time-code"
                 maxLength={CODE_LENGTH}
-                autoFocus
                 caretHidden
                 style={s.hiddenInput}
-                editable={!submitting && !verified}
+                editable={!verified}
               />
 
               {/* Erreur */}

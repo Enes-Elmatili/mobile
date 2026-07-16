@@ -164,6 +164,7 @@ export default function SendQuote() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={s.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -259,9 +260,8 @@ export default function SendQuote() {
             )}
           </Animated.View>
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 24 }} />
         </ScrollView>
-      </KeyboardAvoidingView>
 
       {/* Footer CTA */}
       <SafeAreaView edges={["bottom"]} style={[s.footer, { backgroundColor: theme.bg }]}>
@@ -298,6 +298,7 @@ export default function SendQuote() {
           )}
         </TouchableOpacity>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

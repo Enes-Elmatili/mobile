@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  FlatList, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView,
+  FlatList, ScrollView, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView,
   Platform, RefreshControl, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -230,6 +230,7 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
         <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={[wm.sheet, { backgroundColor: theme.cardBg }]}>
           <View style={[wm.handle, { backgroundColor: theme.border }]} />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
           <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.wallet_withdraw_title')}</Text>
           <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.wallet_available_balance')} : {fmtEur(fromCents(balance))}</Text>
 
@@ -284,6 +285,7 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
           <TouchableOpacity style={wm.cancelBtn} onPress={onClose} activeOpacity={0.7}>
             <Text style={[wm.cancelText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('common.cancel')}</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -296,6 +298,7 @@ const wm = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+    maxHeight: '88%',
   },
   handle:     { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   title:      { fontSize: 28, marginBottom: 4 },

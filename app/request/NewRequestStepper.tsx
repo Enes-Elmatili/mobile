@@ -723,6 +723,7 @@ function PromoSheet({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable onPress={() => {}}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24, paddingHorizontal: 24 }]}>
             <View style={dim.titleRow}>
@@ -770,6 +771,7 @@ function PromoSheet({
             </TouchableOpacity>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );
@@ -1934,6 +1936,7 @@ export default function NewRequestStepper() {
             backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 100,
           }}>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowSaveSheet(false)} activeOpacity={1} />
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={{
               backgroundColor: theme.card as string, borderTopLeftRadius: 28, borderTopRightRadius: 28,
               paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40,
@@ -2022,6 +2025,7 @@ export default function NewRequestStepper() {
                 </Text>
               </TouchableOpacity>
             </View>
+            </KeyboardAvoidingView>
           </View>
         )}
 
@@ -2127,7 +2131,7 @@ export default function NewRequestStepper() {
         {/* ══ ÉTAPE 3 — Planning ══ */}
         {step === 3 && (
           <View style={s.flex}>
-            <ScrollView style={s.flex} contentContainerStyle={s.step3Pad} showsVerticalScrollIndicator={false}>
+            <ScrollView style={s.flex} contentContainerStyle={s.step3Pad} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
 
               <View style={s.modeGrid}>
                 {/* Maintenant */}

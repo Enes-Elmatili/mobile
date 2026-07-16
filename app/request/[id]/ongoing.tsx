@@ -11,6 +11,7 @@ import {
   Linking,
   ActivityIndicator,
   Platform,
+  InteractionManager,
   StatusBar,
   BackHandler,
   TextInput,
@@ -653,6 +654,17 @@ export default function MissionOngoing() {
   else currentStep = isQuoteMission ? 4 : 3;                       // photo après + terminer
 
   const stepInfoRaw = isQuoteMission ? STEP_LABELS_CFG[currentStep] : STEP_LABELS_CFG[currentStep === 3 ? 4 : currentStep];
+
+  // Focus le champ PIN APRÈS la transition/anim quand on arrive à l'étape 2.
+  // Un `autoFocus` ouvrait le clavier pendant que l'écran se posait (arrivée
+  // directe via router.replace depuis missions) → clavier qui clignote.
+  useEffect(() => {
+    if (currentStep !== 2) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      pinInputRef.current?.focus();
+    });
+    return () => task.cancel();
+  }, [currentStep]);
   const stepInfo = { title: t(stepInfoRaw.i18nKey), icon: stepInfoRaw.icon };
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -901,7 +913,6 @@ export default function MissionOngoing() {
                   onChangeText={handlePinChange}
                   keyboardType="number-pad"
                   maxLength={4}
-                  autoFocus
                   caretHidden
                   style={s.hiddenInput}
                 />
