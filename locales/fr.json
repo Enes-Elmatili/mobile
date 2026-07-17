@@ -1,4 +1,7 @@
 {
+  "splash": {
+    "tagline": "Votre problème. Réglé."
+  },
   "notifications": {
     "title": "Notifications",
     "mark_all_read": "Tout lire",

@@ -1,6 +1,6 @@
 import i18n from '../lib/i18n'; // i18n — doit être importé avant tout autre module
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import { SocketProvider } from '../lib/SocketContext';
 import { NetworkProvider } from '../lib/NetworkContext';
@@ -9,6 +9,7 @@ import { CallProvider } from '../lib/webrtc/CallContext';
 import IncomingCallOverlay from '../components/IncomingCallOverlay';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { FeedbackHost } from '@/components/feedback/FeedbackHost';
+import { SplashAnimation } from '@/components/SplashAnimation';
 import { usePushNotifications } from '../lib/usePushNotifications';
 import {
   ActivityIndicator,
@@ -258,6 +259,10 @@ export default Sentry.wrap(function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // Splash animé de marque : joué une fois au lancement, au-dessus de l'app (déjà
+  // montée dessous), puis retiré. Tap pour passer.
+  const [showSplash, setShowSplash] = useState(true);
+
   // Tant que les polices chargent, on ne rend rien : le splash natif reste visible
   // (auto-hide bloqué ci-dessus). On débloque aussi si le chargement échoue.
   if (!fontsLoaded && !fontError) {
@@ -287,6 +292,7 @@ export default Sentry.wrap(function RootLayout() {
           </StripeProvider>
         </NetworkProvider>
         <FeedbackHost />
+        {showSplash && <SplashAnimation onDone={() => setShowSplash(false)} />}
       </GestureHandlerRootView>
     </AppErrorBoundary>
   );
