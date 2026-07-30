@@ -405,6 +405,7 @@
     "quote_action_waiting": "Wachten op vakman",
     "badge_quote": "OFFERTE",
     "badge_scheduled": "GEPLAND",
+    "badge_payment_pending": "BETALING IN AFWACHTING",
     "confirmed": "Bevestigd",
     "tomorrow": "Morgen",
     "hero_title": "Een vakman nodig?",

@@ -405,6 +405,7 @@
     "quote_action_waiting": "En attente du prestataire",
     "badge_quote": "DEVIS",
     "badge_scheduled": "PLANIFIÉE",
+    "badge_payment_pending": "PAIEMENT EN ATTENTE",
     "confirmed": "Confirmé",
     "tomorrow": "Demain",
     "hero_title": "Besoin d'un pro ?",

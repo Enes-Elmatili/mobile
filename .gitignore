@@ -33,6 +33,14 @@ yarn-error.*
 .env.*
 .env*.local
 
+# Clés de service Google (SECRET — jamais committées)
+#   google-service-account.json  = clé Play Console, utilisée par `eas submit` (eas.json)
+#   firebase-adminsdk-*.json     = clé FCM V1, à uploader dans `eas credentials` puis supprimer
+google-service-account.json
+*firebase-adminsdk*.json
+# NB : google-services.json n'est PAS ignoré — EAS en a besoin au moment du prebuild,
+# et il est de toute façon embarqué en clair dans l'APK (ce n'est pas un secret).
+
 # typescript
 *.tsbuildinfo
 

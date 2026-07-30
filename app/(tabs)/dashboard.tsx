@@ -801,6 +801,9 @@ function UpcomingIslandCard({
   const isQuote = request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
   const statusUp = (request.status || '').toUpperCase();
   const isAccepted = statusUp === 'ACCEPTED';
+  // Paiement jamais finalisé (PaymentSheet abandonnée) : la demande n'est PAS
+  // visible des prestataires — l'état doit être explicite avant même le tap.
+  const isPendingPayment = statusUp === 'PENDING_PAYMENT';
 
   const scheduledDate = request.preferredTimeStart ? new Date(request.preferredTimeStart) : null;
   const { label: countdownLabel, fraction } = useCountdown(scheduledDate);
@@ -836,13 +839,13 @@ function UpcomingIslandCard({
       {/* Top row: service name + countdown */}
       <View style={uc.topRow}>
         <View style={uc.topLeft}>
-          {/* Badge devis/planifiée */}
-          <View style={[uc.typeBadge, isQuote
+          {/* Badge paiement en attente/devis/planifiée */}
+          <View style={[uc.typeBadge, (isPendingPayment || isQuote)
             ? { backgroundColor: 'rgba(232,168,56,0.10)' }
             : { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }
           ]}>
-            <Text style={[uc.typeLabel, { color: isQuote ? COLORS.amber : theme.textMuted }]}>
-              {isQuote ? t('dashboard.badge_quote') : t('dashboard.badge_scheduled')}
+            <Text style={[uc.typeLabel, { color: (isPendingPayment || isQuote) ? COLORS.amber : theme.textMuted }]}>
+              {isPendingPayment ? t('dashboard.badge_payment_pending') : isQuote ? t('dashboard.badge_quote') : t('dashboard.badge_scheduled')}
             </Text>
           </View>
           <Text style={[uc.serviceName, { color: theme.text }]} numberOfLines={1}>
@@ -868,7 +871,12 @@ function UpcomingIslandCard({
             {dayLabel}{timeLabel ? ` · ${timeLabel}` : ''}
           </Text>
         </View>
-        {isAccepted ? (
+        {isPendingPayment ? (
+          <View style={uc.statusBadge}>
+            <View style={[uc.statusDot, { backgroundColor: COLORS.amber }]} />
+            <Text style={[uc.statusText, { color: COLORS.amber }]}>{t('dashboard.resume_payment')}</Text>
+          </View>
+        ) : isAccepted ? (
           <View style={uc.statusBadge}>
             <View style={[uc.statusDot, { backgroundColor: COLORS.greenBrand }]} />
             <Text style={[uc.statusText, { color: theme.greenText }]}>
@@ -1434,10 +1442,12 @@ export default function Dashboard() {
                   theme={theme}
                   onPress={() => {
                     hapticLight();
-                    router.push({
-                      pathname: '/request/[id]/scheduled',
-                      params: { id: String(req.id), mode: 'recap' },
-                    });
+                    // Routage par état (même règle que documents.tsx) :
+                    // paiement jamais finalisé → reprise du paiement, pas le récap
+                    // qui laisserait croire que la demande est visible des prestataires.
+                    router.push(req.status?.toUpperCase() === 'PENDING_PAYMENT'
+                      ? { pathname: '/request/[id]/resume-payment', params: { id: String(req.id) } }
+                      : { pathname: '/request/[id]/scheduled', params: { id: String(req.id), mode: 'recap' } });
                   }}
                 />
               ))}

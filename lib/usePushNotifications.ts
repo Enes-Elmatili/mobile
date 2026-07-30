@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { router } from 'expo-router';
 import { api } from './api';
 import { tokenStorage } from './storage';
@@ -117,8 +118,22 @@ async function registerForPushNotifications() {
     devLog('[Push] Token obtenu:', token);
     await syncTokenWithBackend(token);
   } catch (e: any) {
-    // Sur simulateur iOS, getExpoPushTokenAsync() échoue — c'est normal
-    devWarn('[Push] Impossible d\'obtenir le token (simulateur ?):', e?.message);
+    // Sur simulateur iOS, getExpoPushTokenAsync() échoue — c'est normal, on ignore.
+    devWarn('[Push] Impossible d\'obtenir le token:', e?.message);
+
+    // Sur Android en revanche, il n'existe pas de cas bénin : un échec ici veut dire
+    // que FCM n'est pas câblé (google-services.json absent du build, ou clé FCM V1
+    // pas uploadée dans les credentials EAS). L'appareil n'aura JAMAIS de push, et
+    // rien ne le signalait — devWarn est muet en production. On remonte à Sentry.
+    if (Platform.OS === 'android') {
+      Sentry.captureException(e, {
+        tags: { area: 'push', platform: 'android', cause: 'fcm_not_configured' },
+        extra: {
+          hint: 'Aucun token FCM : vérifier android.googleServicesFile dans app.json '
+            + 'et la clé FCM V1 dans `eas credentials`. Sans ça, zéro push sur Android.',
+        },
+      });
+    }
   }
 }
 

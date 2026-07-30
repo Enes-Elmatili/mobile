@@ -102,6 +102,12 @@ function RootLayoutNav() {
   const hasToken          = !!token;
   const segmentKey        = segments.join('/');
   const profileIncomplete = missingFields.length > 0;
+  // `user.roles` est lu par le gate ci-dessous mais ne figurait pas dans ses
+  // dépendances : quand un rôle arrivait APRÈS un rebond vers role-select
+  // (attribution de rôle post-inscription sociale), l'effet ne se rejouait
+  // jamais et l'écran restait bloqué. Sérialisé en chaîne car `user.roles` est
+  // un nouveau tableau à chaque setUser().
+  const rolesKey          = (user?.roles ?? []).join(',');
 
   useEffect(() => {
     if (isBooting) return;
@@ -170,7 +176,7 @@ function RootLayoutNav() {
         }
       }
     }
-  }, [userId, isBooting, segmentKey, hasToken, profileIncomplete]);
+  }, [userId, isBooting, segmentKey, hasToken, profileIncomplete, rolesKey]);
 
   if (isBooting) {
     return (

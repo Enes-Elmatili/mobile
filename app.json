@@ -9,7 +9,8 @@
     "scheme": [
       "fixed",
       "exp+fixed-app",
-      "com.googleusercontent.apps.710118047947-0707kj90f8bijv76pi8obqis2agmp69d"
+      "com.googleusercontent.apps.710118047947-0707kj90f8bijv76pi8obqis2agmp69d",
+      "app.thefixed.client"
     ],
     "updates": {
       "fallbackToCacheTimeout": 0
@@ -41,6 +42,12 @@
         "backgroundImage": "./assets/app-icons-android/adaptive-icon-background.png"
       },
       "package": "app.thefixed.client",
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s"
+        }
+      },
       "intentFilters": [
         {
           "action": "VIEW",
@@ -93,8 +100,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/app-icons-ios/app-icon-1024x1024.png",
-          "color": "#000000",
+          "icon": "./assets/app-icons-android/notification-icon.png",
+          "color": "#15C16E",
           "sounds": [],
           "iosDisplayInForeground": true
         }

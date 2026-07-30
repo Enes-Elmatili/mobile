@@ -8,6 +8,11 @@
 //     - subscriptionsEnabled=true  → la section TierUpgradeSection (paliers + CTA Stripe)
 //       se rend EN PLUS — code présent mais CONDITIONNEL. Passer SUBSCRIPTIONS_ENABLED=true
 //       côté serveur suffit à la faire apparaître, sans republier l'app.
+//
+// EXCEPTION ANDROID (cf. PURCHASE_UI_BLOCKED plus bas) : le flag serveur est global, donc
+// l'activer un jour exposerait d'un coup un paiement Stripe hors Google Play Billing dans
+// le binaire Play — motif de suspension si Google requalifie l'abonnement en contenu
+// numérique. Android est donc verrouillé côté client, indépendamment du serveur.
 //   GET /subscriptions/me → plan courant + promoZeroMissionsRemaining (offre 0%).
 //   GET /tiers → données d'affichage des paliers (zéro grille en dur).
 //
@@ -28,6 +33,14 @@ import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEURCents } from '@/lib/format';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
+
+// Google Play impose Play Billing pour tout ce qui peut être lu comme du contenu ou une
+// fonctionnalité numérique, et interdit même de renvoyer vers un paiement tiers. Les
+// missions passent par Stripe sans problème (services rendus dans le monde réel), mais
+// les paliers d'abonnement sont la zone grise : ils restent donc invisibles et
+// inachetables sur Android, quoi que réponde /subscriptions/config. À lever seulement
+// le jour où les paliers passent par Google Play Billing.
+const PURCHASE_UI_BLOCKED = Platform.OS === 'android';
 
 const A165 = { start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 } };
 const A180 = { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
@@ -265,6 +278,9 @@ export default function FormulesScreen() {
   // le palier ACTIF (asynchrone) → on rafraîchit /subscriptions/me + /tiers.
   const handleChoose = useCallback(async (tier: string) => {
     if (choosingTier) return;
+    // Défense en profondeur : la carte d'achat ne se rend jamais sur Android, mais aucun
+    // PaymentSheet ne doit pouvoir partir de là même si un rendu inattendu l'exposait.
+    if (PURCHASE_UI_BLOCKED) return;
     setChoosingTier(tier);
     try {
       const res: any = await api.subscription.createSubscription(tier);
@@ -294,7 +310,7 @@ export default function FormulesScreen() {
     }
   }, [choosingTier, load, initPaymentSheet, presentPaymentSheet, t]);
 
-  const subscriptionsEnabled = config?.subscriptionsEnabled ?? false;
+  const subscriptionsEnabled = (config?.subscriptionsEnabled ?? false) && !PURCHASE_UI_BLOCKED;
   const currentTierKey = me?.tier ?? 'DECOUVERTE';
   const currentTier = tiers.find((x) => x.tier === currentTierKey) ?? DECOUVERTE_FALLBACK;
   const promoRemaining = me?.promoZeroMissionsRemaining ?? 0;

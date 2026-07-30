@@ -97,6 +97,13 @@ export default function ScheduledConfirmation() {
       const isStillFuture = r.preferredTimeStart && new Date(r.preferredTimeStart).getTime() > Date.now();
 
       // ── Routage par statut ──
+      // Paiement jamais finalisé (PaymentSheet abandonnée) → reprise du paiement.
+      // Sans ce garde, le récap affirme que la demande est visible des prestataires
+      // alors qu'elle ne sera publiée qu'au webhook Stripe.
+      if (status === 'PENDING_PAYMENT') {
+        router.replace({ pathname: '/request/[id]/resume-payment', params: { id } });
+        return;
+      }
       // Un prestataire a envoyé un devis → écran de revue de devis.
       if (status === 'QUOTE_SENT') {
         router.replace({ pathname: '/request/[id]/quote-review', params: { id } });

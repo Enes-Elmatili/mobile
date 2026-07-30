@@ -553,7 +553,18 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
               borderBottomColor: 'rgba(0,0,0,0.18)',
               overflow: 'hidden',
             },
-            disabled && [cta.btnDisabled, { opacity: 0.4 }],
+            // Désactivé : surface plate + label lisible. Surtout PAS d'opacité
+            // globale — en React Native elle s'applique à TOUT le sous-arbre, donc
+            // elle atténuait le fond et le texte ensemble et les faisait converger
+            // vers le même gris : le libellé du CTA devenait illisible.
+            disabled && [
+              cta.btnDisabled,
+              {
+                backgroundColor: t.surfaceAlt,
+                borderTopColor: 'transparent',
+                borderBottomColor: 'transparent',
+              },
+            ],
           ]}
           accessibilityLabel={label}
           accessibilityRole="button"
@@ -581,13 +592,13 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
             <ActivityIndicator color={t.accentText as string} />
           ) : (
             <View style={cta.inner}>
-              <Text style={[cta.label, { color: t.accentText }, disabled && [cta.labelDisabled, { color: t.textMuted }], labelStyle]}>{label}</Text>
+              <Text style={[cta.label, { color: t.accentText }, disabled && [cta.labelDisabled, { color: t.textSub }], labelStyle]}>{label}</Text>
               {price !== undefined && price > 0 ? (
                 <View style={cta.priceBadge}>
                   <Text style={[cta.priceText, { color: t.accentText }]}>{price} €</Text>
                 </View>
               ) : (
-                <Feather name="arrow-right" size={20} color={disabled ? t.textMuted as string : t.accentText as string} />
+                <Feather name="arrow-right" size={20} color={disabled ? t.textSub as string : t.accentText as string} />
               )}
             </View>
           )}

@@ -108,7 +108,7 @@ export default function RoleSelect() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const dot = theme.brandDot;
-  const { user, signIn } = useAuth();
+  const { user, signIn, refreshMe } = useAuth();
   // Pré-sélection possible via param (ex. lien « Vous êtes un pro ? » du welcome)
   const params = useLocalSearchParams<{ role?: string }>();
   const initialRole: "CLIENT" | "PROVIDER" | null =
@@ -156,7 +156,17 @@ export default function RoleSelect() {
       setSubmitting(true);
       try {
         const res = await api.auth.assignRole(selected);
-        if (res?.token) await signIn(res.token, res.missingFields ?? []);
+        if (res?.token) {
+          await signIn(res.token, res.missingFields ?? []);
+          // signIn() ne fait qu'écrire le token : le rafraîchissement de
+          // /auth/me part ensuite dans un effet, de façon asynchrone. Naviguer
+          // sans l'attendre laissait `user.roles` vide au moment où le gate de
+          // app/_layout.tsx s'exécutait, et celui-ci renvoyait aussitôt sur
+          // role-select — écran figé, puisqu'un second essai se heurte au 400
+          // « L'utilisateur a déjà un rôle ».
+          // login.tsx et signup.tsx attendent déjà refreshMe() ici.
+          await refreshMe();
+        }
         // Navigation explicite pour les DEUX rôles — on ne dépend plus de la
         // chaîne implicite refreshMe → redirect (spinner infini si res.token absent).
         if (selected === "PROVIDER") {

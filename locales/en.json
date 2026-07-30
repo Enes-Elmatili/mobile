@@ -405,6 +405,7 @@
     "quote_action_waiting": "Waiting for provider",
     "badge_quote": "QUOTE",
     "badge_scheduled": "SCHEDULED",
+    "badge_payment_pending": "PAYMENT PENDING",
     "confirmed": "Confirmed",
     "tomorrow": "Tomorrow",
     "hero_title": "Need a pro?",
