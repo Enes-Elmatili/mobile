@@ -212,11 +212,21 @@ function RootLayoutNav() {
 // ── Error Boundary global ──────────────────────────────────────────────────
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; detail: string | null }
 > {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) {
+  state = { hasError: false, detail: null as string | null };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, detail: error?.message ? String(error.message) : String(error) };
+  }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Sans ce captureException, React absorbe l'erreur : Sentry ne voit JAMAIS les
+    // crashs de rendu en production (le console.error ci-dessous est mort hors __DEV__).
+    Sentry.captureException(error, {
+      extra: { componentStack: errorInfo?.componentStack },
+      tags: { boundary: 'app-root' },
+    });
+    const stack = (errorInfo?.componentStack || '').trim().split('\n').slice(0, 3).join('\n').trim();
+    if (stack) this.setState((prev) => ({ detail: `${prev.detail || ''}\n${stack}`.trim() }));
     if (__DEV__) console.error('AppErrorBoundary caught:', error);
   }
   render() {
@@ -229,8 +239,18 @@ class AppErrorBoundary extends React.Component<
           <Text style={{ fontSize: 14, color: t.textSub, textAlign: 'center', marginBottom: 24 }}>
             {i18n.t('ext.error_boundary_msg')}
           </Text>
+          {/* DIAGNOSTIC — retirer une fois le bug tracking Android identifié.
+              Le captureException ci-dessus, lui, reste. */}
+          {this.state.detail ? (
+            <Text
+              selectable
+              style={{ fontSize: 11, lineHeight: 15, fontFamily: FONTS.mono, color: t.textSub, textAlign: 'center', marginBottom: 24 }}
+            >
+              {this.state.detail}
+            </Text>
+          ) : null}
           <TouchableOpacity
-            onPress={() => this.setState({ hasError: false })}
+            onPress={() => this.setState({ hasError: false, detail: null })}
             style={{ backgroundColor: t.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
             <Text style={{ color: t.accentText, fontFamily: FONTS.sansMedium }}>{i18n.t('common.retry')}</Text>
