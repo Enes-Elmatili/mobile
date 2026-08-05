@@ -622,27 +622,18 @@ export default function MissionOngoing() {
   };
 
   // ─── Computed ─────────────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <View style={[s.loadingWrap, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
-        <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={[s.loadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('common.loading')}</Text>
-      </View>
-    );
-  }
-
-  if (!request) return null;
+  // NB : les guards `loading` / `!request` sont plus bas, APRÈS le useEffect du
+  // focus PIN. Un early return avant un hook = "Rendered more hooks than during
+  // the previous render" (crash ErrorBoundary constaté en prod Android, build 8).
 
   const clientLoc = { latitude: request?.lat || 50.8503, longitude: request?.lng || 4.3517 };
   const mapRegion = myLocation
     ? { ...myLocation, latitudeDelta: 0.04, longitudeDelta: 0.04 }
     : { ...clientLoc, latitudeDelta: 0.04, longitudeDelta: 0.04 };
-  const status = (request.status || '').toUpperCase();
+  const status = (request?.status || '').toUpperCase();
 
   // Is this a quote/diagnostic mission?
-  const isQuoteMission = request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
+  const isQuoteMission = request?.pricingMode === 'estimate' || request?.pricingMode === 'diagnostic';
   const totalSteps = isQuoteMission ? 4 : 3;
 
   // Current step — prix fixe: 3 étapes / devis: 4 étapes
@@ -666,6 +657,20 @@ export default function MissionOngoing() {
     return () => task.cancel();
   }, [currentStep]);
   const stepInfo = { title: t(stepInfoRaw.i18nKey), icon: stepInfoRaw.icon };
+
+  // ─── Guards — après TOUS les hooks (cf. commentaire du bloc Computed) ─────
+
+  if (loading) {
+    return (
+      <View style={[s.loadingWrap, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <ActivityIndicator size="large" color={theme.accent} />
+        <Text style={[s.loadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('common.loading')}</Text>
+      </View>
+    );
+  }
+
+  if (!request) return null;
 
   // ═════════════════════════════════════════════════════════════════════════
   // RENDER
