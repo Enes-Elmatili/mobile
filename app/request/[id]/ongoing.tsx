@@ -813,10 +813,11 @@ export default function MissionOngoing() {
           il reste dessiné mais ne reçoit plus les touches (clip du hit-test sur
           les deux OS) → bouton « Vérifier » mort dès que le clavier est ouvert.
           "padding" fait grandir la boîte vers le haut : le contenu reste dedans.
-          Android : undefined — adjustResize redimensionne déjà la fenêtre, donc
-          bottom:0 est déjà au-dessus du clavier (sinon double compensation). */}
+          Pas de garde Platform : tout le reste de l'app est en "padding" sur les
+          deux OS depuis le pass Android edge-to-edge (targetSdk 35+ n'honore plus
+          adjustResize, donc Android a besoin d'une compensation explicite). */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         style={s.sheetWrapper}
       >
         <View style={[s.sheet, {
