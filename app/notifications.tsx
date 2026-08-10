@@ -67,6 +67,7 @@ function NotifRow({
   onDelete: (id: string) => void;
 }) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const icon = notifIcon(item.type);
   const isUnread = !item.readAt;
 
@@ -116,6 +117,8 @@ function NotifRow({
         onPress={() => onDelete(item.id)}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         style={s.deleteBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.delete')}
       >
         <Feather name="x" size={16} color={theme.textMuted} />
       </TouchableOpacity>
@@ -203,12 +206,14 @@ export default function NotificationsScreen() {
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
 
         <View style={s.headerCenter}>
-          <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('notifications.title')}</Text>
+          <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('notifications.title')}</Text>
           {unreadCount > 0 && (
             <View style={[s.headerBadge, { backgroundColor: theme.accent }]}>
               <Text style={[s.headerBadgeText, { color: theme.accentText, fontFamily: FONTS.monoMedium }]}>{unreadCount}</Text>
@@ -243,7 +248,7 @@ export default function NotificationsScreen() {
             <View style={[s.emptyIcon, { backgroundColor: theme.surface }]}>
               <Feather name="bell-off" size={36} color={theme.textMuted} />
             </View>
-            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.bebas }]}>{t('notifications.empty_title')}</Text>
+            <Text style={[s.emptyTitle, { color: theme.textSub, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('notifications.empty_title')}</Text>
             <Text style={[s.emptySubtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               {t('notifications.empty_subtitle')}
             </Text>

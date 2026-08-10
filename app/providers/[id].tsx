@@ -84,7 +84,7 @@ function ReviewCard({ review }: { review: Review }) {
           <Text style={[rv.avatarText, { color: theme.heroText, fontFamily: FONTS.sansMedium }]}>{initials}</Text>
         </View>
         <View style={{ flex: 1, gap: 3 }}>
-          <Text style={[rv.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{clientName}</Text>
+          <Text style={[rv.name, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{clientName}</Text>
           <Stars rating={review.rating} size={12} />
         </View>
         <Text style={[rv.date, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{timeAgo(review.createdAt)}</Text>
@@ -270,7 +270,7 @@ export default function ProviderDetailScreen() {
               <Image source={{ uri: avatarUri }} style={[s.avatarImg, { borderColor: theme.borderLight }]} />
             ) : (
               <View style={[s.avatarWrap, { backgroundColor: theme.heroBg }]}>
-                <Text style={[s.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{initials}</Text>
+                <Text style={[s.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{initials}</Text>
               </View>
             )}
             {isVerified && (
@@ -286,7 +286,7 @@ export default function ProviderDetailScreen() {
           </View>
 
           {/* Name — Bebas 34px centered */}
-          <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{providerName}</Text>
+          <Text style={[s.name, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{providerName}</Text>
 
           {/* Subtitle — mono 11px, textMuted, letterSpacing 1 */}
           {subtitleText.length > 0 && (
@@ -310,7 +310,7 @@ export default function ProviderDetailScreen() {
             {provider.languages?.length > 0 && (
               <View style={[s.badge, { backgroundColor: theme.surface }]}>
                 <Feather name="globe" size={11} color={theme.textSub} />
-                <Text style={[s.badgeText, { color: theme.textSub, fontFamily: FONTS.mono }]}>{provider.languages.join(', ').toUpperCase()}</Text>
+                <Text style={[s.badgeText, { color: theme.textSub, fontFamily: FONTS.mono, flexShrink: 1 }]} numberOfLines={1}>{provider.languages.join(', ').toUpperCase()}</Text>
               </View>
             )}
           </View>
@@ -325,7 +325,7 @@ export default function ProviderDetailScreen() {
                 <View style={s.stat}>
                   <Text style={[s.statLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{item.label}</Text>
                   <View style={s.statValueRow}>
-                    <Text style={[s.statValue, { color: theme.text, fontFamily: FONTS.bebas }]}>{item.value}</Text>
+                    <Text style={[s.statValue, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{item.value}</Text>
                     {item.unit ? (
                       <Text style={[s.statUnit, { color: theme.textSub, fontFamily: FONTS.mono }]}>{item.unit}</Text>
                     ) : null}
@@ -421,7 +421,7 @@ export default function ProviderDetailScreen() {
             <ActivityIndicator color={theme.accentText} />
           ) : (
             <>
-              <Text style={[s.ctaText, { color: theme.accentText, fontFamily: FONTS.bebas }]}>
+              <Text style={[s.ctaText, { color: theme.accentText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
                 Demander {firstName}
               </Text>
               <Feather name="arrow-right" size={18} color={theme.accentText} />
@@ -431,13 +431,13 @@ export default function ProviderDetailScreen() {
       </View>
 
       {/* Modal — provider BUSY/OFFLINE */}
-      <Modal visible={busyModal} transparent animationType="fade" onRequestClose={() => setBusyModal(false)}>
+      <Modal visible={busyModal} transparent animationType="fade" onRequestClose={() => setBusyModal(false)} statusBarTranslucent navigationBarTranslucent>
         <Pressable style={s.modalBackdrop} onPress={() => setBusyModal(false)}>
           <Pressable style={[s.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={(e) => e.stopPropagation()}>
             <View style={[s.modalIconCircle, { backgroundColor: theme.surface }]}>
               <Feather name="clock" size={24} color={theme.textSub} />
             </View>
-            <Text style={[s.modalTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>
+            <Text style={[s.modalTitle, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
               {firstName} n’est pas dispo
             </Text>
             <Text style={[s.modalBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>

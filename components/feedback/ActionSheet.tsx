@@ -3,6 +3,7 @@ import { Text, StyleSheet, TouchableOpacity, Dimensions, View } from 'react-nati
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
 
 export function ActionSheet() {
@@ -22,6 +23,9 @@ export function ActionSheet() {
     (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />,
     [],
   );
+
+  const closeSheet = useCallback(() => { ref.current?.close(); }, []);
+  useAndroidBackClose(!!sheet, closeSheet);
 
   if (!sheet) return null;
 

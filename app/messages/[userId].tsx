@@ -462,7 +462,7 @@ export default function ConversationScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + headerHeight : 0}
       >
         {loading ? (
@@ -576,7 +576,7 @@ const s = StyleSheet.create({
   },
   headerTitle: {
     textAlign: 'center',
-    fontSize: 17, fontFamily: FONTS.bebas, letterSpacing: 0.5,
+    fontSize: 17, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5,
   },
   typingLabel: {
     fontSize: 11, fontFamily: FONTS.sans, marginTop: 1,
@@ -653,7 +653,7 @@ const b = StyleSheet.create({
     marginTop: 1, marginRight: 4,
   },
   typingDots: {
-    fontSize: 18, fontWeight: '700', letterSpacing: 2,
+    fontSize: 18, fontFamily: FONTS.sansBold, letterSpacing: 2,
   },
   failedHint: {
     textAlign: 'right', fontSize: 11, fontFamily: FONTS.sans,

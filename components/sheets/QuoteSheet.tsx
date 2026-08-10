@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { formatEURCents as fmtEur } from '@/lib/format';
@@ -32,6 +33,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
   const router = useRouter();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  useAndroidBackClose(isVisible, onClose);
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
 
   const [quote, setQuote] = useState<any>(null);
@@ -112,7 +114,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
           </View>
           <View style={qs.headerRight}>
             <Text style={[qs.quoteLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('quote.doc_label')}</Text>
-            <Text style={[qs.quoteRef, { color: textPrimary, fontFamily: FONTS.bebas }]}>{quoteRef}</Text>
+            <Text style={[qs.quoteRef, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{quoteRef}</Text>
           </View>
         </View>
 
@@ -182,7 +184,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
               <View style={qs.lineRow}>
                 <Text style={[qs.totalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>{t('missions.quote_total')}</Text>
-                <Text style={[qs.totalVal, { color: textPrimary, fontFamily: FONTS.bebas }]}>{fmtEur(quote.totalAmount)}</Text>
+                <Text style={[qs.totalVal, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{fmtEur(quote.totalAmount)}</Text>
               </View>
 
               {quote.calloutPaid > 0 && (
@@ -196,7 +198,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
               <View style={qs.lineRow}>
                 <Text style={[qs.totalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>{t('quote.remaining_to_pay')}</Text>
-                <Text style={[qs.remainVal, { color: textPrimary, fontFamily: FONTS.bebas }]}>{fmtEur(quote.remainingAmount)}</Text>
+                <Text style={[qs.remainVal, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{fmtEur(quote.remainingAmount)}</Text>
               </View>
 
               {/* Notes */}

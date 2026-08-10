@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, Animated, Easing, ScrollView,
+  TouchableOpacity, Animated, Easing, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -175,7 +175,7 @@ function MissionContextCard({ mission, onChange, theme }: {
             {t('ext.support_not_linked')}
           </Text>
         </View>
-        <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.edit')}>
           <Feather name="edit-2" size={14} color={theme.textMuted} />
         </TouchableOpacity>
       </View>
@@ -195,7 +195,7 @@ function MissionContextCard({ mission, onChange, theme }: {
           #{mission.id} · {date}
         </Text>
       </View>
-      <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.edit')}>
         <Feather name="edit-2" size={14} color={theme.textMuted} />
       </TouchableOpacity>
     </View>
@@ -222,6 +222,9 @@ export default function SupportScreen() {
   const { user } = useAuth();
   const theme = useAppTheme();
   const { t } = useTranslation();
+  // Le même écran sert aux deux rôles : GET /requests renvoie déjà les missions
+  // du prestataire, seuls le catalogue de problèmes et l'empty state changent.
+  const isProvider = !!user?.roles?.includes('PROVIDER');
 
   const [level, setLevel] = useState<Level>(1);
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -313,6 +316,8 @@ export default function SupportScreen() {
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
@@ -320,7 +325,7 @@ export default function SupportScreen() {
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
             {t('ext.support_center')}
           </Text>
-          <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas }]}>
+          <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {t('ext.support_title')}
           </Text>
         </View>
@@ -333,6 +338,7 @@ export default function SupportScreen() {
         {subtitle}
       </Text>
 
+      <KeyboardAvoidingView style={s.scroll} behavior="padding">
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
@@ -358,7 +364,7 @@ export default function SupportScreen() {
               >
                 <Feather name="alert-triangle" size={15} color={theme.textSub} />
                 <Text style={[s.errorBannerText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                  Impossible de charger vos missions. Appuyez pour réessayer.
+                  {t('ext.support_load_error')}
                 </Text>
                 <Feather name="refresh-cw" size={14} color={theme.textMuted} />
               </TouchableOpacity>
@@ -368,6 +374,7 @@ export default function SupportScreen() {
               loading={loading}
               onSelect={handleMissionSelect}
               onOther={handleOther}
+              isProvider={isProvider}
             />
           </FadeSlide>
         )}
@@ -377,6 +384,7 @@ export default function SupportScreen() {
             <ProblemSelector
               missionStatus={missionStatus}
               onSelect={handleProblemSelect}
+              isProvider={isProvider}
             />
           </FadeSlide>
         )}
@@ -394,6 +402,7 @@ export default function SupportScreen() {
           </FadeSlide>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

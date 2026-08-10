@@ -391,7 +391,7 @@ const sc = StyleSheet.create({
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, minWidth: 70, alignItems: 'center' as const },
   pillText: { fontSize: 11, fontFamily: FONTS.sansMedium },
-  priceSmall: { fontSize: 12, fontFamily: FONTS.bebas },
+  priceSmall: { fontSize: 12, fontFamily: FONTS.bebas, includeFontPadding: false },
 });
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
@@ -467,7 +467,7 @@ function DayChip({ day, date, month, selected, onPress }: {
 const dc = StyleSheet.create({
   wrap:      { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, minWidth: 52, gap: 2 },
   day:       { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, fontFamily: FONTS.sansMedium },
-  date:      { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.bebas },
+  date:      { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.bebas, includeFontPadding: false },
   month:     { fontSize: 10, fontFamily: FONTS.sans },
   underline: { height: 2.5, borderRadius: 2, marginTop: 4, alignSelf: 'center' },
 });
@@ -616,7 +616,7 @@ const cta = StyleSheet.create({
   label:         { fontSize: 17, fontFamily: FONTS.sansMedium, textAlign: 'center', flex: 1 },
   labelDisabled: {},
   priceBadge:    { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
-  priceText:     { fontSize: 15, fontFamily: FONTS.bebas },
+  priceText:     { fontSize: 15, fontFamily: FONTS.bebas, includeFontPadding: false },
 });
 
 // ─── Helpers date ──────────────────────────────────────────────────────────────
@@ -658,7 +658,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
         <Pressable onPress={() => {}}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24 }]}>
@@ -704,7 +704,7 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
             </View>
 
             <TouchableOpacity style={[dim.closeBtn, { backgroundColor: theme.accent }]} onPress={onClose} activeOpacity={0.85} accessibilityRole="button">
-              <Text style={[dim.closeBtnText, { color: theme.accentText, fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 }]}>{t('stepper.understood')}</Text>
+              <Text style={[dim.closeBtnText, { color: theme.accentText, fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 2 }]}>{t('stepper.understood')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -732,9 +732,9 @@ function PromoSheet({
   const canApply = code.trim().length >= 3 && !applying;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView behavior="padding">
         <Pressable onPress={() => {}}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24, paddingHorizontal: 24 }]}>
             <View style={dim.titleRow}>
@@ -775,7 +775,7 @@ function PromoSheet({
               {applying ? (
                 <ActivityIndicator color={theme.accentText as string} />
               ) : (
-                <Text style={{ color: (canApply ? theme.accentText : theme.textMuted) as string, fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 }}>
+                <Text style={{ color: (canApply ? theme.accentText : theme.textMuted) as string, fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 2 }}>
                   {t('stepper.promo_apply') || 'APPLIQUER'}
                 </Text>
               )}
@@ -908,7 +908,7 @@ function AmountCardB({
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-        <Text style={{ fontFamily: FONTS.bebas, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText }}>
+        <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText }}>
           {euros}<Text style={{ fontSize: 26, color: theme.heroSub }}> €</Text>
         </Text>
         {original ? (
@@ -1854,6 +1854,8 @@ export default function NewRequestStepper() {
                       onPress={() => setShowSaveSheet(true)}
                       activeOpacity={0.7}
                       style={{ padding: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.save')}
                     >
                       <Feather name="plus-circle" size={18} color={theme.textMuted as string} />
                     </TouchableOpacity>
@@ -1947,7 +1949,7 @@ export default function NewRequestStepper() {
             backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 100,
           }}>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowSaveSheet(false)} activeOpacity={1} />
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <KeyboardAvoidingView behavior="padding">
             <View style={{
               backgroundColor: theme.card as string, borderTopLeftRadius: 28, borderTopRightRadius: 28,
               paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40,
@@ -1957,7 +1959,7 @@ export default function NewRequestStepper() {
               <View style={{ width: 40, height: 4, backgroundColor: theme.sep as string, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
 
               {/* Title */}
-              <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text as string, letterSpacing: 1, marginBottom: 6 }}>
+              <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text as string, letterSpacing: 1, marginBottom: 6 }}>
                 {t('stepper.name_this_address')}
               </Text>
               <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textMuted as string, marginBottom: 20 }} numberOfLines={1}>
@@ -2042,7 +2044,7 @@ export default function NewRequestStepper() {
 
         {/* ══ ÉTAPE 2 — Service ══ */}
         {step === 2 && (
-          <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+          <KeyboardAvoidingView style={s.flex} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
             <View style={s.flex}>
             <ScrollView ref={step2ScrollRef} style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={[s.step2Title, { color: theme.text }]}>{t('stepper.what_do_you_need')}</Text>
@@ -2563,7 +2565,7 @@ export default function NewRequestStepper() {
 
               {/* ── RÉCAPITULATIF (tuiles-icônes · Direction B) ── */}
               <View>
-                <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>{t('stepper.recap_title')}</Text>
+                <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>{t('stepper.recap_title')}</Text>
                 <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
                   <RecapTile
                     theme={theme}
@@ -2701,7 +2703,7 @@ const s = StyleSheet.create({
 
   scrollPad: { paddingHorizontal: 24, paddingTop: 28 },
 
-  title:    { fontSize: 28, marginBottom: 6, letterSpacing: 0.5, fontFamily: FONTS.bebas },
+  title:    { fontSize: 28, marginBottom: 6, letterSpacing: 0.5, fontFamily: FONTS.bebas, includeFontPadding: false },
   subtitle: { fontSize: 15, marginBottom: 28, fontFamily: FONTS.sans },
 
   loadWrap: { paddingVertical: 60, alignItems: 'center', gap: 14 },
@@ -2709,7 +2711,7 @@ const s = StyleSheet.create({
 
   // Step 2
   step2Pad:   { paddingHorizontal: 12, paddingTop: 16 },
-  step2Title: { fontSize: 22, letterSpacing: 0.5, marginBottom: 22, fontFamily: FONTS.bebas },
+  step2Title: { fontSize: 22, letterSpacing: 0.5, marginBottom: 22, fontFamily: FONTS.bebas, includeFontPadding: false },
   catList:    { marginBottom: 4 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
@@ -2724,7 +2726,7 @@ const s = StyleSheet.create({
   priceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingHorizontal: 4 },
   priceRowLabel:  { fontSize: 13, fontFamily: FONTS.sansMedium },
   priceRowRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceRowValue:  { fontSize: 22, letterSpacing: 0.3, fontFamily: FONTS.bebas },
+  priceRowValue:  { fontSize: 22, letterSpacing: 0.3, fontFamily: FONTS.bebas, includeFontPadding: false },
   priceRowBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   priceRowSub:    { fontSize: 11, fontFamily: FONTS.sans },
 
@@ -2794,8 +2796,8 @@ const s = StyleSheet.create({
   v4PriceVal:   { fontSize: 10, fontFamily: FONTS.mono },
   v4PriceSep:   { height: StyleSheet.hairlineWidth, marginVertical: 1, opacity: 0.3 },
   v4Total:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
-  v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
-  v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas },
+  v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas, includeFontPadding: false },
+  v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas, includeFontPadding: false },
   v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
   v4QuoteInfoTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   v4QuoteInfoDesc:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },

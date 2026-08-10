@@ -114,7 +114,7 @@ const pc = StyleSheet.create({
   info:  { flex: 1, gap: 2 },
   name:  { fontSize: 14 },
   subRow:{ flexDirection: 'row', alignItems: 'center' },
-  sub:   { fontSize: 12 },
+  sub:   { fontSize: 12, flexShrink: 1 },
   dist:  { fontSize: 12, marginRight: 4 },
 });
 
@@ -188,7 +188,7 @@ export default function ExploreScreen() {
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="map-pin" size={52} color={theme.textDisabled} />
-        <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('explore.location_error')}</Text>
+        <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.location_error')}</Text>
         <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.explore_location_denied_sub')}</Text>
         <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
@@ -205,10 +205,10 @@ export default function ExploreScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7}>
+        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('explore.title')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.title')}</Text>
         <View style={s.headerCount}>
           {!loading && (
             <Text style={[s.headerCountText, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{providers.length} disponibles</Text>
@@ -293,7 +293,7 @@ export default function ExploreScreen() {
             <Text style={[s.calloutAvatarText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{initials(cleanName(selectedProvider.name, { fallback: 'Prestataire' }))}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.calloutName, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{cleanName(selectedProvider.name, { fallback: 'Prestataire' })}</Text>
+            <Text style={[s.calloutName, { fontFamily: FONTS.sansMedium, color: theme.heroText }]} numberOfLines={1}>{cleanName(selectedProvider.name, { fallback: 'Prestataire' })}</Text>
             <Text style={[s.calloutSub, { color: theme.heroSub }]}>
               {selectedProvider.categories?.[0]?.name ?? selectedProvider.city ?? ''}
             </Text>

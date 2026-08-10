@@ -8,13 +8,13 @@
 
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Platform, StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, alpha } from '@/hooks/use-app-theme';
 
 // Hauteur du CONTENU de la tab bar (icône + label), hors inset bas du device.
 // La hauteur réelle rendue = TAB_BAR_HEIGHT + max(insets.bottom, TAB_PB).
@@ -32,9 +32,17 @@ export function useTabBarPadding(extra: number = 24): number {
 function TabBarBackground() {
   const theme = useAppTheme();
 
+  // Android : expo-blur ne produit pas de vrai flou (simple teinte translucide) —
+  // le contenu resterait lisible à travers la tab bar. Fond quasi opaque à la place.
+  if (Platform.OS === 'android') {
+    return (
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(theme.bg, 0.98) }]} />
+    );
+  }
+
   return (
     <BlurView
-      intensity={Platform.OS === 'ios' ? 55 : 40}
+      intensity={55}
       tint={theme.isDark ? 'dark' : 'light'}
       style={StyleSheet.absoluteFill}
     />

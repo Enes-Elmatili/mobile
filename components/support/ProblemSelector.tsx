@@ -24,6 +24,8 @@ export interface ProblemOption {
 interface ProblemSelectorProps {
   missionStatus: string | null;
   onSelect: (problem: ProblemOption) => void;
+  /** Catalogue prestataire (client injoignable, versement, litige…) au lieu du catalogue client. */
+  isProvider?: boolean;
 }
 
 type ProblemDef = { id: string; labelKey: string; hintKey: string; icon: string; severity: Severity; resolutionKey: string };
@@ -60,6 +62,48 @@ function mapStatusToKey(status: string | null): keyof typeof PROBLEMS_BY_STATUS 
   return 'OTHER';
 }
 
+// ─── Catalogue PRESTATAIRE ───────────────────────────────────────────────────
+// Le centre d'aide était 100% orienté client (« prestataire en retard »,
+// « travail insatisfaisant »…) alors que les prestataires passent par le même
+// écran. Mêmes mécaniques de résolution (low/medium/high), problèmes adaptés :
+// client injoignable, PIN, versements, litiges, désengagement.
+
+const PROVIDER_PROBLEMS_BY_STATUS: Record<string, ProblemDef[]> = {
+  UPCOMING: [
+    { id: 'p_client_unreachable', labelKey: 'ext.support_p_label_unreachable', hintKey: 'ext.support_p_hint_unreachable', icon: 'phone-off', severity: 'medium', resolutionKey: 'ext.support_p_resolution_unreachable' },
+    { id: 'p_address_issue',      labelKey: 'ext.support_p_label_address',     hintKey: 'ext.support_p_hint_address',     icon: 'map-pin', severity: 'medium', resolutionKey: 'ext.support_p_resolution_address' },
+    { id: 'p_running_late',       labelKey: 'ext.support_p_label_late',        hintKey: 'ext.support_p_hint_late',        icon: 'clock', severity: 'low', resolutionKey: 'ext.support_p_resolution_late' },
+    { id: 'p_pin_issue',          labelKey: 'ext.support_p_label_pin',         hintKey: 'ext.support_p_hint_pin',         icon: 'key', severity: 'medium', resolutionKey: 'ext.support_p_resolution_pin' },
+    { id: 'p_must_abandon',       labelKey: 'ext.support_p_label_abandon',     hintKey: 'ext.support_p_hint_abandon',     icon: 'x-circle', severity: 'medium', resolutionKey: 'ext.support_p_resolution_abandon' },
+  ],
+  IN_PROGRESS: [
+    { id: 'p_safety',          labelKey: 'ext.support_p_label_safety',   hintKey: 'ext.support_p_hint_safety',   icon: 'shield', severity: 'high', resolutionKey: 'ext.support_p_resolution_safety' },
+    { id: 'p_scope_bigger',    labelKey: 'ext.support_p_label_scope',    hintKey: 'ext.support_p_hint_scope',    icon: 'tool', severity: 'medium', resolutionKey: 'ext.support_p_resolution_scope' },
+    { id: 'p_cannot_complete', labelKey: 'ext.support_p_label_blocked',  hintKey: 'ext.support_p_hint_blocked',  icon: 'minus-circle', severity: 'medium', resolutionKey: 'ext.support_p_resolution_blocked' },
+  ],
+  COMPLETED: [
+    { id: 'p_payout_missing',      labelKey: 'ext.support_p_label_payout',     hintKey: 'ext.support_p_hint_payout',     icon: 'dollar-sign', severity: 'medium', resolutionKey: 'ext.support_p_resolution_payout' },
+    { id: 'p_client_dispute',      labelKey: 'ext.support_p_label_dispute',    hintKey: 'ext.support_p_hint_dispute',    icon: 'alert-triangle', severity: 'high', resolutionKey: 'ext.support_p_resolution_dispute' },
+    { id: 'p_commission_question', labelKey: 'ext.support_p_label_commission', hintKey: 'ext.support_p_hint_commission', icon: 'percent', severity: 'low', resolutionKey: 'ext.support_p_resolution_commission' },
+  ],
+  OTHER: [
+    { id: 'p_account_docs',    labelKey: 'ext.support_p_label_account', hintKey: 'ext.support_p_hint_account', icon: 'user-check', severity: 'medium', resolutionKey: 'ext.support_p_resolution_account' },
+    { id: 'p_wallet_question', labelKey: 'ext.support_p_label_wallet',  hintKey: 'ext.support_p_hint_wallet',  icon: 'credit-card', severity: 'low', resolutionKey: 'ext.support_p_resolution_wallet' },
+    { id: 'p_other',           labelKey: 'ext.support_p_label_other',   hintKey: 'ext.support_p_hint_other',   icon: 'message-circle', severity: 'medium', resolutionKey: 'ext.support_p_resolution_other' },
+  ],
+};
+
+// Statuts vus côté prestataire : le flux devis (QUOTE_*) relève de « mission à
+// venir », pas de « autre » comme côté client.
+function mapProviderStatusToKey(status: string | null): keyof typeof PROVIDER_PROBLEMS_BY_STATUS {
+  if (!status) return 'OTHER';
+  const s = status.toUpperCase();
+  if (['PUBLISHED', 'ACCEPTED', 'QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(s)) return 'UPCOMING';
+  if (s === 'ONGOING') return 'IN_PROGRESS';
+  if (s === 'DONE') return 'COMPLETED';
+  return 'OTHER';
+}
+
 function severityLabel(sev: Severity, t: (k: string) => string) {
   if (sev === 'high') return t('ext.support_sev_high');
   if (sev === 'medium') return t('ext.support_sev_medium');
@@ -72,11 +116,12 @@ function severityColor(sev: Severity, theme: ReturnType<typeof useAppTheme>) {
   return theme.textSub as string;
 }
 
-export default function ProblemSelector({ missionStatus, onSelect }: ProblemSelectorProps) {
+export default function ProblemSelector({ missionStatus, onSelect, isProvider }: ProblemSelectorProps) {
   const theme = useAppTheme();
   const { t } = useTranslation();
-  const key = mapStatusToKey(missionStatus);
-  const defs = PROBLEMS_BY_STATUS[key] || PROBLEMS_BY_STATUS.OTHER;
+  const defs = isProvider
+    ? (PROVIDER_PROBLEMS_BY_STATUS[mapProviderStatusToKey(missionStatus)] || PROVIDER_PROBLEMS_BY_STATUS.OTHER)
+    : (PROBLEMS_BY_STATUS[mapStatusToKey(missionStatus)] || PROBLEMS_BY_STATUS.OTHER);
   const problems: ProblemOption[] = defs.map(d => ({
     id: d.id,
     label: t(d.labelKey),

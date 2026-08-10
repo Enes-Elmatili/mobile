@@ -341,7 +341,7 @@ export default function PendingValidation() {
   if (status === "pending") {
     return (
       <View style={s.root}>
-        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        <StatusBar barStyle="light-content" />
         <GridLines />
         <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
           <LinearGradient
@@ -354,7 +354,7 @@ export default function PendingValidation() {
 
         <KeyboardAvoidingView
           style={s.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         >
         <ScrollView
@@ -464,6 +464,7 @@ export default function PendingValidation() {
                   onPress={handleSaveBio}
                   disabled={bioSaving}
                   activeOpacity={0.8}
+                  hitSlop={{ top: 6, bottom: 6 }}
                 >
                   <Text style={s.bioSaveText}>
                     {bioSaving ? t('common.loading') : t('common.save')}
@@ -521,7 +522,7 @@ export default function PendingValidation() {
   // ── APPROVED / REJECTED / SUSPENDED : layouts centrés ──────────────────────
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="light-content" />
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
         <LinearGradient
@@ -717,7 +718,7 @@ const s = StyleSheet.create({
   },
 
   titleLeft: {
-    fontFamily: FONTS.bebas, fontSize: 38, color: C.white,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 38, color: C.white,
     letterSpacing: 1, lineHeight: 41,
   },
   subtitleLeft: {
@@ -742,7 +743,7 @@ const s = StyleSheet.create({
   },
 
   title: {
-    fontFamily: FONTS.bebas, fontSize: 36, color: C.white,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 36, color: C.white,
     letterSpacing: 1, lineHeight: 40, textAlign: "center",
   },
   titleOutline: { color: C.outlineText },
@@ -834,7 +835,7 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   stripeCtaText: {
-    fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3, color: C.bg,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 3, color: C.bg,
   },
   arrowPill: {
     width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,

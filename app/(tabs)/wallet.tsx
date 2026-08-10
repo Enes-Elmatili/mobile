@@ -6,7 +6,7 @@ import {
   FlatList, ScrollView, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView,
   Platform, RefreshControl, StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTabBarPadding } from './_layout';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -192,6 +192,7 @@ interface WithdrawModalProps {
 
 function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalProps) {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [iban, setIban] = useState('');
@@ -225,13 +226,13 @@ function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalPr
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={wm.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      <KeyboardAvoidingView style={wm.overlay} behavior="padding">
         <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={[wm.sheet, { backgroundColor: theme.cardBg }]}>
+        <View style={[wm.sheet, { backgroundColor: theme.cardBg, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }]}>
           <View style={[wm.handle, { backgroundColor: theme.border }]} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
-          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.wallet_withdraw_title')}</Text>
+          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.wallet_withdraw_title')}</Text>
           <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.wallet_available_balance')} : {fmtEur(fromCents(balance))}</Text>
 
           <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_amount_eur')}</Text>
@@ -584,7 +585,7 @@ export default function WalletTab() {
         <View style={[styles.heroTotalRow, { borderTopColor: 'rgba(255,255,255,0.12)' }]}>
           <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>{tr('ext.wallet_last_payout')}</Text>
           {stripeData?.lastPayout ? (
-            <Text style={[styles.heroTotalValue, { color: t.heroText }]}>
+            <Text style={[styles.heroTotalValue, { color: t.heroText }]} numberOfLines={1}>
               {fmtEur(fromCents(stripeData.lastPayout.amount))}
               {stripeData.lastPayout.arrivalDate ? ` · ${fmtDate(new Date(stripeData.lastPayout.arrivalDate).toISOString())}` : ''}
             </Text>
@@ -700,7 +701,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.mono, fontSize: 10.5, letterSpacing: 1,
     textTransform: 'uppercase', marginBottom: 6,
   },
-  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
   headerIconBtn: {
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
@@ -718,7 +719,7 @@ const styles = StyleSheet.create({
     }),
   },
   heroLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' },
-  heroAmount: { fontSize: 44, fontFamily: FONTS.bebas, letterSpacing: -1.5, marginBottom: 8 },
+  heroAmount: { fontSize: 44, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -1.5, marginBottom: 8 },
 
   heroStats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
   heroStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -730,7 +731,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   heroTotalLabel: { fontSize: 13, fontFamily: FONTS.sansMedium },
-  heroTotalValue: { fontSize: 16, fontFamily: FONTS.monoMedium },
+  heroTotalValue: { fontSize: 16, fontFamily: FONTS.monoMedium, flexShrink: 1, textAlign: 'right' },
 
   payoutNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   payoutNoticeText: { fontSize: 12, fontFamily: FONTS.sans },

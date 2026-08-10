@@ -12,7 +12,6 @@ import {
   Animated,
   Easing,
   ActivityIndicator,
-  InteractionManager,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -107,14 +106,16 @@ export default function VerifyEmail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Focus APRÈS la transition de navigation (et l'anim d'entrée). Un `autoFocus`
-  // ouvrait le clavier pendant que l'écran se posait encore → il apparaissait
-  // puis disparaissait (flicker). runAfterInteractions attend que tout soit stable.
+  // Focus APRÈS la transition de navigation. NE PAS revenir à
+  // InteractionManager.runAfterInteractions : toutes nos anims tournent en
+  // useNativeDriver → RN ne pose aucun interaction handle
+  // (Animation.js: `__isInteraction = config.isInteraction ?? !useNativeDriver`),
+  // donc le callback partait au tick suivant, pendant la transition native-stack :
+  // la fenêtre n'a pas encore le focus IME et showSoftInput() est ignoré en
+  // silence → le clavier ne s'ouvrait jamais.
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      inputRef.current?.focus();
-    });
-    return () => task.cancel();
+    const t = setTimeout(() => inputRef.current?.focus(), 450);
+    return () => clearTimeout(t);
   }, []);
 
   // Shake (erreur de code)
@@ -283,12 +284,12 @@ export default function VerifyEmail() {
 
           {!verified && (
             <>
-              {/* OTP boxes + champ caché */}
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={() => inputRef.current?.focus()}
-                accessibilityLabel={t('auth.ve_a11y')}
-              >
+              {/* OTP boxes + champ transparent PAR-DESSUS. Le tap tombe sur le
+                  TextInput natif, qui ouvre le clavier lui-même : un champ 1x1 en
+                  opacity:0 n'est pas hit-testable (iOS ignore tout ce qui est sous
+                  alpha 0.01) et obligeait à un focus() programmatique, ignoré tant
+                  que la fenêtre n'a pas le focus IME. */}
+              <View style={s.otpWrap}>
                 <Animated.View style={[s.otpRow, { transform: [{ translateX: shakeX }] }]}>
                   {Array.from({ length: CODE_LENGTH }).map((_, i) => {
                     const char = code[i] ?? "";
@@ -321,21 +322,25 @@ export default function VerifyEmail() {
                     );
                   })}
                 </Animated.View>
-              </TouchableOpacity>
-              <TextInput
-                ref={inputRef}
-                value={code}
-                onChangeText={onChangeCode}
-                onFocus={() => setInputFocused(true)}
-                onBlur={() => setInputFocused(false)}
-                keyboardType="number-pad"
-                textContentType="oneTimeCode"
-                autoComplete="one-time-code"
-                maxLength={CODE_LENGTH}
-                caretHidden
-                style={s.hiddenInput}
-                editable={!verified}
-              />
+                <TextInput
+                  ref={inputRef}
+                  value={code}
+                  onChangeText={onChangeCode}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  maxLength={CODE_LENGTH}
+                  caretHidden
+                  contextMenuHidden
+                  selectionColor="transparent"
+                  underlineColorAndroid="transparent"
+                  style={s.otpInput}
+                  editable={!verified}
+                  accessibilityLabel={t('auth.ve_a11y')}
+                />
+              </View>
 
               {/* Erreur */}
               {!!errorMsg && (
@@ -510,7 +515,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
   },
   otpChar: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 28,
     transform: [{ translateY: 1 }],
   },
@@ -518,11 +523,14 @@ const s = StyleSheet.create({
     width: 1.5,
     height: 24,
   },
-  hiddenInput: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    opacity: 0,
+  otpWrap: { position: "relative" },
+  otpInput: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.02,
+    color: "transparent",
+    backgroundColor: "transparent",
+    fontSize: 1,
+    textAlign: "center",
   },
 
   errorRow: {

@@ -228,7 +228,7 @@ export default function ScheduledConfirmation() {
         </Animated.View>
 
         <Animated.View style={[st.content, { opacity: fadeAnim }]}>
-          <Text style={[st.title, { color: theme.text, fontFamily: FONTS.bebas }]}>
+          <Text style={[st.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {isRecapMode ? t('ext.scheduled_my_request') : t('ext.scheduled_request')}
           </Text>
           <Text style={[st.subtitle, { color: theme.textSub, fontFamily: FONTS.sans }]}>
@@ -245,7 +245,7 @@ export default function ScheduledConfirmation() {
           <View style={[st.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={st.row}>
               <Feather name="tool" size={16} color={theme.textSub} />
-              <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{serviceName}</Text>
+              <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{serviceName}</Text>
             </View>
             <View style={[st.sep, { backgroundColor: theme.border }]} />
             <View style={st.row}>
@@ -272,7 +272,7 @@ export default function ScheduledConfirmation() {
                 <View style={[st.sep, { backgroundColor: theme.border }]} />
                 <View style={st.row}>
                   <Feather name="credit-card" size={16} color={theme.textSub} />
-                  <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.bebas }]}>{price} €</Text>
+                  <Text style={[st.rowText, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{price} €</Text>
                 </View>
               </>
             ) : null}

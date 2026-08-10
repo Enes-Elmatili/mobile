@@ -23,6 +23,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import type { Invoice, InvoiceItem } from '@/hooks/useInvoice';
 import { api } from '@/lib/api';
 import { tokenStorage } from '@/lib/storage';
@@ -154,6 +155,7 @@ export default function InvoiceSheet({
   const theme = useAppTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  useAndroidBackClose(isVisible, onClose);
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const isProvider = userRole === 'provider';
   const dark = theme.isDark;
@@ -336,7 +338,7 @@ export default function InvoiceSheet({
     <>
       {/* Compact header: invoice number left, date right */}
       <View style={s.compactHeader}>
-        <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas }]}>
+        <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
           {invoiceNumber}
         </Text>
         <Text style={[s.compactDate, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
@@ -346,7 +348,7 @@ export default function InvoiceSheet({
 
       <View style={s.body}>
         {/* Service — simple inline text, no card */}
-        <Text style={[s.compactService, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
+        <Text style={[s.compactService, { color: textSecondary, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
           {displayServiceTitle} · {displayProviderName}
         </Text>
 
@@ -358,7 +360,7 @@ export default function InvoiceSheet({
             <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
               {t('ext.invoice_total_billed')}
             </Text>
-            <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
+            <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
               {formatEuros(total)}
             </Text>
           </View>
@@ -375,7 +377,7 @@ export default function InvoiceSheet({
             </View>
             <View style={s.netRow}>
               <View>
-                <Text style={[s.netValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
+                <Text style={[s.netValue, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
                   {formatEuros(netEarnings)}
                 </Text>
                 {commissionPct != null && (
@@ -447,7 +449,7 @@ export default function InvoiceSheet({
         </View>
         <View style={s.headerRight}>
           <Text style={[s.invoiceLabel, { color: textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.invoice_label_label')}</Text>
-          <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas }]}>
+          <Text style={[s.invoiceNumber, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {invoiceNumber}
           </Text>
         </View>
@@ -460,10 +462,10 @@ export default function InvoiceSheet({
             <Feather name="tool" size={20} color={textSecondary} />
           </View>
           <View style={s.serviceInfo}>
-            <Text style={[s.serviceTitle, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
+            <Text style={[s.serviceTitle, { color: textPrimary, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
               {displayServiceTitle}
             </Text>
-            <Text style={[s.serviceProvider, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
+            <Text style={[s.serviceProvider, { color: textSecondary, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
               {displayProviderName}
             </Text>
             <View style={s.serviceMeta}>
@@ -534,7 +536,7 @@ export default function InvoiceSheet({
             <Text style={[s.grandTotalLabel, { color: textPrimary, fontFamily: FONTS.sansMedium }]}>
               {t('ext.invoice_total')}
             </Text>
-            <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas }]}>
+            <Text style={[s.grandTotalValue, { color: textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
               {formatEuros(total)}
             </Text>
           </View>

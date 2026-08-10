@@ -31,8 +31,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
 import { useTabBarPadding } from './_layout';
 import { formatEUR } from '@/lib/format';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import type { AppTheme } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { PulseDot } from '@/components/ui/PulseDot';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
@@ -282,7 +283,7 @@ const runway = StyleSheet.create({
 
   ghostNum: {
     position: 'absolute', bottom: -8, right: 4,
-    fontFamily: FONTS.bebas, fontSize: 54, lineHeight: 54,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 54, lineHeight: 54,
   },
 
   cardInner: {
@@ -296,7 +297,7 @@ const runway = StyleSheet.create({
 
   ledRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 
-  serviceName: { fontFamily: FONTS.bebas, fontSize: 19, letterSpacing: 0.6, lineHeight: 20 },
+  serviceName: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 19, letterSpacing: 0.6, lineHeight: 20 },
 
   cardBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   cardArrow: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
@@ -445,7 +446,7 @@ function MissionIsland({
           {/* ETA — the star of the show */}
           {!isOngoing && etaMin ? (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-              <Text style={{ fontFamily: FONTS.bebas, fontSize: 56, color: theme.heroText, lineHeight: 56 }}>
+              <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 56, color: theme.heroText, lineHeight: 56 }}>
                 {etaMin}
               </Text>
               <Text style={{ fontFamily: FONTS.mono, fontSize: 13, color: theme.heroSub, letterSpacing: 0.5 }}>
@@ -455,7 +456,7 @@ function MissionIsland({
           ) : null}
 
           {/* Service name */}
-          <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.heroText, letterSpacing: 0.4 }} numberOfLines={1}>
+          <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.heroText, letterSpacing: 0.4 }} numberOfLines={1}>
             {(translateRequestServiceRaw(activeMission as any) || activeMission.title || activeMission.serviceType || '').toUpperCase()}
           </Text>
 
@@ -540,7 +541,7 @@ function MissionIsland({
           </View>
 
           {/* Service name — hero */}
-          <Text style={{ fontFamily: FONTS.bebas, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
+          <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
             {(translateRequestServiceRaw(searchingMission as any) || searchingMission.title || searchingMission.serviceType || '').toUpperCase()}
           </Text>
 
@@ -582,7 +583,7 @@ function MissionIsland({
           </View>
 
           {/* Service name — hero */}
-          <Text style={{ fontFamily: FONTS.bebas, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
+          <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 26, color: theme.heroText, letterSpacing: 0.4, marginBottom: 4 }} numberOfLines={1}>
             {(translateRequestServiceRaw(quoteMission as any) || quoteMission.title || quoteMission.serviceType || '').toUpperCase()}
           </Text>
 
@@ -629,7 +630,7 @@ const islandStyles = StyleSheet.create({
     letterSpacing: 0.6, textTransform: 'uppercase',
   },
   mission: {
-    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 0.7,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 0.7,
     marginTop: 1, lineHeight: 20,
   },
   sub: { fontFamily: FONTS.sans, fontSize: 11, marginTop: 2 },
@@ -737,7 +738,7 @@ const actStyles = StyleSheet.create({
   name: { fontFamily: FONTS.sansMedium, fontSize: 13.5, lineHeight: 16 },
   meta: { fontFamily: FONTS.mono, fontSize: 10.5, marginTop: 2, letterSpacing: 0.6 },
   right: { alignItems: 'flex-end', gap: 4 },
-  price: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.4 },
+  price: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 0.4 },
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8,
@@ -879,7 +880,7 @@ function UpcomingIslandCard({
         ) : isAccepted ? (
           <View style={uc.statusBadge}>
             <View style={[uc.statusDot, { backgroundColor: COLORS.greenBrand }]} />
-            <Text style={[uc.statusText, { color: theme.greenText }]}>
+            <Text style={[uc.statusText, { color: theme.greenText }]} numberOfLines={1}>
               {request.provider?.name ? cleanName(request.provider.name) : t('dashboard.confirmed')}
             </Text>
           </View>
@@ -905,11 +906,11 @@ const uc = StyleSheet.create({
   topLeft: { flex: 1, gap: 6 },
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
   typeLabel: { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 1.5 },
-  serviceName: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.3, lineHeight: 25 },
+  serviceName: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 0.3, lineHeight: 25 },
 
   // Countdown
   countdownWrap: { alignItems: 'flex-end', justifyContent: 'center', paddingTop: 2 },
-  countdownValue: { fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 1, lineHeight: 30 },
+  countdownValue: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 28, letterSpacing: 1, lineHeight: 30 },
 
   // Progress bar
   progressTrack: { height: 3, borderRadius: 1.5, overflow: 'hidden' },
@@ -919,9 +920,9 @@ const uc = StyleSheet.create({
   bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dateText: { fontFamily: FONTS.sans, fontSize: 13 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1, marginRight: 8 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontFamily: FONTS.sansMedium, fontSize: 12 },
+  statusText: { fontFamily: FONTS.sansMedium, fontSize: 12, flexShrink: 1 },
 });
 
 // ============================================================================
@@ -1036,6 +1037,13 @@ export default function Dashboard() {
   const ctaScale = useRef(new Animated.Value(1)).current;
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  // Sheet détail montée UNIQUEMENT quand ouverte : toujours montée avec
+  // index={-1} + enableDynamicSizing, gorhom l'auto-ouvre sur Android et son
+  // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
+  // et sert aussi au bouton back Android.
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const closeDetailSheet = useCallback(() => { bottomSheetRef.current?.close(); }, []);
+  useAndroidBackClose(detailSheetOpen, closeDetailSheet);
 
   const invoiceRequestId = selectedRequest?.status?.toUpperCase() === 'DONE' ? selectedRequest?.id : null;
   const { invoice } = useInvoice(invoiceRequestId ? Number(invoiceRequestId) : null);
@@ -1181,7 +1189,7 @@ export default function Dashboard() {
       return;
     }
     setLoadingDetails(true);
-    bottomSheetRef.current?.expand();
+    setDetailSheetOpen(true);
     try {
       const details = await api.get(`/requests/${requestId}`);
       const req = details.request || details.data || details;
@@ -1323,7 +1331,7 @@ export default function Dashboard() {
               <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.textMuted, letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 4 }}>
                 {data?.me?.city?.toUpperCase() || t('profile.default_city').toUpperCase()}
               </Text>
-              <Text style={{ fontFamily: FONTS.bebas, fontSize: (activeMission || searchingMission || quoteMission) ? 22 : 28, color: theme.text, letterSpacing: 0.4 }}>
+              <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: (activeMission || searchingMission || quoteMission) ? 22 : 28, color: theme.text, letterSpacing: 0.4 }}>
                 {`${getGreeting(t)}, ${name.split(' ')[0]}`}
               </Text>
             </View>
@@ -1402,7 +1410,7 @@ export default function Dashboard() {
                 <Text style={{ fontFamily: FONTS.mono, fontSize: 10.5, color: theme.heroSubFaint, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
                   {t('dashboard.available_24_7')}
                 </Text>
-                <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, color: theme.heroText, letterSpacing: 0.4, marginBottom: 20, lineHeight: 32 }}>
+                <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30, color: theme.heroText, letterSpacing: 0.4, marginBottom: 20, lineHeight: 32 }}>
                   {t('dashboard.hero_title')}
                 </Text>
                 <Pressable
@@ -1526,11 +1534,13 @@ export default function Dashboard() {
       </ScrollView>
 
       {/* ── Bottom Sheet detail ── */}
+      {detailSheetOpen && (
       <BottomSheet
         ref={bottomSheetRef}
-        index={-1}
+        index={0}
         enableDynamicSizing
         enablePanDownToClose
+        onClose={() => setDetailSheetOpen(false)}
         backdropComponent={renderBackdrop}
         backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
         handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}
@@ -1682,6 +1692,7 @@ export default function Dashboard() {
           ) : null}
         </BottomSheetScrollView>
       </BottomSheet>
+      )}
 
       <InvoiceSheet
         invoice={invoice}
@@ -1713,7 +1724,7 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.9,
     textTransform: 'uppercase', marginBottom: 6,
   },
-  name: { fontFamily: FONTS.bebas, fontSize: 44, letterSpacing: 0.4 },
+  name: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 44, letterSpacing: 0.4 },
   topbarActions: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   iconBtn: {
     width: 36, height: 36, borderRadius: 10,
@@ -1738,8 +1749,8 @@ const s = StyleSheet.create({
     color: 'rgba(255,255,255,0.38)',
   },
   heroTitle: {
-    fontFamily: FONTS.bebas, fontSize: 34, letterSpacing: 0.5,
-    color: '#F2F0EB', marginBottom: 4,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 34, letterSpacing: 0.5,
+    color: darkTokens.heroText, marginBottom: 4,
   },
   heroSub: {
     fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19,
@@ -1806,7 +1817,7 @@ const s = StyleSheet.create({
   sheetIndicator: { width: 36 },
   sheet: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
 
-  sheetTitle: { fontFamily: FONTS.bebas, fontSize: 24, marginBottom: 10, letterSpacing: 0.5 },
+  sheetTitle: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 24, marginBottom: 10, letterSpacing: 0.5 },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     alignSelf: 'flex-start',
@@ -1828,7 +1839,7 @@ const s = StyleSheet.create({
     borderRadius: 16, alignItems: 'center', justifyContent: 'center',
     gap: 10, marginTop: 18,
   },
-  actionBtnText: { fontFamily: FONTS.bebas, fontSize: 17, letterSpacing: 0.8 },
+  actionBtnText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 17, letterSpacing: 0.8 },
 
   resendBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

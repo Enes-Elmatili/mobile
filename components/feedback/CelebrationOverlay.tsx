@@ -137,7 +137,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     top: '40%',
     color: darkTokens.text,
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 38,
     letterSpacing: 1,
     textAlign: 'center',

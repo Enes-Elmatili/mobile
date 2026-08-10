@@ -181,7 +181,7 @@ export default function QuotePending() {
     }[terminalState];
     return (
       <View style={[s.root, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+        <StatusBar barStyle={theme.statusBar} />
         <GridLines isDark={theme.isDark} />
         <SafeAreaView style={s.safe}>
           <View style={s.content}>
@@ -210,7 +210,7 @@ export default function QuotePending() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
 
       <GridLines isDark={theme.isDark} />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
@@ -288,7 +288,7 @@ export default function QuotePending() {
               {serviceName ? (
                 <View style={s.recapRow}>
                   <Feather name="tool" size={14} color={theme.textMuted} />
-                  <Text style={[s.recapText, { color: theme.textSub }]}>{serviceName}</Text>
+                  <Text style={[s.recapText, { color: theme.textSub }]} numberOfLines={1}>{serviceName}</Text>
                 </View>
               ) : null}
               {address ? (
@@ -380,7 +380,7 @@ const s = StyleSheet.create({
   },
 
   title: {
-    fontFamily: FONTS.bebas, fontSize: 30,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30,
     letterSpacing: 1, lineHeight: 34, textAlign: "center",
   },
 
@@ -432,7 +432,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
   },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2.5,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 2.5,
   },
   arrowPill: {
     width: 28, height: 28, borderRadius: 14,

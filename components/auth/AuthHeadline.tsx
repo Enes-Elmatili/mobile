@@ -132,7 +132,7 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 44,
     lineHeight: 46,
     letterSpacing: 0.5,
@@ -152,7 +152,7 @@ const s = StyleSheet.create({
 
   // ── v2 éditorial (themed) ─────────────────────────────────────────────────
   titleV2: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 44,
     lineHeight: 44,
     letterSpacing: 0.6,

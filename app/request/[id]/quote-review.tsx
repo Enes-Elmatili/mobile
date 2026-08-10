@@ -236,7 +236,7 @@ export default function QuoteReview() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
@@ -245,6 +245,9 @@ export default function QuoteReview() {
             style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back')}
+            hitSlop={8}
           >
             <Feather name="arrow-left" size={18} color={theme.text} />
           </TouchableOpacity>
@@ -255,7 +258,7 @@ export default function QuoteReview() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
       >
       <ScrollView
@@ -442,7 +445,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   headerTitle: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 22,
     letterSpacing: 2.5,
   },
@@ -480,10 +483,10 @@ const s = StyleSheet.create({
   dividerStrong: { height: 1, marginVertical: 2 },
 
   rowTotalLabel: { fontFamily: FONTS.sansMedium, fontSize: 14 },
-  rowTotalValue: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1 },
+  rowTotalValue: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 1 },
 
   rowFinalLabel: { fontFamily: FONTS.sansMedium, fontSize: 15 },
-  rowFinalValue: { fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 1 },
+  rowFinalValue: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 28, letterSpacing: 1 },
 
   notesCard: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
   notesText: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19 },
@@ -525,6 +528,6 @@ const s = StyleSheet.create({
     flex: 1, height: 55, borderRadius: 100,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
   },
-  acceptBtnText: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2 },
+  acceptBtnText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 2 },
   acceptBtnPrice: { fontFamily: FONTS.sansMedium, fontSize: 13, opacity: 0.6 },
 });

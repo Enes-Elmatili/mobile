@@ -112,11 +112,11 @@ export default function ActiveCallScreen() {
         <View style={cs.avatarContainer}>
           {isRinging && <PulseRing />}
           <View style={[cs.avatar, { backgroundColor: theme.surface, shadowOpacity: theme.shadowOpacity }]}>
-            <Text style={[cs.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{initials}</Text>
+            <Text style={[cs.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{initials}</Text>
           </View>
         </View>
 
-        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{cleanName(callInfo?.remoteName, { fallback: t('ext.call_unknown') })}</Text>
+        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{cleanName(callInfo?.remoteName, { fallback: t('ext.call_unknown') })}</Text>
         <Text style={[cs.status, { color: theme.heroSub, fontFamily: isConnected ? FONTS.mono : FONTS.sans }]}>
           {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, endReason, t)}
         </Text>

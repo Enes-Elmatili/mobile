@@ -146,10 +146,10 @@ export default function InvoicesScreen() {
 
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, letterSpacing: 0.5 }]}>{t('ext.wallet_my_invoices')}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 }]}>{t('ext.wallet_my_invoices')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -162,7 +162,7 @@ export default function InvoicesScreen() {
           <Text style={[s.summaryLabel, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
             {isProvider ? t('ext.invoice_billed_this_month') : t('ext.invoice_total_this_month')}
           </Text>
-          <Text style={[s.summaryValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
+          <Text style={[s.summaryValue, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {formatEuros(monthTotal)}
           </Text>
         </View>

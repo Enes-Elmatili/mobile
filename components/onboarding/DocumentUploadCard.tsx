@@ -149,6 +149,7 @@ export function DocumentUploadCard({
           onPress={() => onUpload(requirement.type)}
           disabled={uploading}
           activeOpacity={0.6}
+          hitSlop={{ top: 6, bottom: 6 }}
         >
           {uploading ? (
             <>

@@ -5,7 +5,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
-  Platform, Pressable, Dimensions, Alert,
+  Platform, Pressable, Dimensions,
 } from 'react-native';
 import { api } from '@/lib/api';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
@@ -101,6 +102,8 @@ function StarRow({ rating, onRate, starColor, emptyColor }: { rating: number; on
           activeOpacity={onRate ? 0.7 : 1}
           disabled={!onRate}
           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={`${i}/5`}
         >
           <Feather
             name="star"
@@ -125,6 +128,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  useAndroidBackClose(isVisible, onClose);
   const { initiateCall } = useCall();
   const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const [pendingRating, setPendingRating] = useState(0);
@@ -244,19 +248,20 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
 
   // Bouton icône "phone" : si les deux canaux existent, proposer le choix
   // explicitement plutôt que de lancer un VoIP à l'insu de l'utilisateur.
-  const handleContact = () => {
+  const handleContact = async () => {
     const hasVoip  = !!ticket?.provider?.userId;
     const hasPhone = !!ticket?.provider?.phone;
     if (hasVoip && hasPhone) {
-      Alert.alert(
-        'Appeler le prestataire',
-        'Comment souhaitez-vous l\'appeler ?',
-        [
-          { text: 'Appel via FIXED', onPress: handleCallViaFixed },
-          { text: `Téléphone (${ticket.provider.phone})`, onPress: handleCallPhone },
-          { text: 'Annuler', style: 'cancel' },
+      const idx = await feedback.actionSheet({
+        titleKey: 'ext.contact_call_title',
+        options: [
+          { labelKey: 'ext.contact_call_via_fixed' },
+          { label: t('ext.contact_call_phone', { phone: ticket.provider.phone }) },
         ],
-      );
+        cancelKey: 'common.cancel',
+      });
+      if (idx === 0) handleCallViaFixed();
+      else if (idx === 1) handleCallPhone();
     } else if (hasVoip) {
       handleCallViaFixed();
     } else if (hasPhone) {
@@ -333,7 +338,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         )}
         <View style={sd.prbTotalRow}>
           <Text style={[sd.prbTotalLabel, { color: theme.text, fontFamily: FONTS.sansMedium }]}>Total payé</Text>
-          <Text style={[sd.prbTotalValue, { color: theme.text, fontFamily: FONTS.bebas }]}>{formatEuros(price)}</Text>
+          <Text style={[sd.prbTotalValue, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{formatEuros(price)}</Text>
         </View>
       </View>
     );
@@ -397,7 +402,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
               <Text style={[sd.statusBadgeText, { color: badgeColor, fontFamily: FONTS.sansMedium }]}>{cfg.label}</Text>
             </View>
             {/* Aide */}
-            <TouchableOpacity onPress={handleSupport} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={handleSupport} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.help')}>
               <Feather name="help-circle" size={22} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
@@ -465,7 +470,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 <ProviderAvatar name={providerName} size={52} bgColor={theme.accent} textColor={theme.accentText} />
 
                 <View style={sd.providerInfo}>
-                  <Text style={[sd.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{providerName}</Text>
+                  <Text style={[sd.providerName, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>{providerName}</Text>
                   {ticket.provider.avgRating != null && (
                     <View style={sd.providerRatingRow}>
                       <Feather name="star" size={12} color={theme.text} />
@@ -485,7 +490,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
                 {/* Actions communication */}
                 <View style={sd.providerActions}>
                   {ticket.provider.userId && (
-                    <TouchableOpacity style={[sd.comBtn, { backgroundColor: theme.accent }]} onPress={handleMessage} activeOpacity={0.75}>
+                    <TouchableOpacity style={[sd.comBtn, { backgroundColor: theme.accent }]} onPress={handleMessage} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={t('common.message')}>
                       <Feather name="message-circle" size={16} color={theme.accentText} />
                     </TouchableOpacity>
                   )}

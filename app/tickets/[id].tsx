@@ -60,7 +60,7 @@ function priorityLabel(p: TicketPriority, t: (k: string) => string) {
 }
 
 function priorityColor(p: TicketPriority) {
-  return p === 'HIGH' ? '#EF4444' : p === 'MEDIUM' ? COLORS.amber : COLORS.greenBrand;
+  return p === 'HIGH' ? COLORS.red : p === 'MEDIUM' ? COLORS.amber : COLORS.greenBrand;
 }
 
 function statusColor(s: TicketStatus) {
@@ -131,7 +131,7 @@ function eventDot(ev: TicketEvent, currentUserId?: string | null): { color: stri
         : { color: COLORS.amber, filled: true };
     case 'MESSAGE': return ev.payload?.fromAdmin
       ? { color: COLORS.amber, filled: true }
-      : { color: isOwn ? '#3B82F6' : COLORS.greenBrand, filled: true };
+      : { color: isOwn ? COLORS.statusOngoing : COLORS.greenBrand, filled: true };
     default: return { color: COLORS.amber, filled: true };
   }
 }
@@ -292,6 +292,7 @@ export default function TicketDetailScreen() {
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/settings/help'); }}
           activeOpacity={0.75}
           accessibilityLabel={t('common.back')}
+          hitSlop={8}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
@@ -303,7 +304,7 @@ export default function TicketDetailScreen() {
 
       <KeyboardAvoidingView
         style={s.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={8}
       >
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -325,7 +326,7 @@ export default function TicketDetailScreen() {
         </View>
 
         {/* ── Hero title ─────────────────────────────────────────────────── */}
-        <Text style={[s.heroTitle, { color: theme.text, fontFamily: FONTS.bebas }]} numberOfLines={3}>
+        <Text style={[s.heroTitle, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]} numberOfLines={3}>
           {ticket.title.toUpperCase()}
         </Text>
         <Text style={[s.heroMeta, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
@@ -440,6 +441,9 @@ export default function TicketDetailScreen() {
             onPress={sendMessage}
             disabled={!message.trim() || sending}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.send')}
+            hitSlop={8}
           >
             {sending ? (
               <ActivityIndicator color={theme.accentText} size="small" />

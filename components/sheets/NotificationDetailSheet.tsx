@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { feedback } from '@/lib/feedback/feedback';
 
 export interface NotifData {
@@ -83,6 +84,7 @@ export default function NotificationDetailSheet({
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  useAndroidBackClose(isVisible, onClose);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -127,7 +129,7 @@ export default function NotificationDetailSheet({
             <Text style={[s.heroTime, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>{relTime(notif.createdAt)}</Text>
           </View>
           <Text style={[s.heroTag, { color: theme.heroSub, fontFamily: FONTS.monoMedium }]}>{tagLabel(notif, t).toUpperCase()}</Text>
-          <Text style={[s.heroTitle, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{notif.title}</Text>
+          <Text style={[s.heroTitle, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{notif.title}</Text>
         </View>
 
         {/* ═══ BODY (carte claire qui émerge du sombre) ═══ */}

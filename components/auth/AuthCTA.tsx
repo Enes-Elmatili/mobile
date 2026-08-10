@@ -140,7 +140,7 @@ const s = StyleSheet.create({
     opacity: 0.4,
   },
   label: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 26,
     letterSpacing: 2,
   },

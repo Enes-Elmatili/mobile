@@ -2,7 +2,7 @@
 // Redesign onboarding : chaque pièce affiche son état, la progression est
 // matérialisée (barre + « X / N envoyés ») et le CTA désactivé explique pourquoi.
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Platform, ActionSheetIOS, Alert } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -145,29 +145,17 @@ export default function OnboardingDocuments() {
 
   // Laisse le presta choisir la source : photo (galerie) ou document PDF.
   // Un scan PDF propre règle le problème des photos floues/illisibles.
-  const handleUpload = (docType: DocumentType | string) => {
-    const photoLabel = t('onboarding.doc_source_photo');
-    const pdfLabel = t('onboarding.doc_source_pdf');
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: t('onboarding.doc_source_title'),
-          options: [photoLabel, pdfLabel, t('common.cancel')],
-          cancelButtonIndex: 2,
-          userInterfaceStyle: "dark",
-        },
-        (idx) => {
-          if (idx === 0) pickImage(docType);
-          else if (idx === 1) pickPdf(docType);
-        },
-      );
-    } else {
-      Alert.alert(t('onboarding.doc_source_title'), undefined, [
-        { text: photoLabel, onPress: () => pickImage(docType) },
-        { text: pdfLabel, onPress: () => pickPdf(docType) },
-        { text: t('common.cancel'), style: "cancel" },
-      ]);
-    }
+  const handleUpload = async (docType: DocumentType | string) => {
+    const idx = await feedback.actionSheet({
+      titleKey: 'onboarding.doc_source_title',
+      options: [
+        { labelKey: 'onboarding.doc_source_photo' },
+        { labelKey: 'onboarding.doc_source_pdf' },
+      ],
+      cancelKey: 'common.cancel',
+    });
+    if (idx === 0) pickImage(docType);
+    else if (idx === 1) pickPdf(docType);
   };
 
   const isSent = (type: string) => {

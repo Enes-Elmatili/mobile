@@ -31,6 +31,7 @@ import { translateCategory } from '@/lib/categoryLabel';
 import { feedback } from '@/lib/feedback/feedback';
 
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { toFeatherName } from '@/lib/iconMapper';
 import { formatEURInt } from '@/lib/format';
 import { resolveAvatarUrl } from '@/lib/avatarUrl';
@@ -107,7 +108,7 @@ function ProviderAvatar({
 const av = StyleSheet.create({
   wrapper: { position: 'relative' },
   circle: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  initials: { fontFamily: FONTS.bebas, letterSpacing: 1 },
+  initials: { fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 1 },
   badge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 26, height: 26, borderRadius: 13,
@@ -227,6 +228,13 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  // Sheet Paramètres montée UNIQUEMENT quand ouverte : toujours montée avec
+  // index={-1} + enableDynamicSizing, gorhom l'auto-ouvre sur Android et son
+  // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
+  // et sert aussi au bouton back Android.
+  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
+  const closeSettingsSheet = useCallback(() => { bottomSheetRef.current?.close(); }, []);
+  useAndroidBackClose(settingsSheetOpen, closeSettingsSheet);
   // Dynamic sizing — sheet wraps its content
 
   const [editVisible, setEditVisible] = useState(false);
@@ -661,7 +669,7 @@ export default function Profile() {
         </View>
         <TouchableOpacity
           style={[s.settingsBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
-          onPress={() => bottomSheetRef.current?.expand()}
+          onPress={() => setSettingsSheetOpen(true)}
           activeOpacity={0.7}
           hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
           accessibilityRole="button"
@@ -682,8 +690,8 @@ export default function Profile() {
           <View style={s.heroTop}>
             <ProviderAvatar name={displayName} size={60} avatarUri={avatarUri} onPickPhoto={handlePickPhoto} />
             <View style={s.heroIdentity}>
-              <Text style={[s.heroName, { color: theme.heroText }]}>{displayName.toUpperCase()}</Text>
-              <Text style={s.heroEmail}>{email}</Text>
+              <Text style={[s.heroName, { color: theme.heroText }]} numberOfLines={1}>{displayName.toUpperCase()}</Text>
+              <Text style={s.heroEmail} numberOfLines={1}>{email}</Text>
               <View style={s.heroBadges}>
                 <View style={s.roleBadge}>
                   <Feather name="briefcase" size={9} color="rgba(255,255,255,0.4)" />
@@ -697,7 +705,7 @@ export default function Profile() {
                 )}
               </View>
               {!isClientOnly && vatNumber ? (
-                <Text style={s.heroVat}>{t('profile.vat_label')} · {vatNumber}</Text>
+                <Text style={s.heroVat} numberOfLines={1}>{t('profile.vat_label')} · {vatNumber}</Text>
               ) : null}
             </View>
           </View>
@@ -732,7 +740,7 @@ export default function Profile() {
             </View>
             <View style={s.stripItem}>
               <View style={s.stripIcon}><Feather name="map-pin" size={13} color="rgba(255,255,255,0.4)" /></View>
-              <Text style={s.stripValue}>{(user as any)?.city || t('profile.default_city')}</Text>
+              <Text style={s.stripValue} numberOfLines={1}>{(user as any)?.city || t('profile.default_city')}</Text>
               <Text style={s.stripLabel}>{t('profile.strip_address')}</Text>
             </View>
             {/* Statut réel : pour un prestataire, reflète validationStatus (ACTIVE → vérifié).
@@ -840,7 +848,7 @@ export default function Profile() {
                         <View style={[tk.dot, { backgroundColor: COLORS.amber }]} />
                         <View style={tk.info}>
                           <Text style={[tk.title, { color: theme.text }]} numberOfLines={1}>{ticket.title}</Text>
-                          <Text style={[tk.meta, { color: theme.textMuted }]}>
+                          <Text style={[tk.meta, { color: theme.textMuted }]} numberOfLines={1}>
                             {ticket.requestId ? `${t('missions.mission')} #${ticket.requestId} · ` : ''}{date}
                           </Text>
                         </View>
@@ -887,10 +895,10 @@ export default function Profile() {
       </ScrollView>
 
       {/* Modal — Édition informations personnelles */}
-      <Modal visible={editVisible} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[em.root, { backgroundColor: theme.bg }]}>
+      <Modal visible={editVisible} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditVisible(false)} statusBarTranslucent navigationBarTranslucent>
+        <KeyboardAvoidingView behavior="padding" style={[em.root, { backgroundColor: theme.bg }]}>
           {/* ── Header ── */}
-          <View style={[em.header, { borderBottomColor: theme.border }]}>
+          <View style={[em.header, { borderBottomColor: theme.border }, Platform.OS === 'android' && { paddingTop: insets.top + 12 }]}>
             <TouchableOpacity
               style={[em.closeBtn, { backgroundColor: theme.surface }]}
               onPress={() => setEditVisible(false)}
@@ -906,7 +914,7 @@ export default function Profile() {
           </View>
 
           <ScrollView
-            contentContainerStyle={em.body}
+            contentContainerStyle={[em.body, { paddingBottom: insets.bottom + 48 }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -1307,7 +1315,7 @@ export default function Profile() {
               style={{ marginTop: 28, marginBottom: 8, paddingVertical: 12, alignItems: 'center' }}
               activeOpacity={0.6}
             >
-              <Text style={{ fontSize: 12, fontFamily: FONTS.sansMedium, color: '#EF4444' }}>
+              <Text style={{ fontSize: 12, fontFamily: FONTS.sansMedium, color: COLORS.red }}>
                 Supprimer mon compte
               </Text>
             </TouchableOpacity>
@@ -1355,11 +1363,13 @@ export default function Profile() {
       </Modal>
 
       {/* Bottom Sheet */}
+      {settingsSheetOpen && (
       <BottomSheet
         ref={bottomSheetRef}
-        index={-1}
+        index={0}
         enableDynamicSizing
         enablePanDownToClose
+        onClose={() => setSettingsSheetOpen(false)}
         backdropComponent={renderBackdrop}
         backgroundStyle={{ backgroundColor: theme.cardBg }}
         handleIndicatorStyle={{ backgroundColor: theme.border }}
@@ -1384,6 +1394,7 @@ export default function Profile() {
           ))}
         </BottomSheetScrollView>
       </BottomSheet>
+      )}
     </SafeAreaView>
   );
 }
@@ -1403,7 +1414,7 @@ const s = StyleSheet.create({
     fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.9,
     textTransform: 'uppercase', marginBottom: 6,
   },
-  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
   settingsBtn: {
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
@@ -1425,7 +1436,7 @@ const s = StyleSheet.create({
   },
   heroIdentity: { flex: 1, paddingTop: 2 },
   heroName: {
-    fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.8,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 0.8,
     lineHeight: 22, marginBottom: 5,
   },
   heroEmail: {
@@ -1501,7 +1512,7 @@ const s = StyleSheet.create({
     width: 36, height: 4, borderRadius: 2,
     alignSelf: 'center', marginBottom: 20,
   },
-  sheetTitle: { fontSize: 22, fontFamily: FONTS.bebas, marginBottom: 16 },
+  sheetTitle: { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, marginBottom: 16 },
   sheetRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 13,
@@ -1595,7 +1606,7 @@ const em = StyleSheet.create({
 
   // ── Hero (avatar + name) ──
   heroSection: { alignItems: 'center', paddingVertical: 24, gap: 10 },
-  heroName: { fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  heroName: { fontSize: 24, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
   authBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,

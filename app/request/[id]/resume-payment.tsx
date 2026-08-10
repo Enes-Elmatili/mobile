@@ -6,6 +6,7 @@ import {
   TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStripe } from '@stripe/stripe-react-native';
 import { feedback } from '@/lib/feedback/feedback';
@@ -60,6 +61,7 @@ function GridLines() {
 
 export default function ResumePayment() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -228,16 +230,18 @@ export default function ResumePayment() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="light-content" />
       <GridLines />
 
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, Platform.OS === 'android' && { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={s.backBtn}
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color="rgba(255,255,255,0.85)" />
         </TouchableOpacity>
@@ -301,7 +305,7 @@ export default function ResumePayment() {
 
       {/* Footer CTA */}
       {!loading && (
-        <View style={s.footer}>
+        <View style={[s.footer, Platform.OS === 'android' && { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
           <TouchableOpacity
             style={[s.btnPrimary, (!paymentReady || paying) && s.btnDisabled]}
             onPress={handlePay}
@@ -343,7 +347,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontFamily: FONTS.bebas, fontSize: 18, color: C.white, letterSpacing: 2 },
+  headerTitle: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, color: C.white, letterSpacing: 2 },
 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
@@ -359,7 +363,7 @@ const s = StyleSheet.create({
   },
 
   title: {
-    fontFamily: FONTS.bebas, fontSize: 30, color: C.white,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30, color: C.white,
     letterSpacing: 1, lineHeight: 34, textAlign: 'center',
   },
   titleOutline: { color: 'rgba(255,255,255,0.3)' },
@@ -377,7 +381,7 @@ const s = StyleSheet.create({
   cardLabel: { fontFamily: FONTS.sans, fontSize: 12, color: C.grey, width: 56 },
   cardValue: { fontFamily: FONTS.sansMedium, fontSize: 13, color: C.white, flex: 1 },
   priceRow: { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10, marginTop: 2 },
-  priceValue: { fontFamily: FONTS.bebas, fontSize: 22, color: C.white, flex: 1, letterSpacing: 0.5 },
+  priceValue: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: C.white, flex: 1, letterSpacing: 0.5 },
 
   infoCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
@@ -400,7 +404,7 @@ const s = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2.5, color: C.bg,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 2.5, color: C.bg,
   },
   arrowPill: {
     width: 28, height: 28, borderRadius: 14, backgroundColor: C.bg,

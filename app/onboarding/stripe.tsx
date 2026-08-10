@@ -58,7 +58,7 @@ function StripeRedirectOverlay() {
 
   return (
     <View style={r.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="light-content" />
       <View style={r.center}>
         <View style={r.ringWrap}>
           <Animated.View style={[r.spinner, { transform: [{ rotate }] }]} />
@@ -328,7 +328,7 @@ const r = StyleSheet.create({
     color: C.grey,
   },
   title: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 40,
     lineHeight: 42,
     letterSpacing: 1,

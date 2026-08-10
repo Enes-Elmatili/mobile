@@ -3,6 +3,7 @@ import { Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
 
 export function ConfirmSheet() {
@@ -27,6 +28,9 @@ export function ConfirmSheet() {
     ),
     [],
   );
+
+  const closeSheet = useCallback(() => { ref.current?.close(); }, []);
+  useAndroidBackClose(!!confirm, closeSheet);
 
   if (!confirm) return null;
 
@@ -63,7 +67,7 @@ export function ConfirmSheet() {
 
 const s = StyleSheet.create({
   body: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
-  title: { fontFamily: FONTS.bebas, fontSize: 26, letterSpacing: 0.5 },
+  title: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 26, letterSpacing: 0.5 },
   message: { fontFamily: FONTS.sans, fontSize: 15, lineHeight: 21 },
   btn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
   btnText: { fontFamily: FONTS.sansMedium, fontSize: 16 },

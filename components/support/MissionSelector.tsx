@@ -25,6 +25,8 @@ interface MissionSelectorProps {
   loading: boolean;
   onSelect: (mission: Mission) => void;
   onOther: () => void;
+  /** Empty state prestataire : pas de CTA « Nouvelle demande » (réservé client). */
+  isProvider?: boolean;
 }
 
 const VISIBLE_COUNT_DEFAULT = 5;
@@ -38,7 +40,7 @@ function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-export default function MissionSelector({ missions, loading, onSelect, onOther }: MissionSelectorProps) {
+export default function MissionSelector({ missions, loading, onSelect, onOther, isProvider }: MissionSelectorProps) {
   const theme = useAppTheme();
   const router = useRouter();
   const { t } = useTranslation();
@@ -108,17 +110,17 @@ export default function MissionSelector({ missions, loading, onSelect, onOther }
           <Text style={[s.emptyHint, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             {query
               ? t('ext.support_search_other')
-              : t('ext.support_create_first')}
+              : isProvider ? t('ext.support_p_empty_hint') : t('ext.support_create_first')}
           </Text>
           {!query && (
             <TouchableOpacity
               style={[s.emptyCta, { backgroundColor: theme.text }]}
-              onPress={() => router.push('/request/NewRequestStepper')}
+              onPress={() => router.push(isProvider ? '/(tabs)/missions' : '/request/NewRequestStepper')}
               activeOpacity={0.85}
             >
-              <Feather name="plus" size={14} color={theme.bg} />
+              <Feather name={isProvider ? 'compass' : 'plus'} size={14} color={theme.bg} />
               <Text style={[s.emptyCtaText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
-                {t('dashboard.new_request')}
+                {isProvider ? t('ext.support_p_view_opportunities') : t('dashboard.new_request')}
               </Text>
             </TouchableOpacity>
           )}
@@ -206,7 +208,7 @@ function MissionCard({ mission, onPress, theme }: {
         )}
         <View style={s.cardFooter}>
           <StatusBadge status={mission.status as any} />
-          <Text style={[s.cardPrice, { color: theme.text, fontFamily: FONTS.bebas }]}>
+          <Text style={[s.cardPrice, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {formatPrice(mission.price)}
           </Text>
         </View>

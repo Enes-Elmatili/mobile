@@ -1099,7 +1099,7 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
   },
   sliderValue: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 28,
     letterSpacing: 1.5,
   },

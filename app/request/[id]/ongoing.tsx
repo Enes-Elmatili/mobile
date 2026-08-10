@@ -11,7 +11,6 @@ import {
   Linking,
   ActivityIndicator,
   Platform,
-  InteractionManager,
   StatusBar,
   BackHandler,
   TextInput,
@@ -21,7 +20,7 @@ import {
   Easing,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -233,6 +232,7 @@ const ac = StyleSheet.create({
 export default function MissionOngoing() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { socket, joinRoom, leaveRoom } = useSocket();
   const { user: authUser } = useAuth();
@@ -254,8 +254,21 @@ export default function MissionOngoing() {
   const [pin, setPin] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
   const [afterPhotoUploaded, setAfterPhotoUploaded] = useState(false);
+  // URIs affichables des photos prises : locale (file://) juste après la prise,
+  // serveur (/api/uploads/…) après rechargement de l'écran. Sans vignette, le
+  // presta n'avait AUCUN retour visuel que sa photo était bien enregistrée.
+  const [beforePhotoUri, setBeforePhotoUri] = useState<string | null>(null);
+  const [afterPhotoUri, setAfterPhotoUri] = useState<string | null>(null);
   const [hasQuote, setHasQuote] = useState(false);
   const pinInputRef = useRef<TextInput>(null);
+  const pendingCameraChecked = useRef(false);
+
+  // URL affichable d'une photo mission (relative backend → absolue serveur).
+  const resolvePhotoUri = (raw?: string | null): string | null => {
+    if (!raw) return null;
+    if (/^(https?|file|content):/.test(raw)) return raw;
+    return `${SERVER_BASE}${raw}`;
+  };
 
   // ─── Conversation badge (client → provider) ──────────────────────────────
   const clientUserId = request?.client?.id || request?.clientId || null;
@@ -320,9 +333,9 @@ export default function MissionOngoing() {
         }
       }
 
-      if (data.beforePhotoUrl) setBeforePhotoUploaded(true);
+      if (data.beforePhotoUrl) { setBeforePhotoUploaded(true); setBeforePhotoUri(resolvePhotoUri(data.beforePhotoUrl)); }
       if (data.pinVerified) setPinVerified(true);
-      if (data.afterPhotoUrl) setAfterPhotoUploaded(true);
+      if (data.afterPhotoUrl) { setAfterPhotoUploaded(true); setAfterPhotoUri(resolvePhotoUri(data.afterPhotoUrl)); }
       setRequest(data);
 
       // Check if a quote was already sent for this request
@@ -369,6 +382,40 @@ export default function MissionOngoing() {
       loadRequest();
     }, [loadRequest])
   );
+
+  // ─── Android : récupération d'une photo perdue ────────────────────────────
+  // Sur Android, l'OS peut tuer l'activité de l'app pendant que la caméra est
+  // ouverte (pression mémoire). Au retour, l'app redémarre : la promesse de
+  // launchCameraAsync est perdue et la photo prise semblait disparaître (bug
+  // remonté en beta : « il n'affiche pas les photos »). getPendingResultAsync
+  // rend ce cliché orphelin — on reprend alors l'upload à l'étape courante,
+  // déterminée par l'état serveur (before manquante → before, sinon after).
+  useEffect(() => {
+    if (Platform.OS !== 'android' || loading || pendingCameraChecked.current) return;
+    pendingCameraChecked.current = true;
+    (async () => {
+      try {
+        const pending = await ImagePicker.getPendingResultAsync();
+        const first = (Array.isArray(pending) ? pending[0] : null) as ImagePicker.ImagePickerResult | null;
+        const uri = first && !(first as any).code && !first.canceled ? first.assets?.[0]?.uri : null;
+        if (!uri) return;
+        const type: 'before' | 'after' = !beforePhotoUploaded ? 'before' : 'after';
+        setActionLoading(true);
+        try {
+          await uploadMissionPhoto(id!, type, uri, myLocation);
+          if (type === 'before') { setBeforePhotoUploaded(true); setBeforePhotoUri(uri); }
+          else { setAfterPhotoUploaded(true); setAfterPhotoUri(uri); }
+          feedback.haptic('success');
+        } catch (err: any) {
+          devError('[ONGOING] Pending photo upload:', err);
+          feedback.error(err.message || t('ext.ongoing_photo_send_fail'));
+        } finally { setActionLoading(false); }
+      } catch (err) {
+        devError('[ONGOING] getPendingResultAsync:', err);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // ─── Location tracking ────────────────────────────────────────────────────
 
@@ -425,6 +472,10 @@ export default function MissionOngoing() {
     if (!socket || !id) return;
     joinRoom('request', id);
     const onCancelled = (data: any) => {
+      // Une réassignation admin émet AUSSI request:cancelled (pour que les
+      // builds antérieurs sortent de l'écran) : ici on laisse onUnassigned
+      // faire, il affiche le bon message. Sans ce filtre, double navigation.
+      if (data?.reason === 'admin_reassign') return;
       if (String(data.requestId || data.id) === String(id)) {
         if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
         router.replace('/(tabs)/dashboard');
@@ -435,11 +486,23 @@ export default function MissionOngoing() {
       // Devis accepté → statut revient à ONGOING, reload pour avancer le step
       loadRequest();
     };
+    // L'admin a réassigné la mission à un autre prestataire (le client a pu
+    // demander quelqu'un d'autre, même en pleine intervention). Sans ce
+    // handler, l'écran reste ouvert sur une mission qui n'est plus la nôtre et
+    // le prochain chargement se solde par un 403 sec.
+    const onUnassigned = (data: any) => {
+      if (String(data.requestId || data.id) !== String(id)) return;
+      if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
+      feedback.info('ext.ongoing_unassigned_msg');
+      router.replace('/(tabs)/dashboard');
+    };
     socket.on('request:cancelled', onCancelled);
+    socket.on('request:unassigned', onUnassigned);
     socket.on('request:statusUpdated', onStatusUpdated);
     return () => {
       leaveRoom('request', id);
       socket.off('request:cancelled', onCancelled);
+      socket.off('request:unassigned', onUnassigned);
       socket.off('request:statusUpdated', onStatusUpdated);
     };
   }, [socket, id, router, joinRoom, leaveRoom]);
@@ -534,6 +597,7 @@ export default function MissionOngoing() {
       try {
         await uploadMissionPhoto(id!, 'before', result.assets[0].uri, myLocation);
         setBeforePhotoUploaded(true);
+        setBeforePhotoUri(result.assets[0].uri);
         feedback.haptic('success');
       } catch (err: any) {
         devError('[ONGOING] Before photo:', err);
@@ -546,7 +610,9 @@ export default function MissionOngoing() {
   const handlePinChange = (value: string) => {
     const cleaned = value.replace(/[^0-9]/g, '').slice(0, 4);
     setPin(cleaned);
-    requestAnimationFrame(() => pinInputRef.current?.focus());
+    // Pas de re-focus à chaque frappe : le champ garde le focus tout seul depuis
+    // qu'il est réellement tappable (cf. s.pinInput). Le rAF() d'avant relançait
+    // showSoftInput() à chaque chiffre → clavier qui saute sur Android.
   };
 
   // Step 2: PIN → auto-start
@@ -586,6 +652,7 @@ export default function MissionOngoing() {
       try {
         await uploadMissionPhoto(id!, 'after', result.assets[0].uri, myLocation);
         setAfterPhotoUploaded(true);
+        setAfterPhotoUri(result.assets[0].uri);
         feedback.haptic('success');
       } catch (err: any) {
         devError('[ONGOING] After photo:', err);
@@ -646,15 +713,17 @@ export default function MissionOngoing() {
 
   const stepInfoRaw = isQuoteMission ? STEP_LABELS_CFG[currentStep] : STEP_LABELS_CFG[currentStep === 3 ? 4 : currentStep];
 
-  // Focus le champ PIN APRÈS la transition/anim quand on arrive à l'étape 2.
-  // Un `autoFocus` ouvrait le clavier pendant que l'écran se posait (arrivée
-  // directe via router.replace depuis missions) → clavier qui clignote.
+  // Focus le champ PIN APRÈS la transition d'écran quand on arrive à l'étape 2.
+  // NE PAS revenir à InteractionManager.runAfterInteractions : toutes nos anims
+  // tournent en useNativeDriver → RN ne pose aucun interaction handle
+  // (Animation.js: `__isInteraction = config.isInteraction ?? !useNativeDriver`),
+  // donc le callback part au tick suivant, pendant la transition native-stack.
+  // À ce moment la fenêtre n'a pas encore le focus IME et showSoftInput() est
+  // ignoré silencieusement → le clavier ne s'ouvrait jamais.
   useEffect(() => {
     if (currentStep !== 2) return;
-    const task = InteractionManager.runAfterInteractions(() => {
-      pinInputRef.current?.focus();
-    });
-    return () => task.cancel();
+    const t = setTimeout(() => pinInputRef.current?.focus(), 450);
+    return () => clearTimeout(t);
   }, [currentStep]);
   const stepInfo = { title: t(stepInfoRaw.i18nKey), icon: stepInfoRaw.icon };
 
@@ -678,7 +747,7 @@ export default function MissionOngoing() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* ── Carte ── */}
       <MapView
@@ -712,6 +781,7 @@ export default function MissionOngoing() {
           activeOpacity={0.8}
           accessibilityLabel={t('common.back')}
           accessibilityRole="button"
+          hitSlop={8}
         >
           <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
@@ -731,6 +801,7 @@ export default function MissionOngoing() {
           activeOpacity={0.8}
           accessibilityLabel={t('missions.options')}
           accessibilityRole="button"
+          hitSlop={8}
         >
           <Feather name="more-horizontal" size={22} color={theme.text} />
         </TouchableOpacity>
@@ -738,7 +809,7 @@ export default function MissionOngoing() {
 
       {/* ── Bottom sheet ── */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
+        behavior="position"
         keyboardVerticalOffset={Platform.OS === 'ios' ? -20 : 0}
         style={s.sheetWrapper}
       >
@@ -746,7 +817,7 @@ export default function MissionOngoing() {
           backgroundColor: theme.bg,
           ...Platform.select({
             ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity + 0.04, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
-            android: { elevation: 8 },
+            android: { elevation: 8, paddingBottom: insets.bottom + 10 },
           }),
         }]}>
           <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
@@ -783,11 +854,11 @@ export default function MissionOngoing() {
               <View style={{ marginBottom: 6 }}>
                 {inRoute ? (
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 }}>
-                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 52, color: theme.text, lineHeight: 52, letterSpacing: -1 }}>{etaMin}</Text>
-                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>{t('mission_view.min_away')}</Text>
+                    <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 52, color: theme.text, lineHeight: 52, letterSpacing: -1 }}>{etaMin}</Text>
+                    <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>{t('mission_view.min_away')}</Text>
                   </View>
                 ) : (
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 30, color: theme.text, marginBottom: 2 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30, color: theme.text, marginBottom: 2 }}>
                     {stepInfo.title.toUpperCase()}
                   </Text>
                 )}
@@ -912,25 +983,35 @@ export default function MissionOngoing() {
             <Pressable onPress={() => pinInputRef.current?.focus()}>
               <View style={[s.pinCard, { backgroundColor: theme.heroBg }]}>
                 <Text style={[s.pinCardLabel, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>{t('ext.ongoing_pin_card_label')}</Text>
-                <TextInput
-                  ref={pinInputRef}
-                  value={pin}
-                  onChangeText={handlePinChange}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  caretHidden
-                  style={s.hiddenInput}
-                />
-                <View style={s.pinRow}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <View key={i} style={[s.pinBox, { backgroundColor: 'rgba(255,255,255,0.08)' }, pin.length === i && { borderColor: theme.heroText, borderWidth: 1 }]}>
-                      {pin.length > i ? (
-                        <Text style={[s.pinDigit, { color: theme.heroText, fontFamily: FONTS.bebas }]}>{pin[i]}</Text>
-                      ) : (
-                        <View style={[s.pinEmpty, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
-                      )}
-                    </View>
-                  ))}
+                {/* Le champ recouvre exactement la rangée de cases : le tap tombe
+                    sur l'EditText / UITextField natif, qui ouvre le clavier lui-même.
+                    Un champ 1x1 en opacity:0 n'est pas hit-testable → il fallait
+                    passer par focus() programmatique, silencieusement ignoré. */}
+                <View style={s.pinInputWrap}>
+                  <View style={s.pinRow}>
+                    {[0, 1, 2, 3].map((i) => (
+                      <View key={i} style={[s.pinBox, { backgroundColor: 'rgba(255,255,255,0.08)' }, pin.length === i && { borderColor: theme.heroText, borderWidth: 1 }]}>
+                        {pin.length > i ? (
+                          <Text style={[s.pinDigit, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{pin[i]}</Text>
+                        ) : (
+                          <View style={[s.pinEmpty, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  <TextInput
+                    ref={pinInputRef}
+                    value={pin}
+                    onChangeText={handlePinChange}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    caretHidden
+                    contextMenuHidden
+                    selectionColor="transparent"
+                    underlineColorAndroid="transparent"
+                    style={s.pinInput}
+                    accessibilityLabel={t('missions.verify_code')}
+                  />
                 </View>
                 <TouchableOpacity
                   style={[s.primaryBtn, { backgroundColor: theme.accent }, (actionLoading || pin.length < 4) && s.btnDisabled]}
@@ -1013,6 +1094,36 @@ export default function MissionOngoing() {
             </ActionCard>
           )}
 
+          {/* Vignettes des photos prises — retour visuel que le cliché est bien
+              enregistré (le bug Android « photo invisible » venait de l'absence
+              totale d'aperçu, combinée au kill d'activité pendant la caméra). */}
+          {(beforePhotoUri || afterPhotoUri) && (
+            <View style={s.photoStrip}>
+              {beforePhotoUri && (
+                <View style={s.photoThumbWrap}>
+                  <Image source={{ uri: beforePhotoUri }} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
+                  <View style={s.photoThumbLabelRow}>
+                    <Feather name="check-circle" size={11} color={theme.greenText} />
+                    <Text style={[s.photoThumbLabel, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>
+                      {t('ext.ongoing_thumb_before')}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {afterPhotoUri && (
+                <View style={s.photoThumbWrap}>
+                  <Image source={{ uri: afterPhotoUri }} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
+                  <View style={s.photoThumbLabelRow}>
+                    <Feather name="check-circle" size={11} color={theme.greenText} />
+                    <Text style={[s.photoThumbLabel, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>
+                      {t('ext.ongoing_thumb_after')}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -1026,6 +1137,13 @@ export default function MissionOngoing() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   map: { flex: 1 },
+
+  // ── Vignettes photos mission ──
+  photoStrip: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  photoThumbWrap: { alignItems: 'center', gap: 5 },
+  photoThumb: { width: 64, height: 64, borderRadius: 12, borderWidth: 1 },
+  photoThumbLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  photoThumbLabel: { fontSize: 9, letterSpacing: 1 },
 
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 15 },
@@ -1150,9 +1268,9 @@ const s = StyleSheet.create({
     paddingBottom: 8, marginBottom: 2,
     borderBottomWidth: 1,
   },
-  missionName: { fontSize: 18, fontFamily: FONTS.bebas, letterSpacing: 0.4, marginBottom: 3 },
+  missionName: { fontSize: 18, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.4, marginBottom: 3 },
   stepLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.6 },
-  price: { fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.3 },
+  price: { fontSize: 24, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.3 },
 
   // ── Buttons ──
   primaryBtn: {
@@ -1168,7 +1286,18 @@ const s = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
 
   // ── PIN ──
-  hiddenInput: { position: 'absolute', opacity: 0, width: 1, height: 1 },
+  // Champ transparent posé PAR-DESSUS les cases (jamais opacity:0 ni 1x1 : iOS ignore au
+  // hit-test tout ce qui est sous alpha 0.01, et un champ hors flux n'est jamais
+  // tappable). Le texte est invisible, les cases dessous font l'affichage.
+  pinInputWrap: { position: 'relative' },
+  pinInput: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.02,
+    color: 'transparent',
+    backgroundColor: 'transparent',
+    fontSize: 1,
+    textAlign: 'center',
+  },
   pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 8 },
   pinCard: {
     borderRadius: 14, padding: 12, marginTop: 2,
@@ -1180,7 +1309,7 @@ const s = StyleSheet.create({
     flex: 1, height: 46, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  pinDigit: { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  pinDigit: { fontSize: 28, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
   pinEmpty: { width: 10, height: 10, borderRadius: 5 },
 
   // ── Ongoing badge ──

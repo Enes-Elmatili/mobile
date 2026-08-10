@@ -6,6 +6,7 @@ import {
   Dimensions, Animated, Easing,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -90,6 +91,7 @@ export function OnboardingLayout({
   secondaryCta,
 }: Props) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const canGoBack = router.canGoBack();
   const shouldShowBack = showBack && (!!onBack || canGoBack);
 
@@ -119,7 +121,7 @@ export function OnboardingLayout({
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="light-content" />
 
       <GridLines />
       <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
@@ -132,7 +134,7 @@ export function OnboardingLayout({
       </Animated.View>
 
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, Platform.OS === "android" && { paddingTop: insets.top + 16 }]}>
         <View style={s.navRow}>
           {shouldShowBack ? (
             <TouchableOpacity
@@ -140,6 +142,8 @@ export function OnboardingLayout({
               onPress={handleBack}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
             >
               <Feather name="chevron-left" size={16} color={alpha(darkTokens.text, 0.6)} />
             </TouchableOpacity>
@@ -166,7 +170,7 @@ export function OnboardingLayout({
       {/* Content */}
       <KeyboardAvoidingView
         style={s.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
       >
         <ScrollView
           style={s.flex}
@@ -181,7 +185,7 @@ export function OnboardingLayout({
 
         {/* CTA */}
         {cta && (
-          <View style={s.footer}>
+          <View style={[s.footer, Platform.OS === "android" && { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
             <TouchableOpacity
               style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
               onPress={() => {
@@ -191,7 +195,7 @@ export function OnboardingLayout({
               disabled={cta.disabled || cta.loading}
               activeOpacity={0.82}
             >
-              <Text style={s.btnPrimaryText}>
+              <Text style={s.btnPrimaryText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                 {cta.loading ? t('common.loading').toUpperCase() : cta.label.toUpperCase()}
               </Text>
               {!cta.loading && !cta.disabled && (
@@ -268,7 +272,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 28, paddingTop: 24, paddingBottom: 24,
   },
   title: {
-    fontFamily: FONTS.bebas, fontSize: 36, color: C.white,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 36, color: C.white,
     letterSpacing: 1, lineHeight: 40, marginBottom: 8,
   },
   subtitle: {
@@ -288,7 +292,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 20,
   },
   btnPrimaryText: {
-    fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 2, color: C.bg, flexShrink: 1,
+    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 2, color: C.bg, flexShrink: 1,
   },
   arrowPill: {
     width: 32, height: 32, borderRadius: 10, backgroundColor: C.bg,

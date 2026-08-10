@@ -266,7 +266,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
             </Text>
           </View>
           <View style={[styles.countdownBubble, { borderColor: urgencyColor }]}>
-            <Text style={[styles.countdownNum, { color: urgencyColor, fontFamily: FONTS.bebas }]}>{countdown}</Text>
+            <Text style={[styles.countdownNum, { color: urgencyColor, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{countdown}</Text>
             <Text style={[styles.countdownSuffix, { color: urgencyColor, fontFamily: FONTS.sansMedium }]}>s</Text>
           </View>
         </View>
@@ -286,7 +286,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
         {request?.estimatedPrice != null && (
           <View style={[styles.priceRow, { borderTopColor: theme.borderLight }]}>
             <Text style={[styles.priceLabel, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.estimated_earning')}</Text>
-            <Text style={[styles.priceValue, { color: theme.text, fontFamily: FONTS.bebas }]}>{request.estimatedPrice} €</Text>
+            <Text style={[styles.priceValue, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{request.estimatedPrice} €</Text>
           </View>
         )}
 

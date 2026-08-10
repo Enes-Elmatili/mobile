@@ -91,7 +91,7 @@ export default function RequestsListScreen() {
       </Text>
       <View style={styles.footer}>
         <Text style={[styles.status, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{statusLabel(item.status)}</Text>
-        <Text style={[styles.price, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
+        <Text style={[styles.price, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
           {item.price && item.price > 0
             ? formatEUR(item.price)
             : ((item as any).pricingMode === 'estimate' || (item as any).pricingMode === 'diagnostic')
@@ -115,10 +115,10 @@ export default function RequestsListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{t('ext.list_all_requests')}</Text>
+        <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.list_all_requests')}</Text>
         <View style={{ width: 24 }} />
       </View>
 

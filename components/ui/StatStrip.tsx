@@ -49,7 +49,7 @@ const s = StyleSheet.create({
   },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   value: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 24,
     lineHeight: 24,
   },

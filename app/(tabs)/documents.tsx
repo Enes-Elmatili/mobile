@@ -82,7 +82,7 @@ const sc = StyleSheet.create({
     width: 28, height: 28, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
-  value: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.5, lineHeight: 22 },
+  value: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 0.5, lineHeight: 22 },
   label: {
     fontFamily: FONTS.sansMedium, fontSize: 9, letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -148,7 +148,7 @@ const iv = StyleSheet.create({
   name: { fontSize: 13, fontFamily: FONTS.sansMedium, marginBottom: 3 },
   meta: { fontSize: 11, fontFamily: FONTS.sans },
   right: { alignItems: 'flex-end', gap: 6, flexShrink: 0 },
-  amount: { fontFamily: FONTS.bebas, fontSize: 17, letterSpacing: 0.4, lineHeight: 17 },
+  amount: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 17, letterSpacing: 0.4, lineHeight: 17 },
   pill: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   pillText: { fontSize: 9, fontFamily: FONTS.sansBold, letterSpacing: 0.5, textTransform: 'uppercase' },
 });
@@ -298,6 +298,8 @@ export default function Documents() {
           style={[s.helpBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => router.push('/settings/help')}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.help')}
         >
           <Feather name="help-circle" size={16} color={theme.text} />
         </TouchableOpacity>
@@ -680,7 +682,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12,
   },
-  headerTitle: { fontFamily: FONTS.bebas, fontSize: 34, letterSpacing: 0.5, lineHeight: 34 },
+  headerTitle: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 34, letterSpacing: 0.5, lineHeight: 34 },
   headerSub: { fontFamily: FONTS.sans, fontSize: 12, marginTop: 3 },
   helpBtn: {
     width: 40, height: 40, borderRadius: 20,

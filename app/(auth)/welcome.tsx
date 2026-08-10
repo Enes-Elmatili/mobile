@@ -133,7 +133,7 @@ const s = StyleSheet.create({
   airMid: { flex: 1.15 },
 
   headline: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 52,
     lineHeight: 52,
     letterSpacing: 0.6,
@@ -162,7 +162,7 @@ const s = StyleSheet.create({
     letterSpacing: 1.5,
   },
   stepLabel: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 16,
     letterSpacing: 1.2,
     marginTop: 5,

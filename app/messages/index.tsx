@@ -162,7 +162,7 @@ export default function MessagesInbox() {
       <Avatar name={item.displayName} size={46} />
       <View style={s.rowContent}>
         <View style={s.rowTop}>
-          <Text style={[s.rowName, { color: theme.textAlt }, item.unread && s.rowNameBold]}>{item.displayName}</Text>
+          <Text style={[s.rowName, { color: theme.textAlt }, item.unread && s.rowNameBold]} numberOfLines={1}>{item.displayName}</Text>
           <Text style={[s.rowTime, { color: theme.textMuted }]}>{timeAgo(item.lastAt)}</Text>
         </View>
         <Text
@@ -263,10 +263,10 @@ const s = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 22, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyTitle: { fontSize: 22, fontFamily: FONTS.bebas, marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, marginBottom: 20 },
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderRadius: 100,
@@ -284,7 +284,7 @@ const s = StyleSheet.create({
   rowTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  rowName: { fontSize: 15, fontFamily: FONTS.sansMedium },
+  rowName: { fontSize: 15, fontFamily: FONTS.sansMedium, flex: 1, marginRight: 8 },
   rowNameBold: { fontFamily: FONTS.sansBold },
   rowTime: { fontSize: 12, fontFamily: FONTS.mono },
   rowPreview: { fontSize: 13, fontFamily: FONTS.sans },

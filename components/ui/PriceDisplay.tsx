@@ -27,7 +27,7 @@ export default function PriceDisplay({ amount, currency = '\u20AC', size = 40, c
 
 const s = StyleSheet.create({
   base: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     letterSpacing: 0.4,
     lineHeight: undefined, // Let RN compute from fontSize
   },

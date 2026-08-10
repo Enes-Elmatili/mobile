@@ -109,9 +109,9 @@ function CurrentPlanCard({ tier, promoActive, showFreeExtras }: {
           </View>
         </View>
 
-        <Text style={[s.tierLabel, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
+        <Text style={[s.tierLabel, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{tier.label}</Text>
         <View style={s.priceRow}>
-          <Text style={[s.price, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>
+          <Text style={[s.price, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {tier.monthlyPriceCents === 0 ? t('formules.free') : euros(tier.monthlyPriceCents)}
           </Text>
           {tier.monthlyPriceCents > 0 && (
@@ -166,7 +166,7 @@ function PromoBanner({ remaining, nominalPct }: { remaining: number; nominalPct:
             <Feather name="gift" size={18} color={G.greenLight} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.promoTitle, { color: G.greenLight, fontFamily: FONTS.bebas }]}>{t('formules.promo_title')}</Text>
+            <Text style={[s.promoTitle, { color: G.greenLight, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.promo_title')}</Text>
             <Text style={[s.promoSub, { color: G.green, fontFamily: FONTS.mono }]}>{t('formules.promo_subtitle').toUpperCase()}</Text>
           </View>
         </View>
@@ -200,10 +200,10 @@ function UpgradeCard({ tier, onChoose, choosing }: { tier: Tier; onChoose: (t: s
               <Text style={[s.badgeText, { color: G.onAccent, fontFamily: FONTS.mono }]}>{t('formules.recommended_badge').toUpperCase()}</Text>
             </LinearGradient>
           )}
-          <Text style={[s.upName, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{tier.label}</Text>
+          <Text style={[s.upName, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{tier.label}</Text>
         </View>
         <View style={s.priceRow}>
-          <Text style={[s.upPrice, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{euros(tier.monthlyPriceCents)}</Text>
+          <Text style={[s.upPrice, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{euros(tier.monthlyPriceCents)}</Text>
           <Text style={[s.priceSuffix, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.per_month')}</Text>
         </View>
       </View>
@@ -331,10 +331,13 @@ export default function FormulesScreen() {
             style={[s.backBtn, { backgroundColor: G.scrim }]}
             onPress={() => { feedback.haptic('light'); router.canGoBack() ? router.back() : router.replace('/(tabs)/provider-dashboard' as any); }}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back')}
+            hitSlop={8}
           >
             <Feather name="arrow-left" size={20} color={G.textPrimary} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{t('formules.title').toUpperCase()}</Text>
+          <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.title').toUpperCase()}</Text>
           <View style={{ width: 38 }} />
         </View>
 
@@ -356,7 +359,7 @@ export default function FormulesScreen() {
             {/* Bandeau d'accroche — uniquement quand les paliers payants sont actifs. */}
             {subscriptionsEnabled && (
               <View style={s.banner}>
-                <Text style={[s.bannerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas }]}>{t('formules.banner_title')}</Text>
+                <Text style={[s.bannerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.banner_title')}</Text>
                 <Text style={[s.bannerSub, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.banner_sub')}</Text>
               </View>
             )}
@@ -371,7 +374,7 @@ export default function FormulesScreen() {
             {/* Bloc tiers payants — code présent mais CONDITIONNEL au flag serveur. */}
             {subscriptionsEnabled && paidTiers.length > 0 && (
               <>
-                <Text style={[s.upTitle, { color: G.textMuted, fontFamily: FONTS.bebas }]}>{t('formules.upgrade_title').toUpperCase()}</Text>
+                <Text style={[s.upTitle, { color: G.textMuted, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.upgrade_title').toUpperCase()}</Text>
                 {paidTiers.map((tier) => (
                   <UpgradeCard key={tier.tier} tier={tier} onChoose={handleChoose} choosing={choosingTier === tier.tier} />
                 ))}

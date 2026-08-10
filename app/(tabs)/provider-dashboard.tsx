@@ -254,7 +254,7 @@ function IncomingJobCard({
             </View>
             <View style={jc.infoContent}>
               <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.client_label')}</Text>
-              <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]}>
+              <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
                 {cleanName(request.client.name)}{request.client.city ? ` · ${request.client.city}` : ''}
               </Text>
             </View>
@@ -323,14 +323,14 @@ const jc = StyleSheet.create({
 
   // Timer row
   timerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 20 },
-  newLabel: { fontFamily: FONTS.bebas, fontSize: 11, letterSpacing: 2.5, opacity: 0.7 },
+  newLabel: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 11, letterSpacing: 2.5, opacity: 0.7 },
   timerWrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
   timerBg: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 3 },
   timerProgress: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 3 },
-  timerNum: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 1 },
+  timerNum: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 1 },
 
   // Title
-  title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, lineHeight: 33, paddingHorizontal: 24, paddingTop: 12 },
+  title: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30, letterSpacing: 0.5, lineHeight: 33, paddingHorizontal: 24, paddingTop: 12 },
 
   // Badge
   badgeRow: { paddingHorizontal: 24, paddingTop: 14 },
@@ -356,7 +356,7 @@ const jc = StyleSheet.create({
   etaChipText: { fontFamily: FONTS.sans, fontSize: 12 },
 
   feeBadge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
-  feeBadgeNum: { fontFamily: FONTS.bebas, fontSize: 18, letterSpacing: 0.5 },
+  feeBadgeNum: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 0.5 },
 
   // CTA
   ctaArea: { paddingHorizontal: 24, paddingTop: 20, gap: 10 },
@@ -364,7 +364,7 @@ const jc = StyleSheet.create({
     height: 58, borderRadius: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 10,
   },
-  acceptText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 3 },
+  acceptText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 3 },
   passBtn: { alignItems: 'center', height: 40, justifyContent: 'center' },
   passText: { fontFamily: FONTS.sans, fontSize: 13, letterSpacing: 0.3 },
 });
@@ -441,6 +441,7 @@ function CockpitIsland({
         style={[ci.statusSection, isOnline ? { backgroundColor: theme.cardBg } : { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : theme.surface }]}
         accessibilityLabel={isOnline ? t('provider.online') : t('provider.offline')}
         accessibilityRole="switch"
+        hitSlop={{ top: 6, bottom: 6 }}
       >
         <View style={ci.dotWrap}>
           {isOnline && (
@@ -458,7 +459,7 @@ function CockpitIsland({
       <View style={[ci.sep, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />
 
       {/* Wallet */}
-      <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletBtn} accessibilityLabel={t('provider.balance_label')} accessibilityRole="button">
+      <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletBtn} accessibilityLabel={t('provider.balance_label')} accessibilityRole="button" hitSlop={{ top: 6, bottom: 6 }}>
         <Feather name="credit-card" size={16} color={theme.text} />
         <Text style={[ci.walletAmount, { color: theme.text }]} numberOfLines={1}>{formatEuros((wallet?.stripeAvailable ?? 0) / 100, 0)}</Text>
       </TouchableOpacity>
@@ -532,7 +533,7 @@ function StatsSection({ loading, stats }: { loading: boolean; stats: ProviderSta
       <View style={ss.kpiItem}>
         <Text style={[ss.kpiNum, ss.kpiGold]}>
           {stats.totalRatings > 0
-            ? <>{stats.avgRating.toFixed(1)}<Text style={ss.kpiStar}> ★</Text></>
+            ? <>{stats.avgRating.toFixed(1)} <Feather name="star" size={12} color={COLORS.amber} /></>
             : <Text style={{ color: t.textMuted }}>—</Text>}
         </Text>
         <Text style={[ss.kpiLabel, { color: t.textMuted }]}>NOTE</Text>
@@ -561,9 +562,8 @@ const ss = StyleSheet.create({
   },
   kpiItem:  { flex: 1, alignItems: 'center', gap: 4 },
   kpiSep:   { width: 1, height: 32 },
-  kpiNum:   { fontSize: 16, fontFamily: FONTS.bebas, letterSpacing: -0.3 },
+  kpiNum:   { fontSize: 16, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.3 },
   kpiGold:  { color: COLORS.amber },
-  kpiStar:  { fontSize: 12, color: COLORS.amber },
   kpiLabel: { fontSize: 10, fontFamily: FONTS.mono, letterSpacing: 0.4 },
 });
 
@@ -973,7 +973,7 @@ export default function ProviderDashboard() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* -- Carte plein ecran -- */}
       <MapView
@@ -1050,6 +1050,7 @@ export default function ProviderDashboard() {
               activeOpacity={0.8}
               accessibilityLabel="Messages"
               accessibilityRole="button"
+              hitSlop={8}
             >
               <Feather name="message-square" size={20} color={theme.text} />
               {unreadMessages > 0 && (
@@ -1065,6 +1066,7 @@ export default function ProviderDashboard() {
               activeOpacity={0.8}
               accessibilityLabel={t('common.notifications')}
               accessibilityRole="button"
+              hitSlop={8}
             >
               <Feather name="bell" size={20} color={theme.text} />
               {unreadCount > 0 && (
@@ -1224,7 +1226,7 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase',
   },
   earningsHero: {
-    fontSize: 34, fontFamily: FONTS.bebas,
+    fontSize: 34, fontFamily: FONTS.bebas, includeFontPadding: false,
     letterSpacing: -1.5, lineHeight: 40,
     textAlign: 'center',
   },

@@ -145,7 +145,9 @@ export function resolveProviderDestination(req: RequestLike | null | undefined):
 
 // ─── Classification d'une notification → intention de navigation ─────────────
 const PROVIDER_OPPORTUNITY_TYPES = new Set(['new_request', 'new_opportunity', 'preferred_request', 'preferred_opportunity']);
-const PROVIDER_QUOTE_TYPES = new Set(['quote_accepted', 'quote_refused']);
+// mission_assigned : assignation manuelle depuis le panel admin — même
+// résolution que les devis : l'état courant de SA mission, côté prestataire.
+const PROVIDER_QUOTE_TYPES = new Set(['quote_accepted', 'quote_refused', 'mission_assigned']);
 const CLIENT_REQUEST_CATEGORIES = new Set(['mission', 'mission_update', 'rating', 'dispute']);
 const CLIENT_REQUEST_SCREENS = new Set(['MissionView', 'QuoteReview', 'Rating']);
 

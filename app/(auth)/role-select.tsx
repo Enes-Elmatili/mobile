@@ -279,7 +279,7 @@ const s = StyleSheet.create({
   backAbs: { position: "absolute", left: 0, top: 11, zIndex: 1 },
   airTop: { flex: 0.55, minHeight: 12 },
   headline: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 44,
     lineHeight: 44,
     letterSpacing: 0.6,
@@ -316,7 +316,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 26,
     letterSpacing: 2,
     lineHeight: 30,

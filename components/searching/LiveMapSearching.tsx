@@ -3,7 +3,7 @@
 // Uses the app design tokens (useAppTheme / FONTS / COLORS) — no hardcoded palette.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Circle } from 'react-native-maps';
 import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
@@ -417,7 +417,13 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
           <BlurView
             intensity={40}
             tint={theme.isDark ? 'dark' : 'light'}
-            style={[s.searchPill, { backgroundColor: theme.isDark ? 'rgba(20,20,20,0.6)' : 'rgba(255,255,255,0.7)', shadowColor: theme.text }]}
+            // Android : pas de vrai blur — fond quasi opaque pour garder la pill lisible sur la carte
+            style={[s.searchPill, {
+              backgroundColor: Platform.OS === 'android'
+                ? (theme.isDark ? 'rgba(20,20,20,0.94)' : 'rgba(255,255,255,0.96)')
+                : (theme.isDark ? 'rgba(20,20,20,0.6)' : 'rgba(255,255,255,0.7)'),
+              shadowColor: theme.text,
+            }]}
           >
             <Spinner color={accent} track={theme.borderLight as string} />
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -470,7 +476,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
             <Text style={[s.kicker, { color: fgMuted, fontFamily: FONTS.mono }]}>
               Mission · #{String(missionId).slice(-6).toUpperCase()}
             </Text>
-            <Text style={[s.missionTitle, { color: theme.text, fontFamily: FONTS.bebas }]} numberOfLines={1}>
+            <Text style={[s.missionTitle, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]} numberOfLines={1}>
               {missionTitle || t('missions.mission')}
             </Text>
             <View style={s.metaRow}>

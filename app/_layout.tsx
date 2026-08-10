@@ -184,11 +184,7 @@ function RootLayoutNav() {
         styles.loadingContainer,
         { backgroundColor: t.bg },
       ]}>
-        <StatusBar
-          barStyle={t.statusBar}
-          backgroundColor="transparent"
-          translucent
-        />
+        <StatusBar barStyle={t.statusBar} />
         <ActivityIndicator
           size="large"
           color={t.text}
@@ -199,11 +195,7 @@ function RootLayoutNav() {
 
   return (
     <>
-      <StatusBar
-        barStyle={t.statusBar}
-        backgroundColor="transparent"
-        translucent
-      />
+      <StatusBar barStyle={t.statusBar} />
       <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }} />
     </>
   );
@@ -235,7 +227,7 @@ class AppErrorBoundary extends React.Component<
       const t = dark ? darkTokens : lightTokens;
       return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: t.bg }}>
-          <Text style={{ fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.5, marginBottom: 12, color: t.text }}>{i18n.t('common.error')}</Text>
+          <Text style={{ fontSize: 24, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5, marginBottom: 12, color: t.text }}>{i18n.t('common.error')}</Text>
           <Text style={{ fontSize: 14, color: t.textSub, textAlign: 'center', marginBottom: 24 }}>
             {i18n.t('ext.error_boundary_msg')}
           </Text>

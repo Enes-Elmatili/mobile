@@ -109,7 +109,7 @@ export default function ProvidersListScreen() {
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>Prestataires</Text>
+        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>Prestataires</Text>
         <View style={{ width: 36 }} />
       </View>
 

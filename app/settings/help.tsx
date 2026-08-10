@@ -195,6 +195,7 @@ export default function HelpScreen() {
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           accessibilityLabel={t('help.back_label')}
+          hitSlop={8}
         >
           <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
@@ -211,7 +212,7 @@ export default function HelpScreen() {
           <Text style={[s.heroKicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
             {t('help.hero_kicker')}
           </Text>
-          <Text style={[s.heroTitle, { color: theme.text, fontFamily: FONTS.bebas }]}>
+          <Text style={[s.heroTitle, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {t('help.hero_title')}
           </Text>
           <Text style={[s.heroSub, { color: theme.textSub, fontFamily: FONTS.sans }]}>
@@ -252,7 +253,7 @@ export default function HelpScreen() {
             autoCorrect={false}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.clear')}>
               <Feather name="x-circle" size={16} color={theme.textMuted} />
             </TouchableOpacity>
           )}
@@ -353,7 +354,7 @@ export default function HelpScreen() {
                   const statusLabel = ticket.status === 'OPEN' ? t('help.ticket_status_open')
                     : ticket.status === 'IN_PROGRESS' ? t('help.ticket_status_in_progress') : t('help.ticket_status_closed');
                   const dotColor = isClosed ? theme.textDisabled
-                    : ticket.priority === 'HIGH' ? '#EF4444'
+                    : ticket.priority === 'HIGH' ? COLORS.red
                     : COLORS.amber;
                   const date = new Date(ticket.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                   return (

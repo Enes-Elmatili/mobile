@@ -173,7 +173,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 18, fontFamily: FONTS.bebas, letterSpacing: 0.5,
+    fontSize: 18, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5,
   },
   info: {
     flex: 1,

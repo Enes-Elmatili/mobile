@@ -118,7 +118,7 @@ export default function SendQuote() {
   if (checking) {
     return (
       <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+        <StatusBar barStyle={theme.statusBar} />
         <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
@@ -128,7 +128,7 @@ export default function SendQuote() {
   if (loadError) {
     return (
       <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+        <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={40} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textSub }]}>Impossible de charger cette demande.</Text>
         <TouchableOpacity
@@ -145,7 +145,7 @@ export default function SendQuote() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
@@ -154,6 +154,9 @@ export default function SendQuote() {
             style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back')}
+            hitSlop={8}
           >
             <Feather name="arrow-left" size={18} color={theme.text} />
           </TouchableOpacity>
@@ -162,7 +165,7 @@ export default function SendQuote() {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={s.scroll}
@@ -326,7 +329,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   headerTitle: {
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
     fontSize: 22,
     letterSpacing: 2.5,
   },
@@ -345,7 +348,7 @@ const s = StyleSheet.create({
     borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, height: 52,
   },
   inputAmount: { flex: 1, fontFamily: FONTS.sansLight, fontSize: 24, letterSpacing: 0.5 },
-  inputUnit: { fontFamily: FONTS.bebas, fontSize: 20 },
+  inputUnit: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20 },
 
   notesInput: {
     borderRadius: 10, borderWidth: 1, padding: 12, minHeight: 72,
@@ -360,8 +363,8 @@ const s = StyleSheet.create({
     letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 6,
   },
   totalAmountRow: { flexDirection: "row", alignItems: "baseline" },
-  totalInt: { fontFamily: FONTS.bebas, fontSize: 40, lineHeight: 44 },
-  totalDec: { fontFamily: FONTS.bebas, fontSize: 22, marginLeft: 2 },
+  totalInt: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 40, lineHeight: 44 },
+  totalDec: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, marginLeft: 2 },
   calloutNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
   calloutDot: { width: 6, height: 6, borderRadius: 3 },
   calloutText: { fontFamily: FONTS.sans, fontSize: 12 },
@@ -369,7 +372,7 @@ const s = StyleSheet.create({
   footer: { paddingHorizontal: 16, paddingTop: 10 },
   ctaBtn: { borderRadius: 100, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   ctaContent: { alignItems: "center", gap: 2 },
-  ctaText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 2 },
+  ctaText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 2 },
   ctaSub: {
     fontFamily: FONTS.sansMedium, fontSize: 10,
     letterSpacing: 1, textTransform: "uppercase", opacity: 0.6,

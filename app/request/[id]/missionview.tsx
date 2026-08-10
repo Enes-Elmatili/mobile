@@ -8,10 +8,9 @@ import {
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
@@ -80,6 +79,7 @@ interface ConfirmModalProps {
 function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel }: ConfirmModalProps) {
   const { t } = useTranslation();
   const th = useAppTheme();
+  const insets = useSafeAreaInsets();
   const resolvedConfirmLabel = confirmLabel || t('common.confirm');
   const resolvedCancelLabel = cancelLabel || t('common.cancel');
   const slideAnim = useRef(new Animated.Value(300)).current;
@@ -101,13 +101,13 @@ function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, dest
   }, [visible]);
 
   return (
-    <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent>
+    <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={cm.overlay} onPress={onCancel}>
         <Animated.View style={{ opacity: fadeAnim, ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' }} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { backgroundColor: th.cardBg, transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[cm.sheet, { backgroundColor: th.cardBg, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28), transform: [{ translateY: slideAnim }] }]}>
         <View style={[cm.handle, { backgroundColor: th.borderLight }]} />
-        <Text style={[cm.title, { color: th.text, fontFamily: FONTS.bebas }]}>{title}</Text>
+        <Text style={[cm.title, { color: th.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{title}</Text>
         {message ? <Text style={[cm.message, { color: th.textSub, fontFamily: FONTS.sans }]}>{message}</Text> : null}
         <View style={cm.actions}>
           <TouchableOpacity style={[cm.cancelBtn, { borderColor: th.border }]} onPress={onCancel} activeOpacity={0.75}>
@@ -394,7 +394,7 @@ function DynamicMessage({ elapsed }: { elapsed: number }) {
 
 const dm = StyleSheet.create({
   wrap:  { alignItems: 'center', paddingHorizontal: 32 },
-  title: { fontSize: 22, textAlign: 'center', letterSpacing: 1, marginBottom: 7, fontFamily: FONTS.bebas },
+  title: { fontSize: 22, textAlign: 'center', letterSpacing: 1, marginBottom: 7, fontFamily: FONTS.bebas, includeFontPadding: false },
   sub:   { fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: FONTS.sans },
 });
 
@@ -434,6 +434,7 @@ const pm = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function MissionView() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<Record<string, string>>();
   const id = params.id;
   const serviceName = params.serviceName;
@@ -1065,7 +1066,7 @@ export default function MissionView() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle={theme.statusBar} translucent backgroundColor="transparent" />
+      <StatusBar barStyle={theme.statusBar} />
 
       {/* ── LOADING ── statut pas encore connu : loader neutre, surtout PAS la
           searching view (qui ne vaut que pour une demande en recherche) ── */}
@@ -1144,7 +1145,7 @@ export default function MissionView() {
         <>
           {/* Bouton retour flottant */}
           <SafeAreaView style={s.floatingTopBar} edges={['top']} pointerEvents="box-none">
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button">
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
               <Feather name="arrow-left" size={20} color={theme.text} />
             </TouchableOpacity>
 
@@ -1157,13 +1158,13 @@ export default function MissionView() {
               </View>
             </View>
 
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openActionsMenu} activeOpacity={0.8} accessibilityLabel={t('missions.options')} accessibilityRole="button">
+            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openActionsMenu} activeOpacity={0.8} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
               <Feather name="more-horizontal" size={22} color={theme.text} />
             </TouchableOpacity>
           </SafeAreaView>
 
           {/* Bottom sheet tracking */}
-          <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04, transform: [{ translateY: trackingSheetY }] }]}>
+          <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04, transform: [{ translateY: trackingSheetY }] }, Platform.OS === 'android' && { paddingBottom: insets.bottom + 12 }]}>
             <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
             <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={s.trackingScroll} contentContainerStyle={s.trackingScrollContent}>
 
@@ -1187,15 +1188,15 @@ export default function MissionView() {
             <View style={{ marginBottom: 10 }}>
               {status !== 'ONGOING' && etaNum ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 2 }}>
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 60, color: theme.text, lineHeight: 60, letterSpacing: -1 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 60, color: theme.text, lineHeight: 60, letterSpacing: -1 }}>
                     {etaNum}
                   </Text>
-                  <Text style={{ fontFamily: FONTS.bebas, fontSize: 16, color: theme.text, letterSpacing: 0.5, marginBottom: 8 }}>
+                  <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 16, color: theme.text, letterSpacing: 0.5, marginBottom: 8 }}>
                     {t('mission_view.min_away')}
                   </Text>
                 </View>
               ) : (
-                <Text style={{ fontFamily: FONTS.bebas, fontSize: 36, color: theme.text, marginBottom: 2 }}>
+                <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 36, color: theme.text, marginBottom: 2 }}>
                   {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : t('mission_view.calculating')}
                 </Text>
               )}
@@ -1247,6 +1248,8 @@ export default function MissionView() {
                   <TouchableOpacity
                     style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center' }}
                     onPress={handleCall} activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.call')}
                   >
                     <Feather name="phone" size={16} color="#fff" />
                   </TouchableOpacity>
@@ -1262,6 +1265,8 @@ export default function MissionView() {
                       }
                     }}
                     activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.message')}
                   >
                     <Feather name="message-circle" size={16} color={theme.text} />
                     {unreadFromProvider > 0 && (
@@ -1330,7 +1335,7 @@ export default function MissionView() {
                 <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
                   <View style={{ flex: 1, paddingVertical: 4 }}>
                     <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('mission_view.label_service')}</Text>
-                    <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }} numberOfLines={1}>
+                    <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text }} numberOfLines={1}>
                       {(translateRequestServiceRaw(request) || translateCategoryRaw(request?.category) || t('mission_view.label_service')).toUpperCase()}
                     </Text>
                   </View>
@@ -1338,7 +1343,7 @@ export default function MissionView() {
                   <View style={{ flex: 1, paddingVertical: 4 }}>
                     <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('common.amount').toUpperCase()}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }} numberOfLines={1}>{priceLabel}</Text>
+                      <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text }} numberOfLines={1}>{priceLabel}</Text>
                       {priceUnit ? <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>{priceUnit}</Text> : null}
                     </View>
                   </View>
@@ -1346,7 +1351,7 @@ export default function MissionView() {
                   <View style={{ flex: 1, paddingVertical: 4 }}>
                     <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('mission_view.label_distance')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                      <Text style={{ fontFamily: FONTS.bebas, fontSize: 22, color: theme.text }}>{distance ? distance.toFixed(1) : '-'}</Text>
+                      <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text }}>{distance ? distance.toFixed(1) : '-'}</Text>
                       <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>km</Text>
                     </View>
                   </View>
@@ -1429,7 +1434,7 @@ const s = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
   metaText: { fontSize: 12, flex: 1 },
   missionRight: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
-  missionPrice: { fontSize: 24, fontFamily: FONTS.bebas, letterSpacing: 0.4 },
+  missionPrice: { fontSize: 24, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.4 },
   quoteBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   quoteBadgeText: { fontSize: 12 },
 
@@ -1491,7 +1496,7 @@ const s = StyleSheet.create({
 
   etaRow: { alignItems: 'center', marginBottom: 12 },
   etaLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.8, marginBottom: 4, textAlign: 'center', textTransform: 'uppercase' },
-  etaTime: { fontSize: 40, fontFamily: FONTS.bebas, letterSpacing: 0.5, textAlign: 'center' },
+  etaTime: { fontSize: 40, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5, textAlign: 'center' },
   etaBadge: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
@@ -1596,7 +1601,7 @@ const pinStyles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
   },
-  digitText: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1, lineHeight: 22 },
+  digitText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 1, lineHeight: 22 },
   hint: { fontFamily: FONTS.sans, fontSize: 11 },
   verified: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

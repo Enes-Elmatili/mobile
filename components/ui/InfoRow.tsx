@@ -53,6 +53,6 @@ const styles = StyleSheet.create({
   },
   valueHighlight: {
     fontSize: 32,
-    fontFamily: FONTS.bebas,
+    fontFamily: FONTS.bebas, includeFontPadding: false,
   },
 });

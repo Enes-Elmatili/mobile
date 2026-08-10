@@ -306,9 +306,9 @@ export default function RatingScreen() {
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
       >
@@ -326,6 +326,7 @@ export default function RatingScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('rating.skip')}
             activeOpacity={0.7}
+            hitSlop={8}
           >
             <Feather name="x" size={20} color={theme.textSub} />
           </TouchableOpacity>
@@ -338,12 +339,12 @@ export default function RatingScreen() {
         <Animated.View style={[s.providerBlock, { opacity: fadeAnim, transform: [{ translateY: slideUp }] }]}>
           {/* Avatar initiales */}
           <View style={[s.avatar, { backgroundColor: theme.accent }]}>
-            <Text style={[s.avatarText, { color: theme.accentText, fontFamily: FONTS.bebas }]}>
+            <Text style={[s.avatarText, { color: theme.accentText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
               {providerName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
             </Text>
           </View>
           <Text style={[s.providerLabel, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('rating.your_mission_with')}</Text>
-          <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.bebas }]}>{providerName}</Text>
+          <Text style={[s.providerName, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{providerName}</Text>
           {request?.serviceType && (
             <View style={[s.serviceTag, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[s.serviceTagText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{translateRequestServiceRaw(request)}</Text>

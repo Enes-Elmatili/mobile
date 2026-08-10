@@ -516,13 +516,13 @@ class ApiClient {
     // il n'est brûlé qu'au paiement réussi (/payments/success).
     setup: async (requestId: string, promoCode?: string) => {
       const token = await tokenStorage.getToken();
-      if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
+      if (!token) throw new Error("Erreur de session : veuillez vous reconnecter avant de payer.");
       return this.post('/payments/setup', { requestId, ...(promoCode ? { promoCode } : {}) });
     },
     // Legacy — kept for rollback during transition. Will be removed once setup is confirmed stable.
     intent: async (requestId: string) => {
       const token = await tokenStorage.getToken();
-      if (!token) throw new Error("⛔️ Erreur Session: Veuillez vous reconnecter avant de payer.");
+      if (!token) throw new Error("Erreur de session : veuillez vous reconnecter avant de payer.");
       return this.post('/payments/intent', { requestId });
     },
     success: async (requestId: string) => {

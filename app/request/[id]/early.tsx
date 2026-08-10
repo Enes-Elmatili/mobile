@@ -164,12 +164,14 @@ export default function EarlyScreen() {
           onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/missions'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('missions.mission').toUpperCase()}</Text>
-          <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas }]}>{t('missions.tab_upcoming')}</Text>
+          <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('missions.tab_upcoming')}</Text>
         </View>
         <View style={{ width: 38 }} />
       </View>
@@ -194,7 +196,7 @@ export default function EarlyScreen() {
               <CountdownBlock value={countdown.mins} unit={t('ext.early_min')} theme={theme} />
             </View>
           ) : (
-            <Text style={[s.heroDate, { color: theme.text, fontFamily: FONTS.bebas }]}>{t('ext.early_soon')}</Text>
+            <Text style={[s.heroDate, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.early_soon')}</Text>
           )}
 
           <Text style={[s.heroDate, { color: theme.text, fontFamily: FONTS.sansMedium, fontSize: 15, marginTop: 6 }]}>
@@ -223,7 +225,7 @@ export default function EarlyScreen() {
               {mission.serviceType || mission.category?.name || t('missions.mission')}
             </Text>
             {mission.price && mission.price > 0 ? (
-              <Text style={[s.rowValue, { color: theme.text, fontFamily: FONTS.bebas }]}>
+              <Text style={[s.rowValue, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
                 {formatEUR(mission.price, 0)}
               </Text>
             ) : null}
@@ -240,7 +242,7 @@ export default function EarlyScreen() {
               <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
               <View style={s.row}>
                 <Feather name="user" size={16} color={theme.textMuted} />
-                <Text style={[s.rowText, { color: theme.text, fontFamily: FONTS.sans }]}>
+                <Text style={[s.rowText, { color: theme.text, fontFamily: FONTS.sans }]} numberOfLines={1}>
                   {cleanName(mission.client.name)}
                 </Text>
               </View>
@@ -342,7 +344,7 @@ export default function EarlyScreen() {
 function CountdownBlock({ value, unit, theme }: { value: number; unit: string; theme: ReturnType<typeof useAppTheme> }) {
   return (
     <View style={cdStyles.block}>
-      <Text style={[cdStyles.value, { color: theme.text, fontFamily: FONTS.bebas }]}>
+      <Text style={[cdStyles.value, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
         {String(value).padStart(2, '0')}
       </Text>
       <Text style={[cdStyles.unit, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>

@@ -149,7 +149,7 @@ export default function EarningsScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.heroBg }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.heroBg} />
+      <StatusBar barStyle="light-content" />
       {/* ── Zone succès — fond sombre ── */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: theme.heroBg }}>
       <View style={s.heroZone}>
@@ -167,7 +167,7 @@ export default function EarningsScreen() {
         {/* Prix net = star */}
         <Animated.Text style={[s.heroPrice, {
           color: theme.heroText,
-          fontFamily: FONTS.bebas,
+          fontFamily: FONTS.bebas, includeFontPadding: false,
           transform: [{ scale: priceAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }],
           opacity: priceAnim,
         }]}>
@@ -192,7 +192,7 @@ export default function EarningsScreen() {
           ))}
           <View style={[s.calcTotal, { borderTopColor: theme.border }]}>
             <Text style={[s.calcTotalLabel, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.earnings_total_net')}</Text>
-            <Text style={[s.calcTotalValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>{formatEUR(net)}</Text>
+            <Text style={[s.calcTotalValue, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{formatEUR(net)}</Text>
           </View>
         </View>
 
@@ -220,7 +220,7 @@ export default function EarningsScreen() {
             <Feather name="trending-up" size={18} color={theme.greenText} />
             <View>
               <Text style={[s.monthCardLabel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.earnings_month')}</Text>
-              <Text style={[s.monthCardValue, { color: theme.textAlt, fontFamily: FONTS.bebas }]}>
+              <Text style={[s.monthCardValue, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
                 {formatEURCents(monthEarnings)}
               </Text>
             </View>
@@ -283,6 +283,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   heroLabel: { fontSize: 13, letterSpacing: 0.5 },
   heroPrice: {

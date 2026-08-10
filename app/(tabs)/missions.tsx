@@ -8,7 +8,7 @@ import {
   Animated, Dimensions, Linking, Platform,
   TextInput, ScrollView, Modal, Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
@@ -17,6 +17,7 @@ import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useTabBarPadding } from './_layout';
 import { useSocket } from '@/lib/SocketContext';
 import { useCall } from '@/lib/webrtc/CallContext';
@@ -184,6 +185,7 @@ function ConfirmModal({
   const finalConfirm = confirmLabel ?? trI18n('common.confirm');
   const finalCancel = cancelLabel ?? trI18n('common.cancel');
   const t = useAppTheme();
+  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(320)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
 
@@ -202,11 +204,11 @@ function ConfirmModal({
   }, [visible]);
 
   return (
-    <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent>
+    <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={cm.overlay} onPress={onCancel}>
         <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: fadeAnim }]} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity > 0.1 ? t.shadowOpacity : 0.14 }, { transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[cm.sheet, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity > 0.1 ? t.shadowOpacity : 0.14, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }, { transform: [{ translateY: slideAnim }] }]}>
         <View style={[cm.handle, { backgroundColor: t.border }]} />
         <Text style={[cm.title, { color: t.text }]}>{title}</Text>
         {message ? <Text style={[cm.message, { color: t.textSub }]}>{message}</Text> : null}
@@ -323,7 +325,7 @@ const dp = StyleSheet.create({
   },
   daySelected:     { borderColor: 'transparent' },
   dayName:         { fontSize: 10, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 },
-  dayNum:          { fontSize: 18, fontFamily: FONTS.bebas },
+  dayNum:          { fontSize: 18, fontFamily: FONTS.bebas, includeFontPadding: false },
 });
 
 // ============================================================================
@@ -503,7 +505,7 @@ const mc = StyleSheet.create({
   addr:   { fontSize: 11, fontFamily: FONTS.sans, flex: 1 },
 
   earningsCol:   { alignItems: 'flex-end', paddingLeft: 10 },
-  earningsNet:   { fontSize: 18, fontFamily: FONTS.bebas, letterSpacing: -0.4 },
+  earningsNet:   { fontSize: 18, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.4 },
   earningsLabel: { fontSize: 10, fontFamily: FONTS.mono },
 
   footer:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -538,6 +540,7 @@ function FilterBar({ options, selected, onSelect }: {
             style={[fb.chip, { backgroundColor: t.surface }, active && { backgroundColor: t.accent }]}
             onPress={() => onSelect(item.key)}
             activeOpacity={0.8}
+            hitSlop={{ top: 6, bottom: 6 }}
           >
             <Text numberOfLines={1} style={[fb.chipText, { color: t.textSub }, active && { color: t.accentText }]}>
               {item.label}
@@ -610,7 +613,7 @@ const es = StyleSheet.create({
     width: 64, height: 64, borderRadius: 32,
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  heroAmount: { fontSize: 36, fontFamily: FONTS.bebas, letterSpacing: -1.5 },
+  heroAmount: { fontSize: 36, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -1.5 },
   title:   { fontSize: 17, fontFamily: FONTS.sansMedium, textAlign: 'center' },
   sub:     { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
   cta:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20, marginTop: 8 },
@@ -657,7 +660,7 @@ function OpportunityCard({
           <View style={opp.cardHead}>
             <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
               <Feather name={getServiceIcon(item.category.name) as any} size={14} color={theme.text} />
-              <Text style={[opp.catBadgeText, { color: theme.text }]}>{translateCategory(tr, item.category)}</Text>
+              <Text style={[opp.catBadgeText, { color: theme.text, flexShrink: 1 }]} numberOfLines={1}>{translateCategory(tr, item.category)}</Text>
             </View>
             <View style={opp.headRight}>
               {item.urgent ? (
@@ -744,7 +747,7 @@ const opp = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, flexShrink: 1, marginRight: 8 },
   catBadgeText: { fontSize: 12, fontFamily: FONTS.sansMedium },
   relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   relText: { fontSize: 11, fontFamily: FONTS.sansMedium },
@@ -756,7 +759,7 @@ const opp = StyleSheet.create({
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   infoText: { fontSize: 13, fontFamily: FONTS.sans },
   cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  priceNet: { fontSize: 20, fontFamily: FONTS.bebas },
+  priceNet: { fontSize: 20, fontFamily: FONTS.bebas, includeFontPadding: false },
   priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   declineBtn: {
@@ -921,7 +924,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           {mission.client?.name && (
             <View style={sd.clientRow}>
               <ClientAvatar name={cleanName(mission.client.name)} size={24} />
-              <Text style={[sd.clientName, { color: t.textSub }]}>{cleanName(mission.client.name)}</Text>
+              <Text style={[sd.clientName, { color: t.textSub }]} numberOfLines={1}>{cleanName(mission.client.name)}</Text>
             </View>
           )}
         </View>
@@ -1019,7 +1022,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
             <View style={sd.clientCard}>
               <ClientAvatar name={cleanName(mission.client.name)} size={44} />
               <View style={{ flex: 1 }}>
-                <Text style={[sd.clientCardName, { color: t.text }]}>{cleanName(mission.client.name)}</Text>
+                <Text style={[sd.clientCardName, { color: t.text }]} numberOfLines={1}>{cleanName(mission.client.name)}</Text>
               </View>
               {mission.client.id && (
                 <TouchableOpacity
@@ -1184,7 +1187,7 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
         <Text style={[sd.title, { color: t.text }]}>{item.serviceType}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 4 }}>
           <Feather name={getServiceIcon(item.category.name) as any} size={13} color={t.textMuted} />
-          <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13 }}>{translateCategory(tr, item.category)}</Text>
+          <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>{translateCategory(tr, item.category)}</Text>
           <Text style={{ color: t.textMuted, fontSize: 13 }}>·</Text>
           <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13 }}>{relative}</Text>
         </View>
@@ -1251,9 +1254,9 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
             <View style={sd.clientCard}>
               <ClientAvatar name={cleanName(item.client.name)} size={44} />
               <View style={{ flex: 1 }}>
-                <Text style={[sd.clientCardName, { color: t.text }]}>{cleanName(item.client.name)}</Text>
+                <Text style={[sd.clientCardName, { color: t.text }]} numberOfLines={1}>{cleanName(item.client.name)}</Text>
                 {item.client.city ? (
-                  <Text style={{ color: t.textMuted, fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 }}>{item.client.city}</Text>
+                  <Text style={{ color: t.textMuted, fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{item.client.city}</Text>
                 ) : null}
               </View>
             </View>
@@ -1306,13 +1309,13 @@ const sd = StyleSheet.create({
 
   body: { paddingHorizontal: 20, paddingTop: 14 },
   titleRow: { marginBottom: 12, gap: 6 },
-  title:    { fontSize: 22, fontFamily: FONTS.bebas, letterSpacing: -0.4 },
+  title:    { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.4 },
   clientRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
-  clientName:{ fontSize: 13, fontFamily: FONTS.sansMedium },
+  clientName:{ fontSize: 13, fontFamily: FONTS.sansMedium, flexShrink: 1 },
 
   earningsBlock:  { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 12 },
   earningsLabel:  { fontSize: 11, fontFamily: FONTS.mono, marginBottom: 3 },
-  earningsNet:    { fontSize: 28, fontFamily: FONTS.bebas, letterSpacing: -0.8 },
+  earningsNet:    { fontSize: 28, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.8 },
   earningsZero:   { fontSize: 16, fontFamily: FONTS.sans, fontStyle: 'italic' },
   earningsDivider:{ width: StyleSheet.hairlineWidth, height: 44, marginHorizontal: 20 },
   earningsGross:  { fontSize: 16, fontFamily: FONTS.mono },
@@ -1327,7 +1330,7 @@ const sd = StyleSheet.create({
   infoValue:    { fontSize: 14, fontFamily: FONTS.sans, lineHeight: 20 },
 
   clientCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  clientCardName: { fontSize: 15, fontFamily: FONTS.sansMedium },
+  clientCardName: { fontSize: 15, fontFamily: FONTS.sansMedium, flexShrink: 1 },
   clientCardPhone:{ fontSize: 13, fontFamily: FONTS.sans, marginTop: 2 },
   callBtn:        { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 
@@ -1374,6 +1377,13 @@ export default function Missions() {
   const [completeModal, setCompleteModal] = useState<Mission | null>(null);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  // Sheet détail montée UNIQUEMENT quand ouverte : toujours montée avec
+  // index={-1} + enableDynamicSizing, gorhom l'auto-ouvre sur Android et son
+  // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
+  // et sert aussi au bouton back Android.
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const closeDetailSheet = useCallback(() => { bottomSheetRef.current?.close(); }, []);
+  useAndroidBackClose(detailSheetOpen, closeDetailSheet);
 
   // -- Data --
   const loadMissions = useCallback(async () => {
@@ -1583,13 +1593,13 @@ export default function Missions() {
   const openOpportunity = useCallback((item: Opportunity) => {
     setSelectedMission(null);
     setSelectedOpportunity(item);
-    bottomSheetRef.current?.expand();
+    setDetailSheetOpen(true);
   }, []);
 
   const handleMissionPress = async (missionId: string) => {
     setSelectedOpportunity(null);
     setLoadingDetails(true);
-    bottomSheetRef.current?.expand();
+    setDetailSheetOpen(true);
     try {
       const raw = await api.get(`/requests/${missionId}`);
       const r   = raw?.data || raw;
@@ -1829,7 +1839,8 @@ export default function Missions() {
       )}
 
       {/* -- Bottom Sheet Detail -- */}
-      <BottomSheet ref={bottomSheetRef} index={-1} enableDynamicSizing enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={Dimensions.get('window').height * 0.85}>
+      {detailSheetOpen && (
+      <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailSheetOpen(false)} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={Dimensions.get('window').height * 0.85}>
         {loadingDetails ? (
           <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
         ) : selectedMission ? (
@@ -1865,6 +1876,7 @@ export default function Missions() {
           />
         ) : null}
       </BottomSheet>
+      )}
 
       {/* -- Modal confirmation "Terminer" -- */}
       <ConfirmModal
@@ -1891,7 +1903,7 @@ const s = StyleSheet.create({
 
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
   headerSub:   { fontSize: 11, fontFamily: FONTS.mono, marginTop: 6, letterSpacing: 0.9, textTransform: 'uppercase' },
   searchIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   searchBar:   { flexDirection: 'row', alignItems: 'center', borderRadius: 14, height: 44, marginTop: 12 },

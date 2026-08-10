@@ -120,7 +120,7 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
           <View style={s.titleWrap}>
             <View style={[s.catBadge, { backgroundColor: theme.surface }]}>
               <Feather name={categoryIcon as any} size={14} color={theme.text} />
-              <Text style={[s.catText, { color: theme.text }]}>{categoryName}</Text>
+              <Text style={[s.catText, { color: theme.text, flexShrink: 1 }]} numberOfLines={1}>{categoryName}</Text>
             </View>
             <Text style={[s.title, { color: theme.textAlt }]} numberOfLines={2}>
               {mission.subcategory?.name || mission.title}
@@ -242,11 +242,11 @@ const s = StyleSheet.create({
   pillText:      { fontSize: 10, fontFamily: FONTS.sansMedium },
   pillTextWhite: { fontSize: 10, fontFamily: FONTS.sansMedium, color: darkTokens.text, letterSpacing: 0.5 },
   countdownWrap:  { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
-  countdown:      { fontSize: 40, fontFamily: FONTS.bebas, letterSpacing: -2, lineHeight: 44 },
+  countdown:      { fontSize: 40, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -2, lineHeight: 44 },
   countdownUnit:  { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 2 },
 
   priceRow:    { marginBottom: 16 },
-  priceNet:    { fontSize: 52, fontFamily: FONTS.bebas, letterSpacing: -3, lineHeight: 56 },
+  priceNet:    { fontSize: 52, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -3, lineHeight: 56 },
   priceCaption:{ fontSize: 12, fontFamily: FONTS.mono, marginTop: 2 },
 
   metas:   { gap: 10, marginBottom: 24 },

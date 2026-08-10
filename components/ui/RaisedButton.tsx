@@ -196,6 +196,7 @@ export function RaisedButton({
               {icon ? <Feather name={icon} size={m.icon} color={v.fg} /> : null}
               <Text
                 numberOfLines={1}
+                maxFontSizeMultiplier={1.3}
                 style={[
                   {
                     color: v.fg,
@@ -203,6 +204,7 @@ export function RaisedButton({
                     fontSize: display ? m.displayFs : m.fs,
                     letterSpacing: display ? 1.2 : 0.3,
                     textTransform: display ? 'uppercase' : 'none',
+                    includeFontPadding: false,
                   },
                   labelStyle,
                 ]}
