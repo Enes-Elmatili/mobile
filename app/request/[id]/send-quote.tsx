@@ -51,7 +51,15 @@ export default function SendQuote() {
 
       const st = (data.status || "").toUpperCase();
       // Ownership : la demande doit être assignée à ce prestataire.
-      if (data.providerId && data.providerId !== user.id) {
+      // ⚠️ `request.providerId` est l'id du PROFIL Provider (relation
+      // Provider.id), PAS l'id du User — les deux ne sont jamais égaux, donc
+      // comparer providerId à user.id renvoyait TOUJOURS vers Missions et
+      // rendait l'écran de rédaction inatteignable. L'id utilisateur du
+      // prestataire assigné est porté par `provider.userId`, que le backend
+      // inclut dans la réponse et utilise lui-même pour ce contrôle
+      // (routes/requests.js : `request.provider?.userId === req.user?.id`).
+      const assignedUserId = data.provider?.userId ?? null;
+      if (assignedUserId && assignedUserId !== user.id) {
         feedback.error(t("ext.sendquote_not_assigned"));
         router.replace("/(tabs)/missions");
         return;
