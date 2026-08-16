@@ -1147,7 +1147,14 @@
     "terminal_refused_msg": "De offerte is geweigerd.",
     "payment_syncing": "Betaling ontvangen, synchroniseren…",
     "badge_accepted": "Offerte geaccepteerd",
-    "badge_refused": "Offerte geweigerd"
+    "badge_refused": "Offerte geweigerd",
+    "provider_label": "Vakman",
+    "jobs_count_one": "{{count}} klus",
+    "jobs_count_other": "{{count}} klussen",
+    "refuse_link": "Offerte weigeren",
+    "refuse_sheet_title": "Deze offerte weigeren?",
+    "refuse_sheet_body": "De vakman wordt op de hoogte gebracht. Deze actie is definitief.",
+    "secure_note": "Beveiligde betaling via Stripe · Afgeschreven bij aanvaarding"
   },
   "ext": {
     "contact_call_title": "De vakman bellen",

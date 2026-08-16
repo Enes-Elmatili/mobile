@@ -1147,7 +1147,14 @@
     "terminal_refused_msg": "Le devis a été refusé.",
     "payment_syncing": "Paiement reçu, synchronisation en cours…",
     "badge_accepted": "Devis accepté",
-    "badge_refused": "Devis refusé"
+    "badge_refused": "Devis refusé",
+    "provider_label": "Prestataire",
+    "jobs_count_one": "{{count}} mission",
+    "jobs_count_other": "{{count}} missions",
+    "refuse_link": "Refuser le devis",
+    "refuse_sheet_title": "Refuser ce devis ?",
+    "refuse_sheet_body": "Le prestataire en sera informé. Cette action est définitive.",
+    "secure_note": "Paiement sécurisé via Stripe · Débité à l'acceptation"
   },
   "ext": {
     "contact_call_title": "Appeler le prestataire",

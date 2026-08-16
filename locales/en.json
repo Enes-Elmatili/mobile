@@ -1147,7 +1147,14 @@
     "terminal_refused_msg": "The quote was declined.",
     "payment_syncing": "Payment received, syncing…",
     "badge_accepted": "Quote accepted",
-    "badge_refused": "Quote declined"
+    "badge_refused": "Quote declined",
+    "provider_label": "Provider",
+    "jobs_count_one": "{{count}} job",
+    "jobs_count_other": "{{count}} jobs",
+    "refuse_link": "Decline quote",
+    "refuse_sheet_title": "Decline this quote?",
+    "refuse_sheet_body": "The provider will be notified. This action is final.",
+    "secure_note": "Secure payment via Stripe · Charged on acceptance"
   },
   "ext": {
     "contact_call_title": "Call the provider",
