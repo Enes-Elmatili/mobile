@@ -136,7 +136,8 @@
           "organization": "thefixedapp"
         }
       ],
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "./plugins/withSafeGradleProjectName.js"
     ],
     "extra": {
       "apiUrl": "https://api.thefixed.app/api",
