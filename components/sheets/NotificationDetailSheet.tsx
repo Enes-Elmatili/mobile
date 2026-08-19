@@ -17,6 +17,7 @@ import i18n from '@/lib/i18n';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { feedback } from '@/lib/feedback/feedback';
+import { useSheetMotion } from '@/lib/motion/sheet';
 
 export interface NotifData {
   category?: string;
@@ -81,6 +82,7 @@ export default function NotificationDetailSheet({
   onDelete?: (id: string) => void;
 }) {
   const theme = useAppTheme();
+  const sheetMotion = useSheetMotion();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -118,6 +120,7 @@ export default function NotificationDetailSheet({
       handleIndicatorStyle={[s.indicator, { backgroundColor: theme.heroSubFaint }]}
       backgroundStyle={{ backgroundColor: theme.heroBg }}
       maxDynamicContentSize={Dimensions.get('window').height * 0.9}
+      {...sheetMotion}
     >
       <BottomSheetScrollView showsVerticalScrollIndicator={false}>
         {/* ═══ HERO sombre (signature premium FIXED) ═══ */}

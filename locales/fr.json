@@ -559,6 +559,8 @@
     "what_do_you_need": "De quoi avez-vous besoin ?",
     "loading_services": "Chargement des services...",
     "specify": "Précisez",
+    "select_service_type": "Choisissez une prestation",
+    "service_unavailable": "Cette catégorie n'est pas encore réservable.",
     "from_price": "dès {{price}}€",
     "add_note": "Ajouter une note pour le prestataire",
     "note_placeholder": "Ex : Sonnez à l'interphone, code portail 1234...",

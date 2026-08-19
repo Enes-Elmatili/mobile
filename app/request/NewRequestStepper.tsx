@@ -36,6 +36,7 @@ import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { computePrice } from '@/lib/services/priceService';
+import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -1081,11 +1082,19 @@ export default function NewRequestStepper() {
     () => selectedCategory?.subcategories?.find((s: any) => s.id === subcategoryId) || null,
     [selectedCategory, subcategoryId]
   );
-  const basePrice       = selectedSubcategory?.basePrice || selectedSubcategory?.price || selectedCategory?.price || 0;
-  const pricingMode     = selectedSubcategory?.pricingMode || 'fixed_forfait';
-  const calloutFee      = selectedSubcategory?.calloutFee || 0; // EUR
-  const isFreeService   = pricingMode === 'free' || (basePrice === 0 && !['estimate', 'diagnostic'].includes(pricingMode));
-  const isQuoteFlow     = pricingMode === 'estimate' || pricingMode === 'diagnostic';
+  // Flow de paiement + réservabilité du service choisi. Logique extraite dans
+  // lib/services/serviceSelection.ts : elle doit rester alignée sur le serveur
+  // (un prix inconnu n'est PAS gratuit), sinon l'étape 4 annonce « Service
+  // gratuit » et /requests répond 400 PRICING_TOKEN_REQUIRED — le CTA meurt.
+  // C'est exactement le rejet Apple 2.1(a) du 18/08/2026.
+  const selection = useMemo(
+    () => resolveServiceSelection(selectedCategory, selectedSubcategory),
+    [selectedCategory, selectedSubcategory],
+  );
+  const {
+    basePrice, pricingMode, calloutFee, isFreeService, isQuoteFlow,
+    serviceChosen, categoryUnavailable,
+  } = selection;
 
   // ── TVA service : 6% rénovation (logement >=10 ans + usage privé) sinon 21% ──
   // privateUse dérivé du type de bâtiment (bureau = usage pro → 21%).
@@ -2080,9 +2089,14 @@ export default function NewRequestStepper() {
                           <View style={s.inlineSubs}>
                             <View style={s.subHeader}>
                               <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
-                              {estimatedPrice > 0 && !subcategoryId && (
+                              {/* Le choix d'une sous-catégorie est obligatoire (c'est elle qui
+                                  porte le prix) — on le dit explicitement tant que rien n'est
+                                  sélectionné, pour que le CTA grisé ne soit jamais un mystère. */}
+                              {!subcategoryId ? (
+                                <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.select_service_type')}</Text>
+                              ) : estimatedPrice > 0 ? (
                                 <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
-                              )}
+                              ) : null}
                             </View>
                             <View style={s.subList}>
                               {subs.map((sub: any) => (
@@ -2100,6 +2114,16 @@ export default function NewRequestStepper() {
                                 />
                               ))}
                             </View>
+                          </View>
+                        )}
+                        {/* Catégorie sans sous-catégorie ET sans prix : non réservable
+                            (aucun prix à verrouiller). On l'annonce au lieu de laisser
+                            le parcours mener à une erreur de paiement à l'étape 4. */}
+                        {isSelected && categoryUnavailable && (
+                          <View style={s.inlineSubs}>
+                            <Text style={[s.priceInline, { color: theme.textSub }]}>
+                              {t('stepper.service_unavailable')}
+                            </Text>
                           </View>
                         )}
                       </View>
@@ -2136,7 +2160,7 @@ export default function NewRequestStepper() {
             <BottomCTA
               label={isQuoteFlow ? t('stepper.request_quote_cta') : t('stepper.continue')}
               onPress={goNext}
-              disabled={!categoryId}
+              disabled={!serviceChosen}
             />
           </KeyboardAvoidingView>
         )}

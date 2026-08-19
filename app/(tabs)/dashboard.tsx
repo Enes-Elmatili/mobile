@@ -12,10 +12,19 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
-  Animated,
   StatusBar,
   Linking,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  cancelAnimation,
+  Easing as REasing,
+} from 'react-native-reanimated';
+import { useReduceMotion } from '@/lib/motion/sheet';
+import { usePressScale } from '@/lib/motion/press';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -332,7 +341,6 @@ function MissionIsland({
   theme: AppTheme;
 }) {
   const { t } = useTranslation();
-  const pulseScale = useRef(new Animated.Value(0)).current;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [etaLabel, setEtaLabel] = useState<string>(t('dashboard.loading_eta'));
   // "LIVE · GPS" ne s'affiche que si on a de vraies coordonnées prestataire —
@@ -341,18 +349,10 @@ function MissionIsland({
   const SEARCH_TIMEOUT = 15 * 60;
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-  // Pulse animation
-  useEffect(() => {
-    if (!activeMission && !searchingMission && !quoteMission) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseScale, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseScale, { toValue: 0, duration: 900, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [activeMission?.id, searchingMission?.id, quoteMission?.id]);
+  // NOTE — la boucle de pulse a été retirée : sa seule sortie (`pulseOpacity`)
+  // n'était rendue nulle part. Elle faisait tourner une animation infinie sans
+  // aucun pixel à l'écran, tant qu'une mission était active. Si le halo revient
+  // un jour, le rebrancher en Reanimated (cf. CockpitIsland), pas en Animated.
 
   // Countdown for search
   useEffect(() => {
@@ -414,11 +414,6 @@ function MissionIsland({
   }, [activeMission?.id, activeMission?.status]);
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-
-  const pulseOpacity = pulseScale.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.45, 0],
-  });
 
   // ── ACCEPTED / ONGOING — HERO mission island (ETA dominant)
   if (activeMission) {
@@ -932,23 +927,28 @@ const uc = StyleSheet.create({
 // ============================================================================
 
 function DashboardSkeleton({ theme }: { theme: AppTheme }) {
-  const pulse = useRef(new Animated.Value(0.55)).current;
+  const reduced = useReduceMotion();
+  const pulse = useSharedValue(0.55);
 
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.55, duration: 900, useNativeDriver: true }),
-      ]),
+    // Reduce-motion : un squelette qui clignote est précisément ce que ce
+    // réglage cherche à supprimer — on le fige à mi-opacité (règle 8).
+    if (reduced) { pulse.value = 0.78; return; }
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 900, easing: REasing.inOut(REasing.ease) }),
+      -1,
+      true,
     );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+    return () => cancelAnimation(pulse);
+  }, [reduced, pulse]);
+
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
   const Block = ({ w, h, style }: { w: number | `${number}%`; h: number; style?: object }) => (
-    <Animated.View
+    <Reanimated.View
       style={[
-        { width: w, height: h, borderRadius: 8, backgroundColor: theme.surface, opacity: pulse },
+        { width: w, height: h, borderRadius: 8, backgroundColor: theme.surface },
+        pulseStyle,
         style,
       ]}
     />
@@ -1033,8 +1033,8 @@ export default function Dashboard() {
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const tabBarPadding = useTabBarPadding();
 
-  // CTA squeezy scale animation (tier-1 feel)
-  const ctaScale = useRef(new Animated.Value(1)).current;
+  // CTA — retour à l'appui (règle 4), amortissement critique, aucun rebond.
+  const ctaPress = usePressScale();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   // Sheet détail montée UNIQUEMENT quand ouverte : toujours montée avec
@@ -1414,22 +1414,20 @@ export default function Dashboard() {
                   {t('dashboard.hero_title')}
                 </Text>
                 <Pressable
-                  onPressIn={() => { Animated.spring(ctaScale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start(); }}
-                  onPressOut={() => { Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }).start(); }}
+                  {...ctaPress.handlers}
                   onPress={() => { hapticMedium(); router.push('/request/NewRequestStepper'); }}
                 >
                   {/* CTA pill blanche pleine — signature du kit fixed-design (hero island) */}
-                  <Animated.View style={[{
+                  <Reanimated.View style={[{
                     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 8,
                     borderRadius: 100, paddingVertical: 11, paddingHorizontal: 18,
                     backgroundColor: '#F4F4F2',
-                    transform: [{ scale: ctaScale }],
-                  }]}>
+                  }, ctaPress.style]}>
                     <Feather name="plus" size={17} color="#0A0A0A" />
                     <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: '#0A0A0A' }}>
                       {t('dashboard.new_request')}
                     </Text>
-                  </Animated.View>
+                  </Reanimated.View>
                 </Pressable>
               </View>
             )}

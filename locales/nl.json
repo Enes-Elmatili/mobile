@@ -559,6 +559,8 @@
     "what_do_you_need": "Wat heeft u nodig?",
     "loading_services": "Diensten laden...",
     "specify": "Preciseer",
+    "select_service_type": "Kies een dienst",
+    "service_unavailable": "Deze categorie is nog niet boekbaar.",
     "from_price": "vanaf {{price}}€",
     "add_note": "Een notitie voor de vakman toevoegen",
     "note_placeholder": "Bv: Bel aan de parlofoon, code poort 1234...",

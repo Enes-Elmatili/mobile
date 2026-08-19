@@ -8,12 +8,24 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Animated,
-  Easing,
+  Pressable,
   StatusBar,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withRepeat,
+  withSequence,
+  cancelAnimation,
+  LinearTransition,
+  Easing as REasing,
+} from 'react-native-reanimated';
+import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
+import { usePressScale } from '@/lib/motion/press';
 import { feedback } from '@/lib/feedback/feedback';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,6 +45,16 @@ import { devWarn, devLog } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
 
 const TIMER_DURATION = 60;
+
+// Entrée de la carte de mission entrante : spring critique (ζ = 1.0).
+// Remplace `tension: 55, friction: 11`, qui était sous-amorti — la carte
+// dépassait sa position et revenait. Une notification de mission doit se poser,
+// pas rebondir (CLAUDE.md § Interfaces fluides, règle 2).
+const CARD_ENTER_SPRING = {
+  damping: dampingFor(1.0, 180, 1),
+  stiffness: 180,
+  mass: 1,
+};
 
 // -- Map style "Light Mono" --
 // -- Map styles (source unique) --
@@ -125,23 +147,39 @@ function IncomingJobCard({
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const slideUp    = useRef(new Animated.Value(400)).current;
-  const arrowAnim  = useRef(new Animated.Value(0)).current;
-  const badgePulse = useRef(new Animated.Value(1)).current;
+  const reduced    = useReduceMotion();
+  const slideUp    = useSharedValue(400);
+  const arrowAnim  = useSharedValue(0);
+  const badgePulse = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    Animated.spring(slideUp, { toValue: 0, tension: 55, friction: 11, useNativeDriver: true }).start();
-    Animated.loop(Animated.sequence([
-      Animated.timing(arrowAnim, { toValue: 5, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(arrowAnim, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ])).start();
-    Animated.loop(Animated.sequence([
-      Animated.timing(badgePulse, { toValue: 0.3, duration: 750, useNativeDriver: true }),
-      Animated.timing(badgePulse, { toValue: 1, duration: 750, useNativeDriver: true }),
-    ])).start();
-  }, []);
+    if (reduced) {
+      // Règle 8 : pas de course ni de clignotement, on pose l'état final.
+      slideUp.value = 0;
+      arrowAnim.value = 0;
+      badgePulse.value = 1;
+      return;
+    }
+    // Entrée : spring critique (ζ = 1.0) — arrive vite, ne dépasse pas.
+    slideUp.value = withSpring(0, CARD_ENTER_SPRING);
+    arrowAnim.value = withRepeat(
+      withTiming(5, { duration: 900, easing: REasing.inOut(REasing.ease) }), -1, true,
+    );
+    badgePulse.value = withRepeat(
+      withTiming(0.3, { duration: 750, easing: REasing.inOut(REasing.ease) }), -1, true,
+    );
+    return () => {
+      cancelAnimation(slideUp);
+      cancelAnimation(arrowAnim);
+      cancelAnimation(badgePulse);
+    };
+  }, [reduced, slideUp, arrowAnim, badgePulse]);
+
+  const cardStyle  = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }] }));
+  const badgeStyle = useAnimatedStyle(() => ({ opacity: badgePulse.value }));
+  const arrowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: arrowAnim.value }] }));
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -183,7 +221,7 @@ function IncomingJobCard({
   const addrRest  = addrParts.length > 1 ? `, ${addrParts.slice(1).join(',').trim()}` : '';
 
   return (
-    <Animated.View style={[jc.wrap, { bottom: insets.bottom }, { transform: [{ translateY: slideUp }] }]}>
+    <Reanimated.View style={[jc.wrap, { bottom: insets.bottom }, cardStyle]}>
       {/* Gradient map → sheet */}
       <LinearGradient
         colors={['transparent', `${sheetBg}99`, sheetBg]}
@@ -215,7 +253,7 @@ function IncomingJobCard({
         {/* Badge */}
         <View style={jc.badgeRow}>
           <View style={[jc.badge, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.2)' }]}>
-            <Animated.View style={[jc.badgeDot, { opacity: badgePulse }]} />
+            <Reanimated.View style={[jc.badgeDot, badgeStyle]} />
             <Text style={jc.badgeText}>
               {isQuote ? t('provider.badge_quote') : t('provider.badge_fixed')}
             </Text>
@@ -296,9 +334,9 @@ function IncomingJobCard({
         <View style={jc.ctaArea}>
           <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: ctaBg }]} onPress={onAccept} activeOpacity={0.85}>
             <Text style={[jc.acceptText, { color: ctaText }]}>{t('provider.accept').toUpperCase()}</Text>
-            <Animated.View style={{ transform: [{ translateX: arrowAnim }] }}>
+            <Reanimated.View style={arrowStyle}>
               <Feather name="arrow-right" size={18} color={ctaText} />
-            </Animated.View>
+            </Reanimated.View>
           </TouchableOpacity>
           <TouchableOpacity style={jc.passBtn} onPress={onDecline} activeOpacity={0.7}>
             <Text style={[jc.passText, { color: expired ? COLORS.red : passCol }]}>
@@ -307,7 +345,7 @@ function IncomingJobCard({
           </TouchableOpacity>
         </View>
       </View>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -386,74 +424,91 @@ function CockpitIsland({
 }) {
   const { t } = useTranslation();
   const theme = useAppTheme();
-  const scaleAnim   = useRef(new Animated.Value(1)).current;
-  const dotGlowAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim   = useRef(new Animated.Value(1)).current;
-  const pulseOpacity = useRef(new Animated.Value(0)).current;
+  const reduced = useReduceMotion();
+  // Règle 4 : le retour part de l'appui, pas du relâchement.
+  const press = usePressScale();
+  // Règle 1 : shared values Reanimated (thread UI) — le pouls ne saccade plus
+  // quand le JS est occupé par un fetch ou une rafale d'événements socket.
+  const dotGlow      = useSharedValue(0.5);
+  const pulseScale   = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0);
 
   useEffect(() => {
-    if (isOnline) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(dotGlowAnim, { toValue: 1,   duration: 1400, useNativeDriver: true }),
-          Animated.timing(dotGlowAnim, { toValue: 0.4, duration: 1400, useNativeDriver: true }),
-        ])
-      ).start();
-      Animated.loop(
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(pulseAnim,   { toValue: 3, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-            Animated.timing(pulseOpacity, { toValue: 0, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          ]),
-          Animated.parallel([
-            Animated.timing(pulseAnim,   { toValue: 1, duration: 0, useNativeDriver: true }),
-            Animated.timing(pulseOpacity, { toValue: 0.5, duration: 0, useNativeDriver: true }),
-          ]),
-        ])
-      ).start();
+    if (isOnline && !reduced) {
+      // Respiration du point : opacité 0.5 ↔ 1, aller-retour infini.
+      dotGlow.value = withRepeat(
+        withTiming(1, { duration: 1400, easing: REasing.inOut(REasing.ease) }),
+        -1,
+        true,
+      );
+      // Ping radar : anneau qui part du centre et s'efface, puis reset instantané.
+      pulseScale.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 0 }),
+          withTiming(3, { duration: 1200, easing: REasing.out(REasing.ease) }),
+        ),
+        -1,
+        false,
+      );
+      pulseOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.5, { duration: 0 }),
+          withTiming(0, { duration: 1200, easing: REasing.out(REasing.ease) }),
+        ),
+        -1,
+        false,
+      );
     } else {
-      dotGlowAnim.stopAnimation();
-      dotGlowAnim.setValue(0);
-      pulseAnim.stopAnimation();
-      pulseAnim.setValue(1);
-      pulseOpacity.stopAnimation();
-      pulseOpacity.setValue(0);
+      // Sortie douce : on coupe la boucle puis on ramène en fondu, au lieu du
+      // `setValue` sec de l'ancienne version qui faisait disparaître d'un coup.
+      cancelAnimation(dotGlow);
+      cancelAnimation(pulseScale);
+      cancelAnimation(pulseOpacity);
+      dotGlow.value      = withTiming(0.5, { duration: 180 });
+      pulseOpacity.value = withTiming(0, { duration: 180 });
+      pulseScale.value   = withTiming(1, { duration: 180 });
     }
-  }, [isOnline]);
+  }, [isOnline, reduced, dotGlow, pulseScale, pulseOpacity]);
+
+  const dotGlowStyle = useAnimatedStyle(() => ({ opacity: dotGlow.value }));
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulseOpacity.value,
+    transform: [{ scale: pulseScale.value }],
+  }));
 
   const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.94, duration: 60,  useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1,    tension: 300, friction: 8, useNativeDriver: true }),
-    ]).start();
+    // L'haptique est déjà émise par handleToggleOnline, sur la même frame que
+    // le changement d'état — on ne double pas le retour (règle 6).
     onToggle();
   };
 
-  const dotOpacity = dotGlowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
-
   return (
-    <Animated.View style={[ci.island, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, { transform: [{ scale: scaleAnim }] }]}>
+    <Reanimated.View
+      layout={reduced ? undefined : LinearTransition.springify().damping(28).stiffness(200)}
+      style={[ci.island, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, press.style]}
+    >
 
       {/* Statut */}
-      <TouchableOpacity
+      <Pressable
         onPress={handlePress}
-        activeOpacity={0.85}
+        {...press.handlers}
         style={[ci.statusSection, isOnline ? { backgroundColor: theme.cardBg } : { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : theme.surface }]}
         accessibilityLabel={isOnline ? t('provider.online') : t('provider.offline')}
         accessibilityRole="switch"
+        accessibilityState={{ checked: isOnline }}
         hitSlop={{ top: 6, bottom: 6 }}
       >
         <View style={ci.dotWrap}>
           {isOnline && (
-            <Animated.View style={[ci.dotGlow, { opacity: dotOpacity, backgroundColor: theme.text }]} />
+            <Reanimated.View style={[ci.dotGlow, dotGlowStyle, { backgroundColor: theme.text }]} />
           )}
-          <Animated.View style={[ci.pulseRing, { transform: [{ scale: pulseAnim }], opacity: pulseOpacity, backgroundColor: isOnline ? theme.text : theme.textMuted }]} />
+          <Reanimated.View style={[ci.pulseRing, pulseStyle, { backgroundColor: isOnline ? theme.text : theme.textMuted }]} />
           <View style={[ci.dot, { backgroundColor: isOnline ? theme.text : theme.textMuted }]} />
         </View>
         <Text style={[ci.statusText, { color: isOnline ? theme.text : theme.textMuted }]}>
           {isOnline ? t('provider.online') : t('provider.offline')}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
 
       {/* Separateur */}
       <View style={[ci.sep, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />
@@ -464,7 +519,7 @@ function CockpitIsland({
         <Text style={[ci.walletAmount, { color: theme.text }]} numberOfLines={1}>{formatEuros((wallet?.stripeAvailable ?? 0) / 100, 0)}</Text>
       </TouchableOpacity>
 
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -581,7 +636,7 @@ export default function ProviderDashboard() {
   const insets = useSafeAreaInsets();
 
   const mapRef   = useRef<MapView>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useSharedValue(0);
   const [mapReady, setMapReady] = useState(false);
 
 
@@ -604,8 +659,10 @@ export default function ProviderDashboard() {
   const declinedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }).start();
-  }, []);
+    fadeAnim.value = withTiming(1, { duration: 700, easing: REasing.out(REasing.ease) });
+  }, [fadeAnim]);
+
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: fadeAnim.value }));
 
   // Geolocalisation
   const dashLocSubRef = useRef<Location.LocationSubscription | null>(null);
@@ -1033,7 +1090,10 @@ export default function ProviderDashboard() {
 
       {/* == TOP ISLAND == */}
       {!activeJob && (
-        <Animated.View style={[s.topIsland, { top: insets.top + 8, backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, { opacity: fadeAnim }]}>
+        <Reanimated.View
+          layout={LinearTransition.springify().damping(28).stiffness(200)}
+          style={[s.topIsland, { top: insets.top + 8, backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, fadeStyle]}
+        >
 
           {/* Ligne 1 -- CockpitIsland + Recenter + Notifs */}
           <View style={s.tiRow}>
@@ -1099,17 +1159,18 @@ export default function ProviderDashboard() {
           {/* Ligne 3 -- KPIs */}
           <StatsSection loading={statsLoading} stats={stats} />
 
-        </Animated.View>
+        </Reanimated.View>
       )}
 
       {/* == Pill discrète "mission en cours" — re-entry depuis le dashboard ==
             Floutante en bas (au-dessus de la tab bar). Centrée horizontalement,
             largeur auto. Volontairement minimaliste pour ne pas masquer la map. */}
       {!activeJob && currentMission && (
-        <Animated.View
+        <Reanimated.View
           style={[
             s.cmbWrap,
-            { bottom: insets.bottom + TAB_BAR_HEIGHT + 12, opacity: fadeAnim },
+            { bottom: insets.bottom + TAB_BAR_HEIGHT + 12 },
+            fadeStyle,
           ]}
           pointerEvents="box-none"
         >
@@ -1136,7 +1197,7 @@ export default function ProviderDashboard() {
             </Text>
             <Feather name="chevron-right" size={14} color={theme.textMuted} />
           </TouchableOpacity>
-        </Animated.View>
+        </Reanimated.View>
       )}
 
       {/* -- Pop-up mission entrante -- */}

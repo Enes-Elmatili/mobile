@@ -559,6 +559,8 @@
     "what_do_you_need": "What do you need?",
     "loading_services": "Loading services...",
     "specify": "Specify",
+    "select_service_type": "Choose a service",
+    "service_unavailable": "This category is not bookable yet.",
     "from_price": "from {{price}}€",
     "add_note": "Add a note for the provider",
     "note_placeholder": "E.g.: Ring the intercom, gate code 1234...",

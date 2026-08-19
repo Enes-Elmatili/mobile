@@ -33,6 +33,7 @@ import i18n from '@/lib/i18n';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
+import { useSheetMotion } from '@/lib/motion/sheet';
 
 // Locale BCP-47 dérivée de la langue i18n active. Évite les hardcodes
 // `fr-BE` qui forcent un format date FR même sur device NL/EN.
@@ -153,6 +154,7 @@ export default function InvoiceSheet({
   onNavigateToWallet,
 }: InvoiceSheetProps) {
   const theme = useAppTheme();
+  const sheetMotion = useSheetMotion();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   useAndroidBackClose(isVisible, onClose);
@@ -592,11 +594,7 @@ export default function InvoiceSheet({
       ]}
       backgroundStyle={{ backgroundColor: bg }}
       maxDynamicContentSize={Dimensions.get('window').height * 0.88}
-      animationConfigs={{
-        damping: 20,
-        stiffness: 200,
-        mass: 1,
-      }}
+      {...sheetMotion}
     >
       <BottomSheetScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 16 }]}

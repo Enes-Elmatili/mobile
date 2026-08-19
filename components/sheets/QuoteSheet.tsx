@@ -16,6 +16,7 @@ import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { formatEURCents as fmtEur } from '@/lib/format';
+import { useSheetMotion } from '@/lib/motion/sheet';
 
 interface QuoteSheetProps {
   requestId: string | null;
@@ -30,6 +31,7 @@ const fmtDate = (d: string) =>
 
 export default function QuoteSheet({ requestId, requestStatus, serviceName, isVisible, onClose }: QuoteSheetProps) {
   const theme = useAppTheme();
+  const sheetMotion = useSheetMotion();
   const router = useRouter();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -97,7 +99,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
       handleIndicatorStyle={{ width: 36, height: 4, backgroundColor: theme.textDisabled }}
       backgroundStyle={{ backgroundColor: bg }}
       maxDynamicContentSize={Dimensions.get('window').height * 0.88}
-      animationConfigs={{ damping: 20, stiffness: 200, mass: 1 }}
+      {...sheetMotion}
     >
       <BottomSheetScrollView
         contentContainerStyle={[qs.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
