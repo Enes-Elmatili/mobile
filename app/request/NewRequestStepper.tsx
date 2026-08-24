@@ -1002,15 +1002,50 @@ export default function NewRequestStepper() {
   const [saving, setSaving] = useState(false);
   const [showAddrDropdown, setShowAddrDropdown] = useState(false);
 
-  // ── Phase test : zones autorisées seulement ──────────────────────────────
-  const ALLOWED_POSTAL = ['1050', '1060', '1180'];
-  const ALLOWED_COMMUNES = ['ixelles', 'saint-gilles', 'uccle', 'elsene', 'sint-gillis'];
+  // ── Zone de service : Région de Bruxelles-Capitale (19 communes) ─────────
+  // Les codes postaux de la RBC vont de 1000 (Bruxelles) à 1210 (Saint-Josse),
+  // codes institutionnels 1005-1049 inclus. Le code suivant est 1300 (Wavre,
+  // Brabant wallon) : la plage 1000-1212 est donc sûre et exhaustive.
+  const BRUSSELS_POSTAL_MIN = 1000;
+  const BRUSSELS_POSTAL_MAX = 1212;
+  // Fallback quand aucun code postal n'est disponible (adresse enregistrée :
+  // on ne dispose que de la chaîne). Noms des 19 communes en FR et NL, plus
+  // les anciennes communes de Bruxelles-Ville. 'molenbeek' couvre les deux
+  // formes, 'woluwe' couvre les quatre.
+  const BRUSSELS_COMMUNES = [
+    'anderlecht',
+    'auderghem', 'oudergem',
+    'berchem-sainte-agathe', 'sint-agatha-berchem',
+    'bruxelles', 'brussel',
+    'laeken', 'laken', 'neder-over-heembeek', 'haren',
+    'etterbeek',
+    'evere',
+    'forest', 'vorst',
+    'ganshoren',
+    'ixelles', 'elsene',
+    'jette',
+    'koekelberg',
+    'molenbeek',
+    'saint-gilles', 'sint-gillis',
+    'saint-josse', 'sint-joost',
+    'schaerbeek', 'schaarbeek',
+    'uccle', 'ukkel',
+    'watermael-boitsfort', 'watermaal-bosvoorde',
+    'woluwe',
+  ];
   function checkLocation(description: string, addressComponents?: any[]): boolean {
+    // 1. Le code postal Google fait autorité dès qu'il est présent.
     const postalComp = addressComponents?.find((c: any) => c.types.includes('postal_code'));
-    const postal = postalComp?.short_name || postalComp?.long_name || '';
-    if (ALLOWED_POSTAL.includes(postal)) return true;
-    const lower = description.toLowerCase();
-    return ALLOWED_COMMUNES.some(c => lower.includes(c));
+    const postal = parseInt(postalComp?.short_name || postalComp?.long_name || '', 10);
+    if (Number.isFinite(postal)) {
+      return postal >= BRUSSELS_POSTAL_MIN && postal <= BRUSSELS_POSTAL_MAX;
+    }
+    // 2. Sinon, match sur le nom de commune — mais en ignorant le premier
+    //    segment (la rue), sans quoi « Chaussée de Bruxelles » à Waterloo
+    //    passerait pour une adresse bruxelloise.
+    const parts = description.split(',');
+    const locality = (parts.length > 1 ? parts.slice(1).join(',') : description).toLowerCase();
+    return BRUSSELS_COMMUNES.some(c => locality.includes(c));
   }
 
   // ── Saved addresses fetch ──
@@ -1147,7 +1182,7 @@ export default function NewRequestStepper() {
       try {
         const response = await api.get('/categories');
         const all = extractArrayPayload(response);
-        // Phase test — seulement Plomberie et Serrurerie
+        // Catalogue actuel — seulement Plomberie et Serrurerie
         const LAUNCH_SLUGS = ['plomberie', 'serrurerie'];
         const LAUNCH_NAMES = ['plomberie', 'serrurerie'];
         const filtered = all.filter((c: any) =>
@@ -1253,10 +1288,10 @@ export default function NewRequestStepper() {
   // on affiche un CTA "Réessayer" manuel (jamais de retry récursif infini).
   const [confirmRetryNeeded, setConfirmRetryNeeded] = useState(false);
 
-  // ── Code promo / offre de lancement (mode prix fixe — beta) ──
+  // ── Code promo / offre de lancement (mode prix fixe) ──
   // appliedPromo = remise validée 100% serveur (jamais le montant saisi côté app).
   // Le backend supporte aussi CALLOUT_COVERED (mode estimate), mais l'UI promo n'est
-  // exposée que sur le flow fixe (seul actif en beta) ; estimate suivra au go-live devis.
+  // exposée que sur le flow fixe ; estimate suivra au go-live devis.
   const [promoSheetVisible, setPromoSheetVisible] = useState(false);
   const [promoApplying,     setPromoApplying]     = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountCents: number; nominalCents: number } | null>(null);
@@ -1920,7 +1955,7 @@ export default function NewRequestStepper() {
                 <View style={[s.addrConfirm, { backgroundColor: 'rgba(232,120,58,0.12)', marginTop: 6 }]}>
                   <Feather name="alert-triangle" size={16} color={COLORS.orangeBrand} />
                   <Text style={[s.addrText, { color: COLORS.orangeBrand, flex: 1 }]} numberOfLines={2}>
-                    {t('stepper.test_zone_notice')}
+                    {t('stepper.zone_notice')}
                   </Text>
                 </View>
               )}
@@ -2614,7 +2649,7 @@ export default function NewRequestStepper() {
                       </View>
                     ) : undefined}
                   />
-                  {/* ── Code promo (mode fixe — beta) ── */}
+                  {/* ── Code promo (mode fixe) ── */}
                   {!isFreeService && !isQuoteFlow && (
                     <>
                       <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />

@@ -167,7 +167,7 @@ const SERVICE_CARDS = [
   { key: 'peinture',    icon: 'edit-2',   theme: 'light' as const, led: COLORS.green,  category: 'peinture'    },
 ];
 
-// Phase test : uniquement Plomberie et Serrurerie
+// Catalogue actuel : uniquement Plomberie et Serrurerie
 const LAUNCH_CARDS = SERVICE_CARDS.filter(c => c.key === 'plomberie' || c.key === 'serrurerie');
 
 function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => void; theme: AppTheme }) {

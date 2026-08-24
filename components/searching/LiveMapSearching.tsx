@@ -305,7 +305,7 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
   // the per-provider notification cadence today, so we surface a plausible
   // progression to match user expectation of live activity. Timings tuned so
   // the "expansion" signal lands at 45s (not before) to avoid panicking the
-  // client on a normal matching delay in a small beta zone.
+  // client on a normal matching delay.
   useEffect(() => {
     if (isScheduled) return;
     const pushFeed = (msg: string) =>

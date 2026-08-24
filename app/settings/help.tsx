@@ -2,7 +2,7 @@
 //
 // Structure :
 //   1. Header sobre (back + label mono)
-//   2. Hero "BESOIN D'AIDE ?" Bebas + sous-titre + bandeau beta WhatsApp
+//   2. Hero "BESOIN D'AIDE ?" Bebas + sous-titre + bandeau support WhatsApp
 //   3. Search bar
 //   4. 2 cartes d'action (problème mission · contact support)
 //   5. Mes tickets (ouverts + résolus) si l'utilisateur en a
@@ -96,7 +96,7 @@ const fi = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-const WHATSAPP_BETA_URL = 'https://wa.me/message/SXNKDKILPEFMO1';
+const WHATSAPP_SUPPORT_URL = 'https://wa.me/message/SXNKDKILPEFMO1';
 
 interface Ticket {
   id: string;
@@ -181,7 +181,7 @@ export default function HelpScreen() {
   }, [filtered]);
 
   const openEmail    = () => Linking.openURL(`mailto:support@thefixed.app?subject=${encodeURIComponent(t('help.email_subject'))}`);
-  const openWhatsApp = () => WebBrowser.openBrowserAsync(WHATSAPP_BETA_URL);
+  const openWhatsApp = () => WebBrowser.openBrowserAsync(WHATSAPP_SUPPORT_URL);
   const openMissionSupport = () => router.push('/support');
 
   return (
@@ -220,21 +220,21 @@ export default function HelpScreen() {
           </Text>
         </View>
 
-        {/* ── Bandeau beta WhatsApp ────────────────────────────────────────── */}
+        {/* ── Bandeau support WhatsApp ─────────────────────────────────────── */}
         <TouchableOpacity
-          style={[s.betaBanner, { backgroundColor: 'rgba(37,211,102,0.10)', borderColor: 'rgba(37,211,102,0.30)' }]}
+          style={[s.supportBanner, { backgroundColor: 'rgba(37,211,102,0.10)', borderColor: 'rgba(37,211,102,0.30)' }]}
           onPress={openWhatsApp}
           activeOpacity={0.85}
         >
-          <View style={s.betaIconWrap}>
+          <View style={s.supportIconWrap}>
             <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.betaTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-              {t('help.beta_title')}
+            <Text style={[s.supportTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
+              {t('help.support_title')}
             </Text>
-            <Text style={[s.betaSub, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-              {t('help.beta_sub')}
+            <Text style={[s.supportSub, { color: theme.textSub, fontFamily: FONTS.sans }]}>
+              {t('help.support_sub')}
             </Text>
           </View>
           <Feather name="arrow-up-right" size={16} color={theme.textMuted} />
@@ -489,20 +489,20 @@ const s = StyleSheet.create({
   heroTitle: { fontSize: 44, lineHeight: 46, letterSpacing: -0.5, marginBottom: 8 },
   heroSub: { fontSize: 13, lineHeight: 19 },
 
-  // Beta banner
-  betaBanner: {
+  // Support banner
+  supportBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderRadius: 12, borderWidth: 1,
     paddingHorizontal: 12, paddingVertical: 10,
     marginBottom: 14,
   },
-  betaIconWrap: {
+  supportIconWrap: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(37,211,102,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
-  betaTitle: { fontSize: 13, marginBottom: 1 },
-  betaSub: { fontSize: 11 },
+  supportTitle: { fontSize: 13, marginBottom: 1 },
+  supportSub: { fontSize: 11 },
 
   // Search
   searchBar: {

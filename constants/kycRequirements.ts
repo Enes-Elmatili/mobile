@@ -84,8 +84,9 @@ export const BASE_REQUIREMENTS: DocumentRequirement[] = [
 ];
 
 // Documents spécifiques par métier (au-delà des 7 canoniques).
-// Pour la beta Ixelles (plomberie + serrurerie), aucune exigence additionnelle.
-// Les certifications optionnelles (AREI, CERGA, etc.) seront ajoutées hors-beta
+// Pour le catalogue actuel (plomberie + serrurerie), aucune exigence additionnelle.
+// Les certifications optionnelles (AREI, CERGA, etc.) seront ajoutées à l'ouverture
+// de nouveaux métiers,
 // via la config backend (categoryDocs.js) une fois le whitelist backend étendu.
 export const SKILL_REQUIREMENTS: Record<string, DocumentRequirement[]> = {
   Plomberie: [],
