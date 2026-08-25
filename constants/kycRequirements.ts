@@ -21,9 +21,11 @@ export interface DocumentRequirement {
   maxSizeMB: number;
 }
 
-// Les 7 documents canoniques exigés pour l'activation prestataire (BE / Model C DGEF).
-// Tous obligatoires : le backend (admin.providers.js) bloque l'activation tant que les 7
-// ne sont pas APPROVED.
+// Les 7 documents canoniques (BE / Model C DGEF). Les six premiers sont exigés de tous
+// les métiers ; TRADE_LICENSE ne l'est que des métiers réglementés — voir
+// `getRequiredDocuments()` plus bas, et `backend/services/documentTypes.js` qui fait foi.
+// Le backend (admin.providers.js) bloque l'activation tant que les documents réellement
+// exigés de ce prestataire ne sont pas APPROVED.
 export const BASE_REQUIREMENTS: DocumentRequirement[] = [
   {
     type: 'ID_FRONT',
@@ -93,14 +95,61 @@ export const SKILL_REQUIREMENTS: Record<string, DocumentRequirement[]> = {
   Serrurerie: [],
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Accès à la profession — miroir de backend/services/documentTypes.js
+//
+// `TRADE_LICENSE` n'existe que pour les métiers réglementés en Région de
+// Bruxelles-Capitale. Le demander à un métier non réglementé, c'est afficher au
+// prestataire un document que l'administration ne lui délivrera jamais : il
+// reste bloqué à 6/7 sans comprendre pourquoi, et l'admin ne peut pas l'activer.
+//
+// C'est une liste d'EXEMPTIONS : un métier n'en sort allégé que s'il y figure
+// nommément. Slug inconnu, nouvelle catégorie, faute de frappe → les 7.
+//
+// ⚠️ Toute modification DOIT être répercutée dans `TRADE_LICENSE_EXEMPT_SLUGS`
+// côté backend, et inversement. Désynchronisées, les deux listes produisent le
+// pire cas : un document affiché ici et pas exigé là — ou l'inverse, un
+// prestataire qui ne voit jamais le document qui bloque son activation.
+// ─────────────────────────────────────────────────────────────────────────────
+export const TRADE_LICENSE_EXEMPT_SLUGS = [
+  'serrurerie',
+  'menage',
+  'bricolage',
+  'informatique',
+  'pet-sitting',
+];
+
+const toSlug = (s: string): string =>
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
 /**
  * Retourne la liste dédupliquée de documents requis pour les métiers sélectionnés.
- * Inclut toujours les 7 documents canoniques.
+ *
+ * Les 6 documents de base sont toujours inclus. L'attestation d'accès à la
+ * profession n'est retirée que si TOUS les métiers sélectionnés sont exemptés —
+ * un serrurier-plombier la fournit, on ne descend jamais au plus permissif.
+ *
+ * Aucun métier sélectionné, ou slug inconnu → les 7, comme le backend : le
+ * repli est strict, on n'allège jamais par défaut.
  */
 export function getRequiredDocuments(selectedSkills: string[]): DocumentRequirement[] {
   const skillDocs = selectedSkills.flatMap((skill) => SKILL_REQUIREMENTS[skill] ?? []);
 
-  const allDocs = [...BASE_REQUIREMENTS, ...skillDocs];
+  const slugs = (selectedSkills ?? []).map(toSlug);
+  const exempte =
+    slugs.length > 0 &&
+    slugs.every((s) => !!s && TRADE_LICENSE_EXEMPT_SLUGS.includes(s));
+
+  const base = exempte
+    ? BASE_REQUIREMENTS.filter((d) => d.type !== 'TRADE_LICENSE')
+    : BASE_REQUIREMENTS;
+
+  const allDocs = [...base, ...skillDocs];
   const seen = new Map<DocumentType, DocumentRequirement>();
 
   for (const doc of allDocs) {
