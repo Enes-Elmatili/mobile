@@ -60,6 +60,12 @@ interface Props {
   totalSteps: number;
   /** Libellé de phase affiché dans le stepper (ex. « DOCUMENTS · 05 / 06 ») */
   stepLabel?: string;
+  /**
+   * Masque l'indicateur d'étapes. Réservé aux écrans de RATTRAPAGE, hors flux
+   * numéroté (même convention que complete-profile) : les afficher comme une
+   * étape fausserait le décompte pour ceux qui ne les voient jamais.
+   */
+  hideStepper?: boolean;
   onBack?: () => void;
   showBack?: boolean;
   title: string;
@@ -83,6 +89,7 @@ export function OnboardingLayout({
   currentStep,
   totalSteps,
   stepLabel,
+  hideStepper = false,
   onBack,
   showBack = true,
   title,
@@ -151,19 +158,25 @@ export function OnboardingLayout({
             <View style={{ width: 36 }} />
           )}
 
-          <View style={s.stepIndicator}>
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <View key={i} style={[s.stepBar, i < currentStep ? s.stepBarActive : s.stepBarInactive]} />
-            ))}
+          {hideStepper ? (
             <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>
-                {stepLabel ? `${stepLabel.toUpperCase()} · ` : ""}
-                {String(currentStep).padStart(2, "0")}
-              </Text>
-              {" / "}
-              {String(totalSteps).padStart(2, "0")}
+              <Text style={s.stepLabelBold}>{stepLabel ? stepLabel.toUpperCase() : ""}</Text>
             </Text>
-          </View>
+          ) : (
+            <View style={s.stepIndicator}>
+              {Array.from({ length: totalSteps }).map((_, i) => (
+                <View key={i} style={[s.stepBar, i < currentStep ? s.stepBarActive : s.stepBarInactive]} />
+              ))}
+              <Text style={s.stepLabel}>
+                <Text style={s.stepLabelBold}>
+                  {stepLabel ? `${stepLabel.toUpperCase()} · ` : ""}
+                  {String(currentStep).padStart(2, "0")}
+                </Text>
+                {" / "}
+                {String(totalSteps).padStart(2, "0")}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 

@@ -309,6 +309,11 @@ export default Sentry.wrap(function RootLayout() {
             </AuthProvider>
           </StripeProvider>
         </NetworkProvider>
+        {/* DANS le GestureHandlerRootView : les feuilles du moteur de feedback
+            (@gorhom/bottom-sheet) reposent sur react-native-gesture-handler, qui
+            exige cette racine comme ancêtre. Montées à côté, elles n'avaient
+            aucun contexte de geste — et la feuille « Photo / PDF » du KYC est
+            justement l'endroit où la chaîne s'interrompait sans un mot. */}
         <FeedbackHost />
         {showSplash && <SplashAnimation onDone={() => setShowSplash(false)} />}
       </GestureHandlerRootView>

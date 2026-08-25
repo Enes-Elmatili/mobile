@@ -201,6 +201,54 @@ export default function Signup() {
     }
   }, [googleResponse]);
 
+  // ── Routage post-authentification sociale ──────────────────────────────────
+  // Le rôle choisi à l'étape 1 (role-select) est mémorisé dans AsyncStorage.
+  // Faute de le relire ici, une inscription sociale repartait de zéro : le
+  // backend ne pose AUCUN rôle sur un compte social, l'app renvoyait donc sur
+  // role-select et le prestataire devait re-choisir ce qu'il venait de choisir.
+  const routeAfterSocial = async (res: any) => {
+    let payload: any = res;
+    let roles: string[] = res?.roles ?? [];
+
+    if (roles.length === 0) {
+      const intent = await AsyncStorage.getItem(ROLE_INTENT_KEY).catch(() => null);
+      if (intent !== "PROVIDER" && intent !== "CLIENT") {
+        router.replace("/(auth)/role-select");
+        return;
+      }
+      try {
+        const assigned: any = await api.auth.assignRole(intent);
+        if (assigned?.token) {
+          await signIn(assigned.token, assigned.missingFields ?? []);
+          await refreshMe();
+        }
+        roles = assigned?.roles ?? [intent];
+        payload = { ...res, ...assigned, roles };
+      } catch {
+        // Attribution impossible → écran de choix, mais pré-sélectionné : on ne
+        // fait pas repartir le prestataire d'une page blanche.
+        router.replace({ pathname: "/(auth)/role-select", params: { role: intent } });
+        return;
+      }
+    }
+
+    // Coordonnées de facturation manquantes (cas normal en social : Apple et
+    // Google ne fournissent ni téléphone ni adresse).
+    if (payload?.profileIncomplete) {
+      router.replace({
+        pathname: "/(auth)/complete-profile",
+        params: { missingFields: (payload.missingFields ?? []).join(",") },
+      });
+      return;
+    }
+
+    if (roles.includes("PROVIDER")) {
+      router.replace("/onboarding/activity");
+      return;
+    }
+    router.replace("/(tabs)/dashboard");
+  };
+
   const handleGoogleSignIn = async (tokens: { idToken?: string; accessToken?: string }) => {
     setSocialLoading("google");
     try {
@@ -208,20 +256,7 @@ export default function Signup() {
       if (!res?.token) throw new Error();
       await signIn(res.token, res.missingFields ?? []);
       await refreshMe();
-      // Routing priority:
-      //   1. No roles yet → role-select
-      //   2. Profile incomplete (missing billing fields) → complete-profile
-      //   3. Otherwise → dashboard
-      if (!res.roles || res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      } else if (res.profileIncomplete) {
-        router.replace({
-          pathname: "/(auth)/complete-profile",
-          params: { missingFields: (res.missingFields ?? []).join(",") },
-        });
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      await routeAfterSocial(res);
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
       else showToast(t('auth.su_err_social'));
@@ -252,16 +287,7 @@ export default function Signup() {
       if (!res?.token) throw new Error();
       await signIn(res.token, res.missingFields ?? []);
       await refreshMe();
-      if (!res.roles || res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      } else if (res.profileIncomplete) {
-        router.replace({
-          pathname: "/(auth)/complete-profile",
-          params: { missingFields: (res.missingFields ?? []).join(",") },
-        });
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      await routeAfterSocial(res);
     } catch (e: any) {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
         // silent cancel

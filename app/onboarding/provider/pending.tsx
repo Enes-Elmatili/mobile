@@ -24,6 +24,12 @@ import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
 import { PulseDot } from '@/components/ui/PulseDot';
 import { BASE_REQUIREMENTS } from "@/constants/kycRequirements";
+import {
+  fetchProviderTrades,
+  missingDocKeys,
+  requiredDocKeys,
+  type ProviderTrades,
+} from "@/lib/providerOnboarding";
 import { cleanName } from "@/lib/displayName";
 
 // Libellés traduits des documents (au lieu de la clé technique « id_front »)
@@ -152,6 +158,10 @@ export default function PendingValidation() {
   const [stripeConnected, setStripeConnected] = useState(false);
   const [documents, setDocuments] = useState<DocStatus[]>([]);
   const stripeConnectedRef = useRef(false);
+  // Métiers du prestataire : ils déterminent le nombre de pièces exigées
+  // (6 pour un métier non réglementé, 7 sinon). Chargés une fois.
+  const [trades, setTrades] = useState<ProviderTrades | null>(null);
+  const tradesRef = useRef<ProviderTrades | null>(null);
 
   // Profil : actions « en attendant »
   const u: any = user ?? {};
@@ -166,13 +176,19 @@ export default function PendingValidation() {
 
   async function checkStatus() {
     try {
-      const [validationRes, stripeRes, docsRes]: any[] = await Promise.all([
+      const [validationRes, stripeRes, docsRes, tradesRes]: any[] = await Promise.all([
         api.providers.validationStatus(),
         !stripeConnectedRef.current ? api.connect.status() : null,
         api.providerDocs.list(),
+        !tradesRef.current ? fetchProviderTrades() : null,
       ]);
 
       if (docsRes?.documents) setDocuments(docsRes.documents);
+
+      if (tradesRes) {
+        tradesRef.current = tradesRes;
+        setTrades(tradesRes);
+      }
 
       if (stripeRes) {
         const connected = !!stripeRes.isStripeReady;
@@ -337,6 +353,27 @@ export default function PendingValidation() {
   const firstName = cleanName(u?.name, { email: u?.email, fallback: "" }).trim().split(/\s+/)[0] || "";
   const rejectedDocs = documents.filter(d => d.status === "REJECTED");
 
+  // ── État réel du dossier ────────────────────────────────────────────────────
+  // `validationStatus` vaut PENDING dès la création de la fiche : il ne dit RIEN
+  // de ce qui a été déposé. Tant qu'on ne l'a pas vérifié, on considère le
+  // dossier incomplet — l'erreur sûre est de renvoyer vers les documents, jamais
+  // d'annoncer « dossier reçu » sur un dossier vide.
+  const tradeNames = trades?.names ?? [];
+  const requiredKeys = requiredDocKeys(tradeNames);
+  const missingKeys = missingDocKeys(documents, tradeNames);
+  const stateKnown = trades !== null;
+  const docsComplete = stateKnown && missingKeys.length === 0;
+  /** Incomplet AVÉRÉ — pas « pas encore vérifié ». C'est lui qui pilote l'alerte. */
+  const docsIncomplete = stateKnown && !docsComplete;
+  const submittedCount = Math.max(0, requiredKeys.length - missingKeys.length);
+  // Profil métier vide → c'est là qu'il faut renvoyer, pas sur les documents.
+  const tradesMissing = !!trades?.known && tradeNames.length === 0;
+
+  const resumeOnboarding = () => {
+    feedback.haptic('medium');
+    router.push(tradesMissing ? "/onboarding/activity" : "/onboarding/documents");
+  };
+
   // ── PENDING : attente active ────────────────────────────────────────────────
   if (status === "pending") {
     return (
@@ -368,7 +405,9 @@ export default function PendingValidation() {
             <Text style={s.kicker}>{t('onboarding.pending_kicker')}</Text>
             <View style={s.chip}>
               <Animated.View style={[s.chipDot, { opacity: chipPulse }]} />
-              <Text style={s.chipText}>{t('onboarding.pending_chip')}</Text>
+              <Text style={s.chipText}>
+                {docsIncomplete ? t('onboarding.pending_chip_incomplete') : t('onboarding.pending_chip')}
+              </Text>
             </View>
           </View>
 
@@ -380,15 +419,60 @@ export default function PendingValidation() {
                 : t('onboarding.pending_title_l2')}
             </Text>
           </Text>
-          <Text style={s.subtitleLeft}>{t('onboarding.pending_sub')}</Text>
+          <Text style={s.subtitleLeft}>
+            {docsIncomplete ? t('onboarding.pending_sub_incomplete') : t('onboarding.pending_sub')}
+          </Text>
 
           {/* Timeline du dossier */}
           <View style={s.timelineCard}>
-            <TimelineRow label={t('onboarding.pending_step_received')} state="done" />
-            <TimelineRow label={t('onboarding.pending_step_stripe')} state={stripeConnected ? "done" : "active"} eta={!stripeConnected ? t('onboarding.pending_stripe_missing') : undefined} />
-            <TimelineRow label={t('onboarding.pending_step_verifying')} state={stripeConnected ? "active" : "idle"} eta={t('onboarding.pending_verifying_eta')} />
+            <TimelineRow
+              label={t('onboarding.pending_step_received')}
+              state={docsIncomplete ? "active" : "done"}
+              eta={docsIncomplete
+                ? t('onboarding.pending_docs_progress', { sent: submittedCount, total: requiredKeys.length })
+                : undefined}
+            />
+            <TimelineRow
+              label={t('onboarding.pending_step_stripe')}
+              state={stripeConnected ? "done" : docsIncomplete ? "idle" : "active"}
+              eta={!stripeConnected && !docsIncomplete ? t('onboarding.pending_stripe_missing') : undefined}
+            />
+            <TimelineRow label={t('onboarding.pending_step_verifying')} state={stripeConnected && !docsIncomplete ? "active" : "idle"} eta={t('onboarding.pending_verifying_eta')} />
             <TimelineRow label={t('onboarding.pending_step_activated')} state="idle" last />
           </View>
+
+          {/* Dossier incomplet — la raison n°1 des refus : le prestataire quittait
+              l'app pendant le KYC et cet écran lui annonçait « dossier reçu »
+              sans jamais lui reproposer les pièces. */}
+          {docsIncomplete && (
+            <View style={s.docsCard}>
+              <View style={s.docRow}>
+                <Feather name="alert-circle" size={16} color={C.amber} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.docsTitle}>{t('onboarding.pending_incomplete_title')}</Text>
+                  <Text style={s.docReason}>
+                    {tradesMissing
+                      ? t('onboarding.pending_incomplete_trades')
+                      : t('onboarding.pending_incomplete_docs', {
+                          count: missingKeys.length,
+                          list: missingKeys
+                            .map((k) => t(`kyc.${k}_label`, { defaultValue: DOC_LABELS[k] ?? k.replace(/_/g, " ") }))
+                            .join(" · "),
+                        })}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={s.docsFixBtn}
+                onPress={resumeOnboarding}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
+                <Feather name="upload" size={13} color={C.white} />
+                <Text style={s.docsFixText}>{t('onboarding.pending_incomplete_cta')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Documents refusés — visibles uniquement si action requise */}
           {rejectedDocs.length > 0 && (
@@ -406,7 +490,7 @@ export default function PendingValidation() {
               ))}
               <TouchableOpacity
                 style={s.docsFixBtn}
-                onPress={() => { feedback.haptic('medium'); router.replace("/onboarding/documents"); }}
+                onPress={() => { feedback.haptic('medium'); router.push("/onboarding/documents"); }}
                 activeOpacity={0.8}
               >
                 <Feather name="upload" size={13} color={C.white} />
@@ -482,7 +566,19 @@ export default function PendingValidation() {
 
         {/* Footer */}
         <View style={s.footer}>
-          {!stripeConnected && (
+          {docsIncomplete ? (
+            <TouchableOpacity
+              style={s.stripeCta}
+              onPress={resumeOnboarding}
+              activeOpacity={0.9}
+              accessibilityRole="button"
+            >
+              <Text style={s.stripeCtaText}>{t('onboarding.pending_incomplete_cta')}</Text>
+              <View style={s.arrowPill}>
+                <Feather name="arrow-right" size={14} color={C.white} />
+              </View>
+            </TouchableOpacity>
+          ) : !stripeConnected ? (
             <TouchableOpacity
               style={s.stripeCta}
               onPress={() => {
@@ -495,6 +591,22 @@ export default function PendingValidation() {
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
+            </TouchableOpacity>
+          ) : null}
+
+          {/* Stripe reste accessible en second rang tant qu'il manque des pièces :
+              on ne retire rien, on ne fait que remettre l'ordre. */}
+          {docsIncomplete && !stripeConnected && (
+            <TouchableOpacity
+              style={s.secondaryLink}
+              onPress={() => {
+                feedback.haptic('light');
+                router.push("/onboarding/provider/stripe-connect");
+              }}
+              activeOpacity={0.6}
+              hitSlop={{ top: 8, bottom: 8 }}
+            >
+              <Text style={s.secondaryLinkText}>{t('onboarding.stripe_cta')}</Text>
             </TouchableOpacity>
           )}
 
@@ -581,7 +693,7 @@ export default function PendingValidation() {
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
-                router.replace("/onboarding/documents");
+                router.push("/onboarding/documents");
               }}
               activeOpacity={0.9}
             >
@@ -829,6 +941,13 @@ const s = StyleSheet.create({
   prepHint: { fontFamily: FONTS.sansLight, fontSize: 11, color: C.faint },
 
   // CTA
+  secondaryLink: { alignItems: "center", paddingVertical: 6 },
+  secondaryLinkText: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: 12.5,
+    color: C.grey,
+    textDecorationLine: "underline",
+  },
   stripeCta: {
     width: "100%", height: 60, backgroundColor: C.white, borderRadius: 18,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12,

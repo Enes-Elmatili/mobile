@@ -169,15 +169,18 @@ export default function RoleSelect() {
         }
         // Navigation explicite pour les DEUX rôles — on ne dépend plus de la
         // chaîne implicite refreshMe → redirect (spinner infini si res.token absent).
-        if (selected === "PROVIDER") {
-          router.replace("/onboarding/documents");
-        } else if (res?.profileIncomplete) {
-          // Client : compléter le profil (tél/adresse) avant le dashboard,
-          // cohérent avec le gate login/social.
+        if (res?.profileIncomplete) {
+          // Coordonnées de facturation manquantes — vrai pour les DEUX rôles :
+          // un prestataire sans adresse ne peut pas être facturé (Model C), et
+          // arriver par Apple/Google ne fournit ni téléphone ni adresse.
           router.replace({
             pathname: "/(auth)/complete-profile",
             params: { missingFields: (res.missingFields ?? []).join(",") },
           });
+        } else if (selected === "PROVIDER") {
+          // Passe par le gate métier : il s'efface tout seul si la fiche est
+          // déjà renseignée, et rattrape les inscriptions sociales sinon.
+          router.replace("/onboarding/activity");
         } else {
           router.replace("/(tabs)/dashboard");
         }

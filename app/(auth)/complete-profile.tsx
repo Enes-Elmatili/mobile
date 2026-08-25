@@ -41,7 +41,7 @@ type MissingField = "name" | "phone" | "address" | "postalCode" | "city";
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function CompleteProfile() {
   const router = useRouter();
-  const { refreshMe, signOut } = useAuth();
+  const { refreshMe, signOut, user } = useAuth();
   const { t } = useTranslation();
   const theme = useAppTheme();
   const params = useLocalSearchParams<{ missingFields?: string }>();
@@ -132,7 +132,13 @@ export default function CompleteProfile() {
       await api.patch("/me/profile", payload);
       await refreshMe();
       feedback.haptic('success');
-      router.replace("/(tabs)/dashboard");
+      // Un prestataire ne reprend pas au dashboard client : il lui reste son
+      // parcours d'activation (métiers → documents → paiements).
+      if (user?.roles?.includes("PROVIDER")) {
+        router.replace("/onboarding/activity");
+      } else {
+        router.replace("/(tabs)/dashboard");
+      }
     } catch (err: any) {
       feedback.haptic('error');
       showToast(err.message || t("auth.cp_err_update"));
