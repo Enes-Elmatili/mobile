@@ -34,7 +34,7 @@ export function Toast({ item }: { item: ToastItem }) {
   return (
     <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, borderLeftColor: ACCENT[item.type] }, style]}>
       <Feather name={ICON[item.type]} size={18} color={ACCENT[item.type]} />
-      <Text style={[s.text, { color: theme.text }]} numberOfLines={2}>{item.message}</Text>
+      <Text style={[s.text, { color: theme.text }]} numberOfLines={8}>{item.message}</Text>
     </Animated.View>
   );
 }

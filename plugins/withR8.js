@@ -37,8 +37,14 @@ const {
   withDangerousMod,
 } = require('@expo/config-plugins');
 
-/** Interrupteur unique. false → le plugin devient un no-op, build non optimisé. */
-const ENABLED = true;
+/** Interrupteur unique. false → le plugin devient un no-op, build non optimisé.
+ *
+ * ⚠️ COUPÉ le 30/08/2026 — expérience à variable unique. En build R8, l'appel
+ * natif `ExpoCrypto.digestStringAsync` est rejeté : PKCE d'expo-auth-session
+ * échoue, la requête OAuth n'est jamais construite, et le bouton Google est
+ * inerte sur Android. On vérifie que R8 en est bien la cause avant de décider
+ * entre des règles `-keep` ciblées et un renoncement à l'optimisation. */
+const ENABLED = false;
 
 /**
  * Clés lues par le template Expo SDK 54 (android/app/build.gradle).
