@@ -20,6 +20,7 @@ import { useAuth } from "../../lib/auth/AuthContext";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
+import { useGoogleAuthDiagnostic } from "@/lib/useGoogleAuthDiagnostic";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
@@ -117,6 +118,9 @@ export default function Login() {
   // par Google avec redirect_uri_mismatch.
   const [googleRequest, googleResponse, googlePromptAsync] =
     Google.useAuthRequest(GOOGLE_AUTH_CONFIG);
+  // Pourquoi Google est indisponible, le cas échéant — la librairie, elle, ne
+  // dit jamais rien (cf. lib/useGoogleAuthDiagnostic.ts).
+  const googleUnavailable = useGoogleAuthDiagnostic(googleRequest);
 
   useEffect(() => {
     if (__DEV__ && googleRequest) {
@@ -136,6 +140,22 @@ export default function Login() {
       showToast(t("auth.login_google_failed"));
     }
   }, [googleResponse]);
+
+
+  // Le bouton reste actif même si la requête n'est pas prête : un appui doit
+  // toujours produire une réponse. Sans ça, un échec de construction rendait le
+  // bouton totalement inerte — ni navigateur, ni message, ni log.
+  const handleGooglePress = () => {
+    if (googleRequest) {
+      googlePromptAsync();
+      return;
+    }
+    if (googleUnavailable) {
+      showToast(t('auth.google_unavailable', { reason: googleUnavailable }));
+      return;
+    }
+    showToast(t('auth.google_preparing'), 'info');
+  };
 
   const handleGoogleSignIn = async (tokens: { idToken?: string; accessToken?: string }) => {
     setSocialLoading("google");
@@ -331,8 +351,8 @@ export default function Login() {
 
             <TouchableOpacity
               style={[s.socialBtn, socialBtnTheme]}
-              onPress={() => googlePromptAsync()}
-              disabled={isBusy || !googleRequest}
+              onPress={handleGooglePress}
+              disabled={isBusy}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t("auth.login_google_a11y")}

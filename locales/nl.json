@@ -262,7 +262,9 @@
     "su_err_identity": "Vul uw naam, een geldig e-mailadres en een wachtwoord in (min. 8 tekens).",
     "su_err_coords": "Vul uw telefoon en adres in om door te gaan.",
     "su_err_activity": "Kies uw stad en minstens één categorie.",
-    "welcome_eyebrow": "Loodgieterij · Slotenmakerij"
+    "welcome_eyebrow": "Loodgieterij · Slotenmakerij",
+    "google_unavailable": "Google niet beschikbaar: {{reason}}",
+    "google_preparing": "Google-aanmelding wordt voorbereid, probeer het zo opnieuw."
   },
   "profile": {
     "title": "Profiel",

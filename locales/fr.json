@@ -262,7 +262,9 @@
     "su_err_identity": "Renseignez votre nom, un email valide et un mot de passe (8 caractères min.).",
     "su_err_coords": "Complétez votre téléphone et votre adresse pour continuer.",
     "su_err_activity": "Choisissez votre ville et au moins une catégorie.",
-    "welcome_eyebrow": "Plomberie · Serrurerie"
+    "welcome_eyebrow": "Plomberie · Serrurerie",
+    "google_unavailable": "Google indisponible : {{reason}}",
+    "google_preparing": "Connexion Google en préparation, réessayez dans un instant."
   },
   "profile": {
     "title": "Profil",
