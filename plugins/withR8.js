@@ -37,14 +37,8 @@ const {
   withDangerousMod,
 } = require('@expo/config-plugins');
 
-/** Interrupteur unique. false → le plugin devient un no-op, build non optimisé.
- *
- * ⚠️ COUPÉ le 30/08/2026 — expérience à variable unique. En build R8, l'appel
- * natif `ExpoCrypto.digestStringAsync` est rejeté : PKCE d'expo-auth-session
- * échoue, la requête OAuth n'est jamais construite, et le bouton Google est
- * inerte sur Android. On vérifie que R8 en est bien la cause avant de décider
- * entre des règles `-keep` ciblées et un renoncement à l'optimisation. */
-const ENABLED = false;
+/** Interrupteur unique. false → le plugin devient un no-op, build non optimisé. */
+const ENABLED = true;
 
 /**
  * Clés lues par le template Expo SDK 54 (android/app/build.gradle).
@@ -81,6 +75,29 @@ const KEEP_RULES = `${MARKER_START}
 -keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# ── Conversion des arguments des modules Expo ────────────────────────────────
+# expo-modules-core convertit les arguments des fonctions natives (enums
+# Enumerable, records Record) en lisant leur CONSTRUCTEUR PRIMAIRE par réflexion
+# Kotlin. Cette lecture ne passe pas par les attributs de classe mais par
+# l'annotation kotlin.Metadata : les -keepattributes ci-dessus ne suffisent donc
+# pas, il faut conserver la classe d'annotation elle-meme et le support runtime
+# de Kotlin.
+#
+# Sans ces regles, la conversion echoue a l'execution et l'appel natif est
+# rejete -- sans crash, sans log. C'est ce qui tuait ExpoCrypto.digestStringAsync
+# le 30/08/2026 : PKCE ne pouvait plus produire son defi, expo-auth-session
+# avalait le rejet faute de catch, et le bouton Google restait inerte sur
+# Android. Diagnostic complet dans le commit fca2d89.
+-keep class kotlin.Metadata { *; }
+-keep class kotlin.jvm.internal.** { *; }
+-dontwarn kotlin.reflect.**
+
+# Les modules Expo sont conserves en entier. Arbitrage assume : R8 ne les
+# elaguera plus, mais l'essentiel du gain vient de React Native, Stripe, Maps et
+# WebRTC, qui restent optimises. Un appel natif casse en silence coute plus cher
+# que quelques megaoctets -- celui-ci a coute une semaine.
+-keep class expo.modules.** { *; }
 
 ${MARKER_END}`;
 
