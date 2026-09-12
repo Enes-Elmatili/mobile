@@ -890,7 +890,9 @@ export default function ProviderDashboard() {
     // Un dossier non validé revient en 'pending_validation' : le switch doit
     // refléter ça, pas un optimisme local.
     const handleRegistered = (data: any) => {
-      const online = isOnlineStatus(data?.provider?.status);
+      // server.js émet { providerId, status, blocked? } ; on accepte aussi la
+      // forme imbriquée au cas où un ancien serveur répondrait { provider }.
+      const online = isOnlineStatus(data?.status ?? data?.provider?.status);
       isOnlineRef.current = online;
       setIsOnline(online);
       if (!online) setIncomingRequests([]);
