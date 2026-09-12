@@ -39,7 +39,8 @@ type AuthState = {
   missingFields: string[];
   signIn: (token: string, missingFields?: string[]) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshMe: () => Promise<void>;
+  /** Relit /auth/me et renvoie le profil chargé (null si absent ou en erreur). */
+  refreshMe: () => Promise<UserData | null>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentToken = await tokenStorage.getToken();
     if (!currentToken) {
       devLog('⏭️ refreshMe: no token, skipping');
-      return;
+      return null;
     }
 
     try {
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userData && userData.email && userData.id && Array.isArray(userData.roles)) {
         setUser(userData);
         devLog('✅ USER LOADED:', userData.email, 'Roles:', userData.roles);
+        return userData as UserData;
       } else {
         devWarn('⚠️ ME response sans user valide. userData:', userData);
         await signOutRef.current();
@@ -110,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         devWarn('⚠️ Server error during refresh. Keeping local session.');
       }
     }
+    return null;
   }, []); // Pas de dépendance sur signOut grâce au ref
 
   // Ref pour éviter que refreshMe dans les deps du useEffect cause des boucles

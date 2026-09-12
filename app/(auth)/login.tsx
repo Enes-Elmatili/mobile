@@ -21,6 +21,7 @@ import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
 import { useGoogleAuthDiagnostic } from "@/lib/useGoogleAuthDiagnostic";
+import { routeAfterLogin } from "@/lib/providerGate";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme, alpha } from "@/hooks/use-app-theme";
 import {
@@ -157,23 +158,33 @@ export default function Login() {
     showToast(t('auth.google_preparing'), 'info');
   };
 
+  // ── Routage post-connexion, commun aux trois chemins (e-mail, Google, Apple) ──
+  // Les chemins sociaux envoyaient tout compte muni d'un rôle sur les onglets
+  // sans regarder le statut prestataire : un prestataire qui avait quitté son
+  // onboarding (documents, Stripe) et se reconnectait en social retrouvait le
+  // dashboard complet. La règle vit dans lib/providerGate.ts (testée) ; ici on
+  // ne fait que réunir les données — la réponse de login ne porte pas
+  // providerStatus, /auth/me si.
+  const routeAfterAuth = async (res: any) => {
+    const me = await refreshMe();
+    const roles: string[] | undefined = Array.isArray(res?.roles) ? res.roles : me?.roles;
+    router.replace(
+      routeAfterLogin({
+        roles,
+        profileIncomplete: res?.profileIncomplete,
+        missingFields: res?.missingFields,
+        providerStatus: res?.providerStatus ?? me?.providerStatus,
+      }) as any,
+    );
+  };
+
   const handleGoogleSignIn = async (tokens: { idToken?: string; accessToken?: string }) => {
     setSocialLoading("google");
     try {
       const res = await api.auth.google(tokens);
       if (!res?.token) throw new Error();
       await signIn(res.token, res.missingFields ?? []);
-      await refreshMe();
-      if (!res.roles || res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      } else if (res.profileIncomplete) {
-        router.replace({
-          pathname: "/(auth)/complete-profile",
-          params: { missingFields: (res.missingFields ?? []).join(",") },
-        });
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      await routeAfterAuth(res);
     } catch (e: any) {
       if (e?.status === 409) showToast(e.data?.error || e.message);
       else showToast(t("auth.su_err_social"));
@@ -205,17 +216,7 @@ export default function Login() {
 
       if (!res?.token) throw new Error();
       await signIn(res.token, res.missingFields ?? []);
-      await refreshMe();
-      if (!res.roles || res.roles.length === 0) {
-        router.replace("/(auth)/role-select");
-      } else if (res.profileIncomplete) {
-        router.replace({
-          pathname: "/(auth)/complete-profile",
-          params: { missingFields: (res.missingFields ?? []).join(",") },
-        });
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      await routeAfterAuth(res);
     } catch (e: any) {
       if (e?.code === "ERR_CANCELED" || e?.code === "1001") {
         // silent cancel
@@ -255,30 +256,7 @@ export default function Login() {
       const token = res?.token;
       if (!token) throw new Error();
       await signIn(token, res.missingFields ?? []);
-      if (res.profileIncomplete && Array.isArray(res.missingFields) && res.missingFields.length > 0) {
-        router.replace({
-          pathname: "/(auth)/complete-profile",
-          params: { missingFields: res.missingFields.join(",") },
-        });
-        return;
-      }
-      // Reproduit la logique de app/index.tsx : un provider non-ACTIF doit
-      // passer par l'écran pending, pas directement le dashboard.
-      let roles: string[] | undefined = res.roles;
-      let providerStatus: string | undefined = res.providerStatus;
-      if (!Array.isArray(roles)) {
-        try {
-          const me: any = await api.user.me();
-          roles = me?.user?.roles;
-          providerStatus = me?.user?.providerStatus;
-        } catch {}
-      }
-      const isProvider = Array.isArray(roles) && roles.includes("PROVIDER");
-      if (isProvider) {
-        router.replace(providerStatus === "ACTIVE" ? "/(tabs)/provider-dashboard" : "/onboarding/provider/pending");
-      } else {
-        router.replace("/(tabs)/dashboard");
-      }
+      await routeAfterAuth(res);
     } catch (e: any) {
       if (e?.status === 401) {
         showToast(t("auth.invalid_credentials"));

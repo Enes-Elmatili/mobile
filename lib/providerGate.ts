@@ -64,3 +64,50 @@ export function gateCopyFor(code?: string | null): GateCopy {
     route: '/onboarding/provider/pending',
   };
 }
+
+export interface LoginOutcome {
+  roles?: string[] | null;
+  profileIncomplete?: boolean;
+  missingFields?: string[] | null;
+  providerStatus?: string | null;
+}
+
+export type LoginRoute =
+  | { pathname: '/(auth)/role-select' }
+  | { pathname: '/(auth)/complete-profile'; params: { missingFields: string } }
+  | { pathname: '/onboarding/provider/pending' }
+  | { pathname: '/(tabs)/provider-dashboard' }
+  | { pathname: '/(tabs)/dashboard' };
+
+/**
+ * Où envoyer un compte qui vient de se connecter — e-mail, Google ou Apple,
+ * même règle. Les chemins sociaux de login.tsx envoyaient tout compte muni
+ * d'un rôle sur les onglets sans regarder le statut prestataire : un
+ * prestataire qui avait quitté son onboarding et se reconnectait en social
+ * retrouvait le dashboard complet, documents et Stripe sautés.
+ *
+ * Ordre des priorités, du plus en amont au plus en aval :
+ *   1. pas de rôle          → choix du rôle (inscription sociale interrompue)
+ *   2. profil incomplet     → coordonnées de facturation (Model C)
+ *   3. prestataire non ACTIVE → dossier (statut absent inclus : on ne devine
+ *      jamais qu'un prestataire est validé, le dossier se rafraîchit seul)
+ *   4. prestataire ACTIVE   → dashboard prestataire
+ *   5. client               → dashboard client
+ */
+export function routeAfterLogin(outcome: LoginOutcome): LoginRoute {
+  const roles = outcome.roles ?? [];
+  if (roles.length === 0) return { pathname: '/(auth)/role-select' };
+
+  const missing = outcome.missingFields ?? [];
+  if (outcome.profileIncomplete || missing.length > 0) {
+    return { pathname: '/(auth)/complete-profile', params: { missingFields: missing.join(',') } };
+  }
+
+  if (roles.includes('PROVIDER')) {
+    return outcome.providerStatus === 'ACTIVE'
+      ? { pathname: '/(tabs)/provider-dashboard' }
+      : { pathname: '/onboarding/provider/pending' };
+  }
+
+  return { pathname: '/(tabs)/dashboard' };
+}

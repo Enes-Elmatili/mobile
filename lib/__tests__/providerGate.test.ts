@@ -6,7 +6,7 @@
  * désormais (backend : services/providerGate.js), et ces règles-ci décident
  * ce que l'app fait de ce refus.
  */
-import { shouldLeaveTabs, isOnlineStatus, gateCopyFor, GATE_CODES } from '../providerGate';
+import { shouldLeaveTabs, isOnlineStatus, gateCopyFor, routeAfterLogin, GATE_CODES } from '../providerGate';
 
 describe('shouldLeaveTabs — qui a le droit de rester dans les onglets', () => {
   it('renvoie un prestataire PENDING vers son onboarding', () => {
@@ -83,5 +83,50 @@ describe('gateCopyFor — où renvoyer selon le motif de refus', () => {
         }
       }
     }
+  });
+});
+
+describe('routeAfterLogin — où envoyer un compte qui vient de se connecter', () => {
+  // Contexte : les boutons Google et Apple de login.tsx envoyaient tout compte
+  // muni d'un rôle sur /(tabs)/dashboard, sans regarder le statut prestataire.
+  // Un prestataire qui avait quitté son onboarding (documents, Stripe) et se
+  // reconnectait en social atterrissait sur le dashboard complet. Le chemin
+  // e-mail, lui, faisait la vérification : trois chemins, une seule règle.
+  it('sans rôle → choix du rôle (inscription sociale interrompue)', () => {
+    expect(routeAfterLogin({ roles: [], profileIncomplete: false, missingFields: [] }))
+      .toEqual({ pathname: '/(auth)/role-select' });
+    expect(routeAfterLogin({ roles: undefined, profileIncomplete: false, missingFields: [] }))
+      .toEqual({ pathname: '/(auth)/role-select' });
+  });
+
+  it('profil de facturation incomplet → complete-profile, avec les champs manquants', () => {
+    expect(
+      routeAfterLogin({
+        roles: ['PROVIDER'],
+        profileIncomplete: true,
+        missingFields: ['phone', 'address'],
+        providerStatus: 'PENDING',
+      }),
+    ).toEqual({ pathname: '/(auth)/complete-profile', params: { missingFields: 'phone,address' } });
+  });
+
+  it('prestataire PENDING avec profil complet → dossier, jamais les onglets', () => {
+    expect(routeAfterLogin({ roles: ['PROVIDER'], profileIncomplete: false, missingFields: [], providerStatus: 'PENDING' }))
+      .toEqual({ pathname: '/onboarding/provider/pending' });
+  });
+
+  it.each(['REJECTED', 'SUSPENDED', undefined])('prestataire %s → dossier', (providerStatus) => {
+    expect(routeAfterLogin({ roles: ['PROVIDER'], profileIncomplete: false, missingFields: [], providerStatus }))
+      .toEqual({ pathname: '/onboarding/provider/pending' });
+  });
+
+  it('prestataire ACTIVE → dashboard prestataire', () => {
+    expect(routeAfterLogin({ roles: ['PROVIDER'], profileIncomplete: false, missingFields: [], providerStatus: 'ACTIVE' }))
+      .toEqual({ pathname: '/(tabs)/provider-dashboard' });
+  });
+
+  it('client → dashboard client', () => {
+    expect(routeAfterLogin({ roles: ['CLIENT'], profileIncomplete: false, missingFields: [] }))
+      .toEqual({ pathname: '/(tabs)/dashboard' });
   });
 });
