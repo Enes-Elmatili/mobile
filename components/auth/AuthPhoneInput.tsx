@@ -14,11 +14,17 @@
  * Emits via onChangeFormattedText:
  *   "+32470123456"   (E.164, dial code prefixed)
  * The local number prop is uncontrolled — parent reads only the formatted output.
+ *
+ * Normalisation (lib/phone.ts) : le 0 national tapé en tête disparaît à la
+ * frappe (« 0470… » → « 470… »), un indicatif tapé ou collé dans le champ
+ * (« +32 470… », « 0032… », autofill iOS) est replié dans le chip au blur.
+ * Avant ça, « +32 » + « 0470… » donnait +320470123456 — un faux numéro.
  */
 import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import CountryPicker from "react-native-country-picker-modal";
+import CountryPicker, { getAllCountries, FlagType } from "react-native-country-picker-modal";
 import type { Country, CountryCode } from "react-native-country-picker-modal";
+import { toE164, splitInternational, keepsLeadingZero } from "@/lib/phone";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
@@ -67,12 +73,43 @@ export function AuthPhoneInput({
   );
   const [number, setNumber] = useState(defaultValue);
 
-  // Emit changes upward whenever the country or local number shifts.
+  // Emit changes upward whenever the country or local number shifts. Ce qui
+  // remonte est toujours normalisé, quel que soit l'état d'affichage du champ.
   useEffect(() => {
-    const digits = number.replace(/\D/g, "");
-    onChangeText?.(digits);
-    onChangeFormattedText?.(digits ? `+${country.callingCode}${digits}` : "");
+    const { local } = splitInternational(country.callingCode, number);
+    onChangeText?.(local);
+    onChangeFormattedText?.(toE164(country.callingCode, number));
   }, [country, number]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // À la frappe : seul le 0 national de tête est retiré (sans ambiguïté, et
+  // immédiat pour que l'utilisateur voie qu'il n'est pas attendu). Le reste
+  // (indicatif tapé/collé) attend le blur — on ne se bat pas avec le clavier.
+  const onTypeNumber = (text: string) => {
+    if (!keepsLeadingZero(country.callingCode) && /^\s*0/.test(text) && !text.trim().startsWith("+")) {
+      setNumber(text.replace(/^\s*0+/, ""));
+      return;
+    }
+    setNumber(text);
+  };
+
+  // Au blur : « +33 6… » / « 0032 470… » → le chip prend l'indicatif, le champ
+  // ne garde que la partie locale.
+  const onBlurNumber = async () => {
+    setFocused(false);
+    const { callingCode, local } = splitInternational(country.callingCode, number);
+    if (callingCode !== country.callingCode) {
+      try {
+        const all = await getAllCountries(FlagType.EMOJI);
+        const match = all.find((c) => c.callingCode?.includes(callingCode));
+        if (match) setCountry({ cca2: match.cca2, callingCode });
+      } catch {
+        // Pas de drapeau trouvé : l'indicatif tapé reste dans le champ, la
+        // valeur émise (toE164) est correcte quand même.
+        return;
+      }
+    }
+    if (local !== number) setNumber(local);
+  };
 
   const onSelect = (c: Country) => {
     setCountry({
@@ -132,14 +169,14 @@ export function AuthPhoneInput({
         <TextInput
           style={[s.numberInput, themed && { color: theme.text }]}
           value={number}
-          onChangeText={setNumber}
+          onChangeText={onTypeNumber}
           placeholder={placeholder}
           placeholderTextColor={themed ? f.placeholder : alpha(authT.textOnDark, 0.4)}
           keyboardType="phone-pad"
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={onBlurNumber}
           selectionColor={themed ? f.selection : authT.textOnDark}
           autoCorrect={false}
           textContentType="telephoneNumber"
