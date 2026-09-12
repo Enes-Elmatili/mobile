@@ -148,8 +148,10 @@ export default function ExploreScreen() {
   const fetchProviders = useCallback(async (lat: number, lng: number, radiusM: number) => {
     setLoading(true);
     try {
-      const res: any = await api.providers.nearby(lat, lng, radiusM);
-      const list = res?.data ?? res;
+      // /providers/nearby lit un rayon en km (plafonné à 50 côté serveur).
+      const res: any = await api.providers.nearby(lat, lng, radiusM / 1000);
+      // La route renvoie { success, providers } — `data` n'a jamais existé ici.
+      const list = res?.providers ?? res?.data ?? res;
       setProviders(Array.isArray(list) ? list : []);
       setFetchError(false);
     } catch {

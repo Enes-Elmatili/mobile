@@ -352,7 +352,8 @@ class ApiClient {
     list: () => this.request('/providers'),
     get: (id: string) => this.request(`/providers/${id}`),
     availability: (id: string) => this.request(`/providers/${id}/availability`),
-    nearby: (lat: number, lng: number, radius = 5000) =>
+    /** radius en km (le serveur plafonne à 50). */
+    nearby: (lat: number, lng: number, radius = 5) =>
       this.request(`/providers/nearby?lat=${lat}&lng=${lng}&radius=${radius}`),
     available: (params: { lat: number; lng: number; radius?: number; categoryId?: number; minRating?: number; limit?: number }) => {
       const qs = new URLSearchParams({
