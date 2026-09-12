@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { feedback } from "@/lib/feedback/feedback";
+import { firstIncompleteStep, STEP_ROUTES } from "../../../lib/onboardingSteps";
 import { api } from "../../../lib/api";
 import { tokenStorage } from "../../../lib/storage";
 import { useAuth } from "../../../lib/auth/AuthContext";
@@ -161,6 +162,9 @@ export default function PendingValidation() {
   // Métiers du prestataire : ils déterminent le nombre de pièces exigées
   // (6 pour un métier non réglementé, 7 sinon). Chargés une fois.
   const [trades, setTrades] = useState<ProviderTrades | null>(null);
+  // Entreprise : BCE confirmé VIES + IBAN — exigés par le garde d'activation
+  // au même titre que les pièces. null = pas encore lu.
+  const [company, setCompany] = useState<{ vatVerified: boolean; ibanPresent: boolean } | null>(null);
   const tradesRef = useRef<ProviderTrades | null>(null);
 
   // Profil : actions « en attendant »
@@ -176,14 +180,18 @@ export default function PendingValidation() {
 
   async function checkStatus() {
     try {
-      const [validationRes, stripeRes, docsRes, tradesRes]: any[] = await Promise.all([
+      const [validationRes, stripeRes, docsRes, tradesRes, meRes]: any[] = await Promise.all([
         api.providers.validationStatus(),
         !stripeConnectedRef.current ? api.connect.status() : null,
         api.providerDocs.list(),
         !tradesRef.current ? fetchProviderTrades() : null,
+        api.providers.me().catch(() => null),
       ]);
 
       if (docsRes?.documents) setDocuments(docsRes.documents);
+      if (meRes?.provider) {
+        setCompany({ vatVerified: !!meRes.provider.vatVerifiedAt, ibanPresent: !!meRes.provider.bankIban });
+      }
 
       if (tradesRes) {
         tradesRef.current = tradesRes;
@@ -368,10 +376,20 @@ export default function PendingValidation() {
   const submittedCount = Math.max(0, requiredKeys.length - missingKeys.length);
   // Profil métier vide → c'est là qu'il faut renvoyer, pas sur les documents.
   const tradesMissing = !!trades?.known && tradeNames.length === 0;
+  /** Entreprise incomplète AVÉRÉE (BCE non confirmé par VIES ou IBAN absent). */
+  const companyIncomplete = company !== null && (!company.vatVerified || !company.ibanPresent);
+  /** Le dossier est incomplet dès qu'une étape en amont de la validation manque. */
+  const fileIncomplete = docsIncomplete || companyIncomplete;
 
   const resumeOnboarding = () => {
     feedback.haptic('medium');
-    router.push(tradesMissing ? "/onboarding/activity" : "/onboarding/documents");
+    const step = firstIncompleteStep({
+      trades: trades ?? { names: [], city: null, known: false },
+      company: company ?? { vatVerified: true, ibanPresent: true },
+      docs: documents,
+      stripeReady: stripeConnected,
+    });
+    router.push(STEP_ROUTES[step === "review" ? "documents" : step] as any);
   };
 
   // ── PENDING : attente active ────────────────────────────────────────────────
@@ -406,7 +424,7 @@ export default function PendingValidation() {
             <View style={s.chip}>
               <Animated.View style={[s.chipDot, { opacity: chipPulse }]} />
               <Text style={s.chipText}>
-                {docsIncomplete ? t('onboarding.pending_chip_incomplete') : t('onboarding.pending_chip')}
+                {fileIncomplete ? t('onboarding.pending_chip_incomplete') : t('onboarding.pending_chip')}
               </Text>
             </View>
           </View>
@@ -420,31 +438,36 @@ export default function PendingValidation() {
             </Text>
           </Text>
           <Text style={s.subtitleLeft}>
-            {docsIncomplete ? t('onboarding.pending_sub_incomplete') : t('onboarding.pending_sub')}
+            {fileIncomplete ? t('onboarding.pending_sub_incomplete') : t('onboarding.pending_sub')}
           </Text>
 
           {/* Timeline du dossier */}
           <View style={s.timelineCard}>
             <TimelineRow
+              label={t('onboarding.pending_step_company')}
+              state={companyIncomplete ? "active" : "done"}
+              eta={companyIncomplete ? t('onboarding.pending_company_missing') : undefined}
+            />
+            <TimelineRow
               label={t('onboarding.pending_step_received')}
-              state={docsIncomplete ? "active" : "done"}
+              state={docsIncomplete ? "active" : companyIncomplete ? "idle" : "done"}
               eta={docsIncomplete
                 ? t('onboarding.pending_docs_progress', { sent: submittedCount, total: requiredKeys.length })
                 : undefined}
             />
             <TimelineRow
               label={t('onboarding.pending_step_stripe')}
-              state={stripeConnected ? "done" : docsIncomplete ? "idle" : "active"}
-              eta={!stripeConnected && !docsIncomplete ? t('onboarding.pending_stripe_missing') : undefined}
+              state={stripeConnected ? "done" : fileIncomplete ? "idle" : "active"}
+              eta={!stripeConnected && !fileIncomplete ? t('onboarding.pending_stripe_missing') : undefined}
             />
-            <TimelineRow label={t('onboarding.pending_step_verifying')} state={stripeConnected && !docsIncomplete ? "active" : "idle"} eta={t('onboarding.pending_verifying_eta')} />
+            <TimelineRow label={t('onboarding.pending_step_verifying')} state={stripeConnected && !fileIncomplete ? "active" : "idle"} eta={t('onboarding.pending_verifying_eta')} />
             <TimelineRow label={t('onboarding.pending_step_activated')} state="idle" last />
           </View>
 
           {/* Dossier incomplet — la raison n°1 des refus : le prestataire quittait
               l'app pendant le KYC et cet écran lui annonçait « dossier reçu »
               sans jamais lui reproposer les pièces. */}
-          {docsIncomplete && (
+          {fileIncomplete && (
             <View style={s.docsCard}>
               <View style={s.docRow}>
                 <Feather name="alert-circle" size={16} color={C.amber} />
@@ -453,6 +476,8 @@ export default function PendingValidation() {
                   <Text style={s.docReason}>
                     {tradesMissing
                       ? t('onboarding.pending_incomplete_trades')
+                      : companyIncomplete
+                      ? t(company?.vatVerified ? 'onboarding.pending_incomplete_iban' : 'onboarding.pending_incomplete_bce')
                       : t('onboarding.pending_incomplete_docs', {
                           count: missingKeys.length,
                           list: missingKeys
@@ -566,7 +591,7 @@ export default function PendingValidation() {
 
         {/* Footer */}
         <View style={s.footer}>
-          {docsIncomplete ? (
+          {fileIncomplete ? (
             <TouchableOpacity
               style={s.stripeCta}
               onPress={resumeOnboarding}
@@ -596,7 +621,7 @@ export default function PendingValidation() {
 
           {/* Stripe reste accessible en second rang tant qu'il manque des pièces :
               on ne retire rien, on ne fait que remettre l'ordre. */}
-          {docsIncomplete && !stripeConnected && (
+          {fileIncomplete && !stripeConnected && (
             <TouchableOpacity
               style={s.secondaryLink}
               onPress={() => {

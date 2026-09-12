@@ -79,7 +79,7 @@ export default function OnboardingActivity() {
       if (cancelled) return;
 
       if (trades.known && trades.names.length > 0 && trades.city) {
-        router.replace("/onboarding/documents");
+        router.replace("/onboarding/company");
         return;
       }
 
@@ -142,7 +142,7 @@ export default function OnboardingActivity() {
       ).catch(() => {});
 
       feedback.haptic("success");
-      router.replace("/onboarding/documents");
+      router.replace("/onboarding/company");
     } catch (e: any) {
       feedback.error(e?.message || t("onboarding.activity_save_error"));
       setSaving(false);

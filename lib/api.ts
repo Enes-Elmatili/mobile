@@ -376,6 +376,14 @@ class ApiClient {
   };
 
   // ==================== PROVIDER DOCUMENTS ====================
+  // ==================== PROVIDER (entreprise) ====================
+  provider = {
+    /** BCE → mod-97 puis VIES côté serveur. Erreurs : INVALID_BCE_FORMAT, VIES_INVALID, VIES_UNAVAILABLE. */
+    setVat: (vatNumber: string) => this.post('/provider/vat', { vatNumber }),
+    /** IBAN → mod-97 côté serveur. Erreur : INVALID_IBAN. */
+    setIban: (iban: string) => this.post('/provider/iban', { iban }),
+  };
+
   providerDocs = {
     list: () => this.request('/providers/documents'),
 
