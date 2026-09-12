@@ -6,7 +6,7 @@
 //
 // Prérequis : npx expo install expo-blur
 
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, alpha } from '@/hooks/use-app-theme';
+import { shouldLeaveTabs } from '@/lib/providerGate';
 
 // Hauteur du CONTENU de la tab bar (icône + label), hors inset bas du device.
 // La hauteur réelle rendue = TAB_BAR_HEIGHT + max(insets.bottom, TAB_PB).
@@ -63,6 +64,7 @@ export default function TabLayout() {
   // un changement de référence de l'objet `user` (même données, nouvel objet).
   const rolesKey   = user?.roles?.join(',') ?? '';
   const isProvider = useMemo(() => rolesKey.includes('PROVIDER'), [rolesKey]);
+  const providerStatus = user?.providerStatus;
 
   // ── tabBarBackground stable — évite une nouvelle référence à chaque render ─
   // Sans useCallback, React Navigation détecte un changement d'options à chaque
@@ -152,6 +154,20 @@ export default function TabLayout() {
   }), [t]);
 
   const hiddenOptions = useMemo(() => ({ href: null as null }), []);
+
+  // ── Garde de statut ───────────────────────────────────────────────────────
+  // Le rôle ne suffit pas : un prestataire dont le dossier n'est pas validé
+  // n'a rien à faire dans les onglets (dashboard, missions, gains). Jusqu'ici
+  // seuls un démarrage à froid (app/index.tsx) ou un passage par le groupe
+  // (auth) le renvoyaient vers son onboarding — toute navigation interne le
+  // laissait sur le dashboard prestataire, switch « En ligne » compris.
+  //
+  // providerStatus indéfini = profil pas encore rafraîchi : on ne redirige pas
+  // sur une valeur absente, sinon un prestataire actif se ferait éjecter le
+  // temps d'un refreshMe.
+  if (shouldLeaveTabs(isProvider, providerStatus)) {
+    return <Redirect href="/onboarding/provider/pending" />;
+  }
 
   return (
     <Tabs screenOptions={screenOptions}>

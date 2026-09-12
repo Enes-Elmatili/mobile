@@ -31,6 +31,7 @@ import { formatEURCents as formatEuros } from '@/lib/format';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devWarn, devLog } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
+import { isOnlineStatus, gateCopyFor } from '@/lib/providerGate';
 
 const TIMER_DURATION = 60;
 
@@ -828,9 +829,11 @@ export default function ProviderDashboard() {
     // before seeing an incoming card.
     const registerAndRefresh = () => {
       socket.emit('provider:register', { providerId: user.id });
-      isOnlineRef.current = true;
-      setIsOnline(true);
-      // Re-hydrate in case we missed a broadcast while disconnected.
+      // Ne PAS présumer « en ligne » ici : le serveur ne met en READY qu'un
+      // prestataire validé. Affirmer true à chaque (re)connexion affichait
+      // « En ligne » à un prestataire que le backend gardait OFFLINE — le
+      // switch mentait sans qu'aucune action de l'utilisateur ne l'explique.
+      // L'état réel arrive via provider:registered ci-dessous.
       fetchIncomingQueue();
     };
 
@@ -877,10 +880,40 @@ export default function ProviderDashboard() {
 
     const handleStatusUpdate = (data: { providerId: string; status: string }) => {
       if (data.providerId === user.id) {
-        const online = ['ONLINE', 'READY'].includes(data.status);
+        const online = isOnlineStatus(data.status);
         isOnlineRef.current = online;
         setIsOnline(online);
       }
+    };
+
+    // Réponse du serveur à provider:register — porte le statut réel du compte.
+    // Un dossier non validé revient en 'pending_validation' : le switch doit
+    // refléter ça, pas un optimisme local.
+    const handleRegistered = (data: any) => {
+      const online = isOnlineStatus(data?.provider?.status);
+      isOnlineRef.current = online;
+      setIsOnline(online);
+      if (!online) setIncomingRequests([]);
+    };
+
+    // Le serveur refuse le passage en ligne (dossier incomplet ou Stripe non
+    // finalisé). On remet le switch sur la vérité serveur et on propose
+    // d'aller finir l'étape manquante — volet coulissant, pas d'alerte système.
+    const handleStatusRejected = async (data: { code?: string; message?: string; status?: string }) => {
+      const online = isOnlineStatus(data?.status);
+      isOnlineRef.current = online;
+      setIsOnline(online);
+      if (!online) setIncomingRequests([]);
+      feedback.haptic('warning');
+
+      const copy = gateCopyFor(data?.code);
+      const go = await feedback.confirm({
+        titleKey:   copy.titleKey,
+        messageKey: copy.messageKey,
+        confirmKey: copy.confirmKey,
+        cancelKey:  copy.cancelKey,
+      });
+      if (go) router.push(copy.route);
     };
 
     socket.on('connect',                registerAndRefresh);
@@ -889,6 +922,8 @@ export default function ProviderDashboard() {
     socket.on('request:expired',        removeRequest);
     socket.on('request:cancelled',      handleCancelled);
     socket.on('provider:status_update', handleStatusUpdate);
+    socket.on('provider:registered',      handleRegistered);
+    socket.on('provider:status_rejected', handleStatusRejected);
 
     return () => {
       socket.off('connect',                registerAndRefresh);
@@ -897,6 +932,8 @@ export default function ProviderDashboard() {
       socket.off('request:expired',        removeRequest);
       socket.off('request:cancelled',      handleCancelled);
       socket.off('provider:status_update', handleStatusUpdate);
+      socket.off('provider:registered',      handleRegistered);
+      socket.off('provider:status_rejected', handleStatusRejected);
     };
   }, [socket, user?.id, fetchIncomingQueue]);
 
@@ -907,7 +944,9 @@ export default function ProviderDashboard() {
     isOnlineRef.current = next;
     setIsOnline(next);
     feedback.haptic(next ? 'medium' : 'light');
-    if (socket) socket.emit('provider:set_status', { providerId: user.id, status: next ? 'READY' : 'OFFLINE' });
+    // providerId retiré du payload : le serveur prend l'identité sur le socket
+    // authentifié (il l'ignore désormais côté backend).
+    if (socket) socket.emit('provider:set_status', { status: next ? 'READY' : 'OFFLINE' });
     if (!next) setIncomingRequests([]);
     if (next && location) {
       mapRef.current?.animateToRegion({ ...location, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 700);

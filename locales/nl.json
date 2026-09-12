@@ -755,7 +755,14 @@
     "mission_unavailable_msg": "Deze missie is door een andere vakman geaccepteerd.",
     "accept_error_title": "Niet mogelijk te accepteren",
     "resume_mission": "Huidige missie hervatten",
-    "incoming_call": "Inkomende oproep…"
+    "incoming_call": "Inkomende oproep…",
+    "gate_docs_title": "Dossier onvolledig",
+    "gate_docs_msg": "Uw documenten moeten goedgekeurd zijn voordat u online kunt gaan. Er ontbreekt er nog minstens één.",
+    "gate_docs_cta": "Mijn dossier bekijken",
+    "gate_stripe_title": "Uitbetalingen niet ingesteld",
+    "gate_stripe_msg": "Zonder een afgerond uitbetalingsaccount kunnen we uw verdiensten niet storten. Het duurt twee minuten.",
+    "gate_stripe_cta": "Uitbetalingen instellen",
+    "gate_later": "Later"
   },
   "messages": {
     "title": "Berichten",

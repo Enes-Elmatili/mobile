@@ -755,7 +755,14 @@
     "mission_unavailable_msg": "Cette mission a été acceptée par un autre prestataire.",
     "accept_error_title": "Impossible d'accepter",
     "resume_mission": "Reprendre la mission en cours",
-    "incoming_call": "Appel entrant…"
+    "incoming_call": "Appel entrant…",
+    "gate_docs_title": "Dossier incomplet",
+    "gate_docs_msg": "Vos documents doivent être validés avant que vous puissiez passer en ligne. Il en manque encore au moins un.",
+    "gate_docs_cta": "Voir mon dossier",
+    "gate_stripe_title": "Paiements non configurés",
+    "gate_stripe_msg": "Sans compte de paiement finalisé, nous ne pouvons pas vous verser vos gains. Deux minutes suffisent.",
+    "gate_stripe_cta": "Configurer les paiements",
+    "gate_later": "Plus tard"
   },
   "messages": {
     "title": "Messages",

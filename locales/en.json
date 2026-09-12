@@ -755,7 +755,14 @@
     "mission_unavailable_msg": "This mission was accepted by another provider.",
     "accept_error_title": "Cannot accept",
     "resume_mission": "Resume current mission",
-    "incoming_call": "Incoming call…"
+    "incoming_call": "Incoming call…",
+    "gate_docs_title": "Documents incomplete",
+    "gate_docs_msg": "Your documents must be approved before you can go online. At least one is still missing.",
+    "gate_docs_cta": "View my documents",
+    "gate_stripe_title": "Payouts not set up",
+    "gate_stripe_msg": "Without a completed payout account we can't send you your earnings. It takes two minutes.",
+    "gate_stripe_cta": "Set up payouts",
+    "gate_later": "Later"
   },
   "messages": {
     "title": "Messages",
