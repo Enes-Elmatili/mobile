@@ -10,11 +10,7 @@ const expoConfig = require('eslint-config-expo/flat');
 // `Animated` de react-native (règle 1 CLAUDE.md : Reanimated uniquement).
 // Plan 1 migre missionview ; plans 2-3 migrent le reste.
 const LEGACY_ANIMATED_ALLOWLIST = [
-  'app/(auth)/verify-email.tsx',
-  'app/(tabs)/missions.tsx',
-  'app/onboarding/provider/pending.tsx',
   'app/request/NewRequestStepper.tsx',
-  'app/request/[id]/quote-pending.tsx',
   'components/SplashAnimation.tsx',
 ];
 

@@ -4,8 +4,8 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, StatusBar,
 } from "react-native";
-import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
-import { useReduceMotion } from "@/lib/motion/sheet";
+import Animated from "react-native-reanimated";
+import { useGlow } from "@/lib/motion/useLoops";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Line } from "react-native-svg";
@@ -112,18 +112,8 @@ export function OnboardingLayout({
     else if (router.canGoBack()) router.back();
   };
 
-  // Halo qui respire (3 s aller, 3 s retour) ; immobile sous reduce-motion.
-  const reduced = useReduceMotion();
-  const glow = useSharedValue(0);
-  useEffect(() => {
-    if (reduced) { glow.value = 0.5; return; }
-    glow.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }), -1, true);
-    return () => cancelAnimation(glow);
-  }, [glow, reduced]);
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: 0.5 + 0.5 * glow.value,
-    transform: [{ scale: 1 + 0.1 * glow.value }],
-  }));
+  // Halo qui respire (useGlow) ; immobile sous reduce-motion.
+  const glowStyle = useGlow();
 
   return (
     <View style={s.root}>

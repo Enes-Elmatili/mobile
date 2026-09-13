@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
-  Animated, Linking, Platform,
+  Linking, Platform,
   TextInput, ScrollView, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,10 @@ import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
-import Reanimated from 'react-native-reanimated';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
+import { SHEET_SPRING } from '@/lib/motion/sheet';
+import { useBreathe } from '@/lib/motion/useBreathe';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { SplitPane, useSplitPane } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
@@ -190,29 +193,27 @@ function ConfirmModal({
   const finalCancel = cancelLabel ?? trI18n('common.cancel');
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
-  const slideAnim = useRef(new Animated.Value(320)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
-
+  // Feuille de confirmation : monte sur le ressort des sheets, redescend en 180 ms.
+  const slideY = useSharedValue(320);
+  const backdrop = useSharedValue(0);
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 0, damping: 22, stiffness: 280, useNativeDriver: true }),
-      ]).start();
+      backdrop.value = withTiming(1, { duration: 200 });
+      slideY.value = withSpring(0, SHEET_SPRING);
     } else {
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 160, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: 320, duration: 180, useNativeDriver: true }),
-      ]).start();
+      backdrop.value = withTiming(0, { duration: 160 });
+      slideY.value = withTiming(320, { duration: 180 });
     }
-  }, [visible]);
+  }, [visible, backdrop, slideY]);
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.value }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideY.value }] }));
 
   return (
     <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={cm.overlay} onPress={onCancel}>
-        <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: fadeAnim }]} />
+        <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)' }, backdropStyle]} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity > 0.1 ? t.shadowOpacity : 0.14, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }, { transform: [{ translateY: slideAnim }] }]}>
+      <Reanimated.View style={[cm.sheet, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity > 0.1 ? t.shadowOpacity : 0.14, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }, sheetStyle]}>
         <View style={[cm.handle, { backgroundColor: t.border }]} />
         <Text style={[cm.title, { color: t.text }]}>{title}</Text>
         {message ? <Text style={[cm.message, { color: t.textSub }]}>{message}</Text> : null}
@@ -224,7 +225,7 @@ function ConfirmModal({
             <Text style={[cm.confirmLabel, { color: t.accentText }]}>{finalConfirm}</Text>
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </Reanimated.View>
     </Modal>
   );
 }
@@ -639,15 +640,13 @@ function OpportunityCard({
   accepting: number | null;
 }) {
   const { t: tr } = useTranslation();
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  // La carte « prend » (0,97 → 1) à l'acceptation : même geste que useBreathe.
+  const take = useBreathe(0.97);
   const { day, time, relative } = formatScheduledDate(item.preferredTimeStart, tr);
   const net = item.price ? item.price * NET_RATE : null;
 
   const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }),
-    ]).start();
+    take.pulse();
     feedback.haptic('medium');
     onAccept(item.id);
   };
@@ -658,7 +657,7 @@ function OpportunityCard({
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+    <Reanimated.View style={take.style}>
       <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
         <TouchableOpacity activeOpacity={0.85} onPress={() => { feedback.haptic('light'); onOpen(item); }}>
           <View style={opp.cardHead}>
@@ -740,7 +739,7 @@ function OpportunityCard({
           </View>
         </View>
       </View>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -810,20 +809,20 @@ function TabBar({ tab, onChange, upcomingCount, opportunityCount }: {
 }) {
   const t = useAppTheme();
   const { t: tr } = useTranslation();
-  const indicatorX = useRef(new Animated.Value(0)).current;
-
   const TAB_INDEX: Record<Tab, number> = { opportunities: 0, upcoming: 1, history: 2 };
   const TAB_LABELS: Record<Tab, string> = { opportunities: tr('missions.tab_opportunities'), upcoming: tr('missions.tab_upcoming'), history: tr('missions.tab_history') };
 
+  // L'indicateur glisse sous l'onglet actif (MOTION.tab), depuis sa position courante.
+  const indicator = useSharedValue(TAB_INDEX[tab]);
   useEffect(() => {
-    Animated.spring(indicatorX, { toValue: TAB_INDEX[tab], tension: 220, friction: 22, useNativeDriver: false }).start();
-  }, [tab]);
-
-  const indicatorLeft = indicatorX.interpolate({ inputRange: [0, 1, 2], outputRange: ['0%', '33.33%', '66.66%'] });
+    indicator.value = withSpring(TAB_INDEX[tab], MOTION.tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_INDEX est constant
+  }, [tab, indicator]);
+  const indicatorStyle = useAnimatedStyle(() => ({ left: `${indicator.value * 33.33}%` }));
 
   return (
     <View style={[tb.wrap, { backgroundColor: t.surface }]}>
-      <Animated.View style={[tb.indicator, tb.indicator3, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }, { left: indicatorLeft }]} />
+      <Reanimated.View style={[tb.indicator, tb.indicator3, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }, indicatorStyle]} />
       {(['opportunities', 'upcoming', 'history'] as Tab[]).map(tb2 => (
         <TouchableOpacity key={tb2} style={tb.tab} onPress={() => onChange(tb2)} activeOpacity={0.75}>
           <Text style={[tb.label, { color: t.textMuted }, tab === tb2 && { color: t.text, fontFamily: FONTS.sansMedium }]}>

@@ -1,10 +1,12 @@
 // app/request/[id]/quote-pending.tsx — En attente de devis (adaptive dark/light)
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, StatusBar, Animated, Easing, Platform, TouchableOpacity,
+  View, Text, StyleSheet, StatusBar, Platform, TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated from "react-native-reanimated";
+import { useGlow, usePulse } from "@/lib/motion/useLoops";
 import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -137,32 +139,9 @@ export default function QuotePending() {
     return () => clearInterval(interval);
   }, [id, quoteReceived, terminalState]);
 
-  // Animations
-  const pulseOp = useRef(new Animated.Value(1)).current;
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOp = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseOp, { toValue: 0.35, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseOp, { toValue: 1, duration: 1200, useNativeDriver: true }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-  }, []);
+  // Animations : halo qui respire + rappel du délai qui pulse (lib/motion useLoops).
+  const pulseStyle = usePulse(true, { duration: 1200 });
+  const glowStyle = useGlow();
 
   const isDiagnostic = pricingMode === "diagnostic";
   // Frais de déplacement réellement réglés : vrai dès que la demande a quitté
@@ -215,7 +194,7 @@ export default function QuotePending() {
       <StatusBar barStyle={theme.statusBar} />
 
       <GridLines isDark={theme.isDark} />
-      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2 }, glowStyle]}>
         <LinearGradient
           colors={[glowColor, "transparent"]}
           style={s.glowGradient}
@@ -303,7 +282,7 @@ export default function QuotePending() {
           ) : null}
 
           {/* Pulse indicator */}
-          <Animated.View style={{ opacity: pulseOp, alignItems: "center", marginTop: 16 }}>
+          <Animated.View style={[{ alignItems: "center", marginTop: 16 }, pulseStyle]}>
             <View style={s.pulseDotRow}>
               <PulseDot size={5} />
               <Text style={[s.eta, { color: theme.textVeryMuted }]}>{t('missions.quote_deadline_72h')}</Text>

@@ -5,10 +5,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  StatusBar, Animated, Easing, ScrollView, Platform,
+  StatusBar, ScrollView, Platform,
   KeyboardAvoidingView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import { MOTION } from "@/lib/motion/springs";
+import { useGlow, usePulse } from "@/lib/motion/useLoops";
 import Svg, { Line } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -93,18 +96,7 @@ interface DocStatus {
 type TimelineState = "done" | "active" | "idle";
 
 function TimelineRow({ label, state, eta, last }: { label: string; state: TimelineState; eta?: string; last?: boolean }) {
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (state !== "active") return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.35, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [state]);
+  const pulseStyle = usePulse(state === "active", { duration: 900 });
 
   return (
     <View style={tl.row}>
@@ -117,7 +109,7 @@ function TimelineRow({ label, state, eta, last }: { label: string; state: Timeli
           ]}
         >
           {state === "done" && <Feather name="check" size={11} color={C.bg} />}
-          {state === "active" && <Animated.View style={[tl.dotPulse, { opacity: pulse }]} />}
+          {state === "active" && <Animated.View style={[tl.dotPulse, pulseStyle]} />}
         </View>
         {!last && <View style={[tl.connector, state === "done" && tl.connectorDone]} />}
       </View>
@@ -322,44 +314,16 @@ export default function PendingValidation() {
     }
   }, [bioDraft, refreshMe]);
 
-  // Animations
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOp = useRef(new Animated.Value(0.5)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-  }, []);
-
-  // Pulsation du chip « EN VALIDATION »
-  const chipPulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (status !== "pending") return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(chipPulse, { toValue: 0.35, duration: 1100, useNativeDriver: true }),
-        Animated.timing(chipPulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [status]);
-
-  // Succès animé (pop du check)
-  const successScale = useRef(new Animated.Value(0)).current;
+  // Animations : halo qui respire, chip « EN VALIDATION » qui pulse, coche
+  // de succès qui atterrit (MOTION.land).
+  const glowStyle = useGlow();
+  const chipPulseStyle = usePulse(status === "pending", { duration: 1100 });
+  const successScale = useSharedValue(0);
   useEffect(() => {
     if (status !== "approved") return;
-    Animated.spring(successScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
-  }, [status]);
+    successScale.value = withSpring(1, MOTION.land);
+  }, [status, successScale]);
+  const successStyle = useAnimatedStyle(() => ({ transform: [{ scale: successScale.value }] }));
 
   const firstName = cleanName(u?.name, { email: u?.email, fallback: "" }).trim().split(/\s+/)[0] || "";
   const rejectedDocs = documents.filter(d => d.status === "REJECTED");
@@ -401,7 +365,7 @@ export default function PendingValidation() {
       <View style={s.root}>
         <StatusBar barStyle="light-content" />
         <GridLines />
-        <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+        <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2 }, glowStyle]}>
           <LinearGradient
             colors={[alpha(darkTokens.text, 0.025), "transparent"]}
             style={s.glowGradient}
@@ -425,7 +389,7 @@ export default function PendingValidation() {
           <View style={s.headerRow}>
             <Text style={s.kicker}>{t('onboarding.pending_kicker')}</Text>
             <View style={s.chip}>
-              <Animated.View style={[s.chipDot, { opacity: chipPulse }]} />
+              <Animated.View style={[s.chipDot, chipPulseStyle]} />
               <Text style={s.chipText}>
                 {fileIncomplete ? t('onboarding.pending_chip_incomplete') : t('onboarding.pending_chip')}
               </Text>
@@ -664,7 +628,7 @@ export default function PendingValidation() {
     <View style={s.root}>
       <StatusBar barStyle="light-content" />
       <GridLines />
-      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2 }, glowStyle]}>
         <LinearGradient
           colors={[alpha(darkTokens.text, 0.025), "transparent"]}
           style={s.glowGradient}
@@ -676,7 +640,7 @@ export default function PendingValidation() {
       <View style={s.content}>
         {status === "approved" && (
           <>
-            <Animated.View style={[s.successCircle, { transform: [{ scale: successScale }] }]}>
+            <Animated.View style={[s.successCircle, successStyle]}>
               <Feather name="check" size={40} color={C.bg} />
             </Animated.View>
             <Text style={s.kickerCenter}>{t('onboarding.approved_kicker')}</Text>

@@ -9,11 +9,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Animated,
-  Easing,
   ActivityIndicator,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import Animated from "react-native-reanimated";
+import { useEntrance } from "@/lib/motion/useEntrance";
+import { useBlink, usePulse, useShake } from "@/lib/motion/useLoops";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/lib/api";
@@ -118,18 +119,8 @@ export default function VerifyEmail() {
     return () => clearTimeout(t);
   }, []);
 
-  // Shake (erreur de code)
-  const shakeX = useRef(new Animated.Value(0)).current;
-  const runShake = useCallback(() => {
-    shakeX.setValue(0);
-    Animated.sequence([
-      Animated.timing(shakeX, { toValue: -8, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeX, { toValue: 7, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeX, { toValue: -5, duration: 55, useNativeDriver: true }),
-      Animated.timing(shakeX, { toValue: 3, duration: 55, useNativeDriver: true }),
-      Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: true }),
-    ]).start();
-  }, [shakeX]);
+  // Secousse « non » (erreur de code) — lib/motion useShake.
+  const { style: shakeStyle, shake: runShake } = useShake();
 
   const submitCode = useCallback(async (value: string) => {
     if (submitting || verifiedRef.current) return;
@@ -188,48 +179,17 @@ export default function VerifyEmail() {
     }
   };
 
-  // Entrance animation
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(16)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, [fade, slide]);
-
-  // Pulsing dot (en attente de code) + curseur clignotant
-  const pulseOp = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (verified) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseOp, { toValue: 0.35, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseOp, { toValue: 1, duration: 1000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [verified]);
-
-  const blinkOp = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(blinkOp, { toValue: 0, duration: 0, delay: 600, useNativeDriver: true }),
-        Animated.timing(blinkOp, { toValue: 1, duration: 0, delay: 500, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+  // Entrée, point qui pulse (en attente de code), curseur qui clignote.
+  const entrance = useEntrance(16);
+  const pulseStyle = usePulse(!verified);
+  const blinkStyle = useBlink({ on: 600, off: 500 });
 
   const fmtCooldown = `00:${String(cooldown).padStart(2, "0")}`;
   const focusedIndex = Math.min(code.length, CODE_LENGTH - 1);
 
   return (
     <AuthScreen variant="flat" scrollable>
-      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+      <Animated.View style={[s.flex, entrance.style]}>
         {/* Header : masthead + stepper macro (3/3) — pas de back, gate volontaire */}
         <View style={s.header}>
           <AuthMasthead />
@@ -259,7 +219,8 @@ export default function VerifyEmail() {
             <Animated.View
               style={[
                 s.iconDot,
-                { borderColor: theme.bg, opacity: pulseOp },
+                { borderColor: theme.bg },
+                pulseStyle,
                 !!errorMsg && { backgroundColor: COLORS.red },
               ]}
             />
@@ -290,7 +251,7 @@ export default function VerifyEmail() {
                   alpha 0.01) et obligeait à un focus() programmatique, ignoré tant
                   que la fenêtre n'a pas le focus IME. */}
               <View style={s.otpWrap}>
-                <Animated.View style={[s.otpRow, { transform: [{ translateX: shakeX }] }]}>
+                <Animated.View style={[s.otpRow, shakeStyle]}>
                   {Array.from({ length: CODE_LENGTH }).map((_, i) => {
                     const char = code[i] ?? "";
                     const isFocus = inputFocused && i === focusedIndex && !submitting;
@@ -316,7 +277,7 @@ export default function VerifyEmail() {
                             {char}
                           </Text>
                         ) : isFocus ? (
-                          <Animated.View style={[s.otpCursor, { backgroundColor: theme.text, opacity: blinkOp }]} />
+                          <Animated.View style={[s.otpCursor, { backgroundColor: theme.text }, blinkStyle]} />
                         ) : null}
                       </View>
                     );

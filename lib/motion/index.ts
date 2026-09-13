@@ -15,3 +15,4 @@ export * from './useDigitReel';
 export * from './useSlideToConfirm';
 export * from './useRubberPull';
 export * from './useEntrance';
+export * from './useLoops';
