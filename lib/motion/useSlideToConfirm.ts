@@ -20,7 +20,10 @@ export function useSlideToConfirm(opts: { trackWidth: number; knobSize: number; 
   const done = useSharedValue(0);
   const halfwayFired = useSharedValue(0);
 
-  const confirm = useCallback(() => onConfirm(), [onConfirm]);
+  // Android : si onConfirm démonte le curseur (fermeture de feuille, carte
+  // retirée) pendant que le callback du geste s'exécute encore, Gesture Handler
+  // plante nativement. On sort donc du callback (tick suivant) avant d'agir.
+  const confirm = useCallback(() => { setTimeout(() => onConfirm(), 0); }, [onConfirm]);
 
   const gesture = useMemo(
     () =>

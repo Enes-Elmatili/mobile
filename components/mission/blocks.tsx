@@ -3,10 +3,10 @@
 // MissionBrief : titre (prestation, catégorie, mode, durée), grille de faits
 // (quand, où, accès, client, phrase), ligne de gain, bloc accès, bloc client,
 // bloc prestataire (côté client), anneau du compte à rebours.
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -67,30 +67,35 @@ export function modeLabel(brief: MissionBrief, t: (k: string) => string): string
 }
 
 // ─── Anneau du compte à rebours ──────────────────────────────────────────────
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// Sans Reanimated sur le SVG : animer strokeDashoffset via animatedProps plante
+// sur Android (react-native-svg #1481 / #2248). L'anneau est piloté par un
+// état React rafraîchi 10 fois par seconde — assez fluide pour 60 s, sûr
+// sur les deux plateformes. strokeDasharray en tableau, jamais en chaîne.
 const RING = 44;
 const STROKE = 3;
 const R = (RING - STROKE) / 2;
 const C = 2 * Math.PI * R;
+const TICK_MS = 100;
 
 export function CountdownRing({ seconds, total }: { seconds: number; total: number }) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
-  const progress = useSharedValue(1);
+  const [startedAt] = useState(() => Date.now());
+  const [elapsedMs, setElapsedMs] = useState(0);
   useEffect(() => {
-    progress.value = reduced ? seconds / total : withTiming(0, { duration: total * 1000, easing: Easing.linear });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- lancé une fois au montage
-  }, []);
-  useEffect(() => { if (reduced) progress.value = seconds / total; }, [seconds, total, reduced, progress]);
-  const props = useAnimatedProps(() => ({ strokeDashoffset: C * (1 - progress.value) }));
+    if (reduced) return;
+    const id = setInterval(() => setElapsedMs(Date.now() - startedAt), TICK_MS);
+    return () => clearInterval(id);
+  }, [reduced, startedAt]);
+  const progress = reduced ? seconds / total : Math.max(0, 1 - elapsedMs / (total * 1000));
   const color = seconds <= 5 ? COLORS.red : seconds <= 10 ? COLORS.amber : (theme.text as string);
   return (
     <View style={ring.wrap} accessibilityLabel={`${seconds}`}>
       <Svg width={RING} height={RING}>
         <Circle cx={RING / 2} cy={RING / 2} r={R} stroke={theme.border as string} strokeWidth={STROKE} fill="none" />
-        <AnimatedCircle
+        <Circle
           cx={RING / 2} cy={RING / 2} r={R} stroke={color} strokeWidth={STROKE} fill="none"
-          strokeDasharray={`${C} ${C}`} strokeLinecap="round" animatedProps={props}
+          strokeDasharray={[C, C]} strokeDashoffset={C * (1 - progress)} strokeLinecap="round"
           transform={`rotate(-90 ${RING / 2} ${RING / 2})`}
         />
       </Svg>

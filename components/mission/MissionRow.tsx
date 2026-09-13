@@ -119,8 +119,10 @@ export function MissionRow({ brief, onPress, time, amountMode = 'net', onSwipeAc
       onSwipeableWillOpen={() => feedback.haptic('medium')}
       onSwipeableOpen={(direction) => {
         swipeRef.current?.close();
-        if (direction === 'left') onSwipeAccept?.();
-        else onSwipeRefuse?.();
+        // La ligne peut disparaître de la liste juste après : on agit au tick
+        // suivant, hors du callback du geste (Gesture Handler Android).
+        const act = direction === 'left' ? onSwipeAccept : onSwipeRefuse;
+        if (act) setTimeout(act, 0);
       }}
     >
       {row}
