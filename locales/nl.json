@@ -687,7 +687,21 @@
     "recap_title": "OVERZICHT",
     "hint_choose_mode": "Nu of later plannen?",
     "hint_choose_day": "Kies een dag",
-    "hint_choose_slot": "Kies een tijdslot"
+    "hint_choose_slot": "Kies een tijdslot",
+    "month_long_0": "januari",
+    "month_long_1": "februari",
+    "month_long_2": "maart",
+    "month_long_3": "april",
+    "month_long_4": "mei",
+    "month_long_5": "juni",
+    "month_long_6": "juli",
+    "month_long_7": "augustus",
+    "month_long_8": "september",
+    "month_long_9": "oktober",
+    "month_long_10": "november",
+    "month_long_11": "december",
+    "prev_week": "Vorige week",
+    "next_week": "Volgende week"
   },
   "rating": {
     "skip": "Overslaan",

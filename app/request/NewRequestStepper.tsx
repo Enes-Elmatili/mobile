@@ -15,6 +15,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Modal,
+  Switch,
   UIManager,
   BackHandler,
 } from 'react-native';
@@ -34,8 +35,8 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { MOTION, useBreathe, useCountingValue, usePresence, usePressScale } from '@/lib/motion';
+import Reanimated from 'react-native-reanimated';
+import { MOTION, useBreathe, useCountingValue, usePresence } from '@/lib/motion';
 import { ReText } from '@/components/ui/ReText';
 import { StepCTA } from '@/components/request/StepCTA';
 import { StepHeader } from '@/components/request/StepHeader';
@@ -45,6 +46,11 @@ import { CategoryRail } from '@/components/request/CategoryRail';
 import { ServiceRow } from '@/components/request/ServiceRow';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { AdaptiveScroll } from '@/lib/layout';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { WeekStrip } from '@/components/request/WeekStrip';
+import { SlotGrid } from '@/components/request/SlotGrid';
+import { SettingRow } from '@/components/request/SettingRow';
+import { buildWeeks, findDay, isSlotDisabled, type WeekDay } from '@/lib/scheduling/weeks';
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
@@ -179,99 +185,7 @@ function useTheme() {
   };
 }
 
-// ─── Time Slot ─────────────────────────────────────────────────────────────────
-function TimeSlot({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  const t     = useTheme();
-  const press = usePressScale(0.92);
-
-  const handlePress = () => {
-    feedback.haptic('light');
-    onPress();
-  };
-
-  return (
-    <Reanimated.View style={press.style}>
-      <TouchableOpacity
-        style={[
-          tslot.chip,
-          { backgroundColor: t.chipBg, borderColor: 'transparent' },
-          selected && [tslot.chipSelected, { backgroundColor: t.accent, borderColor: t.accent }],
-        ]}
-        onPress={handlePress}
-        {...press.handlers}
-        activeOpacity={1}
-        accessibilityLabel={label}
-        accessibilityRole="button"
-      >
-        {selected && <View style={[tslot.dot, { backgroundColor: t.accentText }]} />}
-        <Text style={[tslot.text, { color: t.textSub }, selected && [tslot.textSelected, { color: t.accentText }]]}>{label}</Text>
-      </TouchableOpacity>
-    </Reanimated.View>
-  );
-}
-
-const tslot = StyleSheet.create({
-  chip:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, minWidth: 70 },
-  chipSelected: {},
-  dot:          { width: 6, height: 6, borderRadius: 3 },
-  text:         { fontSize: 13, fontFamily: FONTS.sansMedium },
-  textSelected: {},
-});
-
-// ─── Day Chip ──────────────────────────────────────────────────────────────────
-function DayChip({ day, date, month, selected, onPress }: {
-  day: string; date: string; month: string; selected: boolean; onPress: () => void;
-}) {
-  const t              = useTheme();
-  // Le soulignement s'étend sous le jour choisi (MOTION.tab).
-  const underline = useSharedValue(selected ? 1 : 0);
-  useEffect(() => {
-    underline.value = withSpring(selected ? 1 : 0, MOTION.tab);
-  }, [selected, underline]);
-  const underlineStyle = useAnimatedStyle(() => ({ width: `${underline.value * 80}%` }));
-
-  return (
-    <TouchableOpacity
-      style={dc.wrap}
-      onPress={() => { feedback.haptic('light'); onPress(); }}
-      activeOpacity={0.7}
-      accessibilityLabel={`${day} ${date} ${month}`}
-      accessibilityRole="button"
-    >
-      <Text style={[dc.day,  { color: t.textMuted }, selected && { color: t.text }]}>{day}</Text>
-      <Text style={[dc.date, { color: t.textMuted }, selected && { color: t.text }]}>{date}</Text>
-      <Text style={[dc.month, { color: 'transparent' }, selected && { color: t.textSub }]}>{month}</Text>
-      <Reanimated.View style={[dc.underline, { backgroundColor: t.text as string }, underlineStyle]} />
-    </TouchableOpacity>
-  );
-}
-
-const dc = StyleSheet.create({
-  wrap:      { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, minWidth: 52, gap: 2 },
-  day:       { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, fontFamily: FONTS.sansMedium },
-  date:      { fontSize: 20, letterSpacing: -0.3, fontFamily: FONTS.bebas, includeFontPadding: false },
-  month:     { fontSize: 10, fontFamily: FONTS.sans },
-  underline: { height: 2.5, borderRadius: 2, marginTop: 4, alignSelf: 'center' },
-});
-
-
 // ─── Helpers date ──────────────────────────────────────────────────────────────
-function buildNextDays(t: any, count = 10) {
-  const days: { day: string; date: string; month: string; iso: string }[] = [];
-  const dayNames   = [t('stepper.day_sun'), t('stepper.day_mon'), t('stepper.day_tue'), t('stepper.day_wed'), t('stepper.day_thu'), t('stepper.day_fri'), t('stepper.day_sat')];
-  const monthNames = [t('stepper.month_jan'), t('stepper.month_feb'), t('stepper.month_mar'), t('stepper.month_apr'), t('stepper.month_may'), t('stepper.month_jun'), t('stepper.month_jul'), t('stepper.month_aug'), t('stepper.month_sep'), t('stepper.month_oct'), t('stepper.month_nov'), t('stepper.month_dec')];
-  for (let i = 0; i < count; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    days.push({
-      day:   i === 0 ? t('stepper.today') : dayNames[d.getDay()],
-      date:  String(d.getDate()),
-      month: monthNames[d.getMonth()],
-      iso:   d.toISOString().split('T')[0],
-    });
-  }
-  return days;
-}
 
 const getTimeGroups = (t: any) => [
   { label: t('stepper.morning'),    slots: ['08:00', '09:00', '10:00', '11:00'] },
@@ -721,13 +635,18 @@ export default function NewRequestStepper() {
   const [noteOpen,      setNoteOpen]      = useState(false);
 
   // Étape 3
-  const days = useMemo(() => buildNextDays(t, 10), [t]);
+  // Semaines du planning (5 semaines à partir du lundi courant) — lib/scheduling/weeks.
+  const weeks = useMemo(() => buildWeeks(new Date(), 5), []);
+  const DAY_KEYS = ['day_sun', 'day_mon', 'day_tue', 'day_wed', 'day_thu', 'day_fri', 'day_sat'] as const;
+  const dayLabel = (d: WeekDay) => (d.isToday ? t('stepper.today') : t(`stepper.${DAY_KEYS[d.dayIndex]}`));
+  const monthLabel = (m: number) => t(`stepper.month_long_${m}`);
   // Si l'utilisateur a choisi "Planifier avec X" (preferred busy/offline), on
   // pré-positionne le mode "later" pour qu'il sélectionne directement une date.
   const [scheduleMode,   setScheduleMode]   = useState<'now' | 'later' | null>(
     forceScheduled === '1' ? 'later' : null,
   );
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
+  const selectedDay = findDay(weeks, selectedDayIso);
   const [selectedTime,   setSelectedTime]   = useState<string | null>(null);
   const [isUrgent,       setIsUrgent]       = useState(false);
 
@@ -787,7 +706,7 @@ export default function NewRequestStepper() {
   const scheduledLabel  = scheduleMode === 'now'
     ? t('stepper.now')
     : (selectedDayIso && selectedTime
-      ? `${days.find(d => d.iso === selectedDayIso)?.day} ${days.find(d => d.iso === selectedDayIso)?.date} à ${selectedTime}`
+      ? `${selectedDay ? dayLabel(selectedDay) : ''} ${selectedDay?.date ?? ''} à ${selectedTime}`
       : null);
   const scheduledFor = scheduleMode === 'now'
     ? new Date().toISOString()
@@ -1776,123 +1695,71 @@ export default function NewRequestStepper() {
           </KeyboardAvoidingView>
         )}
 
-        {/* ══ ÉTAPE 3 — Planning ══ */}
+        {/* ══ ÉTAPE 3 — Planning (planche 3A : segmenté, semaine, grille horaire) ══ */}
         {step === 3 && (
           <View style={s.flex}>
-            <ScrollView style={s.flex} contentContainerStyle={s.step3Pad} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
+            <AdaptiveScroll style={s.flex} contentContainerStyle={s.step3Pad} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
+              <SegmentedControl
+                options={[{ value: 'now', label: t('stepper.now') }, { value: 'later', label: t('stepper.schedule') }]}
+                value={scheduleMode}
+                onChange={(mode) => {
+                  if (mode === 'now') { setScheduleMode('now'); setSelectedDayIso(null); setSelectedTime(null); }
+                  else { setScheduleMode('later'); setIsUrgent(false); }
+                }}
+              />
 
-              <View style={s.modeGrid}>
-                {/* Maintenant */}
-                <TouchableOpacity
-                  style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'now' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => { feedback.haptic('medium'); setScheduleMode('now'); setSelectedDayIso(null); setSelectedTime(null); }}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                >
-                  <Feather name="zap" size={28} color={scheduleMode === 'now' ? theme.accentText as string : theme.text as string} />
-                  <Text style={[s.modeCardLabel, { color: theme.text }, scheduleMode === 'now' && { color: theme.accentText }]}>{t('stepper.now')}</Text>
-                  <Text style={[s.modeCardSub, { color: theme.textSub }, scheduleMode === 'now' && { color: `${theme.accentText}99` }]}>{t('stepper.quick_intervention')}</Text>
-                </TouchableOpacity>
-
-                {/* Planifier */}
-                <TouchableOpacity
-                  style={[s.modeCard, { backgroundColor: theme.modeCardBg, borderColor: 'transparent' }, scheduleMode === 'later' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => { feedback.haptic('medium'); setScheduleMode('later'); setIsUrgent(false); }}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                >
-                  <Feather name="calendar" size={28} color={scheduleMode === 'later' ? theme.accentText as string : theme.text as string} />
-                  <Text style={[s.modeCardLabel, { color: theme.text }, scheduleMode === 'later' && { color: theme.accentText }]}>{t('stepper.schedule')}</Text>
-                  <Text style={[s.modeCardSub, { color: theme.textSub }, scheduleMode === 'later' && { color: `${theme.accentText}99` }]}>{t('stepper.choose_slot')}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Mode Plus tard */}
               {scheduleMode === 'later' && (
                 <>
-                  <View style={{ height: 28 }} />
-                  <View style={[s.step3Sep, { backgroundColor: theme.sep }]} />
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dayScroll}>
-                    {days.map((d) => (
-                      <DayChip
-                        key={d.iso}
-                        day={d.day}
-                        date={d.date}
-                        month={d.month}
-                        selected={selectedDayIso === d.iso}
-                        onPress={() => { setSelectedDayIso(d.iso); setSelectedTime(null); }}
-                      />
-                    ))}
-                  </ScrollView>
-
-                  {!selectedDayIso ? (
-                    <Text style={[s.step3Hint, { color: theme.textMuted }]}>{t('stepper.choose_day')}</Text>
-                  ) : (
-                    TIME_GROUPS.map((group) => (
-                      <View key={group.label} style={s.slotGroup}>
-                        <Text style={[s.slotGroupLabel, { color: theme.textMuted }]}>{group.label}</Text>
-                        <View style={s.slotsRow}>
-                          {group.slots.map((slot) => (
-                            <TimeSlot key={slot} label={slot} selected={selectedTime === slot} onPress={() => setSelectedTime(slot)} />
-                          ))}
-                        </View>
-                      </View>
-                    ))
+                  <WeekStrip
+                    weeks={weeks}
+                    selectedIso={selectedDayIso}
+                    onSelect={(iso) => { setSelectedDayIso(iso); setSelectedTime(null); }}
+                    dayLabel={dayLabel}
+                    monthLabel={monthLabel}
+                    prevLabel={t('stepper.prev_week')}
+                    nextLabel={t('stepper.next_week')}
+                  />
+                  {selectedDayIso && (
+                    <SlotGrid
+                      groups={TIME_GROUPS}
+                      selected={selectedTime}
+                      onSelect={setSelectedTime}
+                      isDisabled={(slot) => isSlotDisabled(selectedDayIso, slot, new Date())}
+                    />
                   )}
                 </>
               )}
 
-              {/* ── Urgence (mode maintenant) — câblé sur isUrgent : majoration
-                     et callout urgent calculés côté serveur ── */}
+              {/* ── Urgence (mode maintenant) — câblée sur isUrgent : majoration et
+                     callout urgent calculés côté serveur ── */}
               {scheduleMode === 'now' && (
-                <View style={{ marginTop: 24 }}>
-                  <View style={[ai.sep, { backgroundColor: theme.sep }]} />
-                  <TouchableOpacity
-                    style={ai.header}
-                    onPress={() => { feedback.haptic('medium'); setIsUrgent(prev => !prev); }}
-                    activeOpacity={0.7}
-                    accessibilityRole="switch"
-                    accessibilityState={{ checked: isUrgent }}
-                    accessibilityLabel={t('stepper.urgency_label')}
-                  >
-                    <View style={[ai.headerIcon, { backgroundColor: isUrgent ? theme.accent : theme.surface }]}>
-                      <Feather name="zap" size={16} color={isUrgent ? theme.accentText as string : theme.textSub as string} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[ai.headerTitle, { color: theme.text }]}>{t('stepper.urgency_label')}</Text>
-                      <Text style={[ai.headerSub, { color: theme.textMuted }]}>
-                        {isQuoteFlow
-                          ? t('stepper.urgency_desc_callout')
-                          : t('stepper.urgency_desc_surcharge')}
-                      </Text>
-                    </View>
-                    <View style={{
-                      width: 46, height: 28, borderRadius: 14, padding: 3,
-                      backgroundColor: isUrgent ? (theme.accent as string) : (theme.surface as string),
-                      borderWidth: 1.5,
-                      borderColor: isUrgent ? (theme.accent as string) : (theme.surfaceBorder as string),
-                      alignItems: isUrgent ? 'flex-end' : 'flex-start',
-                      justifyContent: 'center',
-                    }}>
-                      <View style={{
-                        width: 19, height: 19, borderRadius: 10,
-                        backgroundColor: isUrgent ? (theme.accentText as string) : (theme.textMuted as string),
-                      }} />
-                    </View>
-                  </TouchableOpacity>
-                </View>
+                <SettingRow
+                  icon="zap"
+                  title={t('stepper.urgency_label')}
+                  subtitle={isQuoteFlow ? t('stepper.urgency_desc_callout') : t('stepper.urgency_desc_surcharge')}
+                  onPress={() => { feedback.haptic('medium'); setIsUrgent(prev => !prev); }}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: isUrgent }}
+                  right={(
+                    <Switch
+                      value={isUrgent}
+                      onValueChange={(v) => { feedback.haptic('medium'); setIsUrgent(v); }}
+                      trackColor={{ true: COLORS.greenBrand, false: theme.surfaceBorder as string }}
+                      thumbColor="#FFFFFF"
+                      ios_backgroundColor={theme.surfaceBorder as string}
+                    />
+                  )}
+                />
               )}
 
               {/* ── TVA : âge du logement (détermine 6% vs 21%) ── */}
               {vatEligible && (
-                <View style={{ marginTop: 24 }}>
-                  <View style={[ai.sep, { backgroundColor: theme.sep }]} />
-                  <View style={{ marginTop: 16 }}>
-                    <Text style={[ai.headerTitle, { color: theme.text }]}>{t('stepper.vat_dwelling_title')}</Text>
-                    <Text style={[ai.headerSub, { color: theme.textMuted, marginBottom: 12 }]}>
-                      {vatRate === 0.06 ? t('stepper.vat_reduced_hint') : t('stepper.vat_standard_hint')}
-                    </Text>
-                    <View style={ai.chipRow}>
+                <SettingRow
+                  icon="percent"
+                  title={t('stepper.vat_dwelling_title')}
+                  subtitle={vatRate === 0.06 ? t('stepper.vat_reduced_hint') : t('stepper.vat_standard_hint')}
+                >
+                    <View style={[ai.chipRow, { marginTop: 6 }]}>
                       {([
                         { val: true,  label: t('stepper.vat_over10') },
                         { val: false, label: t('stepper.vat_under10') },
@@ -1911,28 +1778,18 @@ export default function NewRequestStepper() {
                         </TouchableOpacity>
                       ))}
                     </View>
-                  </View>
-                </View>
+                </SettingRow>
               )}
 
-              {/* ── Infos d'accès (collapsible) ── */}
-              <View style={{ marginTop: 24 }}>
-                <View style={[ai.sep, { backgroundColor: theme.sep }]} />
-                <TouchableOpacity
-                  style={ai.header}
-                  onPress={() => setAccessExpanded(prev => !prev)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[ai.headerIcon, { backgroundColor: theme.surface }]}>
-                    <Feather name="home" size={16} color={theme.textSub as string} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[ai.headerTitle, { color: theme.text }]}>{t('stepper.access_info_title')}</Text>
-                    <Text style={[ai.headerSub, { color: theme.textMuted }]}>{t('stepper.access_info_sub')}</Text>
-                  </View>
-                  <Feather name={accessExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textMuted as string} />
-                </TouchableOpacity>
-
+              {/* ── Infos d'accès (dépliable) ── */}
+              <SettingRow
+                icon="home"
+                title={t('stepper.access_info_title')}
+                subtitle={t('stepper.access_info_sub')}
+                onPress={() => setAccessExpanded(prev => !prev)}
+                accessibilityState={{ expanded: accessExpanded }}
+                right={<Feather name={accessExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textMuted as string} />}
+              >
                 {accessExpanded && (
                   <View style={ai.body}>
                     {/* Type de bâtiment */}
@@ -2038,10 +1895,10 @@ export default function NewRequestStepper() {
                     </View>
                   </View>
                 )}
-              </View>
+              </SettingRow>
 
               <View style={{ height: 120 }} />
-            </ScrollView>
+            </AdaptiveScroll>
 
             <View style={s.floatingCTA}>
               <StepCTA
@@ -2049,7 +1906,7 @@ export default function NewRequestStepper() {
                   scheduleMode === 'now'
                     ? t('stepper.confirm_now')
                     : (selectedDayIso && selectedTime
-                      ? t('stepper.confirm_at', { day: days.find(d => d.iso === selectedDayIso)?.day, date: days.find(d => d.iso === selectedDayIso)?.date, time: selectedTime })
+                      ? t('stepper.confirm_at', { day: selectedDay ? dayLabel(selectedDay) : '', date: selectedDay?.date ?? '', time: selectedTime })
                       : t('stepper.confirm_slot'))
                 }
                 onPress={goNext}
@@ -2352,28 +2209,9 @@ const s = StyleSheet.create({
 
   // Step 3
   step3Pad:       { paddingHorizontal: 24, paddingTop: 28 },
-  step3Sep:       { height: 1, marginVertical: 4 },
-  step3Hint:      { fontSize: 14, textAlign: 'center', paddingVertical: 12, fontFamily: FONTS.sans },
-  modeGrid:       { alignItems: 'center', gap: 20, marginTop: 90 },
-  modeCard:       { width: '55%', aspectRatio: 1.2, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  modeCardLabel:  { fontSize: 16, fontFamily: FONTS.sansMedium },
-  modeCardSub:    { fontSize: 11, fontFamily: FONTS.sans, textAlign: 'center', paddingHorizontal: 8 },
 
-  nowConfirm: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 18, padding: 18, marginTop: 4 },
-  nowTitle:   { fontSize: 15, marginBottom: 3, fontFamily: FONTS.sansMedium },
-  nowSub:     { fontSize: 13, lineHeight: 18, fontFamily: FONTS.sans },
 
-  dayScroll:      { gap: 4, paddingVertical: 2, paddingHorizontal: 4, alignItems: 'center' },
-  slotGroup:      { marginBottom: 12 },
-  slotGroupLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, fontFamily: FONTS.sansMedium },
-  slotsRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 
-  urgencyRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -28 },
-  urgencyLeft:      { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  urgencyLabel:     { fontSize: 12, fontFamily: FONTS.sans },
-  urgencySub:       { fontSize: 12, marginTop: 1, fontFamily: FONTS.sans },
-  urgencyBadge:     { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 10 },
-  urgencyBadgeText: { fontSize: 13, fontFamily: FONTS.monoMedium },
 
   floatingCTA:      { position: 'absolute', bottom: 0, left: 0, right: 0 },
   floatingGradient: { height: 32 },
@@ -2435,11 +2273,6 @@ const s = StyleSheet.create({
 
 // ─── AccessInfo styles ──────────────────────────────────────────────────────
 const ai = StyleSheet.create({
-  sep:         { height: 1, marginBottom: 16 },
-  header:      { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  headerIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 15, fontFamily: FONTS.sansMedium },
-  headerSub:   { fontSize: 11, fontFamily: FONTS.sans, marginTop: 1 },
   body:        { marginTop: 12, gap: 14 },
   label:       { fontSize: 10, fontFamily: FONTS.sansMedium, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 },
   chipRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

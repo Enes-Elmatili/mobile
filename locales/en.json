@@ -687,7 +687,21 @@
     "recap_title": "SUMMARY",
     "hint_choose_mode": "Now or scheduled?",
     "hint_choose_day": "Choose a day",
-    "hint_choose_slot": "Choose a time slot"
+    "hint_choose_slot": "Choose a time slot",
+    "month_long_0": "January",
+    "month_long_1": "February",
+    "month_long_2": "March",
+    "month_long_3": "April",
+    "month_long_4": "May",
+    "month_long_5": "June",
+    "month_long_6": "July",
+    "month_long_7": "August",
+    "month_long_8": "September",
+    "month_long_9": "October",
+    "month_long_10": "November",
+    "month_long_11": "December",
+    "prev_week": "Previous week",
+    "next_week": "Next week"
   },
   "rating": {
     "skip": "Skip",

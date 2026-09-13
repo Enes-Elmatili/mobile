@@ -687,7 +687,21 @@
     "recap_title": "RÉCAPITULATIF",
     "hint_choose_mode": "Maintenant ou à planifier ?",
     "hint_choose_day": "Choisissez un jour",
-    "hint_choose_slot": "Choisissez un créneau"
+    "hint_choose_slot": "Choisissez un créneau",
+    "month_long_0": "janvier",
+    "month_long_1": "février",
+    "month_long_2": "mars",
+    "month_long_3": "avril",
+    "month_long_4": "mai",
+    "month_long_5": "juin",
+    "month_long_6": "juillet",
+    "month_long_7": "août",
+    "month_long_8": "septembre",
+    "month_long_9": "octobre",
+    "month_long_10": "novembre",
+    "month_long_11": "décembre",
+    "prev_week": "Semaine précédente",
+    "next_week": "Semaine suivante"
   },
   "rating": {
     "skip": "Passer",
