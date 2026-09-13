@@ -358,6 +358,8 @@ module.exports = defineConfig([
 Run: `npx eslint app components lib 2>&1 | grep -E "Dimensions.get|Alert.alert|Animated legacy|expo-haptics" | wc -l`
 Expected: **18** erreurs `Dimensions.get` (les 15 fichiers de la Tâche 4), 0 `Alert.alert`, 0 `Animated legacy` (allowlist), 0 `expo-haptics` hors `lib/feedback`. Si `lib/feedback/feedback.ts` remonte `expo-haptics`, ajouter `'lib/feedback/**'` aux `ignores` du premier bloc : c'est le seul endroit autorisé.
 
+> **Constat à l'exécution (13/09)** : l'inventaire réel est de **33 fichiers** sur `Animated` legacy (pas 2), 3 `Alert.alert` dans `lib/api.ts` et `lib/webrtc/CallContext.tsx`, et `expo-haptics` dans `lib/SocketContext.tsx` (intouchable sans validation). Tous sont en allowlists explicites dans `eslint.config.js` ; les chemins `[id]` doivent être échappés pour minimatch (`toGlob`). Les plans 2-3 vident la liste `Animated` ; la migration des 3 `Alert.alert` est un item du plan 3.
+
 - [ ] **Étape 3 : commit (le lint est rouge à dessein jusqu'à la Tâche 4)**
 
 ```bash
