@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**État : livré le 13/09/2026 sur la branche `feat/motion-foundation` (11 commits, `4c66f73..6bc9646`).** Vérifié : `npx jest` 161/161, `npx eslint app components lib` 0 erreur, `npx tsc --noEmit` OK. Reste la matrice manuelle de la Tâche 18 (dev client), à jouer avant le merge.
+
 **Goal:** Poser la fondation « une physique, une disposition » (presets de ressorts, classe de disposition réactive, purge de `Dimensions.get`, lint), livrer les 11 hooks de mouvement testés, et appliquer les trois premiers moments (recherche qui respire, atterrissage + itinéraire, ETA en rouleau) sur tous les appareils.
 
 **Architecture:** `lib/motion/` reste la seule source de physique : une table de presets (`springs.ts`) dérive chaque damping de ζ via `dampingFor` (existant). Les hooks retournent des shared values Reanimated + styles/props animés ; aucun `setState` par frame. `lib/layout/` expose la classe de disposition (`compact`/`regular`) calculée par une fonction pure depuis `useWindowDimensions` — c'est elle qui remplace les 18 `Dimensions.get` figés. Les écrans ne changent que là où un moment s'applique.
