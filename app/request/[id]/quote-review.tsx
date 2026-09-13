@@ -10,8 +10,14 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
   TouchableOpacity, TextInput,
-  Animated, Easing, KeyboardAvoidingView, Modal,
+  KeyboardAvoidingView, Modal,
 } from "react-native";
+import Animated, {
+  Easing, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle,
+  useSharedValue, withRepeat, withSequence, withSpring, withTiming,
+} from "react-native-reanimated";
+import Svg, { Path } from "react-native-svg";
+import { MOTION, usePresence, useTraceStroke } from "@/lib/motion";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -32,7 +38,6 @@ import { cleanName } from "@/lib/displayName";
 import { translateRequestServiceRaw } from "@/lib/categoryLabel";
 import { useTranslation } from "react-i18next";
 
-const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
 
 /** Sépare "871,00 €" en { value, cur } pour composer le montant héros en deux tailles. */
 function splitAmount(cents: number) {
@@ -52,35 +57,49 @@ function MonoLabel({ children, color, size = 10.5 }: { children: React.ReactNode
 
 /** Entrée échelonnée — fade + 14px up, easing charte. */
 function Reveal({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
-  const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(a, { toValue: 1, duration: 460, delay, easing: EASE_OUT, useNativeDriver: true }).start();
-  }, [a, delay]);
+  // Cascade : chaque bloc entre `delay` ms après le précédent, sur le ressort
+  // de volet (moment 8) — le regard finit sur le total.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const { style } = usePresence(mounted, { from: "bottom", preset: MOTION.pane, delayMs: delay });
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
+
+/** Sceau : coche qui se trace à l'acceptation (moment 9). */
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+/** Longueur du tracé « M5 12.5 L10 17.5 L19 7 » : √50 + √191,25 ≈ 20,9. */
+const CHECK_LENGTH = 21;
+function SealCheck({ color }: { color: string }) {
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => { setDrawn(true); }, []);
+  const { animatedProps } = useTraceStroke(drawn, { length: CHECK_LENGTH });
   return (
-    <Animated.View
-      style={{
-        opacity: a,
-        transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-      }}
-    >
-      {children}
-    </Animated.View>
+    <Svg width={26} height={26} viewBox="0 0 24 24">
+      <AnimatedPath
+        d="M5 12.5 L10 17.5 L19 7" fill="none" stroke={color} strokeWidth={2.4}
+        strokeLinecap="round" strokeLinejoin="round" strokeDasharray={CHECK_LENGTH}
+        animatedProps={animatedProps}
+      />
+    </Svg>
   );
 }
 
 /** Squelette de chargement — reprend la silhouette réelle de la page (héro + ledger). */
 function QuoteSkeleton({ theme }: { theme: any }) {
-  const pulse = useRef(new Animated.Value(0.45)).current;
+  const pulse = useSharedValue(0.45);
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.45, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.45, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
   }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
   const Block = ({ h, w = "100%", r = 14, mt = 0 }: { h: number; w?: any; r?: number; mt?: number }) => (
-    <Animated.View style={{ height: h, width: w, borderRadius: r, marginTop: mt, backgroundColor: theme.surface, opacity: pulse }} />
+    <Animated.View style={[{ height: h, width: w, borderRadius: r, marginTop: mt, backgroundColor: theme.surface }, pulseStyle]} />
   );
   return (
     <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
@@ -114,12 +133,32 @@ export default function QuoteReview() {
   // Horloge locale : fait vivre le compte à rebours ET bascule l'écran en "expiré"
   // sans rechargement quand la validité tombe pendant que la page est ouverte.
   const [now, setNow] = useState(() => Date.now());
+
+  // Moment 9 : à l'acceptation la bordure du héro passe d'ambre à vert et la
+  // coche se trace ; au refus la carte se plie et se range, sans rouge.
+  // Hissés avant l'early return (squelette) : un hook ne se déclare pas après un return.
+  const quoteStatusUpper = (quote?.status || "").toUpperCase();
+  const sealOn = quoteStatusUpper === "ACCEPTED" || requestStatus === "QUOTE_ACCEPTED" || requestStatus === "ONGOING";
+  const foldOn = quoteStatusUpper === "REFUSED" || requestStatus === "QUOTE_REFUSED";
+  const seal = useSharedValue(sealOn ? 1 : 0);
+  const fold = useSharedValue(foldOn ? 1 : 0);
+  useEffect(() => { seal.value = withSpring(sealOn ? 1 : 0, MOTION.trace); }, [sealOn, seal]);
+  useEffect(() => { fold.value = withSpring(foldOn ? 1 : 0, MOTION.pane); }, [foldOn, fold]);
+  const heroBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(seal.value, [0, 1], [alpha(COLORS.amber, 0.45), alpha(COLORS.greenBrand, 0.6)]),
+  }));
+  const foldStyle = useAnimatedStyle(() => ({
+    opacity: 1 - 0.35 * fold.value,
+    transform: [{ perspective: 600 }, { rotateX: `${-12 * fold.value}deg` }, { scale: 1 - 0.04 * fold.value }],
+  }));
   // Hauteur RÉELLE du footer épinglé (mesurée) → réserve de scroll exacte. Elle varie
   // selon l'OS (barre gestuelle iOS 34 px vs nav 3 boutons Android ~48) et selon l'état
   // (CTA + lien de refus vs CTA seul) : une constante en dur masquerait du contenu.
   const [footerH, setFooterH] = useState(160);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
+  const headerLineStyle = useAnimatedStyle(() => ({ opacity: interpolate(scrollY.value, [0, 28], [0, 1], "clamp") }));
   const closeRefuse = useCallback(() => setShowRefuseInput(false), []);
   useAndroidBackClose(showRefuseInput, closeRefuse);
 
@@ -288,7 +327,6 @@ export default function QuoteReview() {
   };
 
   // ── Header partagé (loading / empty / contenu) ───────────────────────────
-  const headerLineOpacity = scrollY.interpolate({ inputRange: [0, 28], outputRange: [0, 1], extrapolate: "clamp" });
   const Header = (
     <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
       <View style={s.header}>
@@ -305,7 +343,7 @@ export default function QuoteReview() {
         <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.short_label').toUpperCase()}</Text>
         <View style={{ width: 36 }} />
       </View>
-      <Animated.View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border, opacity: headerLineOpacity }} />
+      <Animated.View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }, headerLineStyle]} />
     </SafeAreaView>
   );
 
@@ -352,6 +390,7 @@ export default function QuoteReview() {
   const terminal = accepted || refused || expired;
   const canAct = !terminal && qStatus === "SENT";
 
+
   const hasDeposit = quote.calloutPaid > 0;
   // Sur un devis clos (accepté donc payé, refusé ou expiré), un « reste à payer »
   // n'a plus de sens : le montant qui documente le devis est son TOTAL.
@@ -396,7 +435,7 @@ export default function QuoteReview() {
       <Animated.ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: footerH + 24 }]}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        onScroll={onScroll}
         scrollEventThrottle={16}
       >
         {/* ── Contexte éditorial : statut · référence · service · adresse ── */}
@@ -429,7 +468,7 @@ export default function QuoteReview() {
 
         {/* ── Île héro — le montant qui décide ── */}
         <Reveal delay={70}>
-          <View style={[s.hero, { backgroundColor: theme.heroBg }]}>
+          <Animated.View style={[s.hero, { backgroundColor: theme.heroBg }, foldStyle]}>
             <LinearGradient
               colors={[alpha('#FFFFFF', 0.07), 'transparent', alpha('#000000', 0.22)]}
               locations={[0, 0.5, 1]}
@@ -437,11 +476,11 @@ export default function QuoteReview() {
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
             />
-            <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.heroBorder, { borderColor: alpha('#FFFFFF', 0.08) }]} />
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.heroBorder, heroBorderStyle]} />
 
             <View style={s.heroTop}>
               <MonoLabel color={theme.heroSub} size={11}>{heroLabel}</MonoLabel>
-              <Text style={[s.heroWatermark, { color: theme.heroSubFaint }]}>FIXED</Text>
+              {accepted ? <SealCheck color={COLORS.green} /> : <Text style={[s.heroWatermark, { color: theme.heroSubFaint }]}>FIXED</Text>}
             </View>
 
             <View style={s.heroAmountRow}>
@@ -499,7 +538,7 @@ export default function QuoteReview() {
                 </>
               )}
             </View>
-          </View>
+          </Animated.View>
         </Reveal>
 
         {/* ── Ledger : détail du devis ── */}
