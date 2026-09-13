@@ -8,8 +8,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Animated,
-  Easing,
   TouchableOpacity,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -30,6 +28,8 @@ import {
   AuthEyebrow,
 } from "@/components/auth";
 import type { ParsedAddress } from "@/components/auth";
+import Animated from 'react-native-reanimated';
+import { useEntrance } from '@/lib/motion/useEntrance';
 
 type ToastType = "success" | "error" | "info";
 
@@ -80,14 +80,8 @@ export default function CompleteProfile() {
   }, []);
 
   // Entrance animation
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(16)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, []);
+  // Entrée : fondu + glissé sur un ressort (lib/motion/useEntrance).
+  const entrance = useEntrance(16);
 
   // Validation
   const validate = (): boolean => {
@@ -149,7 +143,7 @@ export default function CompleteProfile() {
 
   return (
     <AuthScreen variant="flat" scrollable>
-      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+      <Animated.View style={[s.flex, entrance.style]}>
         {/* No back button — screen is non-dismissable. Gate hors flux d'étapes → pas de stepper. */}
         <View style={s.header}>
           <AuthMasthead />

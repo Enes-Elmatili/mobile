@@ -5,8 +5,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated,
-  Easing,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -23,6 +21,8 @@ import {
   AuthMasthead,
   AuthEyebrow,
 } from "@/components/auth";
+import Animated from 'react-native-reanimated';
+import { useEntrance } from '@/lib/motion/useEntrance';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -36,14 +36,8 @@ export default function ForgotPassword() {
   const [error, setError] = useState<string | null>(null);
 
   // Entrance animation
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(16)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, [fade, slide]);
+  // Entrée : fondu + glissé sur un ressort (lib/motion/useEntrance).
+  const entrance = useEntrance(16);
 
   const handleSubmit = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -77,7 +71,7 @@ export default function ForgotPassword() {
 
   return (
     <AuthScreen variant="flat" scrollable>
-      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+      <Animated.View style={[s.flex, entrance.style]}>
         <View style={s.header}>
           <View style={s.backAbs}>
             <AuthBackButton onPress={handleBack} themed />

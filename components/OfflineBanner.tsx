@@ -2,7 +2,9 @@
 // Bandeau persistant offline + bandeau "Reconnexion…" (socket) + bandeau fugace reconnexion
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { SHEET_SPRING } from '@/lib/motion/sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetwork } from '../lib/NetworkContext';
@@ -20,7 +22,8 @@ export function OfflineBanner() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const slideAnim = useRef(new Animated.Value(-120)).current;
+  const slideY = useSharedValue(-120);
+  const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideY.value }] }));
   const [offlineVisible, setOfflineVisible] = useState(false);
   const [restoredVisible, setRestoredVisible] = useState(false);
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,19 +40,10 @@ export function OfflineBanner() {
   useEffect(() => {
     if (bannerActive) {
       setOfflineVisible(true);
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 10,
-      }).start();
+      slideY.value = withSpring(0, SHEET_SPRING);
     } else {
-      Animated.timing(slideAnim, {
-        toValue: -120,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => {
-        setOfflineVisible(false);
+      slideY.value = withTiming(-120, { duration: 300 }, (finished) => {
+        if (finished) runOnJS(setOfflineVisible)(false);
       });
     }
   }, [bannerActive]);
@@ -88,7 +82,8 @@ export function OfflineBanner() {
         <Animated.View
           style={[
             styles.offlineBanner,
-            { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent, transform: [{ translateY: slideAnim }] },
+            { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent },
+            slideStyle,
           ]}
           accessibilityRole="alert"
           accessibilityLabel={!isOnline ? t('offline.banner') : t('offline.reconnecting')}

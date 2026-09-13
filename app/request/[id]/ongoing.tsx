@@ -16,8 +16,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Pressable,
-  Animated,
-  Easing,
   Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +23,7 @@ import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import Reanimated from 'react-native-reanimated';
 import { MOTION } from '@/lib/motion/springs';
 import { useTakeScale } from '@/lib/motion/useTakeScale';
+import { useEntrance } from '@/lib/motion/useEntrance';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
@@ -183,21 +182,11 @@ const si = StyleSheet.create({
 function ActionCard({ icon, title, subtitle, children, theme }: {
   icon: string; title: string; subtitle: string; children: React.ReactNode; theme: ReturnType<typeof useAppTheme>;
 }) {
-  const fadeIn = useRef(new Animated.Value(0)).current;
-  const slideUp = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeIn, { toValue: 1, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(slideUp, { toValue: 0, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]).start();
-  }, []);
+  const entrance = useEntrance(20);
 
   return (
-    <Animated.View style={[ac.card, {
+    <Reanimated.View style={[ac.card, entrance.style, {
       backgroundColor: theme.cardBg,
-      opacity: fadeIn,
-      transform: [{ translateY: slideUp }],
       ...Platform.select({
         ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
         android: { elevation: 3 },
@@ -213,7 +202,7 @@ function ActionCard({ icon, title, subtitle, children, theme }: {
         </View>
       </View>
       {children}
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 

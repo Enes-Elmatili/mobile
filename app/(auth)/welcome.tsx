@@ -8,8 +8,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Animated,
-  Easing,
 } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -21,30 +19,15 @@ import {
   AuthLink,
   AuthMasthead,
 } from "@/components/auth";
+import Animated from 'react-native-reanimated';
+import { useEntrance } from '@/lib/motion/useEntrance';
 
 export default function Welcome() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const dot = theme.brandDot;
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(slide, {
-        toValue: 0,
-        duration: 700,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fade, slide]);
+  // Entrée : fondu + glissé sur un ressort (lib/motion/useEntrance).
+  const entrance = useEntrance(20);
 
   const handlePrimary = async () => {
     feedback.haptic('medium');
@@ -64,7 +47,7 @@ export default function Welcome() {
 
   return (
     <AuthScreen variant="flat">
-      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+      <Animated.View style={[s.flex, entrance.style]}>
         <AuthMasthead />
 
         <View style={s.airTop} />

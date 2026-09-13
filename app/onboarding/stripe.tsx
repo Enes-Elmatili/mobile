@@ -2,7 +2,8 @@
 // Redesign onboarding : l'écran prépare au lieu de vanter — durée (≈ 5 min),
 // pièces à réunir (identité + IBAN), et ce qui se passe après la redirection.
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Animated, Easing, Platform, StatusBar } from "react-native";
+import { View, Text, StyleSheet, Platform, StatusBar } from "react-native";
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -46,22 +47,19 @@ const REDIRECT_STEP_KEYS = ["onboarding.st_step_1", "onboarding.st_step_2", "onb
 // ── État plein écran pendant la redirection vers Stripe ─────────────────────
 function StripeRedirectOverlay() {
   const { t } = useTranslation();
-  const spin = useRef(new Animated.Value(0)).current;
+  const spin = useSharedValue(0);
   useEffect(() => {
-    const a = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true })
-    );
-    a.start();
-    return () => a.stop();
+    spin.value = withRepeat(withTiming(1, { duration: 900, easing: Easing.linear }), -1, false);
+    return () => cancelAnimation(spin);
   }, [spin]);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 360}deg` }] }));
 
   return (
     <View style={r.root}>
       <StatusBar barStyle="light-content" />
       <View style={r.center}>
         <View style={r.ringWrap}>
-          <Animated.View style={[r.spinner, { transform: [{ rotate }] }]} />
+          <Animated.View style={[r.spinner, spinStyle]} />
           <View style={r.ringInner}>
             <Feather name="external-link" size={22} color={C.stripe} />
           </View>

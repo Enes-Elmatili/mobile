@@ -1,7 +1,9 @@
 // components/ui/PulseDot.tsx — Green pulsing dot (FIXED brand signature)
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { COLORS } from '@/hooks/use-app-theme';
+import { useReduceMotion } from '@/lib/motion/sheet';
 
 interface Props {
   size?: number;
@@ -9,33 +11,30 @@ interface Props {
 }
 
 export function PulseDot({ size = 6, color = COLORS.green }: Props) {
-  const opacity = useRef(new Animated.Value(1)).current;
+  const reduced = useReduceMotion();
+  const opacity = useSharedValue(1);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.3, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+    if (reduced) { opacity.value = 1; return; }
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.3, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(opacity);
+  }, [opacity, reduced]);
+
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   return (
     <Animated.View
       style={[
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: color,
-          opacity,
-        },
-        Platform.OS === 'ios' && {
-          shadowColor: color,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.8,
-          shadowRadius: size,
-        },
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: color },
+        Platform.OS === 'ios' && { shadowColor: color, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: size },
+        style,
       ]}
     />
   );

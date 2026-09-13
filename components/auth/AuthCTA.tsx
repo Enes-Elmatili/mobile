@@ -5,16 +5,15 @@
  * Bebas text. Arrow oscillates left→right in a loop; replaced by a spinner
  * when loading.
  */
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import {
   Pressable,
   Text,
   StyleSheet,
-  Animated,
-  Easing,
   ActivityIndicator,
   Platform,
 } from "react-native";
+import Animated, { Easing, cancelAnimation, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
@@ -41,7 +40,7 @@ type Props = {
 
 export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant = "inverted" }: Props) {
   const theme = useAppTheme();
-  const arrowAnim = useRef(new Animated.Value(0)).current;
+  const arrow = useSharedValue(0);
   const resolvedVariant: "inverted" | "standard" =
     variant === "flat" ? (theme.isDark ? "standard" : "inverted") : variant;
   const isStandard = resolvedVariant === "standard";
@@ -51,35 +50,17 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
   const borderColor = isStandard ? "transparent" : alpha(authT.textOnDark, 0.18);
 
   useEffect(() => {
-    if (hideArrow || loading) return;
-    arrowAnim.setValue(0);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(arrowAnim, {
-          toValue: 1,
-          duration: 1400,
-          easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(arrowAnim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [arrowAnim, hideArrow, loading]);
+    if (hideArrow || loading) { cancelAnimation(arrow); arrow.value = 0; return; }
+    arrow.value = 0;
+    // Un aller (1,4 s) puis retour instantané au départ : withRepeat sans reverse.
+    arrow.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) }), -1, false);
+    return () => cancelAnimation(arrow);
+  }, [arrow, hideArrow, loading]);
 
-  const arrowTranslateX = arrowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-8, 8],
-  });
-  const arrowOpacity = arrowAnim.interpolate({
-    inputRange: [0, 0.2, 0.8, 1],
-    outputRange: [0, 1, 1, 0],
-  });
+  const arrowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(arrow.value, [0, 0.2, 0.8, 1], [0, 1, 1, 0]),
+    transform: [{ translateX: interpolate(arrow.value, [0, 1], [-8, 8]) }],
+  }));
 
   const isDisabled = disabled || loading;
 
@@ -101,12 +82,7 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
       {loading ? (
         <ActivityIndicator size="small" color={arrowColor} style={s.arrow} />
       ) : !hideArrow ? (
-        <Animated.View
-          style={[
-            s.arrow,
-            { opacity: arrowOpacity, transform: [{ translateX: arrowTranslateX }] },
-          ]}
-        >
+        <Animated.View style={[s.arrow, arrowStyle]}>
           <Feather name="arrow-right" size={22} color={arrowColor} />
         </Animated.View>
       ) : null}

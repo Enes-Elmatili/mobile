@@ -10,33 +10,21 @@ const expoConfig = require('eslint-config-expo/flat');
 // `Animated` de react-native (règle 1 CLAUDE.md : Reanimated uniquement).
 // Plan 1 migre missionview ; plans 2-3 migrent le reste.
 const LEGACY_ANIMATED_ALLOWLIST = [
-  'app/(auth)/complete-profile.tsx',
-  'app/(auth)/forgot-password.tsx',
   'app/(auth)/login.tsx',
-  'app/(auth)/reset-password.tsx',
   'app/(auth)/role-select.tsx',
   'app/(auth)/signup.tsx',
   'app/(auth)/verify-email.tsx',
-  'app/(auth)/welcome.tsx',
   'app/(tabs)/missions.tsx',
   'app/call/active.tsx',
   'app/onboarding/provider/pending.tsx',
-  'app/onboarding/stripe.tsx',
   'app/request/NewRequestStepper.tsx',
   'app/request/[id]/earnings.tsx',
-  'app/request/[id]/ongoing.tsx',
   'app/request/[id]/quote-pending.tsx',
   'app/request/[id]/rating.tsx',
-  'app/request/[id]/scheduled.tsx',
   'app/support.tsx',
   'components/IncomingCallOverlay.tsx',
-  'components/OfflineBanner.tsx',
   'components/SplashAnimation.tsx',
-  'components/auth/AuthCTA.tsx',
   'components/onboarding/OnboardingLayout.tsx',
-  'components/providers/ProviderMissionCard.tsx',
-  'components/ui/PulseDot.tsx',
-  'lib/components/XSpinner.tsx',
 ];
 
 // `Alert.alert` (règle 7 : zéro alerte système). Trois survivants hors

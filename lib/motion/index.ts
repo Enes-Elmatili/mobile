@@ -14,3 +14,4 @@ export * from './useRevealCount';
 export * from './useDigitReel';
 export * from './useSlideToConfirm';
 export * from './useRubberPull';
+export * from './useEntrance';

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from "react";
-import { View, Animated, Easing, StyleSheet } from "react-native";
+import React, { useEffect } from "react";
+import { View, StyleSheet } from "react-native";
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { darkTokens } from "@/hooks/use-app-theme";
 
 interface XSpinnerProps {
@@ -9,25 +10,15 @@ interface XSpinnerProps {
 }
 
 export function XSpinner({ size = 32, color = darkTokens.text, speed = 700 }: XSpinnerProps) {
-  const spin = useRef(new Animated.Value(0)).current;
+  const spin = useSharedValue(0);
 
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: speed,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [speed]);
+    spin.value = 0;
+    spin.value = withRepeat(withTiming(1, { duration: speed, easing: Easing.linear }), -1, false);
+    return () => cancelAnimation(spin);
+  }, [speed, spin]);
 
-  const rotate = spin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
+  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 360}deg` }] }));
 
   const thickness = size * 0.14;
   const arm = {
@@ -41,7 +32,7 @@ export function XSpinner({ size = 32, color = darkTokens.text, speed = 700 }: XS
   };
 
   return (
-    <Animated.View style={{ width: size, height: size, transform: [{ rotate }] }}>
+    <Animated.View style={[{ width: size, height: size }, spinStyle]}>
       <View style={[arm, { transform: [{ rotate: "45deg" }] }]} />
       <View style={[arm, { transform: [{ rotate: "-45deg" }] }]} />
     </Animated.View>

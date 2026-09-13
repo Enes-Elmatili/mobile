@@ -2,7 +2,9 @@
 // Reusable incoming mission card — FIXED design system
 
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import Animated, { Easing, cancelAnimation, interpolateColor, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useTranslation } from 'react-i18next';
@@ -61,13 +63,14 @@ interface ProviderMissionCardProps {
 export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMissionCardProps) {
   const theme = useAppTheme();
   const { t } = useTranslation();
-  const slideUp   = useRef(new Animated.Value(400)).current;
-  const timerAnim = useRef(new Animated.Value(1)).current;
+  // Entrée depuis le bas sur MOTION.pane ; la barre de temps se vide linéairement.
+  const slideUp = useSharedValue(400);
+  const timer = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
 
   useEffect(() => {
-    Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 12, useNativeDriver: true }).start();
-  }, []);
+    slideUp.value = withSpring(0, MOTION.pane);
+  }, [slideUp]);
 
   // Keep onDecline in a ref so the timer effect can stay mounted for the full
   // TIMER_DURATION window without stale-closure issues from parent re-renders.
@@ -80,12 +83,12 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
         return prev - 1;
       });
     }, 1000);
-    const timerAnimation = Animated.timing(timerAnim, { toValue: 0, duration: TIMER_DURATION * 1000, useNativeDriver: false });
-    timerAnimation.start();
+    timer.value = withTiming(0, { duration: TIMER_DURATION * 1000, easing: Easing.linear });
     return () => {
       clearInterval(interval);
-      timerAnimation.stop();
+      cancelAnimation(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul compte à rebours par carte
   }, []);
 
   const netPrice = Math.round(mission.price * NET_RATE);
@@ -96,21 +99,19 @@ export function ProviderMissionCard({ mission, onAccept, onDecline }: ProviderMi
   const pricingMode = mission.subcategory?.pricingMode;
   const duration = mission.subcategory?.durationMinutes;
 
-  const timerBarColor = timerAnim.interpolate({
-    inputRange: [0, 0.33, 1],
-    outputRange: [COLORS.red, theme.textMuted, theme.text],
-  });
+  const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }] }));
+  const timerStyle = useAnimatedStyle(() => ({
+    width: `${timer.value * 100}%`,
+    backgroundColor: interpolateColor(timer.value, [0, 0.33, 1], [COLORS.red, theme.textMuted, theme.text]),
+  }));
   const countdownColor = timeLeft <= 5 ? COLORS.red : timeLeft <= 10 ? COLORS.amber : theme.text;
 
   return (
-    <Animated.View style={[s.wrap, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity > 0.1 ? theme.shadowOpacity : 0.18 }, { transform: [{ translateY: slideUp }] }]}>
+    <Animated.View style={[s.wrap, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity > 0.1 ? theme.shadowOpacity : 0.18 }, slideStyle]}>
 
       {/* Timer bar */}
       <View style={[s.timerTrack, { backgroundColor: theme.border }]}>
-        <Animated.View style={[s.timerFill, {
-          width: timerAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-          backgroundColor: timerBarColor,
-        }]} />
+        <Animated.View style={[s.timerFill, timerStyle]} />
       </View>
 
       <View style={s.content}>

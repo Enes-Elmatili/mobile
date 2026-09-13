@@ -12,7 +12,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
-  Animated, Easing, TouchableOpacity, ActivityIndicator,
+  TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -24,6 +24,8 @@ import { api } from '@/lib/api';
 import { useSocket } from '@/lib/SocketContext';
 import { devError } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import { spring } from '@/lib/motion/springs';
 
 // Format "Mer 8 à 19:00"
 function formatScheduled(iso?: string | null): string {
@@ -67,8 +69,11 @@ export default function ScheduledConfirmation() {
   const [loading, setLoading] = useState<boolean>(isRecapMode);
   const [cancelling, setCancelling] = useState<boolean>(false);
 
-  const scaleAnim = useRef(new Animated.Value(isRecapMode ? 1 : 0)).current;
-  const fadeAnim = useRef(new Animated.Value(isRecapMode ? 1 : 0)).current;
+  // Confirmation : l'icône prend (léger dépassement), puis le contenu apparaît.
+  const iconScale = useSharedValue(isRecapMode ? 1 : 0);
+  const contentFade = useSharedValue(isRecapMode ? 1 : 0);
+  const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: iconScale.value }] }));
+  const contentStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
 
   // ── Fetch depuis API si mode recap OU params incomplets ──
   const fetchRequest = useCallback(async () => {
@@ -148,10 +153,9 @@ export default function ScheduledConfirmation() {
   useEffect(() => {
     if (isRecapMode) return; // skip animation en recap
     feedback.haptic('success');
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-    ]).start();
+    iconScale.value = withSpring(1, spring(220, 0.7));
+    contentFade.value = withDelay(400, withTiming(1, { duration: 300 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- séquence jouée à l'arrivée
   }, [isRecapMode]);
 
   // ── Socket listener : quand un prestataire accepte ──
@@ -221,13 +225,13 @@ export default function ScheduledConfirmation() {
 
       <View style={st.center}>
         {/* Calendar icon (animated in confirmation mode, static in recap) */}
-        <Animated.View style={[st.iconWrap, { transform: [{ scale: scaleAnim }] }]}>
+        <Animated.View style={[st.iconWrap, iconStyle]}>
           <View style={[st.iconCircle, { backgroundColor: theme.surface }]}>
             <Feather name="calendar" size={48} color={theme.text} />
           </View>
         </Animated.View>
 
-        <Animated.View style={[st.content, { opacity: fadeAnim }]}>
+        <Animated.View style={[st.content, contentStyle]}>
           <Text style={[st.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {isRecapMode ? t('ext.scheduled_my_request') : t('ext.scheduled_request')}
           </Text>
