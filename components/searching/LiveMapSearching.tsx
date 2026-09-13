@@ -2,7 +2,7 @@
 // Dark-first replacement for the SEARCHING phase in /request/[id]/missionview.tsx.
 // Uses the app design tokens (useAppTheme / FONTS / COLORS) — no hardcoded palette.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Circle } from 'react-native-maps';
 import { BlurView } from 'expo-blur';
