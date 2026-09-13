@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**État : livré le 13/09/2026 sur `feat/motion-foundation` (tâches 1-6).** Vérifié : jest 161/161, eslint 0 erreur (règle `no-symmetric-insets` active, 0 occurrence), tsc OK. Reste : la vérification manuelle (Tâche 7 : simulateur iPad 11", émulateur Foldable, iPhone inchangé) et, au SDK 27.1, le retrait de `requireFullScreen`.
+
 **Goal:** Faire de FIXED une app à deux volets quand l'écran le permet (Duo ouvert, Fold ouvert, iPad) sans une ligne de code « par appareil » : primitives de disposition, tab bar qui devient sidebar, missions en liste/détail, pull « fixed. » partout, insets asymétriques — et préparer le passage au SDK iOS 27.1.
 
 **Architecture:** `lib/layout` décide (classe compact/regular via `useLayoutClass`), `lib/motion` anime (le volet droit entre depuis la charnière). `SplitPane` re-parente le détail sans le démonter : au pliage, l'état, le scroll et le brouillon survivent (spec § 4.3). La tab bar custom (`FixedTabBar`) rend une barre en bas ou une sidebar à gauche selon la classe ; les écrans compensent via `useTabBarPadding()` et `contentStyle.paddingLeft`.
