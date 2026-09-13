@@ -57,7 +57,7 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
           </Pressable>
         </View>
       </View>
-      <StepPager page={index} direction={dirRef.current} style={s.pager}>
+      <StepPager page={index} direction={dirRef.current} style={s.pager} render={() => (
         <View style={s.days}>
           {week.days.map((d) => {
             const selected = d.iso === selectedIso;
@@ -78,7 +78,7 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
             );
           })}
         </View>
-      </StepPager>
+      )} />
     </View>
   );
 }
@@ -89,7 +89,7 @@ const s = StyleSheet.create({
   range:    { fontFamily: FONTS.sansMedium, fontSize: 13 },
   arrows:   { flexDirection: 'row', gap: 18 },
   arrowOff: { opacity: 0.3 },
-  pager:    { flex: 0 },
+  pager:    { height: 62 },
   days:     { flexDirection: 'row', gap: 4 },
   day:      { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 12 },
   dayName:  { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 0.5 },

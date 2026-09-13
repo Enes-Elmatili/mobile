@@ -19,7 +19,7 @@ import {
   UIManager,
   BackHandler,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -526,6 +526,11 @@ export default function NewRequestStepper() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   // Sens de la prochaine transition d'étape (StepPager) : 1 en avant, -1 en arrière.
   const dirRef = useRef<PagerDirection>(1);
+  // Distance entre le haut de la fenêtre et le contenu de l'étape : inset haut +
+  // en-tête mesuré. C'est l'offset exact du KeyboardAvoidingView de l'étape 2 —
+  // un « 100 » en dur laissait le bouton trop haut au-dessus du clavier.
+  const insets = useSafeAreaInsets();
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   const [step,    setStep]    = useState(1);
   const [loading, setLoading] = useState(false);
@@ -1287,44 +1292,14 @@ export default function NewRequestStepper() {
   const TIME_GROUPS = getTimeGroups(t);
   const currentStep = STEPS[step - 1] || STEPS[STEPS.length - 1];
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* ── En-tête : retour, titre, ligne de progression, puces (planche 1A) ── */}
-      <StepHeader
-        step={step}
-        total={TOTAL_STEPS}
-        title={currentStep.label}
-        onBack={goBack}
-        backLabel={t('common.back')}
-        crumbs={deriveCrumbs({ step, address: location?.address ?? null, serviceName })}
-        onJump={goTo}
-      />
-
-      {/* ── Préférence prestataire (CTA "Demander X" depuis fiche) ── */}
-      {preferred && (
-        <View style={[s.preferredBanner, { backgroundColor: theme.surface, borderColor: theme.sep }]}>
-          <Feather name="user-check" size={14} color={theme.text as string} />
-          <Text style={[s.preferredBannerText, { color: theme.text, fontFamily: FONTS.sans }]}>
-            {t('stepper.request_priority_prefix')}<Text style={{ fontFamily: FONTS.sansMedium }}>{preferred.name}</Text>
-          </Text>
-          <TouchableOpacity
-            onPress={() => setPreferred(null)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('stepper.remove_preference_a11y')}
-          >
-            <Feather name="x" size={16} color={theme.textMuted as string} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Contenu de l'étape, poussé latéralement à chaque changement ── */}
-      <StepPager page={step} direction={dirRef.current} style={s.flex}>
+  // Contenu de chaque étape. Le pager (StepPager, keepMounted) garde les pages
+  // visitées montées : la carte de l'étape 1 et le défilement des listes
+  // survivent aux allers-retours, rien ne se recharge.
+  const renderStep = (n: number | string) => (
+    <>
 
         {/* ══ ÉTAPE 1 — Lieu ══ */}
-        {step === 1 && (
+        {n === 1 && (
           <View style={s.flex}>
             <MapView
               ref={mapRef}
@@ -1618,8 +1593,8 @@ export default function NewRequestStepper() {
         )}
 
         {/* ══ ÉTAPE 2 — Service (planche 2A : rail de catégories, lignes sans montant) ══ */}
-        {step === 2 && (
-          <KeyboardAvoidingView style={s.flex} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+        {n === 2 && (
+          <KeyboardAvoidingView style={s.flex} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + headerHeight : 0}>
             <View style={s.flex}>
               {categories.length === 0 ? (
                 <View style={s.skeletons}>
@@ -1635,7 +1610,7 @@ export default function NewRequestStepper() {
                     selectedId={categoryId}
                     onSelect={(id) => { setCategoryId(id); setSubcategoryId(null); }}
                   />
-                  <StepPager page={categoryId ?? 'none'} direction={railDirection} style={s.flex}>
+                  <StepPager page={categoryId ?? 'none'} direction={railDirection} style={s.flex} render={() => (
                     <AdaptiveScroll style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                       {(selectedCategory?.subcategories ?? []).map((sub: any) => (
                         <ServiceRow
@@ -1678,7 +1653,7 @@ export default function NewRequestStepper() {
 
                       <View style={{ height: 100 }} />
                     </AdaptiveScroll>
-                  </StepPager>
+                  )} />
                 </>
               )}
             </View>
@@ -1693,7 +1668,7 @@ export default function NewRequestStepper() {
         )}
 
         {/* ══ ÉTAPE 3 — Planning (planche 3A : segmenté, semaine, grille horaire) ══ */}
-        {step === 3 && (
+        {n === 3 && (
           <View style={s.flex}>
             <AdaptiveScroll style={s.flex} contentContainerStyle={s.step3Pad} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
               <SegmentedControl
@@ -1919,7 +1894,7 @@ export default function NewRequestStepper() {
         )}
 
         {/* ══ ÉTAPE 4 — Validation ══ */}
-        {step === 4 && (
+        {n === 4 && (
           <View style={s.flex}>
             {/* Fond premium */}
             <LinearGradient
@@ -2149,7 +2124,46 @@ export default function NewRequestStepper() {
           </View>
         )}
 
-      </StepPager>
+    </>
+  );
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* ── En-tête : retour, titre, ligne de progression, puces (planche 1A) ── */}
+      <View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+      <StepHeader
+        step={step}
+        total={TOTAL_STEPS}
+        title={currentStep.label}
+        onBack={goBack}
+        backLabel={t('common.back')}
+        crumbs={deriveCrumbs({ step, address: location?.address ?? null, serviceName })}
+        onJump={goTo}
+      />
+
+      {/* ── Préférence prestataire (CTA "Demander X" depuis fiche) ── */}
+      {preferred && (
+        <View style={[s.preferredBanner, { backgroundColor: theme.surface, borderColor: theme.sep }]}>
+          <Feather name="user-check" size={14} color={theme.text as string} />
+          <Text style={[s.preferredBannerText, { color: theme.text, fontFamily: FONTS.sans }]}>
+            {t('stepper.request_priority_prefix')}<Text style={{ fontFamily: FONTS.sansMedium }}>{preferred.name}</Text>
+          </Text>
+          <TouchableOpacity
+            onPress={() => setPreferred(null)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('stepper.remove_preference_a11y')}
+          >
+            <Feather name="x" size={16} color={theme.textMuted as string} />
+          </TouchableOpacity>
+        </View>
+      )}
+      </View>
+
+      {/* ── Contenu de l'étape, poussé latéralement à chaque changement ── */}
+      <StepPager page={step} direction={dirRef.current} render={renderStep} keepMounted style={s.flex} />
       <DevisInfoModal
         visible={devisModalVisible}
         onClose={() => setDevisModalVisible(false)}
