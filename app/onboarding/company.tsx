@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { api } from "../../lib/api";
+import { resumeRoute } from "@/lib/onboardingResume";
 import { feedback } from "@/lib/feedback/feedback";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
@@ -42,6 +43,8 @@ export default function OnboardingCompany() {
   /** BCE déjà confirmé par VIES côté serveur (on ne le re-soumet pas). */
   const [vatVerified, setVatVerified] = useState(false);
   const [vies, setVies] = useState<Vies>(null);
+  /** BCE enregistré mais VIES injoignable : le serveur rejoue la vérification. */
+  const [viesPending, setViesPending] = useState(false);
   const [ibanSaved, setIbanSaved] = useState(false);
   const ibanRef = useRef<TextInput>(null);
 
@@ -59,8 +62,10 @@ export default function OnboardingCompany() {
         const verified = !!p?.vatVerifiedAt;
         setVatVerified(verified);
         if (verified) setVies({ name: p?.vatLegalName ?? null, address: p?.vatAddress ?? null });
-        if (verified && p?.bankIban) {
-          router.replace("/onboarding/documents");
+        // BCE enregistré (vérifié ou en attente de VIES) et IBAN présent :
+        // rien à demander, on reprend là où le dossier en est.
+        if (p?.vatNumber && p?.bankIban) {
+          router.replace(await resumeRoute() as any);
           return;
         }
       } catch {
@@ -87,9 +92,15 @@ export default function OnboardingCompany() {
       if (!vatVerified) {
         try {
           const res: any = await api.provider.setVat(bce.trim());
-          setVatVerified(true);
-          setVies({ name: res?.vies?.name ?? null, address: res?.vies?.address ?? null });
           setBce(res?.vatNumber ?? formatBce(bce));
+          if (res?.verified === false) {
+            // Enregistré, pas encore confirmé : on n'arrête pas le prestataire
+            // pour une lenteur de VIES. Le serveur retente, l'admin peut relancer.
+            setViesPending(true);
+          } else {
+            setVatVerified(true);
+            setVies({ name: res?.vies?.name ?? null, address: res?.vies?.address ?? null });
+          }
         } catch (e: any) {
           const code = e?.data?.code ?? e?.code;
           if (code === "VIES_INVALID") setBceError(t("onboarding.company_bce_vies_invalid"));
@@ -117,7 +128,9 @@ export default function OnboardingCompany() {
       }
 
       feedback.haptic("success");
-      router.replace("/onboarding/documents");
+      // Reprendre là où le dossier en est : pièces, Stripe, ou l'attente si
+      // tout est déjà fourni (retour depuis l'écran d'attente).
+      router.replace(await resumeRoute() as any);
     } catch (e: any) {
       feedback.error(e?.message || t("onboarding.company_save_error"));
       setSaving(false);
@@ -185,6 +198,11 @@ export default function OnboardingCompany() {
             {!!vies.name && <Text style={s.viesLine} numberOfLines={1}>{vies.name}</Text>}
             {!!vies.address && <Text style={s.viesLine} numberOfLines={2}>{vies.address}</Text>}
           </View>
+        </View>
+      ) : viesPending ? (
+        <View style={s.viesCard}>
+          <Feather name="clock" size={16} color={C.grey} />
+          <Text style={[s.viesLine, { flex: 1 }]}>{t("onboarding.company_vies_pending")}</Text>
         </View>
       ) : (
         <Text style={s.hint}>{t("onboarding.company_bce_hint")}</Text>

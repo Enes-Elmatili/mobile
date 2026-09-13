@@ -1105,7 +1105,9 @@
     "pending_company_missing": "BCE or IBAN missing",
     "pending_incomplete_bce": "Your BCE number isn't confirmed yet — without it your file can't be approved.",
     "pending_incomplete_iban": "Your IBAN is missing — without it we can't pay you.",
-    "approved_refresh_failed": "Profile not updated yet — try again in a moment."
+    "approved_refresh_failed": "Profile not updated yet — try again in a moment.",
+    "pending_company_vies_pending": "Company number saved — VIES confirmation in progress",
+    "company_vies_pending": "Number saved. The verification service is slow right now: we will confirm your company on our side, you can continue."
   },
   "explore": {
     "title": "Explore",

@@ -10,6 +10,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Sentry from "@sentry/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
+import { resumeRoute } from "@/lib/onboardingResume";
 import { fetchProviderTrades } from "../../lib/providerOnboarding";
 import { feedback } from "@/lib/feedback/feedback";
 import { useTranslation } from "react-i18next";
@@ -296,7 +297,7 @@ export default function OnboardingDocuments() {
       subtitle={t('onboarding.docs_sub', { count: mandatoryDocs.length })}
       cta={{
         label: t('common.continue'),
-        onPress: () => router.push("/onboarding/stripe"),
+        onPress: async () => { router.push(await resumeRoute() as any); },
         disabled: !allMandatorySent || anyUploading,
         sub: anyUploading
           ? t('onboarding.docs_cta_uploading')

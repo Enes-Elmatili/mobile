@@ -6,21 +6,25 @@
 import { firstIncompleteStep, STEP_ROUTES } from '../onboardingSteps';
 
 const trades = { names: ['Plomberie'], city: 'Ixelles', known: true };
-const company = { vatVerified: true, ibanPresent: true };
+const company = { vatPresent: true, vatVerified: true, ibanPresent: true };
 const docs = ['BCE_CERTIFICATE', 'ID_FRONT', 'ID_BACK', 'INSURANCE_RC_PRO', 'TRADE_LICENSE', 'CRIMINAL_RECORD', 'IBAN_PROOF']
   .map((docKey) => ({ docKey, status: 'PENDING' }));
 
 describe('firstIncompleteStep', () => {
   it('métiers absents → activity, avant tout le reste', () => {
-    expect(firstIncompleteStep({ trades: { names: [], city: null, known: true }, company: { vatVerified: false, ibanPresent: false }, docs: [], stripeReady: false })).toBe('activity');
+    expect(firstIncompleteStep({ trades: { names: [], city: null, known: true }, company: { vatPresent: false, vatVerified: false, ibanPresent: false }, docs: [], stripeReady: false })).toBe('activity');
   });
 
-  it('BCE non vérifié → company', () => {
-    expect(firstIncompleteStep({ trades, company: { vatVerified: false, ibanPresent: true }, docs, stripeReady: true })).toBe('company');
+  it('BCE absent → company', () => {
+    expect(firstIncompleteStep({ trades, company: { vatPresent: false, vatVerified: false, ibanPresent: true }, docs, stripeReady: true })).toBe('company');
+  });
+
+  it('BCE enregistré mais pas encore confirmé par VIES → on ne bloque PAS sur company', () => {
+    expect(firstIncompleteStep({ trades, company: { vatPresent: true, vatVerified: false, ibanPresent: true }, docs, stripeReady: true })).toBe('review');
   });
 
   it('IBAN absent → company', () => {
-    expect(firstIncompleteStep({ trades, company: { vatVerified: true, ibanPresent: false }, docs, stripeReady: true })).toBe('company');
+    expect(firstIncompleteStep({ trades, company: { vatPresent: true, vatVerified: true, ibanPresent: false }, docs, stripeReady: true })).toBe('company');
   });
 
   it('entreprise ok, pièce manquante → documents', () => {

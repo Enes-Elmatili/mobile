@@ -1105,7 +1105,9 @@
     "pending_company_missing": "KBO of IBAN aan te vullen",
     "pending_incomplete_bce": "Uw KBO-nummer is nog niet bevestigd — zonder dat kan uw dossier niet worden goedgekeurd.",
     "pending_incomplete_iban": "Uw IBAN ontbreekt — zonder dat kunnen we u niet uitbetalen.",
-    "approved_refresh_failed": "Profiel nog niet bijgewerkt — probeer zo meteen opnieuw."
+    "approved_refresh_failed": "Profiel nog niet bijgewerkt — probeer zo meteen opnieuw.",
+    "pending_company_vies_pending": "KBO-nummer geregistreerd — VIES-bevestiging loopt",
+    "company_vies_pending": "Nummer geregistreerd. De verificatiedienst is momenteel traag: wij bevestigen uw onderneming zelf, u kunt doorgaan."
   },
   "explore": {
     "title": "Verkennen",

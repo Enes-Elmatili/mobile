@@ -1105,7 +1105,9 @@
     "pending_company_missing": "BCE ou IBAN à compléter",
     "pending_incomplete_bce": "Votre numéro BCE n'est pas encore confirmé — sans lui, votre dossier ne peut pas être validé.",
     "pending_incomplete_iban": "Votre IBAN n'est pas renseigné — sans lui, nous ne pouvons pas vous payer.",
-    "approved_refresh_failed": "Profil pas encore à jour — réessayez dans un instant."
+    "approved_refresh_failed": "Profil pas encore à jour — réessayez dans un instant.",
+    "pending_company_vies_pending": "BCE enregistré — confirmation VIES en cours",
+    "company_vies_pending": "Numéro enregistré. Le service de vérification est lent en ce moment : nous confirmons votre entreprise de notre côté, vous pouvez continuer."
   },
   "explore": {
     "title": "Explorer",

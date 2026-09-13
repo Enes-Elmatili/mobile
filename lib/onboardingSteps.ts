@@ -2,7 +2,7 @@
 // Où reprendre l'onboarding prestataire — logique pure, testée, partagée par
 // l'écran d'attente et les écrans d'étape. L'ordre est celui du garde
 // d'activation serveur (services/providerGate.js) : métiers → entreprise
-// (BCE vérifié VIES + IBAN) → pièces → Stripe → validation humaine.
+// (BCE enregistré + IBAN) → pièces → Stripe → validation humaine.
 import { getRequiredDocuments } from '../constants/kycRequirements';
 
 export interface TradesState {
@@ -12,7 +12,14 @@ export interface TradesState {
 }
 
 export interface CompanyState {
-  /** BCE confirmé par VIES (vatVerifiedAt côté serveur). */
+  /** BCE enregistré (vatNumber côté serveur). C'est lui qui compte pour l'étape. */
+  vatPresent: boolean;
+  /**
+   * BCE confirmé par VIES (vatVerifiedAt). N'est PLUS une condition de l'étape :
+   * depuis le 13/09/2026, VIES lent ou injoignable n'arrête pas l'onboarding —
+   * le serveur rejoue la vérification, l'admin peut la relancer. L'écran
+   * d'attente l'affiche comme « en cours », pas comme un manque.
+   */
   vatVerified: boolean;
   ibanPresent: boolean;
 }
@@ -41,7 +48,7 @@ export function firstIncompleteStep(input: {
 }): OnboardingStep {
   const { trades, company, docs, stripeReady } = input;
   if (trades.known && trades.names.length === 0) return 'activity';
-  if (!company.vatVerified || !company.ibanPresent) return 'company';
+  if (!company.vatPresent || !company.ibanPresent) return 'company';
   const submitted = new Set(docs.filter((d) => isSubmitted(d.status)).map((d) => d.docKey));
   if (requiredDocKeys(trades.names).some((k) => !submitted.has(k))) return 'documents';
   if (!stripeReady) return 'stripe';
