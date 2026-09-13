@@ -9,9 +9,12 @@ import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
 import Animated, {
   useSharedValue, useAnimatedStyle, withRepeat, withTiming,
-  withDelay, Easing, withSequence,
+  withDelay, Easing, withSequence, withSpring,
+  useAnimatedReaction, runOnJS,
   FadeInDown, FadeOut, LinearTransition,
 } from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
+import { BreathingRings } from './BreathingRings';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -229,9 +232,18 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
   // Three-phase state machine drives pill copy, Circle radius, and feed
   // collapsing. 0-45s searching, 45-60s expanding, 60s+ widened (calm).
   const [phase, setPhase] = useState<'searching' | 'expanding' | 'widened'>('searching');
+  // Rayon du cercle de recherche : un ressort sur le thread UI, relayé à
+  // react-native-maps seulement quand la valeur arrondie change (le Circle
+  // n'accepte pas de prop animée). Avant : setInterval à 50 ms + setState.
   const [circleRadius, setCircleRadius] = useState(2000);
-  const radiusRef = useRef(2000);
-  useEffect(() => { radiusRef.current = circleRadius; }, [circleRadius]);
+  const radiusSv = useSharedValue(2000);
+  useEffect(() => {
+    radiusSv.value = withSpring(phase === 'searching' ? 2000 : 3500, MOTION.recenter);
+  }, [phase, radiusSv]);
+  useAnimatedReaction(
+    () => Math.round(radiusSv.value / 10) * 10,
+    (next, prev) => { if (next !== prev) runOnJS(setCircleRadius)(next); },
+  );
 
   // Live-searching accent pulls from the design charter's monochrome accent
   // (white in dark mode, ink in light). Red is reserved for destructive
@@ -328,24 +340,6 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
     return () => { timers.forEach(clearTimeout); };
   }, [isScheduled, t]);
 
-  // Smooth Circle radius transition on phase change (2000m → 3500m on
-  // expansion). Uses setInterval at 50ms to cap map re-renders.
-  useEffect(() => {
-    const target = phase === 'searching' ? 2000 : 3500;
-    const startValue = radiusRef.current;
-    if (Math.abs(startValue - target) < 5) return;
-    const duration = 1200;
-    const startTime = Date.now();
-    const t = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCircleRadius(startValue + (target - startValue) * eased);
-      if (progress >= 1) clearInterval(t);
-    }, 50);
-    return () => clearInterval(t);
-  }, [phase]);
-
   const now = useNow(10000);
 
   const recenter = () => {
@@ -408,6 +402,8 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
         ))}
         <UserPin coord={missionCoord} surface={theme.cardBg as string} />
       </MapView>
+      {/* Anneaux de recherche : la période s'allonge avec l'attente (moment 1) */}
+      <BreathingRings color={theme.textMuted} />
 
       {/* Top bar — no back button during active search. Accidentally tapping
           back mid-matching would surface the dashboard while the user is
