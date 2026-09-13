@@ -17,6 +17,7 @@ import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useTabBarPadding } from './_layout';
 import { useSocket } from '@/lib/SocketContext';
@@ -1274,20 +1275,10 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
           <Feather name="x" size={18} color={t.textSub} />
           <Text style={[opp.declineText, { color: t.textSub }]}>{tr('ext.missions_refuse')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[opp.acceptBtn, { backgroundColor: t.accent, flex: 2, justifyContent: 'center' }]}
-          onPress={onAccept} disabled={accepting} activeOpacity={0.85}
-          accessibilityRole="button" accessibilityLabel={tr('provider.accept')}
-        >
-          {accepting ? (
-            <ActivityIndicator size="small" color={t.accentText} />
-          ) : (
-            <>
-              <Feather name="check-circle" size={18} color={t.accentText} />
-              <Text style={[opp.acceptText, { color: t.accentText }]}>{tr('provider.accept')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Moment 6 : accepter est un geste — glisser, pas taper. */}
+        <View style={{ flex: 2 }}>
+          <SlideToConfirm label={tr('provider.accept')} onConfirm={onAccept} disabled={accepting} />
+        </View>
       </View>
     </BottomSheetScrollView>
   );
