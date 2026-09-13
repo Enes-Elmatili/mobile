@@ -6,7 +6,7 @@
 //              les largeurs regular), même indicateur, vertical
 // L'indicateur repart de sa position courante (règle 1) sur MOTION.tab.
 import React, { useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -75,8 +75,13 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
   // `tabBarItemStyle: { display: 'none' }` et un `tabBarButton` qui rend null.
   // Filtrer sur `href` laissait donc passer les onglets de l'autre rôle
   // (Missions et Gains chez le client, Documents chez le prestataire).
+  // Vérifié de bout en bout dans __tests__/fixedTabBar.router.test.js (vrai
+  // Expo Router). Le test sur `href` reste en ceinture : inerte aujourd'hui,
+  // il couvrirait une version du routeur qui transmettrait la prop.
   const routes = state.routes.filter((r) => {
-    const style = StyleSheet.flatten(descriptors[r.key].options.tabBarItemStyle);
+    const options = descriptors[r.key].options as { tabBarItemStyle?: unknown; href?: unknown };
+    if (options.href === null) return false;
+    const style = StyleSheet.flatten(options.tabBarItemStyle as StyleProp<ViewStyle>);
     return style?.display !== 'none';
   });
   // Route active. Le prestataire atterrit sur `provider-dashboard`, une route
