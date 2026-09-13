@@ -30,7 +30,6 @@ const LEGACY_ANIMATED_ALLOWLIST = [
   'app/request/[id]/quote-review.tsx',
   'app/request/[id]/rating.tsx',
   'app/request/[id]/scheduled.tsx',
-  'app/request/[id]/send-quote.tsx',
   'app/support.tsx',
   'components/IncomingCallOverlay.tsx',
   'components/OfflineBanner.tsx',

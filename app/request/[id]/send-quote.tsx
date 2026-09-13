@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
   TouchableOpacity, ScrollView, TextInput, ActivityIndicator,
-  KeyboardAvoidingView, Animated, Easing,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -15,6 +15,9 @@ import { devError } from "@/lib/logger";
 import { formatEURCents as fmtEur } from "@/lib/format";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth/AuthContext";
+import Animated from "react-native-reanimated";
+import { MOTION, useCountingValue, usePresence } from "@/lib/motion";
+import { ReText } from "@/components/ui/ReText";
 
 // Normalise la virgule décimale (clavier FR/BE) avant parseFloat.
 const parseAmount = (value: string): number => parseFloat(value.replace(",", ".")) || 0;
@@ -86,21 +89,12 @@ export default function SendQuote() {
   const totalCents = laborCents + partsCents;
   const canSend = laborCents > 0;
 
-  // Animated total
-  const totalAnim = React.useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.spring(totalAnim, {
-      toValue: totalCents > 0 ? 1 : 0,
-      useNativeDriver: true,
-      tension: 80,
-      friction: 10,
-    }).start();
-  }, [totalCents > 0]);
-
-  // Split total for display: integer + decimals
-  const totalParts = (totalCents / 100).toFixed(2).split(".");
-  const totalInt = parseInt(totalParts[0]).toLocaleString("fr-BE");
-  const totalDec = `,${totalParts[1]} €`;
+  // Le bloc total apparaît par le bas (usePresence) et son montant COMPTE
+  // (useCountingValue) au lieu de sauter — moment 8. Décimales et devise
+  // restent fixes, seul l'entier roule.
+  const totalPresence = usePresence(totalCents > 0, { from: "bottom", preset: MOTION.pane });
+  const totalCounter = useCountingValue(Math.floor(totalCents / 100), { preset: MOTION.count });
+  const totalDec = `,${(totalCents / 100).toFixed(2).split(".")[1]} €`;
 
   const handleSend = useCallback(async () => {
     if (!canSend || !id) return;
@@ -246,19 +240,10 @@ export default function SendQuote() {
           </View>
 
           {/* Live total block */}
-          <Animated.View style={[
-            s.totalBlock,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-            {
-              opacity: totalAnim,
-              transform: [{
-                translateY: totalAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }),
-              }],
-            },
-          ]}>
+          <Animated.View style={[s.totalBlock, { backgroundColor: theme.surface, borderColor: theme.border }, totalPresence.style]}>
             <Text style={[s.totalLabel, { color: theme.textMuted }]}>{t('missions.quote_total')}</Text>
             <View style={s.totalAmountRow}>
-              <Text style={[s.totalInt, { color: theme.text }]}>{totalInt}</Text>
+              <ReText animatedProps={totalCounter.animatedProps} style={[s.totalInt, { color: theme.text }]} accessibilityLabel={fmtEur(totalCents)} />
               <Text style={[s.totalDec, { color: theme.textSub }]}>{totalDec}</Text>
             </View>
             {calloutFee > 0 && (
