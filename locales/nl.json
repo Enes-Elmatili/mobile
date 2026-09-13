@@ -804,7 +804,19 @@
     "empty_title": "Geen berichten",
     "empty_sub": "Uw gesprekken verschijnen hier",
     "unread": "ongelezen",
-    "you": "U"
+    "you": "U",
+    "load_error_title": "Uw berichten konden niet worden geladen.",
+    "load_error_sub": "Controleer uw verbinding en probeer opnieuw.",
+    "find_pro": "Een vakman vinden",
+    "start_conversation": "Start het gesprek",
+    "not_sent_closed": "Bericht niet verzonden — het gesprek is gesloten.",
+    "not_sent_retry": "Bericht niet verzonden. Tik op het bericht om opnieuw te proberen.",
+    "not_sent_a11y": "Bericht niet verzonden — opnieuw proberen",
+    "just_now": "Zonet",
+    "minutes_short": "{{n}} min",
+    "hours_short": "{{n}} u",
+    "days_short": "{{n}} d",
+    "empty_sub_client": "Uw gesprekken met vakmensen verschijnen hier."
   },
   "wallet": {
     "title": "Portefeuille",
@@ -2137,5 +2149,124 @@
     "close": "Sluiten",
     "no_photo": "Geen foto",
     "price_tbd": "te bevestigen"
+  },
+  "services": {
+    "chasse-eau-mecanisme-wc": {
+      "desc": "Herstelling of vervanging van het spoelmechanisme"
+    },
+    "debouchage-canalisation": {
+      "desc": "Ontstoppen van een sanitair toestel met de veer (gootsteen, lavabo, douche, bad)"
+    },
+    "debouchage-wc": {
+      "desc": "Ontstoppen van een klassiek, hangend of vermaler-toilet"
+    },
+    "detartrage-circuit": {
+      "desc": "Ontslibben van het verwarmingscircuit of ontkalken van een boiler"
+    },
+    "entretien-pompe-chaleur": {
+      "desc": "Jaarlijks onderhoud van een lucht-water of lucht-lucht warmtepomp"
+    },
+    "fuite-eau": {
+      "desc": "Herstelling van een zichtbaar, gelokaliseerd lek (leiding, kraan, koppeling, sifon)"
+    },
+    "fuite-electromenager": {
+      "desc": "Lek aan de aansluiting of de slang van een wasmachine of vaatwasser"
+    },
+    "fuite-colonne-principale": {
+      "desc": "Lek op de aanvoer- of afvoerkolom van een gebouw"
+    },
+    "debouchage-hydrocurage": {
+      "desc": "Ontstoppen onder hoge druk, gebouwkolom, buitenriolering"
+    },
+    "inspection-camera": {
+      "desc": "Camera-inspectie om de staat van een leiding te beoordelen vóór werken of na schade"
+    },
+    "installation-chauffe-eau": {
+      "desc": "Plaatsing of vervanging van een boiler, geiser of thermodynamische boiler"
+    },
+    "installation-douche-baignoire": {
+      "desc": "Plaatsing of vervanging van een douchebak, cabine of bad"
+    },
+    "installation-sanitaire": {
+      "desc": "Plaatsing of vervanging van een lavabo, waskom of gootsteen"
+    },
+    "installation-wc": {
+      "desc": "Plaatsing van een klassiek, hangend of vermaler-toilet"
+    },
+    "panne-chauffe-eau": {
+      "desc": "Herstelling van boiler, geiser of warmwatertank"
+    },
+    "recherche-fuite": {
+      "desc": "Opsporen van een lek van onbekende oorsprong (vochtspoor, overmatig verbruik, waterschade)"
+    },
+    "regonflage-pression": {
+      "desc": "Verwarmingscircuit weer op druk brengen en radiatoren ontluchten"
+    },
+    "remplacement-robinet": {
+      "desc": "Demontage en plaatsing van een nieuwe kraan of mengkraan"
+    },
+    "renovation-plomberie": {
+      "desc": "Volledige badkamerrenovatie, vernieuwing van leidingen, of werk buiten catalogus"
+    },
+    "reparation-wc": {
+      "desc": "Losgekomen pot, wiebelend toilet, bril, of defecte vermaler"
+    },
+    "blindage-porte": {
+      "desc": "Versterking van een bestaande deur of plaatsing van een gepantserd deurblok"
+    },
+    "boite-aux-lettres": {
+      "desc": "Openen, slot vervangen of plaatsen van een brievenbus"
+    },
+    "cle-cassee-coincee": {
+      "desc": "Afgebroken sleutel in het slot, vastzittende sleutel, of vastgelopen slot"
+    },
+    "controle-acces": {
+      "desc": "Elektrische sluitplaat, slim slot, codeklavier, RFID-badge — installatie of defect"
+    },
+    "double-cle-badge": {
+      "desc": "Sleutel kopiëren, badge of afstandsbediening programmeren, bij u thuis"
+    },
+    "installation-coffre-fort": {
+      "desc": "Levering en verankering van een kluis of wapenkast"
+    },
+    "installation-porte": {
+      "desc": "Plaatsing van een nieuwe deur, gewoon of gepantserd, met kozijn"
+    },
+    "installation-verrou": {
+      "desc": "Plaatsing van een extra grendel, gewoon of hoogbeveiligd"
+    },
+    "securite-porte-accessoires": {
+      "desc": "Plaatsing van een spionoog, anti-inbraakstrip, gepantserde klink of sleutelkluis"
+    },
+    "mise-en-securite-effraction": {
+      "desc": "Voorlopige sluiting en onmiddellijke beveiliging na inbraak of inbraakpoging"
+    },
+    "ouverture-coffre-fort": {
+      "desc": "Openen van een geblokkeerde kluis, verloren code of defect slot"
+    },
+    "ouverture-porte-claquee": {
+      "desc": "Deur achter u dichtgevallen, sleutel binnen — openen zonder schade"
+    },
+    "ouverture-porte-blindee": {
+      "desc": "Deur op slot, gepantserde of hoogbeveiligde deur, buitenhek"
+    },
+    "portail-motorisation": {
+      "desc": "Geblokkeerd hek, defecte motor, of installatie van een gemotoriseerd hek"
+    },
+    "remplacement-cylindre": {
+      "desc": "Vervangen van de cilinder na sleutelverlies of inbraak — standaardcilinder inbegrepen"
+    },
+    "remplacement-serrure": {
+      "desc": "Vervangen van het volledige slot: eenpunts, meerpunts of gepantserd"
+    },
+    "reparation-porte": {
+      "desc": "Deur die doorzakt, aanloopt, niet meer sluit, of kapotte klink"
+    },
+    "reparation-serrure": {
+      "desc": "Slot dat aanloopt, schoot die niet meer uitkomt, vastgelopen grendel — herstelling zonder vervanging"
+    },
+    "volets-rideaux-metalliques": {
+      "desc": "Rolluik of metalen rolhek geblokkeerd, ontspoord, of motor defect"
+    }
   }
 }

@@ -12,6 +12,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { devLog, devError } from '../../lib/logger';
 import { feedback } from '@/lib/feedback/feedback';
+import { useTranslation } from 'react-i18next';
 import { cleanName } from '@/lib/displayName';
 import {
   useSocket,
@@ -61,6 +62,7 @@ function displayLabel(userId: string): string {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function ConversationScreen() {
+  const { t } = useTranslation();
   const { userId, name, requestId } = useLocalSearchParams<{ userId: string; name?: string; requestId?: string }>();
   const { user } = useAuth();
   const router = useRouter();
@@ -311,9 +313,9 @@ export default function ConversationScreen() {
       if (serverCode === 'CONVERSATION_CLOSED' || e?.status === 403) {
         // Server closed the conversation between probe and send: lock UI.
         setCanChat(false);
-        feedback.error('Message non envoyé — la conversation est fermée.');
+        feedback.error(t('messages.not_sent_closed'));
       } else {
-        feedback.error('Message non envoyé. Appuyez sur le message pour réessayer.');
+        feedback.error(t('messages.not_sent_retry'));
       }
     }
   }, [userId]);
@@ -401,7 +403,7 @@ export default function ConversationScreen() {
             disabled={!isFailed}
             onPress={() => retryMessage(item)}
             activeOpacity={isFailed ? 0.7 : 1}
-            accessibilityLabel={isFailed ? 'Message non envoyé — réessayer' : undefined}
+            accessibilityLabel={isFailed ? t('messages.not_sent_a11y') : undefined}
             style={[
               b.bubble,
               isMine
@@ -483,7 +485,7 @@ export default function ConversationScreen() {
               accessibilityLabel="Réessayer"
             >
               <Feather name="refresh-cw" size={15} color={theme.accentText} />
-              <Text style={[s.retryBtnText, { color: theme.accentText }]}>Réessayer</Text>
+              <Text style={[s.retryBtnText, { color: theme.accentText }]}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -506,7 +508,7 @@ export default function ConversationScreen() {
             ListEmptyComponent={
               <View style={s.emptyWrap}>
                 <Feather name="message-circle" size={44} color={theme.textMuted} />
-                <Text style={[s.emptyText, { color: theme.textMuted }]}>Démarrez la conversation</Text>
+                <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('messages.start_conversation')}</Text>
               </View>
             }
             ListFooterComponent={
@@ -536,7 +538,7 @@ export default function ConversationScreen() {
               style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
               value={inputText}
               onChangeText={handleTextChange}
-              placeholder="Votre message…"
+              placeholder={t('messages.placeholder')}
               placeholderTextColor={theme.textMuted}
               multiline
               maxLength={2000}

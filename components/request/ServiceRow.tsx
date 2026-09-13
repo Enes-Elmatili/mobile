@@ -49,7 +49,7 @@ export function ServiceRow({ label, description, pricingMode, selected, onPress,
         <View style={s.main}>
           <Text style={[s.name, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>{label}</Text>
           {description ? (
-            <Text style={[s.desc, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>{description}</Text>
+            <Text style={[s.desc, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{description}</Text>
           ) : null}
         </View>
         <View style={[s.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(21,193,110,0.15)' }]}>
@@ -69,7 +69,7 @@ const s = StyleSheet.create({
   row:      { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, marginHorizontal: 8, borderRadius: 14, borderBottomWidth: 1 },
   main:     { flex: 1, minWidth: 0 },
   name:     { fontFamily: FONTS.sansMedium, fontSize: 15 },
-  desc:     { fontFamily: FONTS.sans, fontSize: 12.5, marginTop: 2 },
+  desc:     { fontFamily: FONTS.sans, fontSize: 12.5, lineHeight: 17, marginTop: 2 },
   pill:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, minWidth: 70, alignItems: 'center' },
   pillText: { fontFamily: FONTS.sansMedium, fontSize: 11 },
   radio:    { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

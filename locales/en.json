@@ -804,7 +804,19 @@
     "empty_title": "No messages",
     "empty_sub": "Your conversations will appear here",
     "unread": "unread",
-    "you": "You"
+    "you": "You",
+    "load_error_title": "Your messages could not be loaded.",
+    "load_error_sub": "Check your connection and try again.",
+    "find_pro": "Find a pro",
+    "start_conversation": "Start the conversation",
+    "not_sent_closed": "Message not sent — the conversation is closed.",
+    "not_sent_retry": "Message not sent. Tap the message to retry.",
+    "not_sent_a11y": "Message not sent — retry",
+    "just_now": "Just now",
+    "minutes_short": "{{n}} min",
+    "hours_short": "{{n}} h",
+    "days_short": "{{n}} d",
+    "empty_sub_client": "Your conversations with pros will appear here."
   },
   "wallet": {
     "title": "Wallet",
@@ -2137,5 +2149,124 @@
     "close": "Close",
     "no_photo": "No photo",
     "price_tbd": "to confirm"
+  },
+  "services": {
+    "chasse-eau-mecanisme-wc": {
+      "desc": "Repair or replacement of the flush mechanism"
+    },
+    "debouchage-canalisation": {
+      "desc": "Unblocking a fixture with a drain snake (sink, basin, shower, bath)"
+    },
+    "debouchage-wc": {
+      "desc": "Unblocking a standard, wall-hung or macerator toilet"
+    },
+    "detartrage-circuit": {
+      "desc": "Flushing the heating circuit or descaling a water heater"
+    },
+    "entretien-pompe-chaleur": {
+      "desc": "Annual service of an air-to-water or air-to-air heat pump"
+    },
+    "fuite-eau": {
+      "desc": "Repair of a visible, located leak (pipe, tap, fitting, trap)"
+    },
+    "fuite-electromenager": {
+      "desc": "Leak at the connection or hose of a washing machine or dishwasher"
+    },
+    "fuite-colonne-principale": {
+      "desc": "Leak on a building’s supply or drain riser"
+    },
+    "debouchage-hydrocurage": {
+      "desc": "High-pressure jetting, building riser, outdoor drain"
+    },
+    "inspection-camera": {
+      "desc": "Camera inspection to assess a pipe before works or after damage"
+    },
+    "installation-chauffe-eau": {
+      "desc": "Installation or replacement of a water heater, boiler or heat-pump tank"
+    },
+    "installation-douche-baignoire": {
+      "desc": "Installation or replacement of a shower tray, enclosure or bathtub"
+    },
+    "installation-sanitaire": {
+      "desc": "Installation or replacement of a basin, washbowl or sink"
+    },
+    "installation-wc": {
+      "desc": "Installation of a standard, wall-hung or macerator toilet"
+    },
+    "panne-chauffe-eau": {
+      "desc": "Repair of a water heater, boiler or hot-water tank"
+    },
+    "recherche-fuite": {
+      "desc": "Locating a leak of unknown origin (damp trace, excess consumption, water damage)"
+    },
+    "regonflage-pression": {
+      "desc": "Repressurising the heating circuit and bleeding the radiators"
+    },
+    "remplacement-robinet": {
+      "desc": "Removal and fitting of a new tap or mixer"
+    },
+    "renovation-plomberie": {
+      "desc": "Full bathroom renovation, pipe replacement, or work outside the catalogue"
+    },
+    "reparation-wc": {
+      "desc": "Loose bowl, wobbly toilet, seat, or macerator failure"
+    },
+    "blindage-porte": {
+      "desc": "Reinforcing an existing door or fitting an armoured door set"
+    },
+    "boite-aux-lettres": {
+      "desc": "Opening, lock replacement or fitting of a mailbox"
+    },
+    "cle-cassee-coincee": {
+      "desc": "Key broken in the lock, stuck key, or seized lock"
+    },
+    "controle-acces": {
+      "desc": "Electric strike, smart lock, keypad, RFID badge — installation or fault"
+    },
+    "double-cle-badge": {
+      "desc": "Key cutting, badge or remote programming, at your home"
+    },
+    "installation-coffre-fort": {
+      "desc": "Supply and anchoring of a safe or security cabinet"
+    },
+    "installation-porte": {
+      "desc": "Fitting a new door, standard or armoured, with its frame"
+    },
+    "installation-verrou": {
+      "desc": "Fitting an extra deadbolt, standard or high-security"
+    },
+    "securite-porte-accessoires": {
+      "desc": "Fitting a peephole, anti-jemmy strip, armoured handle or key safe"
+    },
+    "mise-en-securite-effraction": {
+      "desc": "Temporary closure and immediate securing after a burglary or attempted break-in"
+    },
+    "ouverture-coffre-fort": {
+      "desc": "Opening a jammed safe, lost code or failed lock"
+    },
+    "ouverture-porte-claquee": {
+      "desc": "Door slammed behind you, key left inside — opening without damage"
+    },
+    "ouverture-porte-blindee": {
+      "desc": "Locked door, armoured or high-security door, outdoor gate"
+    },
+    "portail-motorisation": {
+      "desc": "Jammed gate, failed motor, or installation of a motorised gate"
+    },
+    "remplacement-cylindre": {
+      "desc": "Cylinder change after key loss or burglary — standard cylinder included"
+    },
+    "remplacement-serrure": {
+      "desc": "Replacing the whole lock: single-point, multi-point or armoured"
+    },
+    "reparation-porte": {
+      "desc": "Door that sags, catches, no longer closes, or broken handle"
+    },
+    "reparation-serrure": {
+      "desc": "Lock that catches, bolt that no longer throws, seized deadbolt — repair without replacement"
+    },
+    "volets-rideaux-metalliques": {
+      "desc": "Roller shutter or metal grille jammed, off-track, or motor failure"
+    }
   }
 }

@@ -27,7 +27,7 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import { useStripe } from '@stripe/stripe-react-native';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
-import { translateCategory, translateSubcategory } from '@/lib/categoryLabel';
+import { translateCategory, translateSubcategory, translateSubcategoryDescription } from '@/lib/categoryLabel';
 import i18nInstance from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -1640,7 +1640,7 @@ export default function NewRequestStepper() {
                         <React.Fragment key={sub.id}>
                           <ServiceRow
                             label={translateSubcategory(i18nInstance.language, sub)}
-                            description={sub.description}
+                            description={translateSubcategoryDescription(i18nInstance.language, sub, t)}
                             pricingMode={sub.pricingMode}
                             selected={subcategoryId === sub.id}
                             onPress={() => setSubcategoryId(sub.id)}

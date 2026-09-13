@@ -112,3 +112,23 @@ export function translateRequestService(
 export function translateRequestServiceRaw(request: RequestLike): string {
   return translateRequestService(i18nInstance.language, request);
 }
+
+/**
+ * Description d'une prestation dans la langue courante. Le serveur ne porte
+ * que le français (Subcategory.description, éditable dans l'admin) ; les
+ * versions NL/EN vivent dans locales/*.json sous `services.<slug>.desc`, comme
+ * les consignes de photos. Sans traduction, on renvoie le texte serveur.
+ */
+export function translateSubcategoryDescription(
+  lang: string,
+  sub: { slug?: string | null; description?: string | null } | null | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (!sub) return '';
+  const fallback = sub.description || '';
+  const langKey = (lang || 'fr').split('-')[0].toLowerCase();
+  if (langKey === 'fr' || !sub.slug) return fallback;
+  const key = `services.${sub.slug}.desc`;
+  const translated = t(key, { defaultValue: '' });
+  return translated && translated !== key ? translated : fallback;
+}

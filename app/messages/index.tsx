@@ -14,6 +14,8 @@ import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import Avatar from '@/components/ui/Avatar';
 import { cleanName } from '@/lib/displayName';
 import Animated from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import i18nInstance from '@/lib/i18n';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
@@ -41,16 +43,19 @@ export const contactNameCacheSet = (id: string, name: string) => { contactNameCa
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function timeAgo(isoString: string): string {
+const LOCALE_TAG: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB' };
+
+function timeAgo(isoString: string, t: (k: string, o?: any) => string): string {
   const diff = Date.now() - new Date(isoString).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "À l'instant";
-  if (mins < 60) return `${mins} min`;
+  if (mins < 1) return t('messages.just_now');
+  if (mins < 60) return t('messages.minutes_short', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} h`;
+  if (hours < 24) return t('messages.hours_short', { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} j`;
-  return new Date(isoString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  if (days < 7) return t('messages.days_short', { n: days });
+  const lang = (i18nInstance.language || 'fr').split('-')[0];
+  return new Date(isoString).toLocaleDateString(LOCALE_TAG[lang] ?? 'fr-BE', { day: '2-digit', month: 'short' });
 }
 
 function displayLabel(userId: string): string {
@@ -63,6 +68,7 @@ function displayLabel(userId: string): string {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function MessagesInbox() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { refreshUnreadMessages } = useSocket();
   const router = useRouter();
@@ -166,7 +172,7 @@ export default function MessagesInbox() {
       <View style={s.rowContent}>
         <View style={s.rowTop}>
           <Text style={[s.rowName, { color: theme.textAlt }, item.unread && s.rowNameBold]} numberOfLines={1}>{item.displayName}</Text>
-          <Text style={[s.rowTime, { color: theme.textMuted }]}>{timeAgo(item.lastAt)}</Text>
+          <Text style={[s.rowTime, { color: theme.textMuted }]}>{timeAgo(item.lastAt, t)}</Text>
         </View>
         <Text
           style={[s.rowPreview, { color: theme.textMuted }, item.unread && { color: theme.textAlt, fontFamily: FONTS.sansBold }]}
@@ -194,7 +200,7 @@ export default function MessagesInbox() {
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]}>Messages</Text>
+        <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('messages.title')}</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -205,34 +211,34 @@ export default function MessagesInbox() {
       ) : loadError && conversations.length === 0 ? (
         <View style={s.centered}>
           <Feather name="wifi-off" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
-          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>Impossible de charger vos messages.</Text>
+          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>{t('messages.load_error_title')}</Text>
           <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
-            Vérifiez votre connexion et réessayez.
+            {t('messages.load_error_sub')}
           </Text>
           <TouchableOpacity
             style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => { setLoading(true); fetchInbox(); }}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Réessayer"
+            accessibilityLabel={t('common.retry')}
           >
-            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>RÉESSAYER</Text>
+            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('common.retry').toUpperCase()}</Text>
             <Feather name="refresh-cw" size={15} color={theme.accentText} />
           </TouchableOpacity>
         </View>
       ) : conversations.length === 0 ? (
         <View style={s.centered}>
           <Feather name="message-circle" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
-          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>Aucun message.</Text>
+          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>{t('messages.empty_title')}</Text>
           <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
-            Vos échanges avec les prestataires apparaîtront ici.
+            {t('messages.empty_sub_client')}
           </Text>
           <TouchableOpacity
             style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.replace('/(tabs)/dashboard')}
             activeOpacity={0.85}
           >
-            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>TROUVER UN PRO</Text>
+            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('messages.find_pro').toUpperCase()}</Text>
             <Feather name="arrow-right" size={15} color={theme.accentText} />
           </TouchableOpacity>
         </View>

@@ -14,6 +14,11 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 const RESTORED_BANNER_MS = 2500;
+// Le socket coupe à chaque passage en arrière-plan et se reconnecte en une ou
+// deux secondes au retour : sans ce délai, « Reconnexion… » puis « Connexion
+// rétablie » s'affichaient à CHAQUE retour dans l'app. Même délai que le réseau
+// (NetworkContext, 4 s) : on ne signale qu'une coupure qui dure.
+const SOCKET_DOWN_DELAY_MS = 4_000;
 
 export function OfflineBanner() {
   const { isOnline, wasOffline } = useNetwork();
@@ -30,8 +35,22 @@ export function OfflineBanner() {
 
   // Socket down alors que le réseau est OK → "Reconnexion…"
   // ('connecting' initial exclu pour ne pas afficher le bandeau à chaque démarrage)
-  const socketDown = isOnline &&
+  const socketDownRaw = isOnline &&
     (connectionStatus === 'disconnected' || connectionStatus === 'reconnecting');
+  // Coupure socket confirmée (a duré plus de SOCKET_DOWN_DELAY_MS).
+  const [socketDown, setSocketDown] = useState(false);
+  const socketTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (socketDownRaw) {
+      if (!socketTimerRef.current) {
+        socketTimerRef.current = setTimeout(() => { socketTimerRef.current = null; setSocketDown(true); }, SOCKET_DOWN_DELAY_MS);
+      }
+    } else {
+      if (socketTimerRef.current) { clearTimeout(socketTimerRef.current); socketTimerRef.current = null; }
+      setSocketDown(false);
+    }
+    return () => { if (socketTimerRef.current) { clearTimeout(socketTimerRef.current); socketTimerRef.current = null; } };
+  }, [socketDownRaw]);
   const prevSocketDownRef = useRef(false);
 
   const bannerActive = !isOnline || socketDown;

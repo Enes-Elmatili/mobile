@@ -804,7 +804,19 @@
     "empty_title": "Aucun message",
     "empty_sub": "Vos conversations apparaîtront ici",
     "unread": "non lu",
-    "you": "Vous"
+    "you": "Vous",
+    "load_error_title": "Impossible de charger vos messages.",
+    "load_error_sub": "Vérifiez votre connexion et réessayez.",
+    "find_pro": "Trouver un pro",
+    "start_conversation": "Démarrez la conversation",
+    "not_sent_closed": "Message non envoyé — la conversation est fermée.",
+    "not_sent_retry": "Message non envoyé. Appuyez sur le message pour réessayer.",
+    "not_sent_a11y": "Message non envoyé — réessayer",
+    "just_now": "À l'instant",
+    "minutes_short": "{{n}} min",
+    "hours_short": "{{n}} h",
+    "days_short": "{{n}} j",
+    "empty_sub_client": "Vos échanges avec les prestataires apparaîtront ici."
   },
   "wallet": {
     "title": "Portefeuille",
@@ -2137,5 +2149,6 @@
     "close": "Fermer",
     "no_photo": "Sans photo",
     "price_tbd": "à confirmer"
-  }
+  },
+  "services": {}
 }
