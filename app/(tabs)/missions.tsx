@@ -20,6 +20,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
 import Reanimated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+import { SplitPane, useSplitPane } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useTabBarPadding } from './_layout';
 import { useSocket } from '@/lib/SocketContext';
@@ -859,7 +860,8 @@ const tb = StyleSheet.create({
 // MISSION DETAIL -- Bottom Sheet
 // ============================================================================
 
-function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
+function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = false }: {
+  inPane?: boolean;
   mission: Mission; onNavigate: () => void; onComplete: () => void; onViewFull: () => void;
 }) {
   const t = useAppTheme();
@@ -884,8 +886,10 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
   const badgeBg    = cfg.done ? t.surface : cfg.active ? t.accent : t.surface;
   const badgeColor = cfg.done ? t.textSub : cfg.active ? t.accentText : t.textMuted;
 
+  // Dans un volet (SplitPane), pas de contexte gorhom : ScrollView natif.
+  const Scroller = inPane ? ScrollView : BottomSheetScrollView;
   return (
-    <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
+    <Scroller contentContainerStyle={[sd.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
       {/* -- Mini-carte -- */}
       {hasCoords ? (
         <View style={sd.mapContainer}>
@@ -1112,7 +1116,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
           </View>
         )}
 
-    </BottomSheetScrollView>
+    </Scroller>
   );
 }
 
@@ -1120,7 +1124,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull }: {
 // OPPORTUNITY DETAIL -- Bottom Sheet (avant acceptation)
 // ============================================================================
 
-function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
+function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane = false }: {
+  inPane?: boolean;
   opportunity: Opportunity;
   onAccept: () => void;
   onDecline: () => void;
@@ -1148,8 +1153,9 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
     accessRows.push({ icon: 'chevrons-up', text: item.accessHasElevator ? tr('ext.missions_elevator_available') : tr('ext.missions_no_elevator') });
   if (buildingLabel) accessRows.push({ icon: 'home', text: buildingLabel });
 
+  const Scroller = inPane ? ScrollView : BottomSheetScrollView;
   return (
-    <BottomSheetScrollView contentContainerStyle={[sd.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
+    <Scroller contentContainerStyle={[sd.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
       {/* -- Mini-carte -- */}
       {hasCoords ? (
         <View style={sd.mapContainer}>
@@ -1282,7 +1288,7 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting }: {
           <SlideToConfirm label={tr('provider.accept')} onConfirm={onAccept} disabled={accepting} />
         </View>
       </View>
-    </BottomSheetScrollView>
+    </Scroller>
   );
 }
 
@@ -1377,6 +1383,8 @@ export default function Missions() {
   // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
   // et sert aussi au bouton back Android.
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  // Deux volets sur regular : le détail vit à droite, le sheet ne s'ouvre plus.
+  const isSplit = useSplitPane();
   const closeDetailSheet = useCallback(() => { bottomSheetRef.current?.close(); }, []);
   useAndroidBackClose(detailSheetOpen, closeDetailSheet);
 
@@ -1692,6 +1700,9 @@ export default function Missions() {
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: t.bg }]}>
+      <SplitPane
+        master={(
+          <>
 
       {/* -- Header -- */}
       <View style={[s.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
@@ -1837,7 +1848,47 @@ export default function Missions() {
       )}
 
       {/* -- Bottom Sheet Detail -- */}
-      {detailSheetOpen && (
+          </>
+        )}
+        detail={isSplit && detailSheetOpen ? (
+          <>
+      {(() => {
+        if (!isSplit || !detailSheetOpen) return null;
+        if (loadingDetails) return <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />;
+        if (selectedMission) return (
+          <MissionDetail
+            inPane
+            mission={selectedMission}
+            onNavigate={() => handleNavigate(selectedMission)}
+            onComplete={() => { setDetailSheetOpen(false); handleComplete(selectedMission); }}
+            onViewFull={() => {
+              setDetailSheetOpen(false);
+              const st = selectedMission.status?.toUpperCase();
+              if (st === 'QUOTE_PENDING') router.push({ pathname: '/request/[id]/send-quote', params: { id: selectedMission.id } });
+              else router.replace({ pathname: '/request/[id]/ongoing', params: { id: selectedMission.id } });
+            }}
+          />
+        );
+        if (selectedOpportunity) return (
+          <OpportunityDetail
+            inPane
+            opportunity={selectedOpportunity}
+            accepting={acceptingOpp === selectedOpportunity.id}
+            onAccept={() => { setDetailSheetOpen(false); handleAcceptOpp(selectedOpportunity.id); }}
+            onDecline={() => { setDetailSheetOpen(false); handleDeclineOpp(selectedOpportunity.id); }}
+          />
+        );
+        return null;
+      })()}
+          </>
+        ) : null}
+        placeholder={(
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.4, color: t.textMuted, textTransform: 'uppercase' }}>{tr('missions.select_hint', { defaultValue: 'Sélectionnez une mission' })}</Text>
+          </View>
+        )}
+      />
+      {detailSheetOpen && !isSplit && (
       <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailSheetOpen(false)} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={windowHeight * 0.85}>
         {loadingDetails ? (
           <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
