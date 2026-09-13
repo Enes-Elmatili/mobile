@@ -1,275 +1,187 @@
-// mobile/components/searching/LiveMapSearching.tsx
-// Dark-first replacement for the SEARCHING phase in /request/[id]/missionview.tsx.
-// Uses the app design tokens (useAppTheme / FONTS / COLORS) — no hardcoded palette.
-
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, Marker, Circle } from 'react-native-maps';
-import { BlurView } from 'expo-blur';
-import { Feather } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue, useAnimatedStyle, withRepeat, withTiming,
-  withDelay, Easing, withSequence, withSpring,
-  useAnimatedReaction, runOnJS,
-  FadeInDown, FadeOut, LinearTransition,
-} from 'react-native-reanimated';
-import { MOTION } from '@/lib/motion/springs';
-import { BreathingRings } from './BreathingRings';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+// components/searching/LiveMapSearching.tsx — l'attente d'un prestataire.
+// « La carte devient le récit » (planche C, 13/09/2026) : plus rien de
+// décoratif — ni halo, ni cercle, ni fil simulé. Ce qui bouge est un fait :
+//   - les prestataires proches dorment sur la carte, à leur vraie position ;
+//   - quand le serveur en prévient une vague (request:matching / wave), leurs
+//     pastilles s'éveillent une à une (MOTION.take) et un trait les relie à
+//     l'adresse ; un refus (declined) éteint la pastille et retire le trait ;
+//   - la feuille dit l'état en une phrase (Bebas), montre la demande et
+//     propose d'annuler ; une ligne mono compte le temps et la vague suivante.
+// La carte est verrouillée et rembourrée de la hauteur de la feuille : les
+// positions à l'écran sont stables, les pastilles et les traits sont des
+// vues Reanimated (pas des Marker natifs), calculées avec pointForCoordinate.
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import { Image } from 'expo-image';
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { MOTION } from '@/lib/motion/springs';
+import { useReduceMotion } from '@/lib/motion/sheet';
+import { usePresence } from '@/lib/motion/usePresence';
 import { useSocket } from '@/lib/SocketContext';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
-import { formatEUR } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
+import type { MissionBrief } from '@/lib/mission/brief';
+import { MissionRow } from '@/components/mission/MissionRow';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface NearbyProvider {
+type Pro = {
   id: string;
-  name?: string | null;
-  lat: number;
-  lng: number;
-  rating?: number | null;
-}
+  name: string | null;
+  avatarUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+  etaMin: number | null;
+  /** 0 = pas encore prévenu (endormi), sinon la vague. */
+  wave: number;
+  declined: boolean;
+};
 
-interface FeedItem {
-  id: string;
-  text: string;
-  createdAt: number; // epoch ms — formatted live via timeAgo()
-  pulse?: boolean;   // true = latest event, dot pulses instead of filled
-}
+type WaveEvent = {
+  requestId: number | string; kind: 'wave'; round: number;
+  providers: { id: string; name: string | null; avatarUrl: string | null; lat: number | null; lng: number | null; distanceKm: number | null; etaMin: number | null }[];
+  remaining: number; nextWaveInMs: number | null;
+};
+type DeclinedEvent = { requestId: number | string; kind: 'declined'; providerId: string };
 
 export interface LiveMapSearchingProps {
   missionId: string | number;
   missionCoord: { latitude: number; longitude: number };
-  missionTitle?: string;
-  missionAddress?: string;
-  missionWhen?: string;
-  missionPrice?: string | number | null;
+  brief: MissionBrief;
   expiresAt?: string | null;
   cancelling?: boolean;
   isScheduled?: boolean;
-  isQuote?: boolean;
+  scheduledLabel?: string | null;
+  acceptedName?: string | null;
   onCancel: () => void;
 }
 
-// Live "X s / X min" formatter — re-rendered every 10s via useNow().
-function timeAgo(ms: number, now: number, t: (k: string, opts?: any) => string): string {
-  const diff = Math.max(0, Math.floor((now - ms) / 1000));
-  if (diff < 5) return t('ext.searching_time_now');
-  if (diff < 60) return t('ext.searching_time_seconds', { s: diff });
-  const mins = Math.floor(diff / 60);
-  if (mins < 60) return t('ext.searching_time_minutes', { m: mins });
-  const hours = Math.floor(mins / 60);
-  return t('ext.searching_time_hours', { h: hours });
-}
-
-function useNow(tickMs: number = 10000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), tickMs);
-    return () => clearInterval(t);
-  }, [tickMs]);
+// ── Temps ────────────────────────────────────────────────────────────────────
+function useTick(ms: number): number {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(id); }, [ms]);
   return now;
 }
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+const firstName = (name: string | null | undefined) => cleanName(name ?? '').split(/\s+/)[0] || '';
 
-// ── Map styles (aligned with missionview.tsx) ────────────────────────────────
-// Styles carte (source unique light + dark)
-import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
-
-// ── Hooks ────────────────────────────────────────────────────────────────────
-function useCountdown(expiresAt?: string | null): string | null {
-  const [left, setLeft] = useState<number | null>(() =>
-    expiresAt ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)) : null,
+// ── Pastille d'un prestataire (vue à l'écran, pas un Marker) ─────────────────
+const PIN = 40;
+function ProPin({ pro, x, y, order }: { pro: Pro; x: number; y: number; order: number }) {
+  const theme = useAppTheme();
+  const reduced = useReduceMotion();
+  const awake = pro.wave > 0 && !pro.declined;
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(pro.declined ? 0.3 : 1);
+  useEffect(() => {
+    if (awake && !reduced) {
+      // Le réveil : la pastille « prend » (MOTION.take), en cascade dans la vague.
+      scale.value = withDelay(order * 110, withSpring(1.12, MOTION.take, () => { scale.value = withSpring(1, MOTION.take); }));
+    }
+    opacity.value = withTiming(pro.declined ? 0.3 : 1, { duration: 250 });
+  }, [awake, pro.declined, reduced, order, scale, opacity]);
+  const st = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }));
+  const initials = cleanName(pro.name ?? '').split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '·';
+  return (
+    <Animated.View pointerEvents="none" style={[s.pin, { left: x - PIN / 2, top: y - PIN / 2 }, st]}>
+      <View style={[s.pinDisc, { backgroundColor: awake ? theme.accent : theme.surface, borderColor: awake ? theme.accent : theme.border }]}>
+        {pro.avatarUrl ? (
+          <Image source={{ uri: pro.avatarUrl }} style={s.pinImg} contentFit="cover" />
+        ) : (
+          <Text style={[s.pinText, { color: awake ? theme.accentText : theme.textMuted }]}>{initials}</Text>
+        )}
+      </View>
+      {awake && pro.etaMin != null ? (
+        <View style={[s.pinLabel, { backgroundColor: theme.isDark ? 'rgba(20,20,20,0.85)' : 'rgba(255,255,255,0.9)' }]}>
+          <Text style={[s.pinLabelText, { color: theme.textSub }]}>{`${firstName(pro.name).toUpperCase()} · ${pro.etaMin} MIN`}</Text>
+        </View>
+      ) : null}
+    </Animated.View>
   );
-  useEffect(() => {
-    if (!expiresAt) { setLeft(null); return; }
-    const compute = () => Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
-    setLeft(compute());
-    const t = setInterval(() => setLeft(compute()), 1000);
-    return () => clearInterval(t);
-  }, [expiresAt]);
-  if (left == null) return null;
-  const mm = String(Math.floor(left / 60)).padStart(2, '0');
-  const ss = String(left % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
 }
 
-// ── Animated primitives ──────────────────────────────────────────────────────
-function Blink({ children, period = 1000 }: { children: React.ReactNode; period?: number }) {
-  const o = useSharedValue(1);
-  useEffect(() => {
-    o.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: period / 2 }),
-        withTiming(0.2, { duration: period / 2 }),
-      ),
-      -1,
-      false,
-    );
-  }, [period]);
-  const st = useAnimatedStyle(() => ({ opacity: o.value }));
-  return <Animated.View style={st}>{children}</Animated.View>;
-}
-
-function Float({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+// ── Trait entre l'adresse et une pastille éveillée ───────────────────────────
+// Un View fin dont la largeur grandit (sûr sur Android, contrairement à un
+// trait SVG animé). Pivot au point de départ : on tourne autour du bord gauche
+// en compensant par une translation.
+function Link({ from, to, visible, order, color }: { from: { x: number; y: number }; to: { x: number; y: number }; visible: boolean; order: number; color: string }) {
+  const reduced = useReduceMotion();
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
   const p = useSharedValue(0);
   useEffect(() => {
-    p.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(-6, { duration: 2500, easing: Easing.inOut(Easing.cubic) }),
-          withTiming(0, { duration: 2500, easing: Easing.inOut(Easing.cubic) }),
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [delay]);
-  const st = useAnimatedStyle(() => ({ transform: [{ translateY: p.value }] }));
-  return <Animated.View style={st}>{children}</Animated.View>;
-}
-
-function Spinner({ color, track }: { color: string; track: string }) {
-  const r = useSharedValue(0);
-  useEffect(() => {
-    r.value = withRepeat(withTiming(360, { duration: 900, easing: Easing.linear }), -1, false);
-  }, []);
-  const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.value}deg` }] }));
+    p.value = reduced ? (visible ? 1 : 0) : withDelay(visible ? order * 110 + 120 : 0, withTiming(visible ? 1 : 0, { duration: visible ? 480 : 220 }));
+  }, [visible, reduced, order, p]);
+  const st = useAnimatedStyle(() => ({ width: length * p.value, opacity: 0.35 * p.value }));
   return (
-    <View style={{ width: 22, height: 22 }}>
-      <View style={{ position: 'absolute', width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: track }} />
-      <Animated.View
-        style={[
-          { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'transparent', borderTopColor: color, borderRightColor: color },
-          st,
-        ]}
-      />
+    <View pointerEvents="none" style={[s.linkPivot, { left: from.x, top: from.y, transform: [{ rotate: `${angle}deg` }] }]}>
+      <Animated.View style={[s.link, { backgroundColor: color }, st]} />
     </View>
   );
 }
 
-// ── Markers ──────────────────────────────────────────────────────────────────
-function initials(name?: string | null): string {
-  if (!name) return '·';
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(w => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || '·';
-}
-
-function ProviderPin({ p, delay, theme }: { p: NearbyProvider; delay: number; theme: ReturnType<typeof useAppTheme> }) {
+// ── Titre qui change avec les faits ──────────────────────────────────────────
+function Headline({ text, sub }: { text: string; sub: string }) {
+  const theme = useAppTheme();
+  const [shown, setShown] = useState({ text, sub });
+  const [visible, setVisible] = useState(true);
+  const presence = usePresence(visible, { from: 'bottom', preset: MOTION.pane });
+  useEffect(() => {
+    if (text === shown.text && sub === shown.sub) return;
+    setVisible(false);
+    const id = setTimeout(() => { setShown({ text, sub }); setVisible(true); }, 160);
+    return () => clearTimeout(id);
+  }, [text, sub, shown]);
   return (
-    <Marker coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.2, y: 1 }}>
-      <Float delay={delay}>
-        <View style={[s.pinCard, { backgroundColor: theme.cardBg, shadowColor: theme.text }]}>
-          <View style={[s.pinAvatar, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-            <Text style={[s.pinAvatarText, { color: theme.text }]}>{initials(cleanName(p.name))}</Text>
-          </View>
-          {typeof p.rating === 'number' && p.rating > 0 && (
-            <View style={s.pinRating}>
-              <Feather name="star" size={10} color={COLORS.amber} />
-              <Text style={[s.pinRatingText, { color: theme.text }]}>{p.rating.toFixed(1)}</Text>
-            </View>
-          )}
-          <View style={[s.pinBadge, { backgroundColor: COLORS.greenBrand, borderColor: theme.cardBg }]} />
-          <View style={[s.pinTail, { backgroundColor: theme.cardBg }]} />
-        </View>
-      </Float>
-    </Marker>
+    <Animated.View style={presence.style}>
+      <Text style={[s.h1, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{shown.text}</Text>
+      <Text style={[s.sub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{shown.sub}</Text>
+    </Animated.View>
   );
 }
 
-function UserPin({ coord, surface }: { coord: { latitude: number; longitude: number }; surface: string }) {
-  // Halo + radar rings removed — visually noisy on Apple Maps / low zoom and
-  // duplicates the Circle overlay. Only the green dot remains to anchor the
-  // mission address.
-  return (
-    <Marker coordinate={coord} anchor={{ x: 0.5, y: 0.5 }}>
-      <View
-        style={{
-          width: 22, height: 22, borderRadius: 11, backgroundColor: COLORS.greenBrand,
-          borderWidth: 3, borderColor: surface,
-          shadowColor: COLORS.greenBrand, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
-          elevation: 6,
-        }}
-      />
-    </Marker>
-  );
-}
-
-// ── Main screen ──────────────────────────────────────────────────────────────
+// ── Écran ────────────────────────────────────────────────────────────────────
 export default function LiveMapSearching(props: LiveMapSearchingProps) {
-  const {
-    missionId, missionCoord: rawCoord, missionTitle, missionAddress, missionWhen,
-    missionPrice, expiresAt, cancelling, isScheduled, isQuote,
-    onCancel,
-  } = props;
-
-  // Stabilize the coordinate reference: the parent rebuilds `clientLocation`
-  // every render (elapsed timer ticks every 1s upstream), which would hand a
-  // new object to <Marker coordinate> and make react-native-maps think the
-  // pin moved. Rebuild only when lat/lng actually change.
-  const missionCoord = useMemo(
-    () => ({ latitude: rawCoord.latitude, longitude: rawCoord.longitude }),
-    [rawCoord.latitude, rawCoord.longitude],
-  );
-
+  const { missionId, missionCoord: rawCoord, brief, expiresAt, cancelling, isScheduled, scheduledLabel, acceptedName, onCancel } = props;
+  const missionCoord = useMemo(() => ({ latitude: rawCoord.latitude, longitude: rawCoord.longitude }), [rawCoord.latitude, rawCoord.longitude]);
   const theme = useAppTheme();
   const { t } = useTranslation();
-  const { socket } = useSocket();
-  const timer = useCountdown(expiresAt);
-  // Hauteur de la feuille : la carte est rembourrée d'autant (mapPadding) pour
-  // que l'adresse se retrouve au centre de la zone VISIBLE, là où respirent
-  // les anneaux. Avant : anneaux au centre de l'écran, adresse au centre de la
-  // carte (sous la feuille), et un panoramique les séparait pour de bon.
-  const [sheetHeight, setSheetHeight] = useState(0);
   const insets = useSafeAreaInsets();
+  const { socket } = useSocket();
+  const mapRef = useRef<MapView>(null);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const [mapReady, setMapReady] = useState(false);
+  const [pros, setPros] = useState<Pro[]>([]);
+  const [round, setRound] = useState(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [nextWaveAt, setNextWaveAt] = useState<number | null>(null);
+  const [startedAt] = useState(() => Date.now());
+  const now = useTick(1000);
 
-  const [providers, setProviders] = useState<NearbyProvider[]>([]);
-  const [feed, setFeed] = useState<FeedItem[]>([]);
-  // Three-phase state machine drives pill copy, Circle radius, and feed
-  // collapsing. 0-45s searching, 45-60s expanding, 60s+ widened (calm).
-  const [phase, setPhase] = useState<'searching' | 'expanding' | 'widened'>('searching');
-  // Rayon du cercle de recherche : un ressort sur le thread UI, relayé à
-  // react-native-maps seulement quand la valeur arrondie change (le Circle
-  // n'accepte pas de prop animée). Avant : setInterval à 50 ms + setState.
-  const [circleRadius, setCircleRadius] = useState(2000);
-  const radiusSv = useSharedValue(2000);
-  useEffect(() => {
-    radiusSv.value = withSpring(phase === 'searching' ? 2000 : 3500, MOTION.recenter);
-  }, [phase, radiusSv]);
-  useAnimatedReaction(
-    () => Math.round(radiusSv.value / 10) * 10,
-    (next, prev) => { if (next !== prev) runOnJS(setCircleRadius)(next); },
-  );
-
-  // Live-searching accent pulls from the design charter's monochrome accent
-  // (white in dark mode, ink in light). Red is reserved for destructive
-  // actions (cancel button) per the palette.
-  const accent = theme.accent as string;
-  const fgMuted = theme.textMuted as string;
-  const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
-
-  // Real providers around the mission coord.
+  // Prestataires proches : endormis tant que le serveur ne les a pas prévenus.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res: any = await api.providers.nearby(missionCoord.latitude, missionCoord.longitude, 5);
-        const list: NearbyProvider[] = (res?.providers ?? []).map((p: any) => ({
-          id: String(p.id),
-          name: p.name,
-          lat: Number(p.lat),
-          lng: Number(p.lng),
-          rating: typeof p.rating === 'number' ? p.rating : null,
-        })).filter((p: NearbyProvider) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
-        if (!cancelled) setProviders(list.slice(0, 6));
+        const list: Pro[] = (res?.providers ?? [])
+          .map((p: any) => ({ id: String(p.id), name: p.name ?? null, avatarUrl: p.avatarUrl ?? null, lat: Number(p.lat), lng: Number(p.lng), etaMin: null, wave: 0, declined: false }))
+          .filter((p: Pro) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+          .slice(0, 8);
+        if (!cancelled) {
+          // Une vague a pu arriver avant la liste : on garde les éveillés.
+          setPros((cur) => {
+            const byId = new Map(list.map((p) => [p.id, p]));
+            for (const c of cur) byId.set(c.id, { ...(byId.get(c.id) ?? c), ...c });
+            return Array.from(byId.values());
+          });
+        }
       } catch (e: any) {
         devError('[LiveMapSearching] nearby providers failed:', e?.message);
       }
@@ -277,285 +189,150 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
     return () => { cancelled = true; };
   }, [missionCoord.latitude, missionCoord.longitude]);
 
-  // Seed feed once at mount. We never expose the raw provider count because
-  // "0 prestataires" is a psychological kill-signal during matching — we tell
-  // the user the algorithm is working, not whether there's currently supply.
-  useEffect(() => {
-    const base = Date.now();
-    setFeed([
-      {
-        id: 'seed-1',
-        text: isScheduled ? t('ext.searching_feed_seed_scheduled') : t('ext.searching_feed_seed_published'),
-        createdAt: base - 8_000,
-      },
-      {
-        id: 'seed-2',
-        text: isScheduled
-          ? t('ext.searching_feed_scheduled_sub')
-          : t('ext.searching_feed_searching_sub'),
-        createdAt: base - 2_000,
-        pulse: true,
-      },
-    ]);
-  }, [isScheduled, t]);
-
-  // Real socket: status updates → terminal lines appended to the feed.
+  // Les faits : vagues et refus.
   useEffect(() => {
     if (!socket) return;
-    const push = (text: string, pulse = false) =>
-      setFeed(prev => {
-        const demoted = prev.map(it => ({ ...it, pulse: false }));
-        return [{ id: `evt-${Date.now()}`, text, createdAt: Date.now(), pulse }, ...demoted].slice(0, 4);
-      });
-    const onStatusUpdated = (d: any) => {
-      if (String(d?.requestId ?? d?.id) !== String(missionId)) return;
-      const status = String(d?.status || '').toUpperCase();
-      if (status === 'ACCEPTED') push(t('ext.searching_feed_provider_found'), true);
-      else if (status === 'CANCELLED' || status === 'QUOTE_EXPIRED') push(t('ext.searching_feed_closed'));
+    const onMatching = (e: WaveEvent | DeclinedEvent) => {
+      if (String(e?.requestId) !== String(missionId)) return;
+      if (e.kind === 'wave') {
+        setRound((r) => Math.max(r, e.round));
+        setRemaining(e.remaining);
+        setNextWaveAt(e.nextWaveInMs != null ? Date.now() + e.nextWaveInMs : null);
+        setPros((cur) => {
+          const byId = new Map(cur.map((p) => [p.id, p]));
+          for (const p of e.providers) {
+            const prev = byId.get(String(p.id));
+            byId.set(String(p.id), {
+              id: String(p.id), name: p.name ?? prev?.name ?? null, avatarUrl: p.avatarUrl ?? prev?.avatarUrl ?? null,
+              lat: p.lat ?? prev?.lat ?? null, lng: p.lng ?? prev?.lng ?? null, etaMin: p.etaMin ?? prev?.etaMin ?? null,
+              wave: Math.max(1, e.round), declined: false,
+            });
+          }
+          return Array.from(byId.values());
+        });
+      } else if (e.kind === 'declined') {
+        setPros((cur) => cur.map((p) => (p.id === String(e.providerId) ? { ...p, declined: true } : p)));
+      }
     };
-    socket.on('request:statusUpdated', onStatusUpdated);
-    return () => { socket.off('request:statusUpdated', onStatusUpdated); };
-  }, [socket, missionId, t]);
+    socket.on('request:matching', onMatching);
+    return () => { socket.off('request:matching', onMatching); };
+  }, [socket, missionId]);
 
-  // Simulated matching progress — no client-facing socket event broadcasts
-  // the per-provider notification cadence today, so we surface a plausible
-  // progression to match user expectation of live activity. Timings tuned so
-  // the "expansion" signal lands at 45s (not before) to avoid panicking the
-  // client on a normal matching delay.
+  // Positions à l'écran : la carte est verrouillée, on les calcule à chaque
+  // changement de liste ou de rembourrage, avec pointForCoordinate.
+  const [points, setPoints] = useState<Record<string, { x: number; y: number }>>({});
+  const prosKey = pros.map((p) => `${p.id}:${p.lat}:${p.lng}`).join('|');
   useEffect(() => {
-    if (isScheduled) return;
-    const pushFeed = (msg: string) =>
-      setFeed(prev => {
-        const demoted = prev.map(it => ({ ...it, pulse: false }));
-        return [
-          { id: `sim-${Date.now()}`, text: msg, createdAt: Date.now(), pulse: true },
-          ...demoted,
-        ].slice(0, 4);
-      });
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(setTimeout(() => pushFeed(t('ext.searching_feed_one_notified')), 8_000));
-    timers.push(setTimeout(() => pushFeed(t('ext.searching_feed_n_notified', { n: 2 })), 20_000));
-    timers.push(setTimeout(() => pushFeed(t('ext.searching_feed_n_notified', { n: 3 })), 32_000));
-    timers.push(setTimeout(() => {
-      pushFeed(t('ext.searching_feed_expansion'));
-      setPhase('expanding');
-    }, 45_000));
-    timers.push(setTimeout(() => setPhase('widened'), 60_000));
-    return () => { timers.forEach(clearTimeout); };
-  }, [isScheduled, t]);
+    if (!mapReady || !mapRef.current) return;
+    let cancelled = false;
+    (async () => {
+      const next: Record<string, { x: number; y: number }> = {};
+      const targets: { key: string; lat: number; lng: number }[] = [
+        { key: 'me', lat: missionCoord.latitude, lng: missionCoord.longitude },
+        ...pros.filter((p) => p.lat != null && p.lng != null).map((p) => ({ key: p.id, lat: p.lat as number, lng: p.lng as number })),
+      ];
+      for (const tg of targets) {
+        try {
+          const pt = await mapRef.current!.pointForCoordinate({ latitude: tg.lat, longitude: tg.lng });
+          next[tg.key] = { x: pt.x, y: pt.y };
+        } catch { /* hors carte */ }
+      }
+      if (!cancelled) setPoints(next);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prosKey résume la liste
+  }, [mapReady, prosKey, missionCoord, sheetHeight]);
 
-  const now = useNow(10000);
+  // ── Le récit ──
+  const awake = pros.filter((p) => p.wave > 0 && !p.declined);
+  const declinedCount = pros.filter((p) => p.declined).length;
+  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const expiresIn = expiresAt ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / 1000)) : null;
+  const nextIn = nextWaveAt ? Math.max(0, Math.ceil((nextWaveAt - now) / 1000)) : null;
 
+  let headline: string;
+  let sub: string;
+  if (acceptedName) {
+    headline = t('searching.h_accepted', { name: firstName(acceptedName) });
+    sub = t('searching.s_accepted');
+  } else if (isScheduled) {
+    headline = t('searching.h_scheduled');
+    sub = scheduledLabel ? t('searching.s_scheduled', { when: scheduledLabel }) : t('searching.s_scheduled_generic');
+  } else if (awake.length === 0 && round === 0) {
+    headline = t('searching.h_notifying');
+    sub = t('searching.s_first');
+  } else if (awake.length === 0 && remaining === 0) {
+    headline = t('searching.h_wider');
+    sub = t('searching.s_wider');
+  } else if (awake.length === 0) {
+    headline = t('searching.h_next_wave');
+    sub = nextIn != null ? t('searching.s_next_wave', { time: mmss(nextIn) }) : t('searching.s_first');
+  } else {
+    headline = awake.length === 1 ? t('searching.h_one', { name: firstName(awake[0].name) }) : t('searching.h_many', { n: awake.length });
+    sub = nextIn != null && remaining ? t('searching.s_first_next', { time: mmss(nextIn) }) : t('searching.s_first');
+  }
 
-  const priceLabel = useMemo(() => {
-    if (missionPrice == null || missionPrice === '') return null;
-    const n = typeof missionPrice === 'number' ? missionPrice : parseFloat(String(missionPrice));
-    if (!Number.isFinite(n) || n <= 0) return null;
-    return formatEUR(n);
-  }, [missionPrice]);
+  const eyebrow = [
+    round > 0 ? t('searching.wave_n', { n: Math.max(1, round) }) : t('searching.searching'),
+    mmss(elapsed),
+    expiresIn != null && expiresIn < 300 ? t('searching.expires_in', { time: mmss(expiresIn) }) : null,
+  ].filter(Boolean).join(' · ');
 
-  // Pill carries the phase (state), not the counter — the counter lives in
-  // the activity feed below. Duplicating it in the pill doubles the anxiety
-  // on long waits. Scheduled missions bypass the phase machine entirely.
-  const pillTitle = isScheduled
-    ? t('ext.searching_pill_scheduled')
-    : phase === 'searching'
-      ? t('ext.searching_pill_searching')
-      : phase === 'expanding'
-        ? t('ext.searching_pill_expanding')
-        : t('ext.searching_pill_widened');
-  const pillSub = isScheduled
-    ? t('ext.searching_pill_scheduled_sub')
-    : phase === 'searching'
-      ? t('ext.searching_pill_searching_sub')
-      : phase === 'expanding'
-        ? t('ext.searching_pill_expanding_sub')
-        : t('ext.searching_pill_widened_sub');
+  const me = points.me;
+  const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
 
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
-      {/* Carte */}
       <MapView
+        ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_GOOGLE}
         customMapStyle={mapStyle}
-        initialRegion={{ ...missionCoord, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
-        showsCompass={false}
-        showsMyLocationButton={false}
-        showsPointsOfInterest={false}
-        showsBuildings={false}
-        showsTraffic={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
-        scrollEnabled={false}
-        zoomEnabled={false}
+        initialRegion={{ ...missionCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
+        showsCompass={false} showsMyLocationButton={false} showsPointsOfInterest={false} showsBuildings={false} showsTraffic={false}
+        rotateEnabled={false} pitchEnabled={false} scrollEnabled={false} zoomEnabled={false}
         mapPadding={{ top: 0, right: 0, bottom: sheetHeight, left: 0 }}
-      >
-        <Circle
-          center={missionCoord}
-          radius={circleRadius}
-          strokeColor={accent + '55'}
-          fillColor={accent + '10'}
-          strokeWidth={1}
-        />
-        {providers.map((p, i) => (
-          <ProviderPin key={p.id} p={p} delay={i * 300} theme={theme} />
-        ))}
-        <UserPin coord={missionCoord} surface={theme.cardBg as string} />
-      </MapView>
-      {/* Anneaux de recherche, ancrés sur l'adresse : même zone que la carte
-          rembourrée (au-dessus de la feuille), la carte ne se déplace pas. */}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: sheetHeight }]}>
-        <BreathingRings color={theme.textMuted} />
+        onMapReady={() => setMapReady(true)}
+      />
+
+      {/* Calque du récit : traits, pastilles, puis l'adresse par-dessus. */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        {me ? pros.map((p, i) => {
+          const pt = points[p.id];
+          if (!pt) return null;
+          return <Link key={`l-${p.id}`} from={me} to={pt} visible={p.wave > 0 && !p.declined} order={i} color={theme.text as string} />;
+        }) : null}
+        {pros.map((p, i) => {
+          const pt = points[p.id];
+          if (!pt) return null;
+          return <ProPin key={p.id} pro={p} x={pt.x} y={pt.y} order={i} />;
+        })}
+        {me ? <View style={[s.me, { left: me.x - 9, top: me.y - 9, borderColor: theme.cardBg }]} /> : null}
       </View>
 
-      {/* Top bar — no back button during active search. Accidentally tapping
-          back mid-matching would surface the dashboard while the user is
-          still "in flight", which is confusing. Cancel lives in the sheet. */}
-      <SafeAreaView edges={['top']} style={s.topArea} pointerEvents="box-none">
-        <View style={s.topBar}>
-          <BlurView
-            intensity={40}
-            tint={theme.isDark ? 'dark' : 'light'}
-            // Android : pas de vrai blur — fond quasi opaque pour garder la pill lisible sur la carte
-            style={[s.searchPill, {
-              backgroundColor: Platform.OS === 'android'
-                ? (theme.isDark ? 'rgba(20,20,20,0.94)' : 'rgba(255,255,255,0.96)')
-                : (theme.isDark ? 'rgba(20,20,20,0.6)' : 'rgba(255,255,255,0.7)'),
-              shadowColor: theme.text,
-            }]}
-          >
-            <Spinner color={accent} track={theme.borderLight as string} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[s.pillTitle, { color: theme.text }]} numberOfLines={1}>
-                {pillTitle}
-              </Text>
-              <Text style={[s.pillSub, { color: fgMuted }]} numberOfLines={1}>
-                {pillSub}
-              </Text>
-            </View>
-            {timer ? (
-              <View style={[s.timerChip, { backgroundColor: theme.text }]}>
-                <Blink><View style={[s.timerDot, { backgroundColor: accent }]} /></Blink>
-                <Text style={[s.timerText, { color: theme.bg, fontFamily: FONTS.mono }]}>{timer}</Text>
-              </View>
-            ) : null}
-          </BlurView>
-        </View>
-
-      </SafeAreaView>
-
-      {/* Bottom sheet — single container; safe area inset folded into the
-          sheet's own paddingBottom so the rounded top corners and the home
-          indicator strip share one continuous surface (no bolted-on band). */}
+      {/* La feuille */}
       <View style={s.sheetWrap} pointerEvents="box-none" onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}>
-        <View
-          style={[
-            s.sheet,
-            {
-              backgroundColor: theme.cardBg,
-              shadowColor: theme.text,
-              paddingBottom: insets.bottom + 12,
-            },
-          ]}
-        >
+        <View style={[s.sheet, { backgroundColor: theme.cardBg, shadowColor: theme.text, paddingBottom: insets.bottom + 12 }]}>
           <View style={[s.grabber, { backgroundColor: theme.borderLight }]} />
-
-          {/* Mission */}
-          <View style={[s.mission, { borderBottomColor: theme.border }]}>
-            <Text style={[s.kicker, { color: fgMuted, fontFamily: FONTS.mono }]}>
-              Mission · #{String(missionId).slice(-6).toUpperCase()}
-            </Text>
-            <Text style={[s.missionTitle, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]} numberOfLines={1}>
-              {missionTitle || t('missions.mission')}
-            </Text>
-            <View style={s.metaRow}>
-              {!!missionAddress && (
-                <View style={s.metaItem}>
-                  <Feather name="map-pin" size={12} color={fgMuted} />
-                  <Text style={[s.metaText, { color: theme.textSub, fontFamily: FONTS.sans }]} numberOfLines={1}>
-                    {missionAddress.split(',')[0]}
-                  </Text>
-                </View>
-              )}
-              <View style={s.metaItem}>
-                <Feather name="clock" size={12} color={fgMuted} />
-                <Text style={[s.metaText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                  {missionWhen || t('ext.searching_now_default')}
-                </Text>
-              </View>
-              {priceLabel && (
-                <View style={s.metaItem}>
-                  <Feather name="tag" size={12} color={fgMuted} />
-                  <Text style={[s.metaText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
-                    {priceLabel}
-                  </Text>
-                </View>
-              )}
-              {isQuote && !priceLabel && (
-                <View style={s.metaItem}>
-                  <Feather name="file-text" size={12} color={COLORS.amber} />
-                  <Text style={[s.metaText, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>{t('ext.searching_quote_short')}</Text>
-                </View>
-              )}
-            </View>
+          <Text style={[s.eyebrow, { color: theme.textMuted }]} numberOfLines={1}>{eyebrow.toUpperCase()}</Text>
+          <Headline text={headline} sub={sub} />
+          {declinedCount > 0 && !acceptedName && !isScheduled ? (
+            <Text style={[s.note, { color: theme.textMuted }]}>{t('searching.declined_n', { count: declinedCount })}</Text>
+          ) : null}
+          <View style={s.request}>
+            <MissionRow brief={brief} amountMode="gross" standalone onPress={() => {}} />
           </View>
-
-          {/* Activité */}
-          <View style={{ marginBottom: 16 }}>
-            <View style={s.activityHead}>
-              <Text style={[s.kicker, { color: fgMuted, fontFamily: FONTS.mono }]}>{t('ext.searching_activity')}</Text>
-              <View style={s.liveTag}>
-                <Blink period={1200}><View style={[s.liveDot, { backgroundColor: accent }]} /></Blink>
-                <Text style={[s.liveText, { color: accent, fontFamily: FONTS.sansMedium }]}>{t('ext.searching_live')}</Text>
-              </View>
-            </View>
-            <View style={{ gap: 8 }}>
-              {feed.slice(0, phase === 'widened' ? 1 : 3).map(it => (
-                <Animated.View
-                  key={it.id}
-                  entering={FadeInDown.duration(320).springify().damping(18)}
-                  exiting={FadeOut.duration(180)}
-                  layout={LinearTransition.springify().damping(20).stiffness(140)}
-                  style={s.feedItem}
-                >
-                  {it.pulse ? (
-                    <Blink period={1100}>
-                      <View style={[s.feedDot, { borderWidth: 1.5, borderColor: accent, backgroundColor: 'transparent' }]} />
-                    </Blink>
-                  ) : (
-                    <View style={[s.feedDot, { backgroundColor: fgMuted }]} />
-                  )}
-                  <Text style={[s.feedText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
-                    {it.text}
-                    <Text style={[s.feedTime, { color: fgMuted, fontFamily: FONTS.mono }]}>  {timeAgo(it.createdAt, now, t)}</Text>
-                  </Text>
-                </Animated.View>
-              ))}
-            </View>
-          </View>
-
-          {/* Reassurance — the price card above can be heavy (€€€), so remind
-              the user that we don't debit until the provider accepts. */}
-          <View style={s.reassurance}>
-            <Feather name="shield" size={12} color={fgMuted} />
-            <Text style={[s.reassuranceText, { color: fgMuted, fontFamily: FONTS.sans }]}>
-              {t('ext.searching_reassurance')}
-            </Text>
-          </View>
-
-          {/* Cancel — ghost, secondary. Waiting is the primary action, there
-              is no primary CTA to press during matching. */}
+          <Text style={[s.reassurance, { color: theme.textMuted }]}>{t('searching.reassurance')}</Text>
           <Pressable
-            style={({ pressed }) => [s.cancelGhost, (pressed || cancelling) && { opacity: 0.55 }]}
+            style={({ pressed }) => [s.cancel, (pressed || cancelling) && { opacity: 0.55 }]}
             onPress={onCancel}
             disabled={cancelling}
             accessibilityRole="button"
             accessibilityLabel={t('ext.searching_cancel_search')}
             hitSlop={8}
           >
-            <Text style={[s.cancelGhostText, { color: cancelling ? fgMuted : COLORS.red, fontFamily: FONTS.sansMedium }]}>
-              {cancelling ? t('ext.searching_cancelling') : t('ext.searching_cancel_search')}
+            <Text style={[s.cancelText, { color: cancelling ? theme.textMuted : COLORS.red }]}>
+              {cancelling ? t('ext.searching_cancelling') : t('searching.cancel')}
             </Text>
           </Pressable>
         </View>
@@ -564,86 +341,26 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1 },
-
-  topArea: { position: 'absolute', top: 0, left: 0, right: 0 },
-  topBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 6 },
-  searchPill: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, height: 44, borderRadius: 22, overflow: 'hidden',
-    shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  pillTitle: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: -0.2 },
-  pillSub: { fontSize: 11, marginTop: 1 },
-  timerChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, height: 28, borderRadius: 14,
-  },
-  timerDot: { width: 5, height: 5, borderRadius: 2.5 },
-  timerText: { fontSize: 11, fontFamily: FONTS.monoMedium },
-
-
-  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  sheet: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 20, paddingTop: 8,
-    // paddingBottom is applied inline (insets.bottom + 12) to keep the home
-    // indicator strip on the same opaque surface as the sheet.
-    shadowOpacity: 0.12, shadowRadius: 40, shadowOffset: { width: 0, height: -12 },
-    elevation: 12,
-  },
-  grabber: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-
-  mission: { paddingBottom: 14, marginBottom: 14, borderBottomWidth: 1 },
-  kicker: { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' },
-  missionTitle: { fontSize: 26, letterSpacing: 0.4, marginTop: 4, marginBottom: 10 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaText: { fontSize: 12 },
-
-  activityHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  liveTag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  liveDot: { width: 5, height: 5, borderRadius: 2.5 },
-  liveText: { fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase' },
-  feedItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  feedDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  feedText: { flex: 1, fontSize: 12, lineHeight: 17 },
-  feedTime: { fontSize: 10 },
-
-  reassurance: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 8,
-  },
-  reassuranceText: { fontSize: 11, letterSpacing: 0.1 },
-
-  cancelGhost: {
-    alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, marginBottom: 6,
-  },
-  cancelGhostText: { fontSize: 13, letterSpacing: 0.2, textDecorationLine: 'underline' },
-
-  pinCard: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 24, padding: 4, minHeight: 40,
-    shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  pinAvatar: {
-    width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1,
-  },
-  pinAvatarText: { fontSize: 12, fontFamily: FONTS.sansMedium },
-  pinRating: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8 },
-  pinRatingText: { fontSize: 11, fontFamily: FONTS.sansMedium },
-  pinBadge: {
-    position: 'absolute', top: -2, right: -2,
-    width: 12, height: 12, borderRadius: 6, borderWidth: 2,
-  },
-  pinTail: {
-    position: 'absolute', bottom: -5, left: 18,
-    width: 10, height: 10, transform: [{ rotate: '45deg' }],
-  },
+  root:         { flex: 1 },
+  me:           { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: COLORS.greenBrand, borderWidth: 3 },
+  pin:          { position: 'absolute', width: PIN, alignItems: 'center' },
+  pinDisc:      { width: PIN, height: PIN, borderRadius: PIN / 2, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  pinImg:       { width: '100%', height: '100%' },
+  pinText:      { fontFamily: FONTS.sansMedium, fontSize: 12 },
+  pinLabel:     { marginTop: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  pinLabelText: { fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.5 },
+  linkPivot:    { position: 'absolute', width: 0, height: 0, overflow: 'visible' },
+  link:         { position: 'absolute', left: 0, top: -0.75, height: 1.5 },
+  sheetWrap:    { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  sheet:        { borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 10, shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: -8 }, elevation: 20 },
+  grabber:      { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+  eyebrow:      { fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1.5, marginBottom: 6 },
+  h1:           { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.3, includeFontPadding: false },
+  sub:          { fontFamily: FONTS.sans, fontSize: 13, marginTop: 4 },
+  note:         { fontFamily: FONTS.sans, fontSize: 12, marginTop: 6 },
+  request:      { marginTop: 14, marginHorizontal: -16 },
+  reassurance:  { fontFamily: FONTS.sans, fontSize: 11, textAlign: 'center', marginTop: 12 },
+  cancel:       { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
+  cancelText:   { fontFamily: FONTS.sansMedium, fontSize: 13 },
 });

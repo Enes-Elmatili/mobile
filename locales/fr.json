@@ -2150,5 +2150,28 @@
     "no_photo": "Sans photo",
     "price_tbd": "à confirmer"
   },
-  "services": {}
+  "services": {},
+  "searching": {
+    "searching": "Recherche",
+    "wave_n": "Vague {{n}}",
+    "expires_in": "Expire dans {{time}}",
+    "h_notifying": "On prévient les prestataires autour de vous",
+    "h_one": "{{name}} est prévenu",
+    "h_many": "{{n}} prestataires prévenus",
+    "h_next_wave": "On prévient la vague suivante",
+    "h_wider": "On cherche plus loin",
+    "h_accepted": "{{name}} a accepté",
+    "h_scheduled": "Votre créneau est réservé",
+    "s_first": "Le premier qui accepte part chez vous.",
+    "s_first_next": "Le premier qui accepte part chez vous. Vague suivante dans {{time}}.",
+    "s_next_wave": "Dans {{time}}. Rien n’est débité en attendant.",
+    "s_wider": "Tous les prestataires proches ont été prévenus. On continue.",
+    "s_accepted": "Il se met en route.",
+    "s_scheduled": "Un prestataire confirmera avant {{when}}.",
+    "s_scheduled_generic": "Un prestataire confirmera bientôt.",
+    "declined_n_one": "Un prestataire n’était pas disponible.",
+    "declined_n_other": "{{count}} prestataires n’étaient pas disponibles.",
+    "reassurance": "Rien n’est débité tant que personne n’a accepté.",
+    "cancel": "Annuler"
+  }
 }

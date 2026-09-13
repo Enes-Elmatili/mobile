@@ -2268,5 +2268,28 @@
     "volets-rideaux-metalliques": {
       "desc": "Rolluik of metalen rolhek geblokkeerd, ontspoord, of motor defect"
     }
+  },
+  "searching": {
+    "searching": "Zoeken",
+    "wave_n": "Golf {{n}}",
+    "expires_in": "Verloopt over {{time}}",
+    "h_notifying": "We verwittigen de vakmensen rond u",
+    "h_one": "{{name}} is verwittigd",
+    "h_many": "{{n}} vakmensen verwittigd",
+    "h_next_wave": "We verwittigen de volgende golf",
+    "h_wider": "We zoeken verder weg",
+    "h_accepted": "{{name}} heeft aanvaard",
+    "h_scheduled": "Uw tijdslot is gereserveerd",
+    "s_first": "De eerste die aanvaardt komt naar u.",
+    "s_first_next": "De eerste die aanvaardt komt naar u. Volgende golf over {{time}}.",
+    "s_next_wave": "Over {{time}}. Er wordt intussen niets afgeschreven.",
+    "s_wider": "Alle vakmensen in de buurt zijn verwittigd. We gaan door.",
+    "s_accepted": "Hij vertrekt naar u.",
+    "s_scheduled": "Een vakman bevestigt vóór {{when}}.",
+    "s_scheduled_generic": "Een vakman bevestigt binnenkort.",
+    "declined_n_one": "Eén vakman was niet beschikbaar.",
+    "declined_n_other": "{{count}} vakmensen waren niet beschikbaar.",
+    "reassurance": "Er wordt niets afgeschreven zolang niemand heeft aanvaard.",
+    "cancel": "Annuleren"
   }
 }

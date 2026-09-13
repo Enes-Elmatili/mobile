@@ -1103,14 +1103,12 @@ export default function MissionView() {
           <LiveMapSearching
             missionId={id}
             missionCoord={clientLocation}
-            missionTitle={serviceName}
-            missionAddress={address}
-            missionWhen={scheduledLabel}
-            missionPrice={price}
+            brief={request ? briefOf(request) : briefOf({ id, serviceType: serviceName, address, price, scheduledFor: null })}
             expiresAt={expiresAt || null}
             cancelling={cancelling}
             isScheduled={isScheduledMission}
-            isQuote={isQuoteMission}
+            scheduledLabel={scheduledLabel || null}
+            acceptedName={request?.provider ? providerDisplayName(request.provider) : null}
             onCancel={handleCancelSearching}
           />
         </Animated.View>

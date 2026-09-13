@@ -2268,5 +2268,28 @@
     "volets-rideaux-metalliques": {
       "desc": "Roller shutter or metal grille jammed, off-track, or motor failure"
     }
+  },
+  "searching": {
+    "searching": "Searching",
+    "wave_n": "Wave {{n}}",
+    "expires_in": "Expires in {{time}}",
+    "h_notifying": "Notifying the pros around you",
+    "h_one": "{{name}} has been notified",
+    "h_many": "{{n}} pros notified",
+    "h_next_wave": "Notifying the next wave",
+    "h_wider": "Looking further out",
+    "h_accepted": "{{name}} accepted",
+    "h_scheduled": "Your slot is reserved",
+    "s_first": "The first one to accept heads your way.",
+    "s_first_next": "The first one to accept heads your way. Next wave in {{time}}.",
+    "s_next_wave": "In {{time}}. Nothing is charged meanwhile.",
+    "s_wider": "Every nearby pro has been notified. We keep going.",
+    "s_accepted": "They are on their way.",
+    "s_scheduled": "A pro will confirm before {{when}}.",
+    "s_scheduled_generic": "A pro will confirm soon.",
+    "declined_n_one": "One pro was not available.",
+    "declined_n_other": "{{count}} pros were not available.",
+    "reassurance": "Nothing is charged until someone accepts.",
+    "cancel": "Cancel"
   }
 }
