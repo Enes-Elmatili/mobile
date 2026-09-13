@@ -61,6 +61,12 @@ const NO_LEGACY_ANIMATED = {
   selector: "ImportDeclaration[source.value='react-native'] ImportSpecifier[imported.name='Animated']",
   message: 'Animated legacy banni (règle 1 CLAUDE.md). Utiliser react-native-reanimated.',
 };
+// Sur l'écran interne du Duo, insets gauche et droit diffèrent (Dynamic Island
+// latérale) : jamais `paddingHorizontal: insets.left`.
+const NO_SYMMETRIC_INSETS = {
+  selector: "Property[key.name=/^(paddingHorizontal|marginHorizontal)$/] > MemberExpression[object.name='insets'][property.name=/^(left|right)$/]",
+  message: 'Insets gauche et droit diffèrent sur un écran déplié : utiliser horizontalPadding(insets, base) (lib/layout).',
+};
 const NO_EXPO_HAPTICS = ['error', { paths: [{ name: 'expo-haptics', message: 'Haptique via feedback.haptic() uniquement.' }] }];
 
 const SOURCE = ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'];
@@ -68,7 +74,7 @@ const SOURCE = ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'lib/**/*.{ts,t
 // En flat config, une règle redéfinie REMPLACE la précédente (les sélecteurs
 // ne se cumulent pas) : chaque bloc liste donc ses sélecteurs en entier.
 const syntaxRules = (file) => {
-  const s = [NO_DIMENSIONS_GET];
+  const s = [NO_DIMENSIONS_GET, NO_SYMMETRIC_INSETS];
   if (!LEGACY_ALERT_ALLOWLIST.includes(file)) s.push(NO_ALERT);
   if (!LEGACY_ANIMATED_ALLOWLIST.includes(file)) s.push(NO_LEGACY_ANIMATED);
   return s;
@@ -92,7 +98,7 @@ module.exports = defineConfig([
     files: SOURCE,
     ignores: EXCEPTION_GLOBS,
     rules: {
-      'no-restricted-syntax': ['error', NO_DIMENSIONS_GET, NO_ALERT, NO_LEGACY_ANIMATED],
+      'no-restricted-syntax': ['error', NO_DIMENSIONS_GET, NO_SYMMETRIC_INSETS, NO_ALERT, NO_LEGACY_ANIMATED],
     },
   },
   ...EXCEPTIONS.map(perFile),
