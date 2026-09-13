@@ -35,6 +35,9 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import Reanimated from 'react-native-reanimated';
+import { MOTION, useBreathe, useCountingValue, usePresence } from '@/lib/motion';
+import { ReText } from '@/components/ui/ReText';
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
@@ -876,6 +879,28 @@ function AmountCardB({
   footerLeft: React.ReactNode; footerRight?: React.ReactNode;
   original?: string; savings?: string; loading?: boolean;
 }) {
+  // Moment 10 : le montant COMPTE vers sa nouvelle valeur, le bloc respire
+  // une fois, et le delta apparaît puis s'efface seul. Aucun toast : le prix
+  // qui bouge est le feedback.
+  const amount = useMemo(() => {
+    const n = parseFloat(String(euros).replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  }, [euros]);
+  const counter = useCountingValue(amount, { decimals: 2, preset: MOTION.count });
+  const breathe = useBreathe();
+  const prevRef = useRef(amount);
+  const [delta, setDelta] = useState<number | null>(null);
+  const deltaPresence = usePresence(delta !== null, { from: 'bottom', preset: MOTION.pane });
+  useEffect(() => {
+    if (prevRef.current === amount) return;
+    const d = amount - prevRef.current;
+    prevRef.current = amount;
+    breathe.pulse();
+    setDelta(d);
+    const id = setTimeout(() => setDelta(null), 1200);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- breathe est stable
+  }, [amount]);
   return (
     <View
       style={{
@@ -909,9 +934,21 @@ function AmountCardB({
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-        <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText }}>
-          {euros}<Text style={{ fontSize: 26, color: theme.heroSub }}> €</Text>
-        </Text>
+        <Reanimated.View style={[{ flexDirection: 'row', alignItems: 'baseline' }, breathe.style]}>
+          <ReText
+            animatedProps={counter.animatedProps}
+            style={{ fontFamily: FONTS.bebas, fontSize: 54, letterSpacing: 0.5, lineHeight: 56, color: theme.heroText }}
+            accessibilityLabel={`${euros} €`}
+          />
+          <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 26, color: theme.heroSub }}> €</Text>
+        </Reanimated.View>
+        <Reanimated.View style={[{ position: 'absolute', right: 0, top: -18 }, deltaPresence.style]} pointerEvents="none">
+          {delta !== null && (
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 0.5, color: delta > 0 ? COLORS.amber : COLORS.green }}>
+              {delta > 0 ? '+' : '−'} {Math.abs(delta).toFixed(2).replace('.', ',')} €
+            </Text>
+          )}
+        </Reanimated.View>
         {original ? (
           <Text style={{ fontFamily: FONTS.mono, fontSize: 17, color: theme.heroSubFaint, textDecorationLine: 'line-through' }}>
             {original} €
