@@ -1,146 +1,88 @@
-import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
-  Easing,
-  interpolate,
-} from 'react-native-reanimated';
+// components/feedback/CelebrationOverlay.tsx
+// Célébration = un sceau, pas une pluie. Anneau qui se ferme (600 ms), coche
+// qui se trace (ressort), titre qui respire, puis tout s'efface. Une seule
+// haptique, émise par le moteur feedback en amont (règle 6). Zéro confetti :
+// le spec l'interdit — rien ne bouge sans dire quelque chose.
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedProps, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { darkTokens, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { CelebrationItem, useFeedbackStore } from '@/lib/feedback/store';
+import { MOTION } from '@/lib/motion/springs';
+import { useReduceMotion } from '@/lib/motion/sheet';
+import { useTraceStroke } from '@/lib/motion/useTraceStroke';
 
-// ── Confetti rain ───────────────────────────────────────────────────────────
-// ~80 pieces falling from the top with rotation, horizontal flutter and gravity.
-// Brand palette (vert + ambre) + blanc/or. Reanimated only — zéro dépendance.
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-const CONFETTI_COUNT = 80;
-const PALETTE = [COLORS.greenBrand, COLORS.orangeBrand, COLORS.amber, '#F4F4F2', '#E8C547'];
-const MAX_LIFE = 3000; // ms — longest fall + stagger, then auto-clear
-
-function rand(min: number, max: number) {
-  return min + Math.random() * (max - min);
-}
-
-interface Piece {
-  startX: number;
-  w: number;
-  h: number;
-  radius: number;
-  color: string;
-  duration: number;
-  delay: number;
-  driftAmp: number;
-  driftFreq: number;
-  rotations: number;
-  dir: number;
-}
+const R = 34;
+const RING_LENGTH = 2 * Math.PI * R;
+/** « M30 43 L38.5 51.5 L55 34 » : √(8,5²+8,5²) + √(16,5²+17,5²) ≈ 12,0 + 24,0. */
+const CHECK_LENGTH = 36;
+const LIFE_MS = 1600;
 
 export function CelebrationOverlay({ item }: { item: CelebrationItem }) {
-  const { width, height } = useWindowDimensions();
   const clear = useFeedbackStore((s) => s.clearCelebration);
+  const reduced = useReduceMotion();
+  const [checkDrawn, setCheckDrawn] = useState(false);
+  const ring = useSharedValue(reduced ? 0 : RING_LENGTH);
+  const title = useSharedValue(0);
+  const out = useSharedValue(1);
 
-  // Generate the pieces once (random params live for this celebration only).
-  const pieces = useRef<Piece[]>(
-    Array.from({ length: CONFETTI_COUNT }).map(() => {
-      const isCircle = Math.random() < 0.35;
-      const size = rand(7, 13);
-      return {
-        startX: rand(0, width),
-        w: isCircle ? size : rand(6, 11),
-        h: isCircle ? size : rand(11, 17),
-        radius: isCircle ? size / 2 : 1.5,
-        color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
-        duration: rand(1900, 2800),
-        delay: rand(0, 450),
-        driftAmp: rand(25, 85) * (Math.random() < 0.5 ? -1 : 1),
-        driftFreq: rand(1, 3),
-        rotations: rand(2, 6),
-        dir: Math.random() < 0.5 ? -1 : 1,
-      };
-    }),
-  ).current;
-
-  // Title timeline + lifecycle.
-  const titleT = useSharedValue(0);
   useEffect(() => {
-    titleT.value = withTiming(1, { duration: MAX_LIFE, easing: Easing.linear });
-    const fb = setTimeout(() => clear(), MAX_LIFE);
-    return () => clearTimeout(fb);
+    if (reduced) {
+      setCheckDrawn(true);
+      title.value = withTiming(1, { duration: 200 });
+      return;
+    }
+    ring.value = withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) });
+    const t = setTimeout(() => setCheckDrawn(true), 420);
+    title.value = withDelay(500, withSpring(1, MOTION.pane));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- séquence jouée une fois au montage
   }, []);
 
-  const titleStyle = useAnimatedStyle(() => {
-    const tv = titleT.value;
-    const opacity = tv < 0.08 ? tv / 0.08 : tv > 0.85 ? Math.max(0, (1 - tv) / 0.15) : 1;
-    const scale = tv < 0.12 ? 0.6 + (tv / 0.12) * 0.4 : 1;
-    return { opacity, transform: [{ scale }, { translateY: (1 - Math.min(tv * 8, 1)) * 10 }] };
-  });
+  useEffect(() => {
+    const fade = setTimeout(() => { out.value = withTiming(0, { duration: 220 }); }, LIFE_MS - 220);
+    const done = setTimeout(clear, LIFE_MS);
+    return () => { clearTimeout(fade); clearTimeout(done); };
+  }, [clear, out]);
+
+  const ringProps = useAnimatedProps(() => ({ strokeDashoffset: ring.value }));
+  const { animatedProps: checkProps } = useTraceStroke(checkDrawn, { length: CHECK_LENGTH });
+  const wrapStyle = useAnimatedStyle(() => ({ opacity: out.value }));
+  const titleStyle = useAnimatedStyle(() => ({
+    opacity: title.value,
+    transform: [{ translateY: 8 * (1 - title.value) }, { scale: 0.96 + 0.04 * title.value }],
+  }));
 
   return (
-    <View style={[StyleSheet.absoluteFill, s.center]} pointerEvents="none">
-      {pieces.map((p, i) => (
-        <Confetto key={i} p={p} height={height} />
-      ))}
+    <Animated.View style={[StyleSheet.absoluteFill, s.center, wrapStyle]} pointerEvents="none">
+      <View style={s.badge}>
+        <Svg width={84} height={84} viewBox="0 0 84 84">
+          <Circle cx={42} cy={42} r={R} fill="none" stroke={darkTokens.border} strokeWidth={2} />
+          <AnimatedCircle
+            cx={42} cy={42} r={R} fill="none" stroke={COLORS.greenBrand} strokeWidth={2.5} strokeLinecap="round"
+            strokeDasharray={RING_LENGTH} animatedProps={ringProps} transform="rotate(-90 42 42)"
+          />
+          <AnimatedPath
+            d="M30 43 L38.5 51.5 L55 34" fill="none" stroke={COLORS.greenBrand} strokeWidth={4}
+            strokeLinecap="round" strokeLinejoin="round" strokeDasharray={CHECK_LENGTH} animatedProps={checkProps}
+          />
+        </Svg>
+      </View>
       <Animated.Text style={[s.title, titleStyle]}>{item.title}</Animated.Text>
-    </View>
-  );
-}
-
-function Confetto({ p, height }: { p: Piece; height: number }) {
-  const prog = useSharedValue(0);
-
-  useEffect(() => {
-    prog.value = withDelay(
-      p.delay,
-      withTiming(1, { duration: p.duration, easing: Easing.in(Easing.quad) }), // gravity
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => {
-    const y = interpolate(prog.value, [0, 1], [-40, height + 40]);
-    const x = Math.sin(prog.value * p.driftFreq * Math.PI * 2) * p.driftAmp; // flutter
-    const rotate = prog.value * p.rotations * 360 * p.dir;
-    const opacity =
-      prog.value < 0.04
-        ? prog.value / 0.04
-        : prog.value > 0.9
-          ? Math.max(0, (1 - prog.value) / 0.1)
-          : 1;
-    return {
-      opacity,
-      transform: [{ translateX: x }, { translateY: y }, { rotate: `${rotate}deg` }],
-    };
-  });
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          top: 0,
-          left: p.startX,
-          width: p.w,
-          height: p.h,
-          borderRadius: p.radius,
-          backgroundColor: p.color,
-        },
-        style,
-      ]}
-    />
+    </Animated.View>
   );
 }
 
 const s = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center' },
+  center: { alignItems: 'center', justifyContent: 'center', gap: 18 },
+  badge: { width: 84, height: 84, borderRadius: 42, backgroundColor: darkTokens.cardBg, alignItems: 'center', justifyContent: 'center' },
   title: {
-    position: 'absolute',
-    top: '40%',
     color: darkTokens.text,
     fontFamily: FONTS.bebas, includeFontPadding: false,
-    fontSize: 38,
-    letterSpacing: 1,
-    textAlign: 'center',
-    paddingHorizontal: 24,
+    fontSize: 34, letterSpacing: 1, textAlign: 'center', paddingHorizontal: 24,
   },
 });
