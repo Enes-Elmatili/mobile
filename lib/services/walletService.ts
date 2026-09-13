@@ -1,5 +1,8 @@
 /**
- * walletService.ts — Wallet, transactions et retraits
+ * walletService.ts — Wallet, transactions et historique des retraits
+ *
+ * Plus de demande de retrait : les gains sont versés automatiquement à la
+ * complétion de chaque mission (le backend répond 410 sur POST /wallet/withdraw).
  *
  * Le solde est stocké en centimes côté DB (Int).
  * Afficher `balance / 100` pour obtenir des euros/MAD.
@@ -37,25 +40,5 @@ export const walletService = {
   getWithdrawHistory: async (): Promise<WithdrawRequest[]> => {
     const { data } = await apiClient.get<any>('/wallet/withdraws');
     return Array.isArray(data) ? data : data?.withdraws ?? [];
-  },
-
-  /**
-   * POST /wallet/withdraw — soumettre une demande de retrait
-   * @param amount      Montant en centimes
-   * @param destination IBAN ou numéro de compte (optionnel)
-   * @param note        Note libre (optionnel)
-   */
-  withdraw: async (
-    amount: number,
-    destination?: string,
-    note?: string,
-  ): Promise<WithdrawRequest> => {
-    const { data } = await apiClient.post<WithdrawRequest>('/wallet/withdraw', {
-      amount,
-      method: 'BANK',
-      destination,
-      note,
-    });
-    return data;
   },
 };

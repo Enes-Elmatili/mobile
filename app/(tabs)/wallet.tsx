@@ -3,17 +3,16 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  FlatList, ScrollView, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView,
+  FlatList, ActivityIndicator,
   Platform, RefreshControl, StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTabBarPadding } from './_layout';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
-import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { devError } from '@/lib/logger';
 import { formatEUR as fmtEur } from '@/lib/format';
@@ -182,142 +181,6 @@ function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
   );
 }
 
-// --- Modale de retrait (portee depuis l'ancien app/wallet.tsx) ---
-interface WithdrawModalProps {
-  visible: boolean;
-  balance: number; // en centimes
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function WithdrawModal({ visible, balance, onClose, onSuccess }: WithdrawModalProps) {
-  const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
-  const [amount, setAmount] = useState('');
-  const [iban, setIban] = useState('');
-  const [note, setNote] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async () => {
-    const amt = parseFloat(amount.replace(',', '.'));
-    if (!Number.isFinite(amt) || amt <= 0) {
-      feedback.error(t('wallet.invalid_amount'));
-      return;
-    }
-    const balanceEur = fromCents(balance);
-    if (amt > balanceEur) {
-      feedback.error(t('wallet.insufficient_balance'));
-      return;
-    }
-    setLoading(true);
-    try {
-      // Le backend attend des centimes (entiers)
-      await api.wallet.withdraw(Math.round(amt * 100), iban.trim() || undefined, note.trim() || undefined);
-      setAmount('');
-      setIban('');
-      setNote('');
-      onSuccess();
-    } catch (e: any) {
-      feedback.error(e?.message || t('wallet.withdraw_error'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={wm.overlay} behavior="padding">
-        <TouchableOpacity style={wm.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={[wm.sheet, { backgroundColor: theme.cardBg, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }]}>
-          <View style={[wm.handle, { backgroundColor: theme.border }]} />
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
-          <Text style={[wm.title, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.wallet_withdraw_title')}</Text>
-          <Text style={[wm.subtitle, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.wallet_available_balance')} : {fmtEur(fromCents(balance))}</Text>
-
-          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_amount_eur')}</Text>
-          <TextInput
-            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
-            placeholder={t('ext.wallet_amount_placeholder')}
-            placeholderTextColor={theme.textMuted}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            returnKeyType="next"
-          />
-
-          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_iban_optional')}</Text>
-          <TextInput
-            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.mono }]}
-            placeholder="BE12 3456 7890 1234"
-            placeholderTextColor={theme.textMuted}
-            value={iban}
-            onChangeText={setIban}
-            autoCapitalize="characters"
-            returnKeyType="next"
-          />
-
-          <Text style={[wm.label, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_note_optional')}</Text>
-          <TextInput
-            style={[wm.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textAlt, fontFamily: FONTS.sans }]}
-            placeholder={t('ext.wallet_note_placeholder')}
-            placeholderTextColor={theme.textMuted}
-            value={note}
-            onChangeText={setNote}
-            returnKeyType="done"
-          />
-
-          <Text style={[wm.notice, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
-            {t('ext.wallet_withdraw_notice')}
-          </Text>
-
-          <TouchableOpacity
-            style={[wm.btn, { backgroundColor: theme.accent }, loading && wm.btnDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading
-              ? <ActivityIndicator color={theme.accentText} />
-              : <Text style={[wm.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('ext.wallet_confirm_withdraw')}</Text>
-            }
-          </TouchableOpacity>
-
-          <TouchableOpacity style={wm.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={[wm.cancelText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('common.cancel')}</Text>
-          </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-const wm = StyleSheet.create({
-  overlay:    { flex: 1, justifyContent: 'flex-end' },
-  backdrop:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-    maxHeight: '88%',
-  },
-  handle:     { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  title:      { fontSize: 28, marginBottom: 4 },
-  subtitle:   { fontSize: 14, marginBottom: 22 },
-  label:      { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 7 },
-  input: {
-    borderRadius: 14, height: 50, paddingHorizontal: 16,
-    fontSize: 15, marginBottom: 14,
-    borderWidth: 1,
-  },
-  notice:     { fontSize: 12, lineHeight: 18, marginBottom: 20, marginTop: 4 },
-  btn:        { borderRadius: 100, height: 55, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  btnDisabled:{ opacity: 0.6 },
-  btnText:    { fontSize: 16 },
-  cancelBtn:  { alignItems: 'center', paddingVertical: 12 },
-  cancelText: { fontSize: 15 },
-});
-
 // ====================================================================
 // MAIN SCREEN
 // ====================================================================
@@ -336,7 +199,6 @@ export default function WalletTab() {
     lastPayout: { amount: number; currency?: string; status?: string; arrivalDate: number | null } | null;
   } | null>(null);
   const [filter, setFilter]             = useState<Filter>('all');
-  const [showWithdraw, setShowWithdraw] = useState(false);
   const [balanceError, setBalanceError] = useState(false);
   const t = useAppTheme();
   const { t: tr } = useTranslation();
@@ -397,12 +259,6 @@ export default function WalletTab() {
   }, [load]));
   const onRefresh = () => { lastWalletFetch.current = 0; setRefreshing(true); load(); };
 
-  const handleWithdrawSuccess = () => {
-    setShowWithdraw(false);
-    showSocketToast(tr('ext.wallet_request_sent_sub'), 'success');
-    lastWalletFetch.current = 0;
-    load();
-  };
 
   const handleOpenStripeDashboard = useCallback(async () => {
     setStripeLoading(true);
@@ -676,13 +532,6 @@ export default function WalletTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
       />
 
-      {/* -- Modale retrait -- */}
-      <WithdrawModal
-        visible={showWithdraw}
-        balance={balance}
-        onClose={() => setShowWithdraw(false)}
-        onSuccess={handleWithdrawSuccess}
-      />
     </SafeAreaView>
   );
 }
@@ -735,15 +584,6 @@ const styles = StyleSheet.create({
 
   payoutNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   payoutNoticeText: { fontSize: 12, fontFamily: FONTS.sans },
-
-  // Bouton retrait
-  withdrawBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 14, paddingHorizontal: 22, paddingVertical: 12,
-    marginTop: 16, alignSelf: 'stretch',
-  },
-  withdrawBtnDisabled: { opacity: 0.4 },
-  withdrawBtnText: { fontSize: 15, fontFamily: FONTS.sansMedium },
 
   // Bannière erreur
   errorBanner: {

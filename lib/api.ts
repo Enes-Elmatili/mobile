@@ -434,8 +434,6 @@ class ApiClient {
     balance: () => this.request('/wallet'),
     transactions: (limit = 50) => this.request(`/wallet/txs?limit=${limit}`),
     withdraws: () => this.request('/wallet/withdraws'),
-    withdraw: (amount: number, destination?: string, note?: string) =>
-      this.post('/wallet/withdraw', { amount, method: 'BANK', destination, note }),
     credit: (amount: number) => this.post('/wallet/credit', { amount }),
     debit: (amount: number) => this.post('/wallet/debit', { amount }),
   };
