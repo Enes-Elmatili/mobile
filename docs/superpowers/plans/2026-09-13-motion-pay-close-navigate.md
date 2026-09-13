@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**État : livré le 13/09/2026 sur `feat/motion-foundation` (5 commits).** Vérifié : jest 161/161, eslint 0 erreur, tsc OK ; allowlist `Animated` 29 → 27 (RaisedButton, formules). Reste la matrice manuelle (Tâche 9) et les écarts assumés ci-dessous (moment 12, indicateur d'onglets, 8 écrans RefreshControl → plan 4).
+
 **Goal:** Appliquer `lib/motion` aux moments de paiement, de clôture et de navigation : coche tracée + reçu (11), photos déposées (13), étoiles en vague (14), icônes d'onglet qui se redressent (15), toast depuis l'île (16), pull-to-refresh « fixed. » (17), squelettes qui respirent puis contenu en cascade (18), appui généralisé (21) — et supprimer les confettis, que le spec interdit.
 
 **Architecture:** Même règle que les plans 1-2 : aucun nouveau hook, tout vient de `lib/motion`. Le moteur `feedback.*` reste la seule porte d'entrée des célébrations : c'est `CelebrationOverlay` qui change de nature (sceau au lieu de confettis), pas ses appelants. Le pull-to-refresh garde le `RefreshControl` natif pour le déclenchement (fiable, élastique natif) et n'ajoute qu'un en-tête visuel piloté par le scroll : zéro conflit de gestes.
