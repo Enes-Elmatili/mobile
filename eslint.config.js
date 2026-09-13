@@ -36,7 +36,6 @@ const LEGACY_ANIMATED_ALLOWLIST = [
   'components/auth/AuthCTA.tsx',
   'components/onboarding/OnboardingLayout.tsx',
   'components/providers/ProviderMissionCard.tsx',
-  'components/sheets/MissionRequestSheet.tsx',
   'components/ui/PulseDot.tsx',
   'components/ui/RaisedButton.tsx',
   'lib/components/XSpinner.tsx',

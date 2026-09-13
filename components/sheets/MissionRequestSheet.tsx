@@ -10,14 +10,14 @@ import {
   View,
   Text,
   StyleSheet,
-  Animated,
-  Easing,
   TouchableOpacity,
   Platform,
   Vibration,
-  Dimensions,
   Pressable,
 } from 'react-native';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { SHEET_SPRING } from '@/lib/motion/sheet';
+import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
@@ -66,13 +66,13 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const translateY    = useRef(new Animated.Value(SHEET_HEIGHT + 60)).current;
-  const backdropAnim  = useRef(new Animated.Value(0)).current;
-  const progressAnim  = useRef(new Animated.Value(1)).current;
-  const pulseAnim     = useRef(new Animated.Value(1)).current;
-  const pulseLoop     = useRef<Animated.CompositeAnimation | null>(null);
-  const progressTimer = useRef<Animated.CompositeAnimation | null>(null);
-  const isHiding      = useRef(false);
+  // Thread UI : le sheet arrive sur un ressort critique, la barre de compte à
+  // rebours file en linéaire ; les callbacks JS passent par runOnJS.
+  const translateY = useSharedValue(SHEET_HEIGHT + 60);
+  const backdrop   = useSharedValue(0);
+  const progress   = useSharedValue(1);
+  const isHiding   = useRef(false);
+  const hideCb     = useRef<(() => void) | undefined>(undefined);
 
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [isVisible, setIsVisible] = useState(false);
@@ -105,74 +105,50 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   }, []);
 
   // ── Hide ──────────────────────────────────────────────────────────────────
+  const finishHide = useCallback(() => {
+    setIsVisible(false);
+    isHiding.current = false;
+    const cb = hideCb.current;
+    hideCb.current = undefined;
+    cb?.();
+  }, []);
+
   const hide = useCallback((cb?: () => void) => {
     if (isHiding.current) return;
     isHiding.current = true;
+    hideCb.current = cb;
 
     if (timerRef.current) clearInterval(timerRef.current);
-    progressTimer.current?.stop();
-    pulseLoop.current?.stop();
+    // Interrompre la barre : sa valeur reste où elle est, sans callback.
+    progress.value = progress.value;
 
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue:  SHEET_HEIGHT + 60,
-        duration: 320,
-        easing:   Easing.in(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue:  0,
-        duration: 280,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setIsVisible(false);
-      isHiding.current = false;
-      cb?.();
+    translateY.value = withTiming(SHEET_HEIGHT + 60, { duration: 320, easing: Easing.in(Easing.quad) });
+    backdrop.value = withTiming(0, { duration: 280 }, (finished) => {
+      if (finished) runOnJS(finishHide)();
     });
-  }, []);
+  }, [backdrop, finishHide, progress, translateY]);
 
   // ── Show ──────────────────────────────────────────────────────────────────
+  const onTimeout = useCallback(() => { hide(() => onDecline()); }, [hide, onDecline]);
+
   const show = useCallback(() => {
     isHiding.current = false;
     setIsVisible(true);
     setCountdown(COUNTDOWN_SECONDS);
-    progressAnim.setValue(1);
 
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue:  0,
-        duration: 320,
-        easing:   Easing.out(Easing.back(1.1)),
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue:  1,
-        duration: 360,
-        useNativeDriver: true,
-      }),
-    ]).start(() => triggerArrivalHaptic());
-
-    // Pulsation bouton Accept
-    pulseLoop.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.04, duration: 680, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1,    duration: 680, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.current.start();
-
-    // Barre progress countdown
-    progressTimer.current = Animated.timing(progressAnim, {
-      toValue:  0,
-      duration: COUNTDOWN_SECONDS * 1000,
-      easing:   Easing.linear,
-      useNativeDriver: false, // width ne peut pas utiliser native driver
+    // Ressort critique (plus de « back » qui dépasse) ; l'haptique d'arrivée
+    // tombe sur la frame où le sheet se pose (règle 6).
+    translateY.value = withSpring(0, SHEET_SPRING, (finished) => {
+      if (finished) runOnJS(triggerArrivalHaptic)();
     });
-    progressTimer.current.start(({ finished }) => {
-      if (finished) hide(() => onDecline());
+    backdrop.value = withTiming(1, { duration: 360 });
+
+    // Barre de compte à rebours : linéaire, et refus automatique au bout.
+    progress.value = 1;
+    progress.value = withTiming(0, { duration: COUNTDOWN_SECONDS * 1000, easing: Easing.linear }, (finished) => {
+      if (finished) runOnJS(onTimeout)();
     });
-  }, [onDecline]);
+  }, [backdrop, onTimeout, progress, translateY, triggerArrivalHaptic]);
 
   // ── Countdown numérique ───────────────────────────────────────────────────
   useEffect(() => {
@@ -193,8 +169,6 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
   // after the sheet (or its parent) is torn down.
   useEffect(() => () => {
     if (timerRef.current) clearInterval(timerRef.current);
-    progressTimer.current?.stop();
-    pulseLoop.current?.stop();
   }, []);
 
   // ── Réactivité prop request ───────────────────────────────────────────────
@@ -217,21 +191,16 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
     hide(() => onDecline());
   }, [onDecline]);
 
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.value * 0.45 }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+
   if (!isVisible && !request) return null;
 
   const icon         = getServiceIcon(request?.service);
   const isUrgent     = countdown <= 8;
   const urgencyColor = isUrgent ? COLORS.red : theme.text;
 
-  const progressWidth = progressAnim.interpolate({
-    inputRange:  [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
-  const backdropOpacity = backdropAnim.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [0, 0.45],
-  });
 
   return (
     <View style={styles.wrapper}>
@@ -241,17 +210,17 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
           le prestataire doit choisir explicitement Accepter ou Refuser. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={() => {}}>
         <Animated.View
-          style={[styles.backdrop, { opacity: backdropOpacity }]}
+          style={[styles.backdrop, backdropStyle]}
           pointerEvents="none"
         />
       </Pressable>
 
       {/* Sheet */}
-      <Animated.View style={[styles.sheet, { backgroundColor: theme.cardBg, paddingBottom: Math.max(insets.bottom, 16) + 12, transform: [{ translateY }] }]}>
+      <Animated.View style={[styles.sheet, { backgroundColor: theme.cardBg, paddingBottom: Math.max(insets.bottom, 16) + 12 }, sheetStyle]}>
 
         {/* Barre countdown */}
         <View style={[styles.progressTrack, { backgroundColor: theme.borderLight }]}>
-          <Animated.View style={[styles.progressFill, { width: progressWidth, backgroundColor: urgencyColor }]} />
+          <Animated.View style={[styles.progressFill, { backgroundColor: urgencyColor }, progressStyle]} />
         </View>
 
         {/* Header */}
@@ -296,11 +265,10 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
             <Text style={[styles.declineTxt, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.decline')}</Text>
           </TouchableOpacity>
 
-          <Animated.View style={[styles.acceptWrap, { transform: [{ scale: pulseAnim }] }]}>
-            <TouchableOpacity style={[styles.acceptBtn, { backgroundColor: theme.accent }]} onPress={handleAccept} activeOpacity={0.85} accessibilityLabel={t('mission_sheet.accept')} accessibilityRole="button">
-              <Text style={[styles.acceptTxt, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.accept')}</Text>
-            </TouchableOpacity>
-          </Animated.View>
+          {/* Moment 6 : accepter est un geste — glisser, pas taper. */}
+          <View style={styles.acceptWrap}>
+            <SlideToConfirm label={t('mission_sheet.accept')} onConfirm={handleAccept} />
+          </View>
         </View>
 
       </Animated.View>
