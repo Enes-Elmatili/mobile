@@ -3,9 +3,11 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing, Vibration,
+  View, Text, StyleSheet, TouchableOpacity, Platform, Vibration,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
@@ -25,8 +27,10 @@ export default function IncomingCallOverlay() {
   const [incoming, setIncoming] = useState<IncomingCallData | null>(null);
   const { acceptCall, rejectCall } = useCall();
   const insets = useSafeAreaInsets();
-  const slideAnim = useRef(new Animated.Value(-200)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const slideY = useSharedValue(-200);
+  const pulse = useSharedValue(1);
+  const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideY.value }] }));
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   useEffect(() => {
     const unsub = onIncomingCall((data) => {
@@ -67,34 +71,27 @@ export default function IncomingCallOverlay() {
     };
   }, [incoming]);
 
-  // Animate in/out
-  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  // Entrée / sortie : la carte descend sur MOTION.island (le ressort du toast) ;
+  // l'avatar pulse tant que ça sonne.
   useEffect(() => {
     if (incoming) {
       feedback.haptic('warning');
-      Animated.spring(slideAnim, {
-        toValue: 0, useNativeDriver: true,
-        tension: 60, friction: 10,
-      }).start();
-      // Pulse animation for call icon — store ref so we can stop it later.
-      pulseLoopRef.current?.stop();
-      pulseLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.2, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ])
+      slideY.value = withSpring(0, MOTION.island);
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1.2, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false,
       );
-      pulseLoopRef.current.start();
     } else {
-      Animated.timing(slideAnim, {
-        toValue: -200, duration: 250, useNativeDriver: true,
-      }).start();
-      pulseLoopRef.current?.stop();
-      pulseLoopRef.current = null;
-      pulseAnim.setValue(1);
+      slideY.value = withTiming(-200, { duration: 250 });
+      cancelAnimation(pulse);
+      pulse.value = 1;
     }
-    return () => { pulseLoopRef.current?.stop(); };
-  }, [incoming]);
+    return () => cancelAnimation(pulse);
+  }, [incoming, pulse, slideY]);
 
   if (!incoming) return null;
 
@@ -106,15 +103,10 @@ export default function IncomingCallOverlay() {
     .toUpperCase();
 
   return (
-    <Animated.View
-      style={[
-        s.overlay,
-        { paddingTop: insets.top + 12, transform: [{ translateY: slideAnim }] },
-      ]}
-    >
+    <Animated.View style={[s.overlay, { paddingTop: insets.top + 12 }, slideStyle]}>
       <View style={[s.card, { backgroundColor: theme.cardBg }]}>
         {/* Avatar */}
-        <Animated.View style={[s.avatar, { backgroundColor: theme.surface }, { transform: [{ scale: pulseAnim }] }]}>
+        <Animated.View style={[s.avatar, { backgroundColor: theme.surface }, pulseStyle]}>
           <Text style={[s.avatarText, { color: theme.text }]}>{initials}</Text>
         </Animated.View>
 

@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Animated,
-  Easing,
   StatusBar,
   Platform,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import { useEntrance } from "@/lib/motion/useEntrance";
 import { useRouter } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Google from "expo-auth-session/providers/google";
@@ -70,17 +70,14 @@ function GoogleLogo({ size = 17 }: { size?: number }) {
 
 // ── Spinner ─────────────────────────────────────────────────────────────────
 function Spinner({ color }: { color: string }) {
-  const spin = useRef(new Animated.Value(0)).current;
+  const spin = useSharedValue(0);
   useEffect(() => {
-    const a = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 750, easing: Easing.linear, useNativeDriver: true })
-    );
-    a.start();
-    return () => a.stop();
-  }, []);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+    spin.value = withRepeat(withTiming(1, { duration: 750, easing: Easing.linear }), -1, false);
+    return () => cancelAnimation(spin);
+  }, [spin]);
+  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 360}deg` }] }));
   return (
-    <Animated.View style={{ transform: [{ rotate }] }}>
+    <Animated.View style={spinStyle}>
       <View
         style={{
           width: 20,
@@ -230,15 +227,8 @@ export default function Login() {
     }
   };
 
-  // Entrance
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(16)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, [fade, slide]);
+  // Entrée : fondu + glissé sur un ressort (lib/motion/useEntrance).
+  const entrance = useEntrance(16);
 
   const onSubmit = async () => {
     if (!email.trim() || !password) {
@@ -291,7 +281,7 @@ export default function Login() {
 
   return (
     <AuthScreen variant="flat" scrollable>
-      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+      <Animated.View style={[s.flex, entrance.style]}>
         <View style={s.header}>
           <View style={s.backAbs}>
             <AuthBackButton onPress={handleBack} themed />

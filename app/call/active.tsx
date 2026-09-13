@@ -2,8 +2,8 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar,
-  Animated, Easing,
 } from 'react-native';
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,22 +43,19 @@ function getStatusLabel(state: string, endReason: CallEndReason | null, t: (k: s
 
 function PulseRing() {
   const theme = useAppTheme();
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0.6)).current;
-
+  // Une onde : 1 → 1,8 en s'effaçant, relancée du départ (withRepeat sans reverse).
+  const p = useSharedValue(0);
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.parallel([
-        Animated.timing(scale, { toValue: 1.8, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
+    p.value = withRepeat(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), -1, false);
+    return () => cancelAnimation(p);
+  }, [p]);
+  const ring = useAnimatedStyle(() => ({
+    opacity: 0.6 * (1 - p.value),
+    transform: [{ scale: 1 + 0.8 * p.value }],
+  }));
 
   return (
-    <Animated.View style={[cs.pulseRing, { borderColor: theme.heroSub, transform: [{ scale }], opacity }]} />
+    <Animated.View style={[cs.pulseRing, { borderColor: theme.heroSub }, ring]} />
   );
 }
 

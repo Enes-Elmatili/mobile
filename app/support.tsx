@@ -3,12 +3,15 @@
 // La mission sélectionnée reste visible en haut dès le level 2 pour que le client
 // garde le contexte (et puisse changer sans repartir au début).
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, Animated, Easing, ScrollView, KeyboardAvoidingView,
+  TouchableOpacity, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
+import { spring } from '@/lib/motion/springs';
+import { useEntrance } from '@/lib/motion/useEntrance';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
@@ -44,18 +47,23 @@ const LEVEL_META: Record<Level, { labelKey: string; subtitleKey: string }> = {
 // ─── Wrappers d'animation ────────────────────────────────────────────────────
 
 function FadeSlide({ children }: { children: React.ReactNode }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(12)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 280, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, []);
+  const entrance = useEntrance(12);
   return (
-    <Animated.View style={{ flex: 1, opacity, transform: [{ translateY }] }}>
+    <Animated.View style={[{ flex: 1 }, entrance.style]}>
       {children}
     </Animated.View>
+  );
+}
+
+/** Segment entre deux étapes : se remplit quand la progression le dépasse. */
+function StepLine({ idx, progress, theme }: { idx: number; progress: SharedValue<number>; theme: ReturnType<typeof useAppTheme> }) {
+  const fill = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [idx - 1, idx], [0, 1], Extrapolation.CLAMP),
+  }));
+  return (
+    <View style={[stepStyles.line, { backgroundColor: theme.borderLight }]}>
+      <Animated.View style={[stepStyles.lineFill, { backgroundColor: theme.text }, fill]} />
+    </View>
   );
 }
 
@@ -64,17 +72,11 @@ function FadeSlide({ children }: { children: React.ReactNode }) {
 function Stepper({ level, theme }: { level: Level; theme: ReturnType<typeof useAppTheme> }) {
   const { t } = useTranslation();
   const steps: Level[] = [1, 2, 3];
-  const progressAnim = useRef(new Animated.Value(level - 1)).current;
-
+  // Progression critique (ζ = 1) : la ligne avance sans dépasser l'étape.
+  const progress = useSharedValue(level - 1);
   useEffect(() => {
-    Animated.spring(progressAnim, {
-      toValue: level - 1,
-      useNativeDriver: false,
-      damping: 18,
-      stiffness: 140,
-      mass: 0.6,
-    }).start();
-  }, [level]);
+    progress.value = withSpring(level - 1, spring(140, 1));
+  }, [level, progress]);
 
   return (
     <View style={stepStyles.row}>
@@ -84,23 +86,7 @@ function Stepper({ level, theme }: { level: Level; theme: ReturnType<typeof useA
         const meta = LEVEL_META[s];
         return (
           <React.Fragment key={s}>
-            {idx > 0 && (
-              <View style={[stepStyles.line, { backgroundColor: theme.borderLight }]}>
-                <Animated.View
-                  style={[
-                    stepStyles.lineFill,
-                    {
-                      backgroundColor: theme.text,
-                      opacity: progressAnim.interpolate({
-                        inputRange: [idx - 1, idx],
-                        outputRange: [0, 1],
-                        extrapolate: 'clamp',
-                      }),
-                    },
-                  ]}
-                />
-              </View>
-            )}
+            {idx > 0 && <StepLine idx={idx} progress={progress} theme={theme} />}
             <View style={stepStyles.item}>
               <View
                 style={[

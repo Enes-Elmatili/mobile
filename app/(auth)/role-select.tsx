@@ -1,14 +1,16 @@
 // app/(auth)/role-select.tsx — role selection (flat theme-aware, v2)
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   Pressable,
   StyleSheet,
-  Animated,
-  Easing,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import { MOTION } from "@/lib/motion/springs";
+import { usePressScale } from "@/lib/motion/press";
+import { useEntrance } from "@/lib/motion/useEntrance";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { feedback } from "@/lib/feedback/feedback";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -49,27 +51,16 @@ function RoleCard({
   theme: ReturnType<typeof useAppTheme>;
   dot: string;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const radioDot = useRef(new Animated.Value(0)).current;
-
+  // Retour à l'appui (règle 4) ; le point du radio « prend » sur MOTION.take.
+  const press = usePressScale();
+  const dotScale = useSharedValue(isSelected ? 1 : 0);
   useEffect(() => {
-    Animated.spring(radioDot, {
-      toValue: isSelected ? 1 : 0,
-      friction: 6,
-      tension: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [isSelected]);
-
-  const onPressIn = () => {
-    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
-  };
-  const onPressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
-  };
+    dotScale.value = withSpring(isSelected ? 1 : 0, MOTION.take);
+  }, [isSelected, dotScale]);
+  const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: dotScale.value }] }));
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={press.style}>
       <Pressable
         style={[
           s.card,
@@ -77,8 +68,7 @@ function RoleCard({
           isSelected && { borderColor: dot },
         ]}
         onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
+        {...press.handlers}
         accessibilityRole="radio"
         accessibilityState={{ selected: isSelected }}
         accessibilityLabel={title}
@@ -95,7 +85,7 @@ function RoleCard({
         </View>
 
         <View style={[s.radio, { borderColor: alpha(theme.text, 0.3) }, isSelected && { borderColor: dot }]}>
-          <Animated.View style={[s.radioInner, { backgroundColor: dot, transform: [{ scale: radioDot }] }]} />
+          <Animated.View style={[s.radioInner, { backgroundColor: dot }, dotStyle]} />
         </View>
       </Pressable>
     </Animated.View>
@@ -123,25 +113,8 @@ export default function RoleSelect() {
   // termine déjà par "?" → pas de point vert ajouté (cf. plan, cas "?").
   const roleTitle = stripAccent(t('ext.role_title'));
 
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(16)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(slide, {
-        toValue: 0,
-        duration: 700,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fade, slide]);
+  // Entrée : fondu + glissé sur un ressort (lib/motion/useEntrance).
+  const entrance = useEntrance(16);
 
   const select = (role: "CLIENT" | "PROVIDER") => {
     setSelected(role);
@@ -202,7 +175,7 @@ export default function RoleSelect() {
 
   return (
     <AuthScreen variant="flat" scrollable>
-      <Animated.View style={[s.flex, { opacity: fade, transform: [{ translateY: slide }] }]}>
+      <Animated.View style={[s.flex, entrance.style]}>
         <View style={s.header}>
           {!isAuthenticated && (
             <View style={s.backAbs}>

@@ -1,19 +1,20 @@
 // app/request/[id]/earnings.tsx
 // v2 — Palette Silver unifiée + navigation lock (no race condition)
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Animated,
   StatusBar,
   BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -45,10 +46,14 @@ export default function EarningsScreen() {
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const { invoice } = useInvoice(id ? Number(id) : null);
 
-  // Animations
-  const checkAnim = useRef(new Animated.Value(0)).current;
-  const priceAnim = useRef(new Animated.Value(0)).current;
-  const slideUp = useRef(new Animated.Value(40)).current;
+  // Animations : la coche atterrit (MOTION.land), puis le prix prend
+  // (MOTION.take) et le détail monte (MOTION.pane). Rien ne bouge avant la donnée.
+  const check = useSharedValue(0);
+  const price = useSharedValue(0);
+  const slideUp = useSharedValue(40);
+  const checkStyle = useAnimatedStyle(() => ({ opacity: check.value, transform: [{ scale: check.value }] }));
+  const priceStyle = useAnimatedStyle(() => ({ opacity: price.value, transform: [{ scale: 0.7 + 0.3 * price.value }] }));
+  const detailStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }] }));
   const [displayedPrice, setDisplayedPrice] = useState(0);
 
   // ── Navigation lock — empêche tout retour arrière avant d'afficher les gains ──
@@ -76,14 +81,10 @@ export default function EarningsScreen() {
         setMonthEarnings(w.monthEarnings || w.totalEarnings || 0);
       }
 
-      // Lancer animations après chargement
-      Animated.sequence([
-        Animated.spring(checkAnim, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }),
-        Animated.parallel([
-          Animated.spring(priceAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
-          Animated.timing(slideUp, { toValue: 0, duration: 350, useNativeDriver: true }),
-        ]),
-      ]).start();
+      // Lancer animations après chargement : coche, puis prix + détail.
+      check.value = withSpring(1, MOTION.land);
+      price.value = withDelay(220, withSpring(1, MOTION.take));
+      slideUp.value = withDelay(220, withSpring(0, MOTION.pane));
     } catch (error) {
       devError('Error loading request:', error);
     } finally {
@@ -154,23 +155,14 @@ export default function EarningsScreen() {
       <SafeAreaView edges={['top']} style={{ backgroundColor: theme.heroBg }}>
       <View style={s.heroZone}>
         {/* Checkmark animé */}
-        <Animated.View style={[s.checkCircle, {
-          backgroundColor: darkTokens.surface,
-          transform: [{ scale: checkAnim }],
-          opacity: checkAnim,
-        }]}>
+        <Animated.View style={[s.checkCircle, { backgroundColor: darkTokens.surface }, checkStyle]}>
           <Feather name="check" size={40} color={theme.heroText} />
         </Animated.View>
 
         <Text style={[s.heroLabel, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>{t('missions.done')}</Text>
 
         {/* Prix net = star */}
-        <Animated.Text style={[s.heroPrice, {
-          color: theme.heroText,
-          fontFamily: FONTS.bebas, includeFontPadding: false,
-          transform: [{ scale: priceAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }],
-          opacity: priceAnim,
-        }]}>
+        <Animated.Text style={[s.heroPrice, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }, priceStyle]}>
           {formatEUR(displayedPrice)}
         </Animated.Text>
 
@@ -179,7 +171,7 @@ export default function EarningsScreen() {
       </SafeAreaView>
 
       {/* ── Zone détail — fond adaptatif ── */}
-      <Animated.View style={[s.detailZone, { backgroundColor: theme.bg, paddingBottom: Math.max(insets.bottom, 16) + 16, transform: [{ translateY: slideUp }] }]}>
+      <Animated.View style={[s.detailZone, { backgroundColor: theme.bg, paddingBottom: Math.max(insets.bottom, 16) + 16 }, detailStyle]}>
 
         {/* Calcul compact */}
         <View style={[s.calcCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>

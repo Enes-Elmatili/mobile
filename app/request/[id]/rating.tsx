@@ -10,7 +10,6 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
-  Animated,
   Platform,
   StatusBar,
   BackHandler,
@@ -30,6 +29,8 @@ import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
 import Reanimated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { spring } from '@/lib/motion/springs';
+import { usePressScale } from '@/lib/motion/press';
+import { useEntrance } from '@/lib/motion/useEntrance';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ============================================================================
@@ -115,25 +116,19 @@ function ComplimentChip({
   onPress: () => void;
   theme: ReturnType<typeof useAppTheme>;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.93, duration: 60, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 220, friction: 8 }),
-    ]).start();
-    onPress();
-  };
+  // Retour à l'appui (règle 4), pas au relâchement.
+  const press = usePressScale(0.93);
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Reanimated.View style={press.style}>
       <TouchableOpacity
         style={[
           cc.chip,
           { backgroundColor: theme.surface, borderColor: theme.border },
           selected && { backgroundColor: theme.accent, borderColor: theme.accent },
         ]}
-        onPress={handlePress}
+        onPress={onPress}
+        {...press.handlers}
         activeOpacity={1}
         accessibilityLabel={chip.label}
         accessibilityRole="button"
@@ -146,7 +141,7 @@ function ComplimentChip({
         <Text style={[cc.label, { color: theme.textSub, fontFamily: FONTS.sansMedium }, selected && { color: theme.accentText }]}>{chip.label}</Text>
         {selected && <Feather name="check-circle" size={14} color={theme.accentText} />}
       </TouchableOpacity>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -192,8 +187,8 @@ export default function RatingScreen() {
     onError: (err) => feedback.error(err.message || t('rating.submit_error')),
   });
 
-  const slideUp = useRef(new Animated.Value(30)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // Entrée : le bloc prestataire glisse, les sections suivent en fondu.
+  const entrance = useEntrance(30);
 
   // ── Navigation Lock — bloque le retour physique Android ──────────────────
   // Sans ce verrou, le layout parent peut rediriger vers /dashboard avant que
@@ -205,10 +200,6 @@ export default function RatingScreen() {
 
   useEffect(() => {
     loadRequest();
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.timing(slideUp, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start();
   }, [id]);
 
   const loadRequest = async () => {
@@ -355,7 +346,7 @@ export default function RatingScreen() {
         </View>
 
         {/* ── Prestataire ── */}
-        <Animated.View style={[s.providerBlock, { opacity: fadeAnim, transform: [{ translateY: slideUp }] }]}>
+        <Reanimated.View style={[s.providerBlock, entrance.style]}>
           {/* Avatar initiales */}
           <View style={[s.avatar, { backgroundColor: theme.accent }]}>
             <Text style={[s.avatarText, { color: theme.accentText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
@@ -369,7 +360,7 @@ export default function RatingScreen() {
               <Text style={[s.serviceTagText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{translateRequestServiceRaw(request)}</Text>
             </View>
           )}
-        </Animated.View>
+        </Reanimated.View>
 
         {/* ── Étoiles ── */}
         <View style={s.starsBlock}>
@@ -385,7 +376,7 @@ export default function RatingScreen() {
 
         {/* ── Chips compliments — apparaissent dès qu'une étoile est choisie ── */}
         {rating >= 4 && (
-          <Animated.View style={[s.section, { opacity: fadeAnim }]}>
+          <Reanimated.View style={[s.section, entrance.fade]}>
             <Text style={[s.sectionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('rating.what_you_liked')}</Text>
             <View style={s.chipsWrap}>
               {compliments.map(chip => (
@@ -398,11 +389,11 @@ export default function RatingScreen() {
                 />
               ))}
             </View>
-          </Animated.View>
+          </Reanimated.View>
         )}
 
         {rating > 0 && rating < 4 && (
-          <Animated.View style={[s.section, { opacity: fadeAnim }]}>
+          <Reanimated.View style={[s.section, entrance.fade]}>
             <Text style={[s.sectionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('rating.what_went_wrong')}</Text>
             <View style={s.chipsWrap}>
               {[
@@ -420,7 +411,7 @@ export default function RatingScreen() {
                 />
               ))}
             </View>
-          </Animated.View>
+          </Reanimated.View>
         )}
 
         {/* ── Note texte collapsible ── */}

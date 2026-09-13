@@ -1,10 +1,11 @@
 // components/onboarding/OnboardingLayout.tsx — Dark premium wrapper for onboarding screens
-import React, { useRef, useEffect } from "react";
+import React, { useEffect } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, StatusBar,
-  Animated, Easing,
 } from "react-native";
+import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import { useReduceMotion } from "@/lib/motion/sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Line } from "react-native-svg";
@@ -111,30 +112,25 @@ export function OnboardingLayout({
     else if (router.canGoBack()) router.back();
   };
 
-  // Glow animation
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const glowOp = useRef(new Animated.Value(0.5)).current;
+  // Halo qui respire (3 s aller, 3 s retour) ; immobile sous reduce-motion.
+  const reduced = useReduceMotion();
+  const glow = useSharedValue(0);
   useEffect(() => {
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(glowOp, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(glowOp, { toValue: 0.5, duration: 3000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-  }, []);
+    if (reduced) { glow.value = 0.5; return; }
+    glow.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    return () => cancelAnimation(glow);
+  }, [glow, reduced]);
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: 0.5 + 0.5 * glow.value,
+    transform: [{ scale: 1 + 0.1 * glow.value }],
+  }));
 
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" />
 
       <GridLines />
-      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2 }, glowStyle]}>
         <LinearGradient
           colors={[alpha(darkTokens.text, 0.025), "transparent"]}
           style={s.glowGradient}
