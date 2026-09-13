@@ -34,13 +34,17 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import Reanimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { MOTION, useBreathe, useCountingValue, usePresence, usePressScale } from '@/lib/motion';
 import { ReText } from '@/components/ui/ReText';
 import { StepCTA } from '@/components/request/StepCTA';
 import { StepHeader } from '@/components/request/StepHeader';
 import { StepPager, type PagerDirection } from '@/components/request/StepPager';
 import { deriveCrumbs } from '@/lib/request/crumbs';
+import { CategoryRail } from '@/components/request/CategoryRail';
+import { ServiceRow } from '@/components/request/ServiceRow';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { AdaptiveScroll } from '@/lib/layout';
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
@@ -174,130 +178,6 @@ function useTheme() {
     heroSubFaint:    t.heroSubFaint,
   };
 }
-
-// ─── Category Card ─────────────────────────────────────────────────────────────
-function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: boolean; dimmed?: boolean; onPress: () => void }) {
-  const t     = useTheme();
-  const { t: tr } = useTranslation();
-  // Retour à l'appui (règle 4) ; les cartes non choisies s'estompent.
-  const press = usePressScale(0.96);
-  const dim = useSharedValue(1);
-  const label = translateCategory(tr, cat);
-
-  useEffect(() => {
-    dim.value = withTiming(dimmed ? 0.25 : 1, { duration: 250 });
-  }, [dimmed, dim]);
-  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
-
-  const handlePress = () => {
-    feedback.haptic('light');
-    onPress();
-  };
-
-  return (
-    <Reanimated.View style={[cc.wrap, press.style, dimStyle]}>
-      <TouchableOpacity
-        style={[
-          cc.card,
-          { borderBottomColor: t.surfaceBorder },
-          selected && [cc.cardSelected, { backgroundColor: t.surfaceAlt, borderBottomColor: 'transparent' }],
-        ]}
-        onPress={handlePress}
-        {...press.handlers}
-        activeOpacity={1}
-        accessibilityLabel={label}
-        accessibilityRole="button"
-      >
-        <View style={[cc.iconWrap, { backgroundColor: t.surface }, selected && [cc.iconWrapSelected, { backgroundColor: t.accent }]]}>
-          <Feather
-            name={toFeatherName(toIoniconName(cat.icon, 'construct-outline'), 'tool') as any}
-            size={18}
-            color={selected ? t.accentText as string : t.textSub as string}
-          />
-        </View>
-        <Text style={[cc.name, { color: t.text }, selected && cc.nameSelected]} numberOfLines={1}>
-          {label}
-        </Text>
-        {selected
-          ? <View style={[cc.selectedDot, { backgroundColor: t.text }]} />
-          : <Feather name="chevron-right" size={14} color={t.textMuted} />
-        }
-      </TouchableOpacity>
-    </Reanimated.View>
-  );
-}
-
-const cc = StyleSheet.create({
-  wrap:             { width: '100%' },
-  card:             { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 12, borderRadius: 14, backgroundColor: 'transparent', borderBottomWidth: 1 },
-  cardSelected:     { borderRadius: 14 },
-  iconWrap:         { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  iconWrapSelected: {},
-  name:             { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
-  nameSelected:     {},
-  selectedDot:      { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-});
-
-// ─── Sub Row ───────────────────────────────────────────────────────────────────
-function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPress, pricingMode, calloutFee }: {
-  label:        string;
-  basePrice?:   number;
-  priceMin?:    number;
-  priceMax?:    number;
-  selected:     boolean;
-  dimmed?:      boolean;
-  onPress:      () => void;
-  pricingMode?: string;
-  calloutFee?:  number;
-}) {
-  const t     = useTheme();
-  const { t: tr } = useTranslation();
-  const press = usePressScale(0.98);
-  const dim = useSharedValue(1);
-  const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
-
-  useEffect(() => {
-    dim.value = withTiming(dimmed ? 0.3 : 1, { duration: 200 });
-  }, [dimmed, dim]);
-  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
-
-  const handlePress = () => {
-    feedback.haptic('light');
-    onPress();
-  };
-
-  return (
-    <Reanimated.View style={[press.style, dimStyle]}>
-      <TouchableOpacity
-        style={[sc.row, { borderBottomColor: t.surfaceBorder }]}
-        onPress={handlePress}
-        {...press.handlers}
-        activeOpacity={0.7}
-        accessibilityLabel={label}
-        accessibilityRole="button"
-      >
-        <View style={[sc.dot, { backgroundColor: isQuote ? COLORS.amber : COLORS.greenBrand }, selected && { backgroundColor: t.text }]} />
-        <Text style={[sc.text, { color: t.textSub }, selected && { fontFamily: FONTS.sansMedium, color: t.text }]}>{label}</Text>
-        <View style={sc.right}>
-          <View style={[sc.pill, { backgroundColor: isQuote ? 'rgba(200,130,10,0.15)' : 'rgba(21,193,110,0.15)' }]}>
-            <Text style={[sc.pillText, { color: isQuote ? COLORS.amber : t.greenText }]}>{isQuote ? tr('stepper.pricing_quote') : tr('stepper.pricing_fixed')}</Text>
-          </View>
-          {selected && <Feather name="check" size={16} color={t.text as string} />}
-        </View>
-      </TouchableOpacity>
-    </Reanimated.View>
-  );
-}
-
-const sc = StyleSheet.create({
-  row:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 4, gap: 10, borderBottomWidth: 1 },
-  dot:   { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
-  text:  { flex: 1, fontSize: 15, fontFamily: FONTS.sans },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, minWidth: 70, alignItems: 'center' as const },
-  pillText: { fontSize: 11, fontFamily: FONTS.sansMedium },
-  priceSmall: { fontSize: 12, fontFamily: FONTS.bebas, includeFontPadding: false },
-});
 
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
 function TimeSlot({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -730,8 +610,6 @@ export default function NewRequestStepper() {
     forceScheduled?: string;
   }>();
   const mapRef    = useRef<MapView | null>(null);
-  const step2ScrollRef = useRef<ScrollView>(null);
-  const catLayoutsRef  = useRef<Record<number, number>>({});
   const mountedRef = useRef(true);
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -886,6 +764,11 @@ export default function NewRequestStepper() {
     basePrice, pricingMode, calloutFee, isFreeService, isQuoteFlow,
     serviceChosen, categoryUnavailable,
   } = selection;
+  // Sens de la poussée de la liste quand on change de catégorie (ordre des pilules).
+  const prevCategoryIndexRef = useRef(0);
+  const categoryIndex = Math.max(0, categories.findIndex((c) => c.id === categoryId));
+  const railDirection: PagerDirection = categoryIndex >= prevCategoryIndexRef.current ? 1 : -1;
+  useEffect(() => { prevCategoryIndexRef.current = categoryIndex; }, [categoryIndex]);
 
   // ── TVA service : 6% rénovation (logement >=10 ans + usage privé) sinon 21% ──
   // privateUse dérivé du type de bâtiment (bureau = usage pro → 21%).
@@ -928,7 +811,6 @@ export default function NewRequestStepper() {
     flatAmount:  basePrice,
     vatRate,
   }), [basePrice, isUrgent, requestDateIso, vatRate]);
-  const estimatedPrice  = parseFloat(priceDetails.totalTVAC);
   const urgencySurcharge = parseFloat(priceDetails.urgentFee);
   const step3Ready = scheduleMode === 'now' || (scheduleMode === 'later' && !!selectedDayIso && !!selectedTime);
 
@@ -952,16 +834,16 @@ export default function NewRequestStepper() {
     })();
   }, []);
 
-  // Auto-sélection catégorie depuis param
+  // Le rail est toujours posé sur une catégorie : celle demandée par le
+  // paramètre `selectedCategory` (CTA « Demander » depuis une fiche), sinon la première.
   useEffect(() => {
-    if (!preselectedCategory || categories.length === 0 || categoryId) return;
-    const match = categories.find(
-      (c) => c.name?.toLowerCase().includes(preselectedCategory.toLowerCase()) ||
-             c.slug?.toLowerCase() === preselectedCategory.toLowerCase()
-    );
-    if (match) setCategoryId(match.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories, preselectedCategory]);
+    if (categories.length === 0 || categoryId !== null) return;
+    const wanted = preselectedCategory?.toLowerCase();
+    const match = wanted
+      ? categories.find((c) => c.name?.toLowerCase().includes(wanted) || c.slug?.toLowerCase() === wanted)
+      : null;
+    setCategoryId((match ?? categories[0]).id);
+  }, [categories, categoryId, preselectedCategory]);
 
   const goNext = () => {
     feedback.haptic('medium');
@@ -1819,110 +1701,70 @@ export default function NewRequestStepper() {
           </View>
         )}
 
-        {/* ══ ÉTAPE 2 — Service ══ */}
+        {/* ══ ÉTAPE 2 — Service (planche 2A : rail de catégories, lignes sans montant) ══ */}
         {step === 2 && (
           <KeyboardAvoidingView style={s.flex} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
             <View style={s.flex}>
-            <ScrollView ref={step2ScrollRef} style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={[s.step2Title, { color: theme.text }]}>{t('stepper.what_do_you_need')}</Text>
-
               {categories.length === 0 ? (
-                <View style={s.loadWrap}>
-                  <ActivityIndicator size="large" color={theme.text as string} />
-                  <Text style={[s.loadText, { color: theme.textSub }]}>{t('stepper.loading_services')}</Text>
+                <View style={s.skeletons}>
+                  <Skeleton h={40} r={20} />
+                  <Skeleton h={62} r={14} />
+                  <Skeleton h={62} r={14} />
+                  <Skeleton h={62} r={14} />
                 </View>
               ) : (
-                <View style={s.catList}>
-                  {categories.map((cat, catIndex) => {
-                    const isSelected = categoryId === cat.id;
-                    const isDimmed = categoryId !== null && !isSelected;
-                    const subs = isSelected && cat.subcategories?.length > 0 ? cat.subcategories : [];
-                    return (
-                      <View key={cat.id} onLayout={(e) => { catLayoutsRef.current[catIndex] = e.nativeEvent.layout.y; }}>
-                        <CategoryCard
-                          cat={cat}
-                          selected={isSelected}
-                          dimmed={isDimmed}
-                          onPress={() => {
-                            setCategoryId(cat.id);
-                            setSubcategoryId(null);
-                            // Scroll to center the selected category
-                            setTimeout(() => {
-                              const y = catLayoutsRef.current[catIndex] || 0;
-                              step2ScrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
-                            }, 100);
-                          }}
+                <>
+                  <CategoryRail
+                    items={categories.map((c) => ({ id: c.id, label: translateCategory(t, c) }))}
+                    selectedId={categoryId}
+                    onSelect={(id) => { setCategoryId(id); setSubcategoryId(null); }}
+                  />
+                  <StepPager page={categoryId ?? 'none'} direction={railDirection} style={s.flex}>
+                    <AdaptiveScroll style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                      {(selectedCategory?.subcategories ?? []).map((sub: any) => (
+                        <ServiceRow
+                          key={sub.id}
+                          label={translateSubcategory(i18nInstance.language, sub)}
+                          description={sub.description}
+                          pricingMode={sub.pricingMode}
+                          selected={subcategoryId === sub.id}
+                          onPress={() => setSubcategoryId(sub.id)}
+                          fixedLabel={t('stepper.pricing_fixed')}
+                          quoteLabel={t('stepper.pricing_quote')}
                         />
-                        {subs.length > 0 && (
-                          <View style={s.inlineSubs}>
-                            <View style={s.subHeader}>
-                              <Text style={[s.subTitle, { color: theme.text }]}>{t('stepper.specify')}</Text>
-                              {/* Le choix d'une sous-catégorie est obligatoire (c'est elle qui
-                                  porte le prix) — on le dit explicitement tant que rien n'est
-                                  sélectionné, pour que le CTA grisé ne soit jamais un mystère. */}
-                              {!subcategoryId ? (
-                                <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.select_service_type')}</Text>
-                              ) : estimatedPrice > 0 ? (
-                                <Text style={[s.priceInline, { color: theme.textSub }]}>{t('stepper.from_price', { price: estimatedPrice })}</Text>
-                              ) : null}
-                            </View>
-                            <View style={s.subList}>
-                              {subs.map((sub: any) => (
-                                <SubChip
-                                  key={sub.id}
-                                  label={translateSubcategory(i18nInstance.language, sub)}
-                                  basePrice={sub.basePrice}
-                                  priceMin={sub.priceMin}
-                                  priceMax={sub.priceMax}
-                                  pricingMode={sub.pricingMode}
-                                  calloutFee={sub.calloutFee}
-                                  selected={subcategoryId === sub.id}
-                                  dimmed={subcategoryId !== null && subcategoryId !== sub.id}
-                                  onPress={() => setSubcategoryId(sub.id)}
-                                />
-                              ))}
-                            </View>
-                          </View>
-                        )}
-                        {/* Catégorie sans sous-catégorie ET sans prix : non réservable
-                            (aucun prix à verrouiller). On l'annonce au lieu de laisser
-                            le parcours mener à une erreur de paiement à l'étape 4. */}
-                        {isSelected && categoryUnavailable && (
-                          <View style={s.inlineSubs}>
-                            <Text style={[s.priceInline, { color: theme.textSub }]}>
-                              {t('stepper.service_unavailable')}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
+                      ))}
+                      {/* Catégorie sans prestation ET sans prix : non réservable (aucun prix à
+                          verrouiller). On l'annonce au lieu de laisser le parcours mener à une
+                          erreur de paiement à l'étape 4. */}
+                      {categoryUnavailable && (
+                        <Text style={[s.unavailable, { color: theme.textSub }]}>{t('stepper.service_unavailable')}</Text>
+                      )}
+
+                      <TouchableOpacity style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} activeOpacity={0.7} accessibilityRole="button">
+                        <Feather name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
+                        <Text style={[s.noteToggleText, { color: theme.textSub }]}>{t('stepper.add_note')}</Text>
+                      </TouchableOpacity>
+
+                      {noteOpen && (
+                        <TextInput
+                          style={[s.noteInput, { backgroundColor: theme.noteInputBg, borderColor: theme.noteInputBorder, color: theme.text as string }]}
+                          placeholder={t('stepper.note_placeholder')}
+                          placeholderTextColor={theme.textPlaceholder as string}
+                          value={description}
+                          onChangeText={setDescription}
+                          multiline
+                          numberOfLines={3}
+                          textAlignVertical="top"
+                          autoFocus
+                          accessibilityLabel={t('stepper.add_note')}
+                        />
+                      )}
+
+                      <View style={{ height: 100 }} />
+                    </AdaptiveScroll>
+                  </StepPager>
+                </>
               )}
-
-              <TouchableOpacity style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} activeOpacity={0.7} accessibilityRole="button">
-                <Feather name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
-                <Text style={[s.noteToggleText, { color: theme.textSub }]}>{t('stepper.add_note')}</Text>
-              </TouchableOpacity>
-
-              {noteOpen && (
-                <TextInput
-                  style={[s.noteInput, { backgroundColor: theme.noteInputBg, borderColor: theme.noteInputBorder, color: theme.text as string }]}
-                  placeholder={t('stepper.note_placeholder')}
-                  placeholderTextColor={theme.textPlaceholder as string}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                  autoFocus
-                  accessibilityLabel={t('stepper.add_note')}
-                />
-              )}
-
-              <View style={{ height: 100 }} />
-            </ScrollView>
-
             </View>
 
             <StepCTA
@@ -2496,33 +2338,17 @@ const s = StyleSheet.create({
   title:    { fontSize: 28, marginBottom: 6, letterSpacing: 0.5, fontFamily: FONTS.bebas, includeFontPadding: false },
   subtitle: { fontSize: 15, marginBottom: 28, fontFamily: FONTS.sans },
 
-  loadWrap: { paddingVertical: 60, alignItems: 'center', gap: 14 },
-  loadText: { fontSize: 14, fontFamily: FONTS.sans },
 
   // Step 2
-  step2Pad:   { paddingHorizontal: 12, paddingTop: 16 },
-  step2Title: { fontSize: 22, letterSpacing: 0.5, marginBottom: 22, fontFamily: FONTS.bebas, includeFontPadding: false },
-  catList:    { marginBottom: 4 },
-  grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  step2Pad:    { paddingTop: 12, paddingBottom: 8 },
+  skeletons:   { paddingHorizontal: 24, paddingTop: 12, gap: 10 },
+  unavailable: { fontFamily: FONTS.sans, fontSize: 13, paddingHorizontal: 24, paddingVertical: 12 },
 
-  inlineSubs: { paddingLeft: 4, paddingRight: 4, paddingBottom: 4 },
-  subSection: { marginTop: 20 },
-  subHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  subTitle:   { fontSize: 11, fontFamily: FONTS.mono, letterSpacing: 1, textTransform: 'uppercase' },
-  priceInline:{ fontSize: 13, fontFamily: FONTS.mono },
-  chips:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  subList:    { gap: 8 },
 
-  priceRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingHorizontal: 4 },
-  priceRowLabel:  { fontSize: 13, fontFamily: FONTS.sansMedium },
-  priceRowRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priceRowValue:  { fontSize: 22, letterSpacing: 0.3, fontFamily: FONTS.bebas, includeFontPadding: false },
-  priceRowBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  priceRowSub:    { fontSize: 11, fontFamily: FONTS.sans },
 
-  noteToggle:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, paddingVertical: 4 },
+  noteToggle:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, marginHorizontal: 24, paddingVertical: 4 },
   noteToggleText: { fontSize: 13, fontFamily: FONTS.sans },
-  noteInput:      { borderRadius: 16, padding: 16, fontSize: 15, minHeight: 90, borderWidth: 1.5, fontFamily: FONTS.sans },
+  noteInput:      { borderRadius: 16, padding: 16, fontSize: 15, minHeight: 90, borderWidth: 1.5, fontFamily: FONTS.sans, marginHorizontal: 24 },
 
   // Step 3
   step3Pad:       { paddingHorizontal: 24, paddingTop: 28 },
