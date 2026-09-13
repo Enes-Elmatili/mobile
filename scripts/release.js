@@ -46,7 +46,9 @@ function fail(message) {
   process.exit(1);
 }
 function sh(cmd, opts = {}) {
-  return execSync(cmd, { cwd: ROOT, encoding: 'utf8', stdio: opts.inherit ? 'inherit' : 'pipe', ...opts }).toString?.().trim();
+  const out = execSync(cmd, { cwd: ROOT, encoding: 'utf8', stdio: opts.inherit ? 'inherit' : 'pipe' });
+  // stdio: 'inherit' → execSync renvoie null (la sortie est allée au terminal).
+  return out == null ? '' : String(out).trim();
 }
 function parseVersion(v) {
   const parts = String(v).split('.').map((n) => parseInt(n, 10));
