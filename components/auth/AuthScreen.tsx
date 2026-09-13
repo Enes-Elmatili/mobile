@@ -21,6 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authT, invertedGradient, standardGradient } from "./tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useLayoutClass, READING_MAX_WIDTH } from '@/lib/layout';
 
 type Variant = "inverted" | "standard" | "flat";
 
@@ -44,6 +45,8 @@ export function AuthScreen({
   scrollable = false,
   contentStyle,
 }: Props) {
+  // Largeur de lecture sur un écran regular (Duo ouvert, Fold, iPad).
+  const { isRegular } = useLayoutClass();
   const theme = useAppTheme();
   const isFlat = variant === "flat";
   const grad = variant === "inverted" ? invertedGradient : standardGradient;
@@ -78,7 +81,7 @@ export function AuthScreen({
         >
           <ScrollView
             style={s.flex}
-            contentContainerStyle={s.scroll}
+            contentContainerStyle={[s.scroll, isRegular && { maxWidth: READING_MAX_WIDTH, alignSelf: 'center', width: '100%' }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}

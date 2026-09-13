@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import Animated from "react-native-reanimated";
 import { MOTION, useCountingValue, usePresence } from "@/lib/motion";
 import { ReText } from "@/components/ui/ReText";
+import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
 
 // Normalise la virgule décimale (clavier FR/BE) avant parseFloat.
 const parseAmount = (value: string): number => parseFloat(value.replace(",", ".")) || 0;
@@ -92,6 +93,7 @@ export default function SendQuote() {
   // Le bloc total apparaît par le bas (usePresence) et son montant COMPTE
   // (useCountingValue) au lieu de sauter — moment 8. Décimales et devise
   // restent fixes, seul l'entier roule.
+  const { isRegular } = useLayoutClass();
   const totalPresence = usePresence(totalCents > 0, { from: "bottom", preset: MOTION.pane });
   const totalCounter = useCountingValue(Math.floor(totalCents / 100), { preset: MOTION.count });
   const totalDec = `,${(totalCents / 100).toFixed(2).split(".")[1]} €`;
@@ -170,7 +172,7 @@ export default function SendQuote() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={s.scroll}
+          contentContainerStyle={[s.scroll, isRegular && { maxWidth: READING_MAX_WIDTH, alignSelf: 'center', width: '100%' }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

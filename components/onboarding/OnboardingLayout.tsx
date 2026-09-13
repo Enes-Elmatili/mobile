@@ -14,7 +14,7 @@ import { feedback } from "@/lib/feedback/feedback";
 import { useTranslation } from "react-i18next";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
-import { useLayoutClass } from "@/lib/layout";
+import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
 
 const GRID_SIZE = 40;
 
@@ -100,7 +100,7 @@ export function OnboardingLayout({
   secondaryCta,
 }: Props) {
   const { t } = useTranslation();
-  const { width: SCREEN_W } = useLayoutClass();
+  const { width: SCREEN_W, isRegular } = useLayoutClass();
   const insets = useSafeAreaInsets();
   const canGoBack = router.canGoBack();
   const shouldShowBack = showBack && (!!onBack || canGoBack);
@@ -190,7 +190,7 @@ export function OnboardingLayout({
       >
         <ScrollView
           style={s.flex}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[s.scrollContent, isRegular && { maxWidth: READING_MAX_WIDTH, alignSelf: 'center', width: '100%' }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
