@@ -36,6 +36,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { DigitReel } from '@/components/ui/DigitReel';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { PulseDot } from '@/components/ui/PulseDot';
@@ -861,7 +862,12 @@ export default function MissionOngoing() {
               <View style={{ marginBottom: 6 }}>
                 {inRoute ? (
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 }}>
-                    <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 52, color: theme.text, lineHeight: 52, letterSpacing: -1 }}>{etaMin}</Text>
+                    <DigitReel
+                      value={etaMin}
+                      lineHeight={52}
+                      textStyle={{ fontFamily: FONTS.bebas, fontSize: 52, color: theme.text, letterSpacing: -1 }}
+                      accessibilityLabel={`${etaMin} ${t('mission_view.min_away')}`}
+                    />
                     <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>{t('mission_view.min_away')}</Text>
                   </View>
                 ) : (

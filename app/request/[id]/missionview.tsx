@@ -1,13 +1,20 @@
 // app/request/[id]/MissionView.tsx
 // ─── Page unifiée : SEARCHING → TRACKING (même écran, transition de phase) ───
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Easing, Platform, Dimensions, StatusBar,
+  Platform, StatusBar,
   TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
   ActivityIndicator,
 } from 'react-native';
+import Animated, {
+  Easing, interpolate, useAnimatedStyle, useSharedValue,
+  withDelay, withRepeat, withSequence, withSpring, withTiming,
+} from 'react-native-reanimated';
+import { DigitReel } from '@/components/ui/DigitReel';
+import { MOTION, SHEET_SPRING, useReduceMotion, useRevealCount, useTakeScale } from '@/lib/motion';
+import { useLayoutClass } from '@/lib/layout';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
@@ -28,7 +35,6 @@ import LiveMapSearching from '@/components/searching/LiveMapSearching';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { isOpaqueName } from '@/lib/displayName';
 
-const { width, height } = Dimensions.get('window');
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -82,30 +88,28 @@ function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, dest
   const insets = useSafeAreaInsets();
   const resolvedConfirmLabel = confirmLabel || t('common.confirm');
   const resolvedCancelLabel = cancelLabel || t('common.cancel');
-  const slideAnim = useRef(new Animated.Value(300)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
-
+  // Ressort critique (SHEET_SPRING) : l'ancien damping 20 / stiffness 260
+  // donnait ζ ≈ 0,62, un sheet qui rebondissait.
+  const slide = useSharedValue(300);
+  const fade = useSharedValue(0);
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 0, damping: 20, stiffness: 260, useNativeDriver: true }),
-      ]).start();
+      fade.value = withTiming(1, { duration: 220 });
+      slide.value = withSpring(0, SHEET_SPRING);
     } else {
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
-      ]).start();
+      fade.value = withTiming(0, { duration: 180 });
+      slide.value = withTiming(300, { duration: 200 });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, fade, slide]);
+  const overlayStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slide.value }] }));
 
   return (
     <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={cm.overlay} onPress={onCancel}>
-        <Animated.View style={{ opacity: fadeAnim, ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' }} />
+        <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }, overlayStyle]} />
       </Pressable>
-      <Animated.View style={[cm.sheet, { backgroundColor: th.cardBg, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28), transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[cm.sheet, { backgroundColor: th.cardBg, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }, sheetStyle]}>
         <View style={[cm.handle, { backgroundColor: th.borderLight }]} />
         <Text style={[cm.title, { color: th.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{title}</Text>
         {message ? <Text style={[cm.message, { color: th.textSub, fontFamily: FONTS.sans }]}>{message}</Text> : null}
@@ -224,51 +228,6 @@ const MAP_STYLE_DARK = [
   { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// RADAR WAVES (phase SEARCHING)
-// ═══════════════════════════════════════════════════════════════════════════════
-const WAVE_COUNT = 4;
-const WAVE_SIZE = width * 0.85;
-
-function RadarWaves() {
-  const theme = useAppTheme();
-  const anims = useRef(
-    Array.from({ length: WAVE_COUNT }, () => new Animated.Value(0))
-  ).current;
-
-  useEffect(() => {
-    const loops = anims.map((anim, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 650),
-          Animated.timing(anim, { toValue: 1, duration: 2600, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
-        ])
-      )
-    );
-    loops.forEach(l => l.start());
-    return () => loops.forEach(l => l.stop());
-  }, []);
-
-  return (
-    <View style={rw.wrap} pointerEvents="none">
-      {anims.map((anim, i) => (
-        <Animated.View
-          key={i}
-          style={[rw.wave, { borderColor: theme.textMuted },  {
-            opacity:   anim.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 0.2, 0.07, 0] }),
-            transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.05, 1] }) }],
-          }]}
-        />
-      ))}
-    </View>
-  );
-}
-
-const rw = StyleSheet.create({
-  wrap: { position: 'absolute', width: WAVE_SIZE, height: WAVE_SIZE, alignItems: 'center', justifyContent: 'center' },
-  wave: { position: 'absolute', width: WAVE_SIZE, height: WAVE_SIZE, borderRadius: WAVE_SIZE / 2, borderWidth: 1.5 },
-});
 
 // ─── Ghost Markers (prestataires fantômes sur carte) ─────────────────────────
 const GHOST_OFFSETS = [
@@ -277,42 +236,47 @@ const GHOST_OFFSETS = [
   { lat: 0.003, lng: -0.010 },
 ];
 
+function GhostMarker({ coord, index, color, iconColor }: { coord: { latitude: number; longitude: number }; index: number; color: string; iconColor: string }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      index * 1100,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [index, p]);
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(p.value, [0, 1], [0.25, 0.5]),
+    transform: [{ scale: interpolate(p.value, [0, 1], [0.9, 1.05]) }],
+  }));
+  return (
+    <Marker coordinate={coord} anchor={{ x: 0.5, y: 0.5 }}>
+      <Animated.View style={[gm.outer, { backgroundColor: color }, style]}>
+        <Feather name="user" size={12} color={iconColor} />
+      </Animated.View>
+    </Marker>
+  );
+}
+
 function GhostMarkers({ center }: { center: { latitude: number; longitude: number } }) {
   const theme = useAppTheme();
-  const anims = useRef(GHOST_OFFSETS.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    const loops = anims.map((anim, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 1100),
-          Animated.timing(anim, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ])
-      )
-    );
-    loops.forEach(l => l.start());
-    return () => loops.forEach(l => l.stop());
-  }, []);
-
   return (
     <>
-      {GHOST_OFFSETS.map((offset, i) => {
-        const coord = {
-          latitude: center.latitude + offset.lat,
-          longitude: center.longitude + offset.lng,
-        };
-        return (
-          <Marker key={i} coordinate={coord} anchor={{ x: 0.5, y: 0.5 }}>
-            <Animated.View style={[gm.outer, { backgroundColor: theme.accent }, {
-              opacity: anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] }),
-              transform: [{ scale: anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.05] }) }],
-            }]}>
-              <Feather name="user" size={12} color={theme.accentText} />
-            </Animated.View>
-          </Marker>
-        );
-      })}
+      {GHOST_OFFSETS.map((offset, i) => (
+        <GhostMarker
+          key={i}
+          index={i}
+          coord={{ latitude: center.latitude + offset.lat, longitude: center.longitude + offset.lng }}
+          color={theme.accent}
+          iconColor={theme.accentText as string}
+        />
+      ))}
     </>
   );
 }
@@ -328,18 +292,21 @@ const gm = StyleSheet.create({
 // ─── Logo central pulsant ─────────────────────────────────────────────────────
 function CenterLogo() {
   const theme = useAppTheme();
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulse = useSharedValue(1);
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.06, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.06, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    );
+  }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   return (
-    <Animated.View style={[cl.outer, { backgroundColor: theme.accent }, { transform: [{ scale: pulse }] }]}>
+    <Animated.View style={[cl.outer, { backgroundColor: theme.accent }, pulseStyle]}>
       <Feather name="search" size={28} color={theme.accentText as string} />
     </Animated.View>
   );
@@ -371,21 +338,18 @@ function DynamicMessage({ elapsed }: { elapsed: number }) {
   const th = useAppTheme();
   const steps = getSteps(t);
   const current = [...steps].reverse().find(s => elapsed >= s.at) || steps[0];
-  const opacity = useRef(new Animated.Value(1)).current;
+  const opacity = useSharedValue(1);
   const prev = useRef(current.title);
 
   useEffect(() => {
     if (prev.current === current.title) return;
     prev.current = current.title;
-    Animated.sequence([
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: true }),
-    ]).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current.title]);
+    opacity.value = withSequence(withTiming(0, { duration: 180 }), withTiming(1, { duration: 280 }));
+  }, [current.title, opacity]);
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   return (
-    <Animated.View style={[dm.wrap, { opacity }]}>
+    <Animated.View style={[dm.wrap, fadeStyle]}>
       <Text style={[dm.title, { color: th.text }]}>{current.title}</Text>
       <Text style={[dm.sub, { color: th.textSub }]}>{current.sub}</Text>
     </Animated.View>
@@ -403,13 +367,21 @@ const dm = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 function ProviderMarker() {
   const theme = useAppTheme();
+  // Atterrissage : 0 → 1 avec un léger dépassement (ζ 0,8) au premier rendu,
+  // haptique success sur la frame d'impact, une seule fois (moment 2).
+  const [landed, setLanded] = useState(false);
+  useEffect(() => {
+    setLanded(true);
+    feedback.haptic('success');
+  }, []);
+  const { style } = useTakeScale(landed, { on: 1, off: 0, preset: MOTION.land });
   return (
-    <View style={pm.wrap}>
+    <Animated.View style={[pm.wrap, style]}>
       <View style={[pm.pin, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
         <Feather name="navigation" size={14} color={theme.text} />
       </View>
       <View style={[pm.stem, { backgroundColor: theme.cardBg }]} />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -463,7 +435,7 @@ export default function MissionView() {
   // n'affiche PAS la "searching view" — sinon une notif vers une mission
   // terminée/devis/annulée fait clignoter à tort l'écran de recherche.
   const [phase, setPhase] = useState<Phase>('LOADING');
-  const phaseAnim = useRef(new Animated.Value(0)).current; // 0 = searching, 1 = tracking
+  const phase01 = useSharedValue(0); // 0 = searching, 1 = tracking
   const hasTransitionedRef = useRef(false); // guard anti-double-transition
 
   // ─── Modal state ──────────────────────────────────────────────────────────
@@ -480,6 +452,9 @@ export default function MissionView() {
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [eta, setEta] = useState('');
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  // Moment 2 : l'itinéraire se dessine du prestataire vers le client.
+  const visibleCount = useRevealCount(routeCoords.length, phase === 'TRACKING' && routeCoords.length > 0);
+  const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
   const [message, setMessage] = useState('');
   // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
   const hasRealLocationRef = useRef(false);
@@ -500,8 +475,15 @@ export default function MissionView() {
   );
 
   // ─── Shared ───────────────────────────────────────────────────────────────
-  const fadeIn  = useRef(new Animated.Value(0)).current;
-  const slideUp = useRef(new Animated.Value(40)).current;
+  // Entrée de page : fondu + glissé sur un ressort (cross-fade seul sous
+  // reduce-motion, règle 8).
+  const reducedMotion = useReduceMotion();
+  const { height: windowHeight } = useLayoutClass();
+  const entrance = useSharedValue(0);
+  const entranceStyle = useAnimatedStyle(() => ({
+    opacity: entrance.value,
+    transform: reducedMotion ? [] : [{ translateY: 40 * (1 - entrance.value) }],
+  }));
 
   const clientLocation = {
     latitude: lat ? parseFloat(lat) : request?.lat || 50.8503,
@@ -519,12 +501,8 @@ export default function MissionView() {
 
   // ─── Entrée page ──────────────────────────────────────────────────────────
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeIn,  { toValue: 1, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(slideUp, { toValue: 0, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    entrance.value = reducedMotion ? withTiming(1, { duration: 200 }) : withSpring(1, MOTION.pane);
+  }, [entrance, reducedMotion]);
 
   // ─── Elapsed (searching) — only for now-requests, not scheduled missions ───
   useEffect(() => {
@@ -613,12 +591,7 @@ export default function MissionView() {
     // Fix : setPhase AVANT l'animation pour que la PIN card s'affiche immédiatement
     setPhase('TRACKING');
     devLog('[MissionView] phase → TRACKING, pinCode:', resolvedPin);
-    Animated.timing(phaseAnim, {
-      toValue: 1,
-      duration: 600,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
-    }).start();
+    phase01.value = withTiming(1, { duration: 600, easing: Easing.inOut(Easing.quad) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPin]);
 
@@ -884,7 +857,7 @@ export default function MissionView() {
       setEta('');
       setRequest((p: any) => p ? { ...p, status: 'PUBLISHED', providerId: null, provider: null, pinCode: null, pinVerified: false } : p);
       setPhase('SEARCHING');
-      Animated.timing(phaseAnim, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }).start();
+      phase01.value = withTiming(0, { duration: 400, easing: Easing.inOut(Easing.quad) });
     };
 
     socket.on('provider:location_update', onLocation);
@@ -1049,8 +1022,9 @@ export default function MissionView() {
   const status = (request?.status || '').toUpperCase();
 
   // ─── Slide animation pour bottom sheets ──────────────────────────────────
-  const searchingSheetY = phaseAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 400] });
-  const trackingSheetY  = phaseAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] });
+  const trackingSheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(phase01.value, [0, 1], [400, 0]) }],
+  }));
 
   // ═════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -1101,7 +1075,7 @@ export default function MissionView() {
         {/* Itinéraire prestataire → client */}
         {phase === 'TRACKING' && routeCoords.length > 0 && (
           <Polyline
-            coordinates={routeCoords}
+            coordinates={visibleRoute}
             strokeColor={theme.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(26,26,26,0.4)'}
             strokeWidth={3}
             lineDashPattern={[0]}
@@ -1121,7 +1095,7 @@ export default function MissionView() {
       {/* ── PHASE SEARCHING : live map + bottom sheet ── */}
       {phase === 'SEARCHING' && (
         <Animated.View
-          style={[StyleSheet.absoluteFillObject, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}
+          style={[StyleSheet.absoluteFillObject, entranceStyle]}
           pointerEvents="box-none"
         >
           <LiveMapSearching
@@ -1164,9 +1138,9 @@ export default function MissionView() {
           </SafeAreaView>
 
           {/* Bottom sheet tracking */}
-          <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04, transform: [{ translateY: trackingSheetY }] }, Platform.OS === 'android' && { paddingBottom: insets.bottom + 12 }]}>
+          <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04 }, trackingSheetStyle, Platform.OS === 'android' && { paddingBottom: insets.bottom + 12 }]}>
             <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
-            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={s.trackingScroll} contentContainerStyle={s.trackingScrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={[s.trackingScroll, { maxHeight: windowHeight * 0.55 }]} contentContainerStyle={s.trackingScrollContent}>
 
             {/* Status badge + LIVE indicator */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -1188,9 +1162,12 @@ export default function MissionView() {
             <View style={{ marginBottom: 10 }}>
               {status !== 'ONGOING' && etaNum ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 2 }}>
-                  <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 60, color: theme.text, lineHeight: 60, letterSpacing: -1 }}>
-                    {etaNum}
-                  </Text>
+                  <DigitReel
+                    value={etaNum}
+                    lineHeight={60}
+                    textStyle={{ fontFamily: FONTS.bebas, fontSize: 60, color: theme.text, letterSpacing: -1 }}
+                    accessibilityLabel={`${etaNum} ${t('mission_view.min_away')}`}
+                  />
                   <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 16, color: theme.text, letterSpacing: 0.5, marginBottom: 8 }}>
                     {t('mission_view.min_away')}
                   </Text>
@@ -1405,12 +1382,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 0,
   },
-  radarZone: {
-    width: '100%',
-    height: height * 0.35,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
   searchingSheet: {
     width: '100%',
@@ -1479,7 +1450,7 @@ const s = StyleSheet.create({
   },
   statusText: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.8 },
 
-  trackingScroll: { maxHeight: height * 0.55 },
+  trackingScroll: {},
   trackingScrollContent: { paddingBottom: 4 },
   trackingSheet: {
     position: 'absolute',

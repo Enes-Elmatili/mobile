@@ -25,7 +25,6 @@ const LEGACY_ANIMATED_ALLOWLIST = [
   'app/onboarding/stripe.tsx',
   'app/request/NewRequestStepper.tsx',
   'app/request/[id]/earnings.tsx',
-  'app/request/[id]/missionview.tsx',
   'app/request/[id]/ongoing.tsx',
   'app/request/[id]/quote-pending.tsx',
   'app/request/[id]/quote-review.tsx',
