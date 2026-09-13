@@ -173,6 +173,31 @@ export default function PendingValidation() {
   const hasPhoto = photoDone || !!u?.avatarUrl;
   const hasBio = bioDone || !!(u?.bio && String(u.bio).trim().length > 0);
 
+  // Entrer dans les onglets une fois validé. Le garde de (tabs)/_layout lit
+  // `user.providerStatus` dans AuthContext : tant qu'il dit encore PENDING, les
+  // onglets renvoient ici, cet écran voit ACTIVE, renvoie aux onglets… en
+  // boucle, jusqu'à ce que l'utilisateur tue l'app. On rafraîchit donc le
+  // profil d'abord, et on ne part que si le serveur confirme ACTIVE ; sinon on
+  // réessaie quelques fois (la validation vient d'être écrite, /auth/me suit).
+  const goingLiveRef = useRef(false);
+  const goLive = useCallback(async () => {
+    if (goingLiveRef.current) return;
+    goingLiveRef.current = true;
+    try {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const me = await refreshMe().catch(() => null);
+        if (me?.providerStatus === "ACTIVE") {
+          router.replace("/(tabs)/provider-dashboard");
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      feedback.error(t("onboarding.approved_refresh_failed"));
+    } finally {
+      goingLiveRef.current = false;
+    }
+  }, [refreshMe, t]);
+
   async function checkStatus() {
     try {
       const [validationRes, stripeRes, docsRes, tradesRes, meRes]: any[] = await Promise.all([
@@ -202,7 +227,7 @@ export default function PendingValidation() {
       if (validationRes?.providerStatus === "ACTIVE") {
         setStatus("approved");
         feedback.haptic('success');
-        setTimeout(() => router.replace("/(tabs)/provider-dashboard"), 2500);
+        setTimeout(() => { goLive(); }, 2500);
         return true;
       } else if (validationRes?.providerStatus === "REJECTED") {
         setRejectionReason(validationRes?.rejectionReason ?? null);
@@ -239,7 +264,7 @@ export default function PendingValidation() {
       if (data.validationStatus === 'ACTIVE') {
         setStatus('approved');
         feedback.haptic('success');
-        setTimeout(() => router.replace('/(tabs)/provider-dashboard'), 2500);
+        setTimeout(() => { goLive(); }, 2500);
       } else if (data.validationStatus === 'REJECTED') {
         setRejectionReason(data.rejectionReason ?? null);
         setStatus('rejected');
@@ -653,7 +678,7 @@ export default function PendingValidation() {
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
-                router.replace("/(tabs)/provider-dashboard");
+                goLive();
               }}
               activeOpacity={0.9}
             >

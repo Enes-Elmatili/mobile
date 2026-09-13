@@ -1104,7 +1104,8 @@
     "pending_step_company": "Company verified",
     "pending_company_missing": "BCE or IBAN missing",
     "pending_incomplete_bce": "Your BCE number isn't confirmed yet — without it your file can't be approved.",
-    "pending_incomplete_iban": "Your IBAN is missing — without it we can't pay you."
+    "pending_incomplete_iban": "Your IBAN is missing — without it we can't pay you.",
+    "approved_refresh_failed": "Profile not updated yet — try again in a moment."
   },
   "explore": {
     "title": "Explore",
