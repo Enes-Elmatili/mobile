@@ -20,6 +20,7 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "requireFullScreen": true,
       "bundleIdentifier": "app.thefixed.client",
       "buildNumber": "2",
       "config": {
