@@ -6,13 +6,9 @@ const expoConfig = require('eslint-config-expo/flat');
 // Chaque liste est un stock à écouler, jamais un droit acquis : on retire une
 // entrée dans le commit qui migre le fichier, on n'en ajoute jamais.
 // Inventaire du 13/09/2026 (plan 1 mouvement, Tâche 3).
-
-// `Animated` de react-native (règle 1 CLAUDE.md : Reanimated uniquement).
-// Plan 1 migre missionview ; plans 2-3 migrent le reste.
-const LEGACY_ANIMATED_ALLOWLIST = [
-  'app/request/NewRequestStepper.tsx',
-  'components/SplashAnimation.tsx',
-];
+// `Animated` de react-native (règle 1) : stock écoulé le 13/09/2026 (plan 5,
+// 33 fichiers migrés) — la règle NO_LEGACY_ANIMATED s'applique désormais
+// partout, sans exception.
 
 // `Alert.alert` (règle 7 : zéro alerte système). Trois survivants hors
 // écrans : session expirée (api.ts), micro refusé et VoIP indisponible
@@ -50,8 +46,8 @@ const SOURCE = ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'lib/**/*.{ts,t
 // ne se cumulent pas) : chaque bloc liste donc ses sélecteurs en entier.
 const syntaxRules = (file) => {
   const s = [NO_DIMENSIONS_GET, NO_SYMMETRIC_INSETS];
+  s.push(NO_LEGACY_ANIMATED);
   if (!LEGACY_ALERT_ALLOWLIST.includes(file)) s.push(NO_ALERT);
-  if (!LEGACY_ANIMATED_ALLOWLIST.includes(file)) s.push(NO_LEGACY_ANIMATED);
   return s;
 };
 // Les chemins Expo Router contiennent `[id]` : pour minimatch c'est une classe
@@ -61,7 +57,7 @@ const perFile = (file) => ({
   files: [toGlob(file)],
   rules: { 'no-restricted-syntax': ['error', ...syntaxRules(file)] },
 });
-const EXCEPTIONS = [...new Set([...LEGACY_ANIMATED_ALLOWLIST, ...LEGACY_ALERT_ALLOWLIST])];
+const EXCEPTIONS = [...new Set(LEGACY_ALERT_ALLOWLIST)];
 const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 
 module.exports = defineConfig([

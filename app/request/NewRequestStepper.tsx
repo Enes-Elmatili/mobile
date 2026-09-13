@@ -11,7 +11,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
-  Animated,
   Platform,
   StatusBar,
   KeyboardAvoidingView,
@@ -35,8 +34,8 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import Reanimated from 'react-native-reanimated';
-import { MOTION, useBreathe, useCountingValue, usePresence } from '@/lib/motion';
+import Reanimated, { Easing, Extrapolation, cancelAnimation, interpolate, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import { MOTION, spring, useBreathe, useCountingValue, usePresence, usePressScale } from '@/lib/motion';
 import { ReText } from '@/components/ui/ReText';
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
@@ -177,23 +176,27 @@ const STEP_ICONS: ('map-pin' | 'tool' | 'clock' | 'check')[] = [
   'map-pin', 'tool', 'clock', 'check',
 ];
 
+/** Segment entre deux étapes : se remplit quand la progression le dépasse. */
+function StepSegment({ index, progress, trackColor, fillColor }: { index: number; progress: SharedValue<number>; trackColor: string; fillColor: string }) {
+  const fill = useAnimatedStyle(() => ({
+    width: `${interpolate(progress.value, [index, index + 1], [0, 100], Extrapolation.CLAMP)}%`,
+  }));
+  return (
+    <View style={[si.segment, { backgroundColor: trackColor }]}>
+      <Reanimated.View style={[si.segmentFill, { backgroundColor: fillColor }, fill]} />
+    </View>
+  );
+}
+
 function StepIndicator({ step }: { step: number }) {
   const t = useTheme();
 
-  const segmentAnims = useRef(
-    Array.from({ length: TOTAL_STEPS - 1 }, (_, i) => new Animated.Value(i < step - 1 ? 1 : 0))
-  ).current;
-
+  // Une seule progression (étapes franchies) : les segments se remplissent
+  // l'un après l'autre sur un ressort critique, depuis leur état courant.
+  const progress = useSharedValue(step - 1);
   useEffect(() => {
-    segmentAnims.forEach((anim, i) => {
-      Animated.timing(anim, {
-        toValue: i < step - 1 ? 1 : 0,
-        duration: 350,
-        useNativeDriver: false,
-      }).start();
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+    progress.value = withSpring(step - 1, spring(140, 1));
+  }, [step, progress]);
 
   return (
     <View style={si.container}>
@@ -212,14 +215,7 @@ function StepIndicator({ step }: { step: number }) {
               }
             </View>
             {i < TOTAL_STEPS - 1 && (
-              <View style={[si.segment, { backgroundColor: t.progressTrack }]}>
-                <Animated.View style={[si.segmentFill, { backgroundColor: t.accent as string }, {
-                  width: segmentAnims[i].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0%', '100%'],
-                  }),
-                }]} />
-              </View>
+              <StepSegment index={i} progress={progress} trackColor={t.progressTrack as string} fillColor={t.accent as string} />
             )}
           </React.Fragment>
         );
@@ -271,25 +267,23 @@ const ls = StyleSheet.create({
 function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: boolean; dimmed?: boolean; onPress: () => void }) {
   const t     = useTheme();
   const { t: tr } = useTranslation();
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+  // Retour à l'appui (règle 4) ; les cartes non choisies s'estompent.
+  const press = usePressScale(0.96);
+  const dim = useSharedValue(1);
   const label = translateCategory(tr, cat);
 
   useEffect(() => {
-    Animated.timing(opacity, { toValue: dimmed ? 0.25 : 1, duration: 250, useNativeDriver: true }).start();
-  }, [dimmed]);
+    dim.value = withTiming(dimmed ? 0.25 : 1, { duration: 250 });
+  }, [dimmed, dim]);
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
 
   const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.96, duration: 60, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 220, friction: 8 }),
-    ]).start();
     feedback.haptic('light');
     onPress();
   };
 
   return (
-    <Animated.View style={[cc.wrap, { transform: [{ scale }], opacity }]}>
+    <Reanimated.View style={[cc.wrap, press.style, dimStyle]}>
       <TouchableOpacity
         style={[
           cc.card,
@@ -297,6 +291,7 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
           selected && [cc.cardSelected, { backgroundColor: t.surfaceAlt, borderBottomColor: 'transparent' }],
         ]}
         onPress={handlePress}
+        {...press.handlers}
         activeOpacity={1}
         accessibilityLabel={label}
         accessibilityRole="button"
@@ -316,7 +311,7 @@ function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: 
           : <Feather name="chevron-right" size={14} color={t.textMuted} />
         }
       </TouchableOpacity>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -345,32 +340,26 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
 }) {
   const t     = useTheme();
   const { t: tr } = useTranslation();
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+  const press = usePressScale(0.98);
+  const dim = useSharedValue(1);
   const isQuote = pricingMode === 'estimate' || pricingMode === 'diagnostic';
 
   useEffect(() => {
-    Animated.timing(opacity, {
-      toValue: dimmed ? 0.3 : 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [dimmed]);
+    dim.value = withTiming(dimmed ? 0.3 : 1, { duration: 200 });
+  }, [dimmed, dim]);
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
 
   const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.98, duration: 60, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 1,    duration: 80, useNativeDriver: true }),
-    ]).start();
     feedback.haptic('light');
     onPress();
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }], opacity }}>
+    <Reanimated.View style={[press.style, dimStyle]}>
       <TouchableOpacity
         style={[sc.row, { borderBottomColor: t.surfaceBorder }]}
         onPress={handlePress}
+        {...press.handlers}
         activeOpacity={0.7}
         accessibilityLabel={label}
         accessibilityRole="button"
@@ -384,7 +373,7 @@ function SubChip({ label, basePrice, priceMin, priceMax, selected, dimmed, onPre
           {selected && <Feather name="check" size={16} color={t.text as string} />}
         </View>
       </TouchableOpacity>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -401,19 +390,15 @@ const sc = StyleSheet.create({
 // ─── Time Slot ─────────────────────────────────────────────────────────────────
 function TimeSlot({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const t     = useTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  const press = usePressScale(0.92);
 
   const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.92, duration: 60, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }),
-    ]).start();
     feedback.haptic('light');
     onPress();
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Reanimated.View style={press.style}>
       <TouchableOpacity
         style={[
           tslot.chip,
@@ -421,6 +406,7 @@ function TimeSlot({ label, selected, onPress }: { label: string; selected: boole
           selected && [tslot.chipSelected, { backgroundColor: t.accent, borderColor: t.accent }],
         ]}
         onPress={handlePress}
+        {...press.handlers}
         activeOpacity={1}
         accessibilityLabel={label}
         accessibilityRole="button"
@@ -428,7 +414,7 @@ function TimeSlot({ label, selected, onPress }: { label: string; selected: boole
         {selected && <View style={[tslot.dot, { backgroundColor: t.accentText }]} />}
         <Text style={[tslot.text, { color: t.textSub }, selected && [tslot.textSelected, { color: t.accentText }]]}>{label}</Text>
       </TouchableOpacity>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -445,12 +431,12 @@ function DayChip({ day, date, month, selected, onPress }: {
   day: string; date: string; month: string; selected: boolean; onPress: () => void;
 }) {
   const t              = useTheme();
-  const underlineWidth = useRef(new Animated.Value(selected ? 1 : 0)).current;
-
+  // Le soulignement s'étend sous le jour choisi (MOTION.tab).
+  const underline = useSharedValue(selected ? 1 : 0);
   useEffect(() => {
-    Animated.timing(underlineWidth, { toValue: selected ? 1 : 0, duration: 200, useNativeDriver: false }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+    underline.value = withSpring(selected ? 1 : 0, MOTION.tab);
+  }, [selected, underline]);
+  const underlineStyle = useAnimatedStyle(() => ({ width: `${underline.value * 80}%` }));
 
   return (
     <TouchableOpacity
@@ -463,7 +449,7 @@ function DayChip({ day, date, month, selected, onPress }: {
       <Text style={[dc.day,  { color: t.textMuted }, selected && { color: t.text }]}>{day}</Text>
       <Text style={[dc.date, { color: t.textMuted }, selected && { color: t.text }]}>{date}</Text>
       <Text style={[dc.month, { color: 'transparent' }, selected && { color: t.textSub }]}>{month}</Text>
-      <Animated.View style={[dc.underline, { backgroundColor: t.text as string, width: underlineWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '80%'] }) }]} />
+      <Reanimated.View style={[dc.underline, { backgroundColor: t.text as string }, underlineStyle]} />
     </TouchableOpacity>
   );
 }
@@ -489,23 +475,21 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
   sheen?:      boolean;
 }) {
   const t        = useTheme();
-  const scale    = useRef(new Animated.Value(1)).current;
-  const pressDim = useRef(new Animated.Value(0)).current;
+  // Retour à l'appui (règle 4) : échelle 0,97 + voile sombre de 12 %.
+  const press = usePressScale();
+  const pressDim = useSharedValue(0);
   const [btnW, setBtnW] = useState(0);
 
   const springIn = () => {
     if (disabled || loading) return;
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }),
-      Animated.timing(pressDim, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
+    press.onPressIn();
+    pressDim.value = withTiming(1, { duration: 80 });
   };
   const springOut = () => {
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }),
-      Animated.timing(pressDim, { toValue: 0, duration: 140, useNativeDriver: true }),
-    ]).start();
+    press.onPressOut();
+    pressDim.value = withTiming(0, { duration: 140 });
   };
+  const dimStyle = useAnimatedStyle(() => ({ opacity: 0.12 * pressDim.value }));
   const handlePress = () => {
     if (disabled || loading) return;
     feedback.haptic('medium');
@@ -534,10 +518,11 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
 
   return (
     <View style={[cta.wrap, { backgroundColor: t.ctaBg, borderTopColor: t.ctaBorder }, wrapStyle]}>
-      <Animated.View style={[
-        { transform: [{ scale }], borderRadius: 55 },
+      <Reanimated.View style={[
+        { borderRadius: 55 },
         tactileShadow,
         glowHalo,
+        press.style,
       ]}>
         <Pressable
           onPressIn={springIn}
@@ -575,16 +560,9 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
           accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
         >
           {/* Press dim overlay — assombrit légèrement la pill au press */}
-          <Animated.View
+          <Reanimated.View
             pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFillObject,
-              {
-                backgroundColor: '#000',
-                opacity: pressDim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
-                borderRadius: 55,
-              },
-            ]}
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', borderRadius: 55 }, dimStyle]}
           />
           {/* Reflet glissant — même composant/cadence que la carte prix (héro).
               Pill claire en dark mode → opacité plus forte pour rester visible ;
@@ -607,7 +585,7 @@ function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelS
             </View>
           )}
         </Pressable>
-      </Animated.View>
+      </Reanimated.View>
     </View>
   );
 }
@@ -839,34 +817,36 @@ function htEuros(dp: any): string {
  *  Même géométrie/cadence partout ; `opacity` calibre l'intensité selon la surface
  *  (carte sombre → 0.10 ; pill claire → plus fort pour rester visible). */
 function BrandSheen({ width, opacity = 0.1 }: { width: number; opacity?: number }) {
-  const x = useRef(new Animated.Value(0)).current;
+  const x = useSharedValue(0);
   useEffect(() => {
     if (!width) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(x, { toValue: 1, duration: 1500, delay: 600, useNativeDriver: true }),
-        Animated.delay(4200),
-      ]),
+    x.value = 0;
+    // Balayage 1,5 s après 0,6 s d'attente, puis 4,2 s de repos ; en boucle.
+    x.value = withRepeat(
+      withSequence(
+        withDelay(600, withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })),
+        withDelay(4200, withTiming(0, { duration: 0 })),
+      ),
+      -1,
+      false,
     );
-    loop.start();
-    return () => loop.stop();
-  }, [width]);
+    return () => cancelAnimation(x);
+  }, [width, x]);
+  const sheenStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(x.value, [0, 1], [-width * 0.7, width * 1.5]) }, { skewX: '-18deg' }],
+  }));
   if (!width) return null;
-  const translateX = x.interpolate({ inputRange: [0, 1], outputRange: [-width * 0.7, width * 1.5] });
   return (
-    <Animated.View
+    <Reanimated.View
       pointerEvents="none"
-      style={{
-        position: 'absolute', top: 0, bottom: 0, left: 0, width: width * 0.55,
-        transform: [{ translateX }, { skewX: '-18deg' }],
-      }}
+      style={[{ position: 'absolute', top: 0, bottom: 0, left: 0, width: width * 0.55 }, sheenStyle]}
     >
       <LinearGradient
         colors={['transparent', `rgba(255,255,255,${opacity})`, 'transparent']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
         style={StyleSheet.absoluteFill}
       />
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -1017,7 +997,8 @@ export default function NewRequestStepper() {
   const mountedRef = useRef(true);
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const fadeAnim  = useRef(new Animated.Value(1)).current;
+  const stepFade = useSharedValue(1);
+  const stepFadeStyle = useAnimatedStyle(() => ({ opacity: stepFade.value }));
 
   const [step,    setStep]    = useState(1);
   const [loading, setLoading] = useState(false);
@@ -1244,12 +1225,9 @@ export default function NewRequestStepper() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, preselectedCategory]);
 
-  // Transition animée
+  // Transition entre étapes : fondu court, le contenu change au point bas.
   const animateStep = (cb: () => void) => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
+    stepFade.value = withSequence(withTiming(0, { duration: 100 }), withTiming(1, { duration: 200 }));
     setTimeout(cb, 100);
   };
 
@@ -1829,7 +1807,7 @@ export default function NewRequestStepper() {
       )}
 
       {/* ── Contenu animé ── */}
-      <Animated.View style={[s.flex, { opacity: fadeAnim }]}>
+      <Reanimated.View style={[s.flex, stepFadeStyle]}>
 
         {/* ══ ÉTAPE 1 — Lieu ══ */}
         {step === 1 && (
@@ -2748,7 +2726,7 @@ export default function NewRequestStepper() {
           </View>
         )}
 
-      </Animated.View>
+      </Reanimated.View>
       <DevisInfoModal
         visible={devisModalVisible}
         onClose={() => setDevisModalVisible(false)}

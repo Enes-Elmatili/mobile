@@ -6,12 +6,25 @@
 //                   tranches (f | i | xe | d)
 //   3. Signature  — tagline mono (tracking qui se resserre) + barre de chargement
 // Respecte le thème (dark/clair via useAppTheme) et l'i18n (tagline + labels).
-// 100 % JS + Animated (native driver pour transforms/opacité), aucun module natif.
+// 100 % Reanimated : la chorégraphie tourne sur le thread UI, le JS reste libre
+// de charger l'app pendant ce temps. Aucun module natif supplémentaire.
 import React, { useEffect, useRef } from 'react';
 import {
-  Animated, Easing, View, Image, Pressable, StyleSheet,
+  View, Image, Pressable, StyleSheet,
   useWindowDimensions, AccessibilityInfo,
+  type ImageSourcePropType,
 } from 'react-native';
+import Animated, {
+  Easing,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { useTranslation } from 'react-i18next';
 
@@ -34,6 +47,20 @@ const P3_START = S1 + S2;            // 4000
 const RISE_DUR = 1048, RISE_STAGGER = 206, RISE_BASE = 1816;
 const HOLD = 450, FADE = 420;
 
+/** Une tranche du wordmark qui monte depuis sous le lockup. */
+function RiseSlice({ progress, x0, width, W, H, wordmark }: {
+  progress: SharedValue<number>; x0: number; width: number; W: number; H: number; wordmark: ImageSourcePropType;
+}) {
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(progress.value, [0, 1], [H + 8, 0]) }],
+  }));
+  return (
+    <Animated.View style={[{ position: 'absolute', left: x0, top: 0, width, height: H, overflow: 'hidden' }, style]}>
+      <Image source={wordmark} style={{ position: 'absolute', left: -x0, top: 0, width: W, height: H }} resizeMode="stretch" />
+    </Animated.View>
+  );
+}
+
 export function SplashAnimation({ onDone }: { onDone: () => void }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
@@ -47,6 +74,7 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   const DOT_D = W * DOT_DF;
   const dotFinalX = lockLeft + W * DOT_CX;
   const dotCY = lockTop + H * DOT_CY;
+  const dotShift = dotFinalX - centerX;
 
   const green = COLORS.greenBrand;
   const wordmark = theme.isDark
@@ -56,25 +84,36 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   const inkSoft = alpha(theme.text, theme.isDark ? 0.58 : 0.62);
 
   // ── Valeurs animées ──────────────────────────────────────────────────────
-  const dotScale = useRef(new Animated.Value(0)).current;
-  const dotSlide = useRef(new Animated.Value(0)).current; // 0 = centre, 1 = final
-  const dotBreath = useRef(new Animated.Value(1)).current;
-  const hairline = useRef(new Animated.Value(0)).current; // scaleX
-  const hairlineOp = useRef(new Animated.Value(0)).current;
-  const ring = useRef(new Animated.Value(0)).current;
-  const cols = useRef(CUTS.slice(0, 4).map(() => new Animated.Value(0))).current;
-  const tagOp = useRef(new Animated.Value(0)).current;
-  const tagY = useRef(new Animated.Value(12)).current;
-  const rootOp = useRef(new Animated.Value(1)).current;
+  const dotScale = useSharedValue(0);
+  const dotSlide = useSharedValue(0); // 0 = centre, 1 = final
+  const dotBreath = useSharedValue(1);
+  const hairline = useSharedValue(0); // scaleX
+  const hairlineOp = useSharedValue(0);
+  const ring = useSharedValue(0);
+  const col0 = useSharedValue(0);
+  const col1 = useSharedValue(0);
+  const col2 = useSharedValue(0);
+  const col3 = useSharedValue(0);
+  const cols = [col0, col1, col2, col3];
+  const tagOp = useSharedValue(0);
+  const tagY = useSharedValue(12);
+  const rootOp = useSharedValue(1);
 
   const finishedRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
+  const done = () => onDoneRef.current();
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    Animated.timing(rootOp, {
-      toValue: 0, duration: FADE, easing: Easing.in(Easing.cubic), useNativeDriver: true,
-    }).start(() => onDone());
+    rootOp.value = withTiming(0, { duration: FADE, easing: Easing.in(Easing.cubic) }, () => {
+      runOnJS(done)();
+    });
+  };
+  // Appelé depuis le thread UI à la fin de la respiration du point.
+  const scheduleFinish = () => {
+    if (!finishedRef.current) setTimeout(finish, HOLD);
   };
 
   useEffect(() => {
@@ -84,9 +123,9 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
       if (cancelled) return;
       if (reduced) {
         // Accessibilité : pas d'animation, état final direct.
-        dotScale.setValue(1); dotSlide.setValue(1); hairlineOp.setValue(0);
-        cols.forEach((c) => c.setValue(1));
-        tagOp.setValue(1); tagY.setValue(0);
+        dotScale.value = 1; dotSlide.value = 1; hairlineOp.value = 0;
+        cols.forEach((c) => { c.value = 1; });
+        tagOp.value = 1; tagY.value = 0;
         holdTimer = setTimeout(finish, 1100);
         return;
       }
@@ -97,49 +136,68 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   }, []);
 
   const runSequence = () => {
-    // Scène 1 — Ouverture (0 → 1400)
-    Animated.timing(hairlineOp, { toValue: 1, duration: 308, delay: 112, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    Animated.timing(hairline,   { toValue: 1, duration: 658, delay: 112, easing: Easing.inOut(Easing.poly(4)), useNativeDriver: true }).start();
-    Animated.timing(dotScale,   { toValue: 1, duration: 504, delay: 364, easing: Easing.out(Easing.exp), useNativeDriver: true }).start();
-    Animated.timing(ring,       { toValue: 1, duration: 476, delay: 868, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    // Scène 1 — Ouverture (0 → 1400). La hairline apparaît (308 ms dès 112 ms)
+    // puis s'efface à l'ouverture de la scène 2 : une seule séquence par valeur.
+    hairlineOp.value = withSequence(
+      withDelay(112, withTiming(1, { duration: 308, easing: Easing.out(Easing.cubic) })),
+      withDelay(P2_START - (112 + 308), withTiming(0, { duration: 572, easing: Easing.in(Easing.quad) })),
+    );
+    hairline.value = withDelay(112, withTiming(1, { duration: 658, easing: Easing.inOut(Easing.poly(4)) }));
+    dotScale.value = withDelay(364, withTiming(1, { duration: 504, easing: Easing.out(Easing.exp) }));
+    ring.value = withDelay(868, withTiming(1, { duration: 476, easing: Easing.out(Easing.cubic) }));
 
     // Scène 2 — Le mot (1400 → 4000)
-    Animated.timing(hairlineOp, { toValue: 0, duration: 572,  delay: P2_START,       easing: Easing.in(Easing.quad),      useNativeDriver: true }).start();
-    Animated.timing(dotSlide,   { toValue: 1, duration: 1456, delay: P2_START + 156, easing: Easing.inOut(Easing.poly(4)), useNativeDriver: true }).start();
+    dotSlide.value = withDelay(P2_START + 156, withTiming(1, { duration: 1456, easing: Easing.inOut(Easing.poly(4)) }));
     cols.forEach((c, i) => {
-      Animated.timing(c, { toValue: 1, duration: RISE_DUR, delay: RISE_BASE + i * RISE_STAGGER, easing: Easing.out(Easing.poly(4)), useNativeDriver: true }).start();
+      c.value = withDelay(RISE_BASE + i * RISE_STAGGER, withTiming(1, { duration: RISE_DUR, easing: Easing.out(Easing.poly(4)) }));
     });
 
     // Scène 3 — Signature (4000 → 5800)
-    Animated.timing(tagOp, { toValue: 1, duration: 676, delay: P3_START + 72, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    Animated.timing(tagY,  { toValue: 0, duration: 780, delay: P3_START + 72, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    tagOp.value = withDelay(P3_START + 72, withTiming(1, { duration: 676, easing: Easing.out(Easing.cubic) }));
+    tagY.value = withDelay(P3_START + 72, withTiming(0, { duration: 780, easing: Easing.out(Easing.cubic) }));
     // Respiration du point pendant la signature ; sa fin pilote le retrait.
-    Animated.sequence([
-      Animated.delay(P3_START + 450),
-      Animated.timing(dotBreath, { toValue: 1.035, duration: 620, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(dotBreath, { toValue: 1,     duration: 550, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (finished && !finishedRef.current) setTimeout(finish, HOLD);
-    });
+    dotBreath.value = withDelay(
+      P3_START + 450,
+      withSequence(
+        withTiming(1.035, { duration: 620, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 550, easing: Easing.inOut(Easing.sin) }, (finished) => {
+          if (finished) runOnJS(scheduleFinish)();
+        }),
+      ),
+    );
   };
 
-  const dotTranslateX = dotSlide.interpolate({ inputRange: [0, 1], outputRange: [0, dotFinalX - centerX] });
-  const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, 2.9] });
-  const ringOpacity = ring.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0] });
+  // ── Styles ───────────────────────────────────────────────────────────────
+  const rootStyle = useAnimatedStyle(() => ({ opacity: rootOp.value }));
+  const hairlineStyle = useAnimatedStyle(() => ({
+    opacity: hairlineOp.value,
+    transform: [{ scaleX: hairline.value }],
+  }));
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(ring.value, [0, 1], [0.3, 0]),
+    transform: [{ scale: interpolate(ring.value, [0, 1], [1, 2.9]) }],
+  }));
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: dotSlide.value * dotShift }, { scale: dotScale.value * dotBreath.value }],
+  }));
+  const tagStyle = useAnimatedStyle(() => ({
+    opacity: tagOp.value,
+    transform: [{ translateY: tagY.value }],
+  }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg, opacity: rootOp }]}>
+    <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg }, rootStyle]}>
       {/* Hairline (scène 1) */}
-      <Animated.View pointerEvents="none" style={{
+      <Animated.View pointerEvents="none" style={[{
         position: 'absolute', left: centerX - SW * 0.15, top: dotCY - 0.75, width: SW * 0.3, height: 1.5,
-        backgroundColor: inkFaint, opacity: hairlineOp, transform: [{ scaleX: hairline }],
-      }} />
+        backgroundColor: inkFaint,
+      }, hairlineStyle]} />
 
       {/* Onde (fin scène 1) */}
-      <Animated.View pointerEvents="none" style={{
+      <Animated.View pointerEvents="none" style={[{
         position: 'absolute', left: centerX - DOT_D / 2, top: dotCY - DOT_D / 2, width: DOT_D, height: DOT_D,
-        borderRadius: DOT_D / 2, borderWidth: 1.5, borderColor: green, opacity: ringOpacity, transform: [{ scale: ringScale }],
-      }} />
+        borderRadius: DOT_D / 2, borderWidth: 1.5, borderColor: green,
+      }, ringStyle]} />
 
       {/* « fixed » — tranches montantes. Coupes arrondies au pixel (colonnes
           exactement jointives) + 1px de chevauchement pour masquer les coutures ;
@@ -149,28 +207,22 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
           const x0 = Math.round(CUTS[i] * W);
           const x1 = Math.round(CUTS[i + 1] * W);
           const bleed = i < cols.length - 1 ? 1 : 0; // pas de chevauchement sur la dernière (n'empiète pas sur le point)
-          const ty = c.interpolate({ inputRange: [0, 1], outputRange: [H + 8, 0] });
-          return (
-            <Animated.View key={i} style={{ position: 'absolute', left: x0, top: 0, width: (x1 - x0) + bleed, height: H, overflow: 'hidden', transform: [{ translateY: ty }] }}>
-              <Image source={wordmark} style={{ position: 'absolute', left: -x0, top: 0, width: W, height: H }} resizeMode="stretch" />
-            </Animated.View>
-          );
+          return <RiseSlice key={i} progress={c} x0={x0} width={(x1 - x0) + bleed} W={W} H={H} wordmark={wordmark} />;
         })}
       </View>
 
       {/* Le point vert (dessiné) */}
-      <Animated.View pointerEvents="none" style={{
+      <Animated.View pointerEvents="none" style={[{
         position: 'absolute', left: centerX - DOT_D / 2, top: dotCY - DOT_D / 2, width: DOT_D, height: DOT_D,
         borderRadius: DOT_D / 2, backgroundColor: green,
-        transform: [{ translateX: dotTranslateX }, { scale: dotScale }, { scale: dotBreath }],
-      }} />
+      }, dotStyle]} />
 
       {/* Signature (scène 3) */}
-      <Animated.Text pointerEvents="none" numberOfLines={1} style={{
+      <Animated.Text pointerEvents="none" numberOfLines={1} style={[{
         position: 'absolute', top: lockTop + H + Math.max(22, H * 0.42), left: 0, right: 0, textAlign: 'center',
         fontFamily: FONTS.mono, fontSize: 12, color: inkSoft, textTransform: 'uppercase',
-        letterSpacing: 3, opacity: tagOp, transform: [{ translateY: tagY }],
-      }}>
+        letterSpacing: 3,
+      }, tagStyle]}>
         {t('splash.tagline')}
       </Animated.Text>
 
