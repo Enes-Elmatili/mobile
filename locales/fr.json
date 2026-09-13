@@ -684,7 +684,10 @@
     "floor_placeholder": "Ex: 3",
     "access_placeholder": "Code portail, interphone, parking...",
     "step_counter": "ÉTAPE {{step}} / {{total}}",
-    "recap_title": "RÉCAPITULATIF"
+    "recap_title": "RÉCAPITULATIF",
+    "hint_choose_mode": "Maintenant ou à planifier ?",
+    "hint_choose_day": "Choisissez un jour",
+    "hint_choose_slot": "Choisissez un créneau"
   },
   "rating": {
     "skip": "Passer",

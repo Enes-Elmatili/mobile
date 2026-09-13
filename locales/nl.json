@@ -684,7 +684,10 @@
     "floor_placeholder": "Bijv. 3",
     "access_placeholder": "Toegangscode, intercom, parkeren...",
     "step_counter": "STAP {{step}} / {{total}}",
-    "recap_title": "OVERZICHT"
+    "recap_title": "OVERZICHT",
+    "hint_choose_mode": "Nu of later plannen?",
+    "hint_choose_day": "Kies een dag",
+    "hint_choose_slot": "Kies een tijdslot"
   },
   "rating": {
     "skip": "Overslaan",

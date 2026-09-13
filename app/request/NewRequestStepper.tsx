@@ -34,9 +34,10 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import Reanimated, { Easing, Extrapolation, cancelAnimation, interpolate, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Reanimated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { MOTION, spring, useBreathe, useCountingValue, usePresence, usePressScale } from '@/lib/motion';
 import { ReText } from '@/components/ui/ReText';
+import { StepCTA } from '@/components/request/StepCTA';
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
@@ -462,144 +463,6 @@ const dc = StyleSheet.create({
   underline: { height: 2.5, borderRadius: 2, marginTop: 4, alignSelf: 'center' },
 });
 
-// ─── Bottom CTA ────────────────────────────────────────────────────────────────
-function BottomCTA({ label, onPress, disabled, loading, price, wrapStyle, labelStyle, glow, sheen }: {
-  label:       string;
-  onPress:     () => void;
-  disabled?:   boolean;
-  loading?:    boolean;
-  price?:      number;
-  wrapStyle?:  object;
-  labelStyle?: object;
-  glow?:       boolean;
-  sheen?:      boolean;
-}) {
-  const t        = useTheme();
-  // Retour à l'appui (règle 4) : échelle 0,97 + voile sombre de 12 %.
-  const press = usePressScale();
-  const pressDim = useSharedValue(0);
-  const [btnW, setBtnW] = useState(0);
-
-  const springIn = () => {
-    if (disabled || loading) return;
-    press.onPressIn();
-    pressDim.value = withTiming(1, { duration: 80 });
-  };
-  const springOut = () => {
-    press.onPressOut();
-    pressDim.value = withTiming(0, { duration: 140 });
-  };
-  const dimStyle = useAnimatedStyle(() => ({ opacity: 0.12 * pressDim.value }));
-  const handlePress = () => {
-    if (disabled || loading) return;
-    feedback.haptic('medium');
-    onPress();
-  };
-
-  // Raised tactile : drop shadow constant + glow halo coloré quand glow=true.
-  const tactileShadow = disabled
-    ? null
-    : {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-        elevation: 8,
-      };
-  const glowHalo = glow && !disabled
-    ? {
-        shadowColor: t.accent as string,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.45,
-        shadowRadius: 18,
-        elevation: 10,
-      }
-    : null;
-
-  return (
-    <View style={[cta.wrap, { backgroundColor: t.ctaBg, borderTopColor: t.ctaBorder }, wrapStyle]}>
-      <Reanimated.View style={[
-        { borderRadius: 55 },
-        tactileShadow,
-        glowHalo,
-        press.style,
-      ]}>
-        <Pressable
-          onPressIn={springIn}
-          onPressOut={springOut}
-          onPress={handlePress}
-          onLayout={(e) => setBtnW(e.nativeEvent.layout.width)}
-          disabled={disabled || loading}
-          style={[
-            cta.btn,
-            {
-              backgroundColor: t.accent,
-              // Top highlight = lumière qui frappe le bord supérieur.
-              // Bottom chamfer = épaisseur visible du bouton.
-              borderTopWidth: 1.5,
-              borderTopColor: 'rgba(255,255,255,0.45)',
-              borderBottomWidth: 1,
-              borderBottomColor: 'rgba(0,0,0,0.18)',
-              overflow: 'hidden',
-            },
-            // Désactivé : surface plate + label lisible. Surtout PAS d'opacité
-            // globale — en React Native elle s'applique à TOUT le sous-arbre, donc
-            // elle atténuait le fond et le texte ensemble et les faisait converger
-            // vers le même gris : le libellé du CTA devenait illisible.
-            disabled && [
-              cta.btnDisabled,
-              {
-                backgroundColor: t.surfaceAlt,
-                borderTopColor: 'transparent',
-                borderBottomColor: 'transparent',
-              },
-            ],
-          ]}
-          accessibilityLabel={label}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
-        >
-          {/* Press dim overlay — assombrit légèrement la pill au press */}
-          <Reanimated.View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', borderRadius: 55 }, dimStyle]}
-          />
-          {/* Reflet glissant — même composant/cadence que la carte prix (héro).
-              Pill claire en dark mode → opacité plus forte pour rester visible ;
-              pill sombre en light mode → 0.12 comme le héro. */}
-          {sheen && !disabled && !loading ? (
-            <BrandSheen width={btnW} opacity={t.isDark ? 0.85 : 0.12} />
-          ) : null}
-          {loading ? (
-            <ActivityIndicator color={t.accentText as string} />
-          ) : (
-            <View style={cta.inner}>
-              <Text style={[cta.label, { color: t.accentText }, disabled && [cta.labelDisabled, { color: t.textSub }], labelStyle]}>{label}</Text>
-              {price !== undefined && price > 0 ? (
-                <View style={cta.priceBadge}>
-                  <Text style={[cta.priceText, { color: t.accentText }]}>{price} €</Text>
-                </View>
-              ) : (
-                <Feather name="arrow-right" size={20} color={disabled ? t.textSub as string : t.accentText as string} />
-              )}
-            </View>
-          )}
-        </Pressable>
-      </Reanimated.View>
-    </View>
-  );
-}
-
-const cta = StyleSheet.create({
-  wrap:          { paddingHorizontal: 24, paddingBottom: 16, paddingTop: 12, borderTopWidth: 1 },
-  btn:           { borderRadius: 55, height: 55, alignItems: 'center', justifyContent: 'center' },
-  btnDisabled:   {},
-  inner:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, width: '100%' },
-  label:         { fontSize: 17, fontFamily: FONTS.sansMedium, textAlign: 'center', flex: 1 },
-  labelDisabled: {},
-  priceBadge:    { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
-  priceText:     { fontSize: 15, fontFamily: FONTS.bebas, includeFontPadding: false },
-});
 
 // ─── Helpers date ──────────────────────────────────────────────────────────────
 function buildNextDays(t: any, count = 10) {
@@ -813,42 +676,6 @@ function htEuros(dp: any): string {
   return formatEUR(Math.max(0, num(dp?.totalTVAC) - num(dp?.vat)));
 }
 
-/** Reflet animé qui balaie une surface (équivalent RN du keyframe fx-cardsheen).
- *  Même géométrie/cadence partout ; `opacity` calibre l'intensité selon la surface
- *  (carte sombre → 0.10 ; pill claire → plus fort pour rester visible). */
-function BrandSheen({ width, opacity = 0.1 }: { width: number; opacity?: number }) {
-  const x = useSharedValue(0);
-  useEffect(() => {
-    if (!width) return;
-    x.value = 0;
-    // Balayage 1,5 s après 0,6 s d'attente, puis 4,2 s de repos ; en boucle.
-    x.value = withRepeat(
-      withSequence(
-        withDelay(600, withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })),
-        withDelay(4200, withTiming(0, { duration: 0 })),
-      ),
-      -1,
-      false,
-    );
-    return () => cancelAnimation(x);
-  }, [width, x]);
-  const sheenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(x.value, [0, 1], [-width * 0.7, width * 1.5]) }, { skewX: '-18deg' }],
-  }));
-  if (!width) return null;
-  return (
-    <Reanimated.View
-      pointerEvents="none"
-      style={[{ position: 'absolute', top: 0, bottom: 0, left: 0, width: width * 0.55 }, sheenStyle]}
-    >
-      <LinearGradient
-        colors={['transparent', `rgba(255,255,255,${opacity})`, 'transparent']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={StyleSheet.absoluteFill}
-      />
-    </Reanimated.View>
-  );
-}
 
 /** Carte noire premium : montant héros, filigrane FIXED, pied TVA/HT.
  *  `original` (montant barré) + `savings` (pill verte) → état remise promo. */
@@ -1990,11 +1817,13 @@ export default function NewRequestStepper() {
               style={s.ctaFloating}
               pointerEvents="box-none"
             >
-              <BottomCTA
-                label={location ? t('stepper.confirm_address') : t('stepper.select_address')}
+              <StepCTA
+                floating
+                label={t('stepper.confirm_address')}
                 onPress={goNext}
                 disabled={!location || !locationAllowed || addressMissingNumber}
-                wrapStyle={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, borderTopWidth: 0 }}
+                hint={!location ? t('stepper.select_address') : undefined}
+                style={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}
               />
             </LinearGradient>
 
@@ -2207,10 +2036,11 @@ export default function NewRequestStepper() {
 
             </View>
 
-            <BottomCTA
+            <StepCTA
               label={isQuoteFlow ? t('stepper.request_quote_cta') : t('stepper.continue')}
               onPress={goNext}
               disabled={!serviceChosen}
+              hint={t('stepper.select_service_type')}
             />
           </KeyboardAvoidingView>
         )}
@@ -2483,7 +2313,7 @@ export default function NewRequestStepper() {
             </ScrollView>
 
             <View style={s.floatingCTA}>
-              <BottomCTA
+              <StepCTA
                 label={
                   scheduleMode === 'now'
                     ? t('stepper.confirm_now')
@@ -2493,6 +2323,11 @@ export default function NewRequestStepper() {
                 }
                 onPress={goNext}
                 disabled={!step3Ready}
+                hint={
+                  scheduleMode === null
+                    ? t('stepper.hint_choose_mode')
+                    : !selectedDayIso ? t('stepper.hint_choose_day') : t('stepper.hint_choose_slot')
+                }
               />
             </View>
           </View>
@@ -2711,17 +2546,20 @@ export default function NewRequestStepper() {
 
             </ScrollView>
 
-            {/* Footer CTA */}
-            <BottomCTA
-              label={isFreeService
-                ? t('stepper.confirm_free')
-                : isQuoteFlow
-                  ? `${t('stepper.reserve')} · ${confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : calloutFee > 0 ? formatEUR(calloutFee) : '...'}`
-                  : t('stepper.confirm_mission')}
+            {/* Footer CTA — libellé à gauche, montant à droite (planche 4A) */}
+            <StepCTA
+              emphasis
+              label={isFreeService ? t('stepper.confirm_free') : isQuoteFlow ? t('stepper.reserve') : t('stepper.confirm_mission')}
+              amount={
+                isFreeService
+                  ? undefined
+                  : isQuoteFlow
+                    ? (confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : calloutFee > 0 ? formatEUR(calloutFee) : undefined)
+                    : formatEURCents(discountedCentsFixed)
+              }
               onPress={handlePay}
               disabled={loading || !paymentReady || !!pricingError || confirmRetryNeeded}
               loading={loading}
-              sheen
             />
           </View>
         )}

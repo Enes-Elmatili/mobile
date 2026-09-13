@@ -684,7 +684,10 @@
     "floor_placeholder": "e.g. 3",
     "access_placeholder": "Gate code, intercom, parking...",
     "step_counter": "STEP {{step}} / {{total}}",
-    "recap_title": "SUMMARY"
+    "recap_title": "SUMMARY",
+    "hint_choose_mode": "Now or scheduled?",
+    "hint_choose_day": "Choose a day",
+    "hint_choose_slot": "Choose a time slot"
   },
   "rating": {
     "skip": "Skip",
