@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  StatusBar, Animated, Easing, Platform, ActivityIndicator, ScrollView,
+  StatusBar, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -33,6 +33,7 @@ import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEURCents } from '@/lib/format';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
+import { Skeleton as SkeletonBlock } from '@/components/ui/Skeleton';
 
 // Google Play impose Play Billing pour tout ce qui peut être lu comme du contenu ou une
 // fonctionnalité numérique, et interdit même de renvoyer vers un paiement tiers. Les
@@ -71,24 +72,16 @@ function GradientRule() {
 
 // ── Skeleton (carte unique, layout vertical) ────────────────────────────────────
 function Skeleton() {
-  const pulse = useRef(new Animated.Value(0.4)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 0.4, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
+  // Moment 18 : les blocs respirent (composant partagé), la carte reste stable.
   return (
     <View style={s.scrollPad}>
-      <Animated.View style={[s.cardOuter, { opacity: pulse }]}>
+      <View style={s.cardOuter}>
         <LinearGradient colors={G.gradCard} start={A165.start} end={A165.end} style={[s.cardInner, { borderColor: G.border, borderWidth: 1, gap: 14 }]}>
           {[120, 90, 200, 200].map((w, k) => (
-            <View key={k} style={{ width: w, height: k < 2 ? 30 : 14, borderRadius: 7, backgroundColor: G.skeleton }} />
+            <SkeletonBlock key={k} w={w} h={k < 2 ? 30 : 14} r={7} />
           ))}
         </LinearGradient>
-      </Animated.View>
+      </View>
     </View>
   );
 }

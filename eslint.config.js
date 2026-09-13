@@ -20,7 +20,6 @@ const LEGACY_ANIMATED_ALLOWLIST = [
   'app/(auth)/welcome.tsx',
   'app/(tabs)/missions.tsx',
   'app/call/active.tsx',
-  'app/formules.tsx',
   'app/onboarding/provider/pending.tsx',
   'app/onboarding/stripe.tsx',
   'app/request/NewRequestStepper.tsx',
@@ -37,7 +36,6 @@ const LEGACY_ANIMATED_ALLOWLIST = [
   'components/onboarding/OnboardingLayout.tsx',
   'components/providers/ProviderMissionCard.tsx',
   'components/ui/PulseDot.tsx',
-  'components/ui/RaisedButton.tsx',
   'lib/components/XSpinner.tsx',
 ];
 

@@ -7,7 +7,6 @@
 // Prérequis : npx expo install expo-blur
 
 import { Redirect, Tabs } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useCallback, useMemo } from 'react';
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, alpha } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
+import { TabIcon } from '@/components/ui/TabIcon';
 
 // Hauteur du CONTENU de la tab bar (icône + label), hors inset bas du device.
 // La hauteur réelle rendue = TAB_BAR_HEIGHT + max(insets.bottom, TAB_PB).
@@ -122,35 +122,35 @@ export default function TabLayout() {
 
   const dashboardOptions = useMemo(() => ({
     title: t('ext.tabs_home'),
-    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
-      <Feather name="home" size={22} color={color} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
+      <TabIcon name="home" color={color} focused={focused} />,
   }), [t]);
 
   const missionsOptions = useMemo(() => ({
     title: t('ext.tabs_missions'),
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
-      <Feather name="zap" size={22} color={color} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
+      <TabIcon name="zap" color={color} focused={focused} />,
   }), [isProvider, t]);
 
   const documentsOptions = useMemo(() => ({
     title: t('ext.tabs_documents'),
     href: isProvider ? null : undefined,
-    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
-      <Feather name="file-text" size={22} color={color} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
+      <TabIcon name="file-text" color={color} focused={focused} />,
   }), [isProvider, t]);
 
   const walletOptions = useMemo(() => ({
     title: t('ext.tabs_earnings'),
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
-      <Feather name="credit-card" size={22} color={color} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
+      <TabIcon name="credit-card" color={color} focused={focused} />,
   }), [isProvider, t]);
 
   const profileOptions = useMemo(() => ({
     title: t('ext.tabs_profile'),
-    tabBarIcon: ({ color }: { focused: boolean; color: string }) =>
-      <Feather name="user" size={22} color={color} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
+      <TabIcon name="user" color={color} focused={focused} />,
   }), [t]);
 
   const hiddenOptions = useMemo(() => ({ href: null as null }), []);

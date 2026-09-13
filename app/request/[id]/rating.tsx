@@ -28,6 +28,8 @@ import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
+import Reanimated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
+import { spring } from '@/lib/motion/springs';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
 // ============================================================================
@@ -57,26 +59,43 @@ const getRatingLabels = (t: (key: string) => string): Record<number, string> => 
 // STAR — animée au tap
 // ============================================================================
 
-function Star({ filled, onPress, accessibilityLabel, textMuted }: { filled: boolean; onPress: () => void; accessibilityLabel?: string; textMuted: string }) {
-  const scale = useRef(new Animated.Value(1)).current;
+// Moment 14 : les étoiles se remplissent en VAGUE (25 ms d'écart) jusqu'à
+// celle qu'on touche ; la dernière « prend » avec un dépassement (ζ 0,7).
+// Descendre éteint les étoiles du haut en sens inverse. Haptique light par
+// étoile, selection sur la dernière.
+const STAR_WAVE_MS = 25;
+const STAR_SPRING = spring(500, 1.0);
+const STAR_LAST_SPRING = spring(500, 0.7);
 
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 1.4, duration: 80, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }),
-    ]).start();
-    onPress();
-  };
+function Star({ index, rating, onPress, accessibilityLabel, textMuted }: { index: number; rating: number; onPress: () => void; accessibilityLabel?: string; textMuted: string }) {
+  const filled = rating >= index;
+  const scale = useSharedValue(1);
+  const prev = useRef(rating);
+
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = rating;
+    const up = rating > before;
+    const from = Math.min(before, rating), to = Math.max(before, rating);
+    if (index <= from || index > to) return; // pas concernée par ce changement
+    const order = up ? index - from - 1 : to - index;
+    const isLast = up && index === rating;
+    scale.value = 1.25;
+    scale.value = withDelay(order * STAR_WAVE_MS, withSpring(1, isLast ? STAR_LAST_SPRING : STAR_SPRING));
+    if (up) {
+      const h = setTimeout(() => feedback.haptic(isLast ? 'selection' : 'light'), order * STAR_WAVE_MS);
+      return () => clearTimeout(h);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la note seulement
+  }, [rating]);
+
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={1} accessibilityLabel={accessibilityLabel} accessibilityRole="button">
-      <Animated.View style={{ transform: [{ scale }] }}>
-        <Feather
-          name="star"
-          size={44}
-          color={filled ? COLORS.amber : textMuted}
-        />
-      </Animated.View>
+    <TouchableOpacity onPress={onPress} activeOpacity={1} accessibilityLabel={accessibilityLabel} accessibilityRole="button">
+      <Reanimated.View style={style}>
+        <Feather name="star" size={44} color={filled ? COLORS.amber : textMuted} />
+      </Reanimated.View>
     </TouchableOpacity>
   );
 }
@@ -356,7 +375,7 @@ export default function RatingScreen() {
         <View style={s.starsBlock}>
           <View style={s.stars}>
             {[1, 2, 3, 4, 5].map(star => (
-              <Star key={star} filled={rating >= star} onPress={() => setRating(star)} accessibilityLabel={`${star}/5`} textMuted={theme.textDisabled} />
+              <Star key={star} index={star} rating={rating} onPress={() => setRating(star)} accessibilityLabel={`${star}/5`} textMuted={theme.textDisabled} />
             ))}
           </View>
           {rating > 0 && (

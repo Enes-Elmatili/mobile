@@ -22,6 +22,9 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
+import Reanimated from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
+import { useTakeScale } from '@/lib/motion/useTakeScale';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
@@ -230,6 +233,16 @@ const ac = StyleSheet.create({
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
 
+// Moment 13 : la vignette ne s'affiche pas, elle se DÉPOSE (1,1 → 1, léger
+// dépassement) — comme une photo qu'on pose sur la table.
+const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
+function PhotoThumb({ uri, style }: { uri: string; style: any }) {
+  const [placed, setPlaced] = useState(false);
+  useEffect(() => { setPlaced(true); }, []);
+  const take = useTakeScale(placed, { on: 1, off: 1.1, preset: MOTION.take });
+  return <ReanimatedImage source={{ uri }} style={[style, take.style]} />;
+}
+
 export default function MissionOngoing() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -406,6 +419,7 @@ export default function MissionOngoing() {
           await uploadMissionPhoto(id!, type, uri, myLocation);
           if (type === 'before') { setBeforePhotoUploaded(true); setBeforePhotoUri(uri); }
           else { setAfterPhotoUploaded(true); setAfterPhotoUri(uri); }
+          feedback.haptic('light'); // la photo se dépose : une seule haptique, sur la frame du visuel
           feedback.haptic('success');
         } catch (err: any) {
           devError('[ONGOING] Pending photo upload:', err);
@@ -1114,7 +1128,7 @@ export default function MissionOngoing() {
             <View style={s.photoStrip}>
               {beforePhotoUri && (
                 <View style={s.photoThumbWrap}>
-                  <Image source={{ uri: beforePhotoUri }} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
+                  <PhotoThumb uri={beforePhotoUri} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
                   <View style={s.photoThumbLabelRow}>
                     <Feather name="check-circle" size={11} color={theme.greenText} />
                     <Text style={[s.photoThumbLabel, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>
@@ -1125,7 +1139,7 @@ export default function MissionOngoing() {
               )}
               {afterPhotoUri && (
                 <View style={s.photoThumbWrap}>
-                  <Image source={{ uri: afterPhotoUri }} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
+                  <PhotoThumb uri={afterPhotoUri} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
                   <View style={s.photoThumbLabelRow}>
                     <Feather name="check-circle" size={11} color={theme.greenText} />
                     <Text style={[s.photoThumbLabel, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>

@@ -14,6 +14,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devError } from '@/lib/logger';
 import { formatEUR as fmtEur } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
@@ -204,6 +207,8 @@ export default function WalletTab() {
   const { t: tr } = useTranslation();
   const router = useRouter();
   const tabBarPadding = useTabBarPadding();
+  const insetsTop = useSafeAreaInsets().top;
+  const brandRefresh = useBrandRefresh();
 
   const load = useCallback(async () => {
     try {
@@ -523,13 +528,17 @@ export default function WalletTab() {
       </View>
 
       {/* -- Liste -- */}
-      <FlatList
+      {/* Moment 17 : le « fixed. » s'étire avec le tirage ; le RefreshControl natif garde le déclenchement. */}
+      <BrandRefreshHeader style={brandRefresh.headerStyle} top={insetsTop} />
+      <Animated.FlatList
         data={filteredItems}
         keyExtractor={item => item.key}
         renderItem={renderItem}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabBarPadding }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+        onScroll={brandRefresh.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
       />
 
     </SafeAreaView>

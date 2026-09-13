@@ -6,8 +6,8 @@
  *  2. Bottom chamfer (1px sombre) → simule l'épaisseur du bouton
  *  3. Drop shadow → décolle du fond
  *
- * Au press : scale 0.97 + dim du highlight + collapse léger de la shadow,
- * couplé à un retour haptique. Identique iOS/Android.
+ * Au press : scale 0.97 (usePressScale, règle 4 : à l'appui, jamais au
+ * relâchement) + dim du highlight, couplé à un retour haptique.
  *
  * Usage minimal :
  *   <RaisedButton label="CONFIRMER" onPress={...} />
@@ -20,9 +20,8 @@
  *
  * Iconographie : Feather only (charte FIXED).
  */
-import React, { useRef, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
-  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -32,9 +31,11 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { feedback } from '@/lib/feedback/feedback';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { usePressScale } from '@/lib/motion/press';
 
 type Variant = 'primary' | 'secondary' | 'destructive' | 'success';
 type Size = 'lg' | 'md' | 'sm';
@@ -75,8 +76,10 @@ export function RaisedButton({
   display = false,
 }: RaisedButtonProps) {
   const theme = useAppTheme();
-  const scale = useRef(new Animated.Value(1)).current;
-  const pressDim = useRef(new Animated.Value(0)).current;
+  // Règle 4 : le retour part de l'appui (ressort raide), le relâchement remonte
+  // un peu plus lentement — c'est le contrat de toute l'app (lib/motion/press).
+  const press = usePressScale();
+  const dim = useSharedValue(0);
 
   const isInactive = disabled || loading;
 
@@ -94,36 +97,17 @@ export function RaisedButton({
     haptic ?? (variant === 'destructive' ? 'medium' : 'light');
 
   const onPressIn = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(scale, {
-        toValue: 0.97,
-        useNativeDriver: true,
-        speed: 50,
-        bounciness: 4,
-      }),
-      Animated.timing(pressDim, {
-        toValue: 1,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [scale, pressDim]);
+    press.onPressIn();
+    dim.value = withTiming(1, { duration: 80 });
+  }, [press, dim]);
 
   const onPressOut = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 30,
-        bounciness: 8,
-      }),
-      Animated.timing(pressDim, {
-        toValue: 0,
-        duration: 140,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [scale, pressDim]);
+    press.onPressOut();
+    dim.value = withTiming(0, { duration: 140 });
+  }, [press, dim]);
+
+  const dimMax = theme.isDark ? 0.18 : 0.08;
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * dimMax }));
 
   const handlePress = useCallback(() => {
     if (isInactive) return;
@@ -143,9 +127,9 @@ export function RaisedButton({
           shadowOpacity: theme.isDark ? 0.45 : 0.15,
           shadowRadius: 10,
           elevation: theme.isDark ? 8 : 5,
-          transform: [{ scale }],
           opacity: isInactive ? 0.55 : 1,
         },
+        press.style,
         style,
       ]}
     >
@@ -177,16 +161,7 @@ export function RaisedButton({
           {/* Press dim overlay — assombrit légèrement la surface au press */}
           <Animated.View
             pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFillObject,
-              {
-                backgroundColor: '#000',
-                opacity: pressDim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, theme.isDark ? 0.18 : 0.08],
-                }),
-              },
-            ]}
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000' }, dimStyle]}
           />
 
           {loading ? (
