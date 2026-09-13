@@ -23,8 +23,12 @@ import Reanimated, {
   cancelAnimation,
   LinearTransition,
   Easing as REasing,
+  interpolateColor,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
+import { spring } from '@/lib/motion/springs';
+import { useBreathe } from '@/lib/motion/useBreathe';
 import { usePressScale } from '@/lib/motion/press';
 import { feedback } from '@/lib/feedback/feedback';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -412,6 +416,8 @@ const jc = StyleSheet.create({
 // COCKPIT ISLAND
 // ============================================================================
 
+const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
+
 function CockpitIsland({
   isOnline,
   wallet,
@@ -477,6 +483,32 @@ function CockpitIsland({
     transform: [{ scale: pulseScale.value }],
   }));
 
+  // Moment 7 : le passage en ligne se réchauffe. Le fond et le texte
+  // glissent vers leur couleur « en ligne » (k 200), le point prend (1,25 → 1),
+  // et le libellé ne change que quand la couleur est arrivée. Hors ligne joue
+  // l'inverse, plus vite (k 600) : on ne fête pas une déconnexion.
+  const online01 = useSharedValue(isOnline ? 1 : 0);
+  const [labelOnline, setLabelOnline] = useState(isOnline);
+  const dotTake = useBreathe(1.25);
+  useEffect(() => {
+    if (reduced) { online01.value = isOnline ? 1 : 0; setLabelOnline(isOnline); return; }
+    if (isOnline) dotTake.pulse();
+    online01.value = withSpring(isOnline ? 1 : 0, spring(isOnline ? 200 : 600, 1.0), (finished) => {
+      if (finished) runOnJS(setLabelOnline)(isOnline);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dotTake est stable
+  }, [isOnline, reduced, online01]);
+  const offBg = theme.isDark ? 'rgba(255,255,255,0.08)' : (theme.surface as string);
+  const sectionStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(online01.value, [0, 1], [offBg, theme.cardBg as string]),
+  }));
+  const onlineTextStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(online01.value, [0, 1], [theme.textMuted as string, theme.text as string]),
+  }));
+  const dotColorStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(online01.value, [0, 1], [theme.textMuted as string, theme.text as string]),
+  }));
+
   const handlePress = () => {
     // L'haptique est déjà émise par handleToggleOnline, sur la même frame que
     // le changement d'état — on ne double pas le retour (règle 6).
@@ -490,10 +522,10 @@ function CockpitIsland({
     >
 
       {/* Statut */}
-      <Pressable
+      <AnimatedPressable
         onPress={handlePress}
         {...press.handlers}
-        style={[ci.statusSection, isOnline ? { backgroundColor: theme.cardBg } : { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : theme.surface }]}
+        style={[ci.statusSection, sectionStyle]}
         accessibilityLabel={isOnline ? t('provider.online') : t('provider.offline')}
         accessibilityRole="switch"
         accessibilityState={{ checked: isOnline }}
@@ -504,12 +536,12 @@ function CockpitIsland({
             <Reanimated.View style={[ci.dotGlow, dotGlowStyle, { backgroundColor: theme.text }]} />
           )}
           <Reanimated.View style={[ci.pulseRing, pulseStyle, { backgroundColor: isOnline ? theme.text : theme.textMuted }]} />
-          <View style={[ci.dot, { backgroundColor: isOnline ? theme.text : theme.textMuted }]} />
+          <Reanimated.View style={[ci.dot, dotColorStyle, dotTake.style]} />
         </View>
-        <Text style={[ci.statusText, { color: isOnline ? theme.text : theme.textMuted }]}>
-          {isOnline ? t('provider.online') : t('provider.offline')}
-        </Text>
-      </Pressable>
+        <Reanimated.Text style={[ci.statusText, onlineTextStyle]}>
+          {labelOnline ? t('provider.online') : t('provider.offline')}
+        </Reanimated.Text>
+      </AnimatedPressable>
 
       {/* Separateur */}
       <View style={[ci.sep, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />

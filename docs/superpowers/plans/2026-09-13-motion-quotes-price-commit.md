@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**État : livré le 13/09/2026 sur `feat/motion-foundation` (7 commits).** Vérifié : jest 161/161, eslint 0 erreur, tsc OK ; allowlist `Animated` 32 → 29. Écarts documentés : `useTraceStroke` prend une `length` réelle (react-native-svg ignore `pathLength`) ; hooks de sceau/pli hissés avant l'early return du squelette. Reste la matrice manuelle (Tâche 8).
+
 **Goal:** Appliquer les hooks de `lib/motion` (plan 1) aux cinq moments du devis, du prix et de l'engagement : lignes de devis qui s'additionnent (8), sceau / pli (9), prix qui bouge dans le stepper (10), glisser pour accepter (6), passage en ligne qui se réchauffe (7) — et sortir quatre fichiers d'`Animated` legacy au passage.
 
 **Architecture:** Aucun nouveau hook : tout vient de `lib/motion` (`useCountingValue`+`ReText`, `usePresence`, `useBreathe`, `useTraceStroke`, `useSlideToConfirm`, `MOTION`, `SHEET_SPRING`). Chaque écran ne change que là où le moment s'applique ; les fichiers qui portent encore d'autres animations legacy (NewRequestStepper, missions) gardent leur import `Animated` et importent Reanimated sous l'alias `Reanimated` — ils restent en allowlist. Les fichiers entièrement migrés (send-quote, quote-review, MissionRequestSheet) en sortent.
