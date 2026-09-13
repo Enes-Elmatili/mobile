@@ -223,8 +223,12 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { socket } = useSocket();
-  const mapRef = useRef<MapView>(null);
   const timer = useCountdown(expiresAt);
+  // Hauteur de la feuille : la carte est rembourrée d'autant (mapPadding) pour
+  // que l'adresse se retrouve au centre de la zone VISIBLE, là où respirent
+  // les anneaux. Avant : anneaux au centre de l'écran, adresse au centre de la
+  // carte (sous la feuille), et un panoramique les séparait pour de bon.
+  const [sheetHeight, setSheetHeight] = useState(0);
   const insets = useSafeAreaInsets();
 
   const [providers, setProviders] = useState<NearbyProvider[]>([]);
@@ -342,11 +346,6 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
 
   const now = useNow(10000);
 
-  const recenter = () => {
-    mapRef.current?.animateToRegion({
-      ...missionCoord, latitudeDelta: 0.012, longitudeDelta: 0.012,
-    }, 400);
-  };
 
   const priceLabel = useMemo(() => {
     if (missionPrice == null || missionPrice === '') return null;
@@ -377,7 +376,6 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
     <View style={[s.root, { backgroundColor: theme.bg }]}>
       {/* Carte */}
       <MapView
-        ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_GOOGLE}
         customMapStyle={mapStyle}
@@ -389,6 +387,9 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
         showsTraffic={false}
         rotateEnabled={false}
         pitchEnabled={false}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        mapPadding={{ top: 0, right: 0, bottom: sheetHeight, left: 0 }}
       >
         <Circle
           center={missionCoord}
@@ -402,8 +403,11 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
         ))}
         <UserPin coord={missionCoord} surface={theme.cardBg as string} />
       </MapView>
-      {/* Anneaux de recherche : la période s'allonge avec l'attente (moment 1) */}
-      <BreathingRings color={theme.textMuted} />
+      {/* Anneaux de recherche, ancrés sur l'adresse : même zone que la carte
+          rembourrée (au-dessus de la feuille), la carte ne se déplace pas. */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: sheetHeight }]}>
+        <BreathingRings color={theme.textMuted} />
+      </View>
 
       {/* Top bar — no back button during active search. Accidentally tapping
           back mid-matching would surface the dashboard while the user is
@@ -439,22 +443,12 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
           </BlurView>
         </View>
 
-        <View style={s.floaters}>
-          <Pressable
-            style={[s.iconBtn, { backgroundColor: theme.cardBg, shadowColor: theme.text }]}
-            onPress={recenter}
-            hitSlop={8}
-            accessibilityLabel={t('ext.searching_recenter')}
-          >
-            <Feather name="crosshair" size={18} color={theme.text} />
-          </Pressable>
-        </View>
       </SafeAreaView>
 
       {/* Bottom sheet — single container; safe area inset folded into the
           sheet's own paddingBottom so the rounded top corners and the home
           indicator strip share one continuous surface (no bolted-on band). */}
-      <View style={s.sheetWrap} pointerEvents="box-none">
+      <View style={s.sheetWrap} pointerEvents="box-none" onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}>
         <View
           style={[
             s.sheet,
@@ -576,12 +570,6 @@ const s = StyleSheet.create({
 
   topArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   topBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 6 },
-  iconBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
-    shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
   searchPill: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, height: 44, borderRadius: 22, overflow: 'hidden',
@@ -597,7 +585,6 @@ const s = StyleSheet.create({
   timerDot: { width: 5, height: 5, borderRadius: 2.5 },
   timerText: { fontSize: 11, fontFamily: FONTS.monoMedium },
 
-  floaters: { position: 'absolute', top: 110, right: 12, gap: 8 },
 
   sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   sheet: {
