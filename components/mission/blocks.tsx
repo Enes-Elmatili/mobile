@@ -217,7 +217,7 @@ export function AccessBlock({ brief }: { brief: MissionBrief }) {
   const main = [kind, accessLabel(brief, t)].filter(Boolean).join(' · ');
   if (!main && !a.notes) return null;
   return (
-    <View>
+    <View style={bl.section}>
       <Text style={[bl.label, { color: theme.textMuted }]}>{t('mission.access').toUpperCase()}</Text>
       <View style={bl.kv}>
         <View style={[bl.ic, { backgroundColor: theme.surface }]}><Feather name="home" size={13} color={theme.textSub as string} /></View>
@@ -254,7 +254,7 @@ function RoundBtn({ icon, onPress, label, primary }: { icon: FeatherName; onPres
   );
 }
 
-export function ClientBlock({ brief, onMessage, phone }: { brief: MissionBrief; onMessage?: () => void; phone?: string | null }) {
+export function ClientBlock({ brief, onMessage, onCall, phone }: { brief: MissionBrief; onMessage?: () => void; onCall?: () => void; phone?: string | null }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   if (!brief.client?.name) return null;
@@ -263,7 +263,7 @@ export function ClientBlock({ brief, onMessage, phone }: { brief: MissionBrief; 
     brief.client.city,
   ].filter(Boolean).join(' · ');
   return (
-    <View>
+    <View style={bl.section}>
       <Text style={[bl.label, { color: theme.textMuted }]}>{t('mission.client').toUpperCase()}</Text>
       <View style={[bl.card, { backgroundColor: theme.surface }]}>
         <Avatar name={brief.client.name} />
@@ -276,20 +276,20 @@ export function ClientBlock({ brief, onMessage, phone }: { brief: MissionBrief; 
           {brief.description ? <Text style={[bl.sub, { color: theme.textSub }]} numberOfLines={2}>« {brief.description.trim()} »</Text> : null}
         </View>
         <RoundBtn icon="message-circle" onPress={onMessage} label={t('ext.missions_message_client_a11y')} />
-        <RoundBtn icon="phone" onPress={phone ? () => Linking.openURL(`tel:${phone}`) : undefined} label={t('missions.call_client_a11y')} primary />
+        <RoundBtn icon="phone" onPress={onCall ?? (phone ? () => Linking.openURL(`tel:${phone}`) : undefined)} label={t('missions.call_client_a11y')} primary />
       </View>
     </View>
   );
 }
 
-export function ProviderBlock({ brief, onMessage, phone }: { brief: MissionBrief; onMessage?: () => void; phone?: string | null }) {
+export function ProviderBlock({ brief, onMessage, onCall, phone }: { brief: MissionBrief; onMessage?: () => void; onCall?: () => void; phone?: string | null }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const p = brief.provider;
   if (!p?.name) return null;
   const meta = [formatRating(p.avgRating), p.missionsCount != null ? t('mission.missions_count', { n: p.missionsCount }) : null].filter(Boolean).join(' · ');
   return (
-    <View>
+    <View style={bl.section}>
       <Text style={[bl.label, { color: theme.textMuted }]}>{t('mission.provider').toUpperCase()}</Text>
       <View style={[bl.card, { backgroundColor: theme.surface }]}>
         <Avatar name={p.name} />
@@ -298,13 +298,14 @@ export function ProviderBlock({ brief, onMessage, phone }: { brief: MissionBrief
           {meta ? <Text style={[bl.sub, { color: theme.textSub }]} numberOfLines={1}>{meta}</Text> : null}
         </View>
         <RoundBtn icon="message-circle" onPress={onMessage} label={t('ext.missions_message_client_a11y')} />
-        <RoundBtn icon="phone" onPress={phone ? () => Linking.openURL(`tel:${phone}`) : undefined} label={t('missions.call_client_a11y')} primary />
+        <RoundBtn icon="phone" onPress={onCall ?? (phone ? () => Linking.openURL(`tel:${phone}`) : undefined)} label={t('missions.call_client_a11y')} primary />
       </View>
     </View>
   );
 }
 
 const bl = StyleSheet.create({
+  section: { paddingHorizontal: 24 },
   label: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.5, paddingTop: 18, paddingBottom: 8 },
   kv:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   ic:    { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },

@@ -21,8 +21,11 @@ import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { MOTION } from '@/lib/motion/springs';
 import { SHEET_SPRING } from '@/lib/motion/sheet';
-import { useBreathe } from '@/lib/motion/useBreathe';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+import { briefOf, type MissionBrief } from '@/lib/mission/brief';
+import { MissionRow } from '@/components/mission/MissionRow';
+import { AccessBlock, ClientBlock, EarnRow, MissionTitle } from '@/components/mission/blocks';
+import { PhotoGallery } from '@/components/mission/photos';
 import { SplitPane, useSplitPane } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useTabBarPadding } from './_layout';
@@ -31,9 +34,7 @@ import { useCall } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
-import { translateCategory } from '@/lib/categoryLabel';
 import i18n from '@/lib/i18n';
-import { cleanName } from '@/lib/displayName';
 
 const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
 const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
@@ -68,6 +69,8 @@ type Mission = {
   scheduledAt?: string;
   lat?: number;
   lng?: number;
+  /** Fiche mission (services/missionBrief) — celle du serveur, sinon le repli. */
+  brief: MissionBrief;
 };
 
 type Tab = 'opportunities' | 'upcoming' | 'history';
@@ -91,6 +94,7 @@ interface Opportunity {
   category: { id: number; name: string; icon: string | null };
   subcategory: { id: number; name: string } | null;
   client: { name: string; avatarUrl?: string | null; city?: string | null };
+  brief: MissionBrief;
 }
 
 function formatScheduledDate(iso: string, tr?: (k: string, opts?: any) => string): { day: string; time: string; relative: string } {
@@ -144,26 +148,6 @@ const STATUS_CFG: Record<MissionStatus, { labelKey: string; icon: string; active
   QUOTE_PENDING:   { labelKey: 'ext.missions_status_quote_pending', icon: 'file-text',                active: true },
   QUOTE_SENT:      { labelKey: 'ext.missions_status_quote_sent',    icon: 'check-circle' },
   QUOTE_ACCEPTED:  { labelKey: 'ext.missions_status_quote_accepted',icon: 'check-circle',             active: true },
-};
-
-const SERVICE_ICONS: Record<string, string> = {
-  serrurerie: 'lock',
-  plomberie: 'droplet',
-  'entretien chaudiere': 'zap',
-  electricite: 'zap',
-  bricolage: 'tool',
-  peinture: 'edit-2',
-  menage: 'home',
-  'depannage informatique': 'monitor',
-  vitrier: 'grid',
-  'pet sitting': 'heart',
-};
-
-const getServiceIcon = (type?: string): string => {
-  if (!type) return 'tool';
-  const key = type.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const match = Object.keys(SERVICE_ICONS).find(k => key.includes(k));
-  return match ? SERVICE_ICONS[match] : 'tool';
 };
 
 const UPCOMING_STATUSES: MissionStatus[] = ['PUBLISHED', 'ACCEPTED', 'ONGOING', 'PENDING_PAYMENT', 'QUOTE_PENDING', 'QUOTE_SENT'];
@@ -384,143 +368,6 @@ const eb = StyleSheet.create({
 });
 
 // ============================================================================
-// MISSION CARD
-// ============================================================================
-
-function MissionCard({
-  mission, onPress, onNavigate, onComplete,
-}: {
-  mission: Mission;
-  onPress: () => void;
-  onNavigate: () => void;
-  onComplete: () => void;
-}) {
-  const t = useAppTheme();
-  const { t: tr } = useTranslation();
-  const cfg      = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
-  const net      = mission.price * NET_RATE;
-  const dateStr  = mission.scheduledAt || mission.createdAt;
-  const time     = formatTime(dateStr);
-  const address  = mission.location?.address || mission.address || tr('provider.unknown_address');
-  const isActive = cfg.active ?? false;
-  const canComplete = mission.status === 'ONGOING';
-  const canNavigate = isActive && !!(mission.lat || mission.location?.lat);
-
-  const badgeBg    = cfg.done ? t.surface : isActive ? t.accent : t.surface;
-  const badgeColor = cfg.done ? t.textSub : isActive ? t.accentText : t.textMuted;
-
-  return (
-    <TouchableOpacity style={[mc.card, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }, isActive && [mc.cardActive, { borderColor: t.accent }]]} onPress={onPress} activeOpacity={0.78}>
-
-      {/* Barre temporelle a gauche */}
-      <View style={mc.timeCol}>
-        {time ? (
-          <>
-            <Text style={[mc.timeText, { color: t.textMuted }, isActive && { color: t.text }]}>{time}</Text>
-            <View style={[mc.timeLine, { backgroundColor: t.border }, isActive && { backgroundColor: t.accent }]} />
-          </>
-        ) : (
-          <View style={[mc.timeDot, { backgroundColor: t.border }, isActive && { backgroundColor: t.accent }]} />
-        )}
-      </View>
-
-      {/* Contenu principal */}
-      <View style={mc.body}>
-        <View style={mc.topRow}>
-          <View style={mc.info}>
-            <Text style={[mc.title, { color: t.text }]} numberOfLines={1}>{mission.title}</Text>
-            {mission.client?.name && (
-              <Text style={[mc.client, { color: t.textSub }]} numberOfLines={1}>{cleanName(mission.client.name)}</Text>
-            )}
-            <View style={mc.addrRow}>
-              <Feather name="map-pin" size={11} color={t.textMuted} />
-              <Text style={[mc.addr, { color: t.textMuted }]} numberOfLines={1}>{address}</Text>
-            </View>
-          </View>
-
-          {/* Gains a droite */}
-          <View style={mc.earningsCol}>
-            <Text style={[mc.earningsNet, { color: t.text }]}>+{formatEuros(net)}</Text>
-            <Text style={[mc.earningsLabel, { color: t.textMuted }]}>net</Text>
-          </View>
-        </View>
-
-        {/* Footer : badge statut + actions rapides */}
-        <View style={mc.footer}>
-          <View style={[mc.badge, { backgroundColor: badgeBg }]}>
-            <Feather name={cfg.icon as any} size={10} color={badgeColor} />
-            <Text style={[mc.badgeText, { color: badgeColor }]}>{tr(cfg.labelKey)}</Text>
-          </View>
-
-          <View style={mc.quickActions}>
-            {canNavigate && (
-              <TouchableOpacity
-                style={[mc.quickBtn, { backgroundColor: t.surface }]}
-                onPress={onNavigate}
-                activeOpacity={0.8}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={tr('ext.missions_directions_a11y')}
-              >
-                <Feather name="navigation" size={15} color={t.text} />
-              </TouchableOpacity>
-            )}
-            {canComplete && (
-              <TouchableOpacity
-                style={[mc.quickBtn, { backgroundColor: t.surface }]}
-                onPress={onComplete}
-                activeOpacity={0.8}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={tr('missions.complete_cta')}
-              >
-                <Feather name="check" size={15} color={t.text} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-const mc = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    borderRadius: 18, marginBottom: 8,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
-      android: { elevation: 2 },
-    }),
-  },
-  cardActive: { borderWidth: 1.5 },
-
-  timeCol:       { width: 56, alignItems: 'center', paddingTop: 16, paddingBottom: 12, gap: 4 },
-  timeText:      { fontSize: 12, fontFamily: FONTS.mono },
-  timeLine:      { flex: 1, width: 2, borderRadius: 1 },
-  timeDot:       { width: 8, height: 8, borderRadius: 4 },
-
-  body:   { flex: 1, paddingRight: 14, paddingTop: 14, paddingBottom: 12 },
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  info:   { flex: 1, gap: 3 },
-  title:  { fontSize: 15, fontFamily: FONTS.sansMedium },
-  client: { fontSize: 12, fontFamily: FONTS.sans },
-  addrRow:{ flexDirection: 'row', alignItems: 'center', gap: 3 },
-  addr:   { fontSize: 11, fontFamily: FONTS.sans, flex: 1 },
-
-  earningsCol:   { alignItems: 'flex-end', paddingLeft: 10 },
-  earningsNet:   { fontSize: 18, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.4 },
-  earningsLabel: { fontSize: 10, fontFamily: FONTS.mono },
-
-  footer:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  badge:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  badgeText:   { fontSize: 11, fontFamily: FONTS.sansMedium },
-  quickActions:{ flexDirection: 'row', gap: 6 },
-  quickBtn:    { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-});
-
-// ============================================================================
 // FILTER BAR (historique)
 // ============================================================================
 
@@ -627,180 +474,6 @@ const es = StyleSheet.create({
 });
 
 // ============================================================================
-// OPPORTUNITY CARD
-// ============================================================================
-
-function OpportunityCard({
-  item, theme, onAccept, onDecline, onOpen, accepting,
-}: {
-  item: Opportunity; theme: ReturnType<typeof useAppTheme>;
-  onAccept: (id: number) => void;
-  onDecline: (id: number) => void;
-  onOpen: (item: Opportunity) => void;
-  accepting: number | null;
-}) {
-  const { t: tr } = useTranslation();
-  // La carte « prend » (0,97 → 1) à l'acceptation : même geste que useBreathe.
-  const take = useBreathe(0.97);
-  const { day, time, relative } = formatScheduledDate(item.preferredTimeStart, tr);
-  const net = item.price ? item.price * NET_RATE : null;
-
-  const handlePress = () => {
-    take.pulse();
-    feedback.haptic('medium');
-    onAccept(item.id);
-  };
-
-  const handleDecline = () => {
-    feedback.haptic('light');
-    onDecline(item.id);
-  };
-
-  return (
-    <Reanimated.View style={take.style}>
-      <View style={[opp.card, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.shadowOpacity }]}>
-        <TouchableOpacity activeOpacity={0.85} onPress={() => { feedback.haptic('light'); onOpen(item); }}>
-          <View style={opp.cardHead}>
-            <View style={[opp.catBadge, { backgroundColor: theme.surface }]}>
-              <Feather name={getServiceIcon(item.category.name) as any} size={14} color={theme.text} />
-              <Text style={[opp.catBadgeText, { color: theme.text, flexShrink: 1 }]} numberOfLines={1}>{translateCategory(tr, item.category)}</Text>
-            </View>
-            <View style={opp.headRight}>
-              {item.urgent ? (
-                <View style={[opp.urgentBadge, { backgroundColor: theme.accent }]}>
-                  <Feather name="zap" size={11} color={theme.accentText} />
-                </View>
-              ) : null}
-              <View style={[opp.relBadge, { backgroundColor: theme.surface }]}>
-                <Text style={[opp.relText, { color: theme.textSub }]}>{relative}</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={theme.textMuted} />
-            </View>
-          </View>
-
-          <Text style={[opp.serviceName, { color: theme.text }]} numberOfLines={1}>
-            {item.serviceType}
-          </Text>
-          {item.description ? (
-            <Text style={[opp.desc, { color: theme.textSub }]} numberOfLines={2}>
-              {item.description}
-            </Text>
-          ) : null}
-
-          <View style={opp.infoRow}>
-            <View style={opp.infoItem}>
-              <Feather name="calendar" size={14} color={theme.textMuted} />
-              <Text style={[opp.infoText, { color: theme.textSub }]}>{day} à {time}</Text>
-            </View>
-            <View style={opp.infoItem}>
-              <Feather name="map-pin" size={14} color={theme.textMuted} />
-              <Text style={[opp.infoText, { color: theme.textSub }]} numberOfLines={1}>
-                {item.address.split(',')[0]}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        <View style={opp.cardFoot}>
-          {net ? (
-            <View>
-              <Text style={[opp.priceNet, { color: theme.text }]}>{formatEuros(net, 0)}</Text>
-              <Text style={[opp.priceLabel, { color: theme.textMuted }]}>{tr('ext.missions_net_estimate')}</Text>
-            </View>
-          ) : (
-            <View />
-          )}
-          <View style={opp.actionsRow}>
-            <TouchableOpacity
-              style={[opp.declineBtn, { borderColor: theme.border }]}
-              onPress={handleDecline}
-              disabled={accepting !== null}
-              activeOpacity={0.7}
-              accessibilityLabel={tr('ext.missions_refuse')}
-            >
-              <Feather name="x" size={18} color={theme.textSub} />
-              <Text style={[opp.declineText, { color: theme.textSub }]}>{tr('ext.missions_refuse')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[opp.acceptBtn, { backgroundColor: theme.accent }]}
-              onPress={handlePress}
-              disabled={accepting !== null}
-              activeOpacity={0.8}
-            >
-              {accepting === item.id ? (
-                <ActivityIndicator size="small" color={theme.accentText} />
-              ) : (
-                <>
-                  <Feather name="check-circle" size={18} color={theme.accentText} />
-                  <Text style={[opp.acceptText, { color: theme.accentText }]}>{tr('provider.accept')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Reanimated.View>
-  );
-}
-
-const opp = StyleSheet.create({
-  card: {
-    borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
-  },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  catBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, flexShrink: 1, marginRight: 8 },
-  catBadgeText: { fontSize: 12, fontFamily: FONTS.sansMedium },
-  relBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  relText: { fontSize: 11, fontFamily: FONTS.sansMedium },
-  headRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  urgentBadge: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  serviceName: { fontSize: 17, fontFamily: FONTS.sansMedium, marginBottom: 4 },
-  desc: { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 18, marginBottom: 10 },
-  infoRow: { gap: 6, marginBottom: 14 },
-  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  infoText: { fontSize: 13, fontFamily: FONTS.sans },
-  cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  priceNet: { fontSize: 20, fontFamily: FONTS.bebas, includeFontPadding: false },
-  priceLabel: { fontSize: 11, fontFamily: FONTS.mono },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  declineBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 12, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  declineText: { fontSize: 14, fontFamily: FONTS.sansMedium },
-  acceptBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderRadius: 12,
-    paddingHorizontal: 18, paddingVertical: 10,
-  },
-  acceptText: { fontSize: 14, fontFamily: FONTS.sansMedium },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontFamily: FONTS.sansMedium, marginTop: 8, textAlign: 'center' },
-  emptySub: { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
-});
-
-// ============================================================================
-// CLIENT AVATAR
-// ============================================================================
-
-function ClientAvatar({ name, size = 40 }: { name: string; size?: number }) {
-  const t = useAppTheme();
-  const initials = name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
-  return (
-    <View style={[cav.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent }]}>
-      <Text style={[cav.text, { fontSize: size * 0.34, color: t.accentText }]}>{initials}</Text>
-    </View>
-  );
-}
-const cav = StyleSheet.create({
-  circle: { alignItems: 'center', justifyContent: 'center' },
-  text:   { fontFamily: FONTS.sansMedium, letterSpacing: 0.5 },
-});
-
-// ============================================================================
 // TAB BAR
 // ============================================================================
 
@@ -869,7 +542,6 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = f
   const { initiateCall } = useCall();
   const tabBarPadding = useTabBarPadding();
   const cfg         = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
-  const net         = mission.price * NET_RATE;
   const canComplete = mission.status === 'ONGOING';
   const canNavigate = !!(cfg.active) && !!(mission.lat || mission.location?.lat);
   const address     = mission.location?.address || mission.address || '';
@@ -924,36 +596,18 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = f
       )}
 
       <View style={sd.body}>
-        {/* Titre */}
-        <View style={sd.titleRow}>
-          <Text style={[sd.title, { color: t.text }]}>{mission.title}</Text>
-          {mission.client?.name && (
-            <View style={sd.clientRow}>
-              <ClientAvatar name={cleanName(mission.client.name)} size={24} />
-              <Text style={[sd.clientName, { color: t.textSub }]} numberOfLines={1}>{cleanName(mission.client.name)}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Gains */}
-        <View style={[sd.earningsBlock, { backgroundColor: t.surfaceAlt }]}>
-          <View>
-            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('missions.net_gain')}</Text>
-            {mission.price > 0 ? (
-              <Text style={[sd.earningsNet, { color: t.text }]}>{formatEuros(net)}</Text>
-            ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>{tr('missions.price_tbd')}</Text>
-            )}
-          </View>
-          <View style={[sd.earningsDivider, { backgroundColor: t.border }]} />
-          <View>
-            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('ext.missions_gross_client')}</Text>
-            {mission.price > 0 ? (
-              <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(mission.price)}</Text>
-            ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>—</Text>
-            )}
-          </View>
+        {/* Fiche mission (planche 4A) : quoi, photos, accès, client, gain */}
+        <MissionTitle brief={mission.brief} big />
+        <View style={sd.blocks}>
+          <PhotoGallery photos={mission.brief.photos} title={tr('mission.client_photos')} />
+          <AccessBlock brief={mission.brief} />
+          <ClientBlock
+            brief={mission.brief}
+            onMessage={mission.client?.id ? () => router.push({ pathname: '/messages/[userId]', params: { userId: mission.client!.id!, name: mission.client!.name, requestId: String(mission.id) } }) : undefined}
+            onCall={mission.client?.id ? () => initiateCall({ targetUserId: mission.client!.id!, targetName: mission.client!.name, requestId: String(mission.id) }) : undefined}
+            phone={mission.client?.phone ?? null}
+          />
+          <View style={sd.earnWrap}><EarnRow brief={mission.brief} /></View>
         </View>
 
         {/* Divider */}
@@ -992,87 +646,6 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = f
               <View style={sd.infoContent}>
                 <Text style={[sd.infoValue, { color: t.textMuted }]}>{tr('missions.finished_action')}</Text>
               </View>
-            </View>
-            <View style={[sd.sep, { backgroundColor: t.border }]} />
-          </>
-        )}
-
-        {/* Adresse + description */}
-        {(address || mission.description) && (
-          <>
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('missions.mission_details')}</Text>
-            {address ? (
-              <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="map-pin" size={12} color={t.textMuted} /></View>
-                <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>{address}</Text>
-                </View>
-              </View>
-            ) : null}
-            {mission.description ? (
-              <View style={sd.infoRow}>
-                <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="file-text" size={12} color={t.textMuted} /></View>
-                <View style={sd.infoContent}>
-                  <Text style={[sd.infoValue, { color: t.text }]}>{mission.description}</Text>
-                </View>
-              </View>
-            ) : null}
-            <View style={[sd.sep, { backgroundColor: t.border }]} />
-          </>
-        )}
-
-        {/* Client card */}
-        {mission.client && (
-          <>
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('ext.missions_client')}</Text>
-            <View style={sd.clientCard}>
-              <ClientAvatar name={cleanName(mission.client.name)} size={44} />
-              <View style={{ flex: 1 }}>
-                <Text style={[sd.clientCardName, { color: t.text }]} numberOfLines={1}>{cleanName(mission.client.name)}</Text>
-              </View>
-              {mission.client.id && (
-                <TouchableOpacity
-                  style={[sd.callBtn, { backgroundColor: t.surfaceAlt || t.surface }]}
-                  onPress={() => {
-                    router.push({
-                      pathname: '/messages/[userId]',
-                      params: {
-                        userId: mission.client!.id!,
-                        name: mission.client!.name,
-                        requestId: String(mission.id),
-                      },
-                    });
-                  }}
-                  activeOpacity={0.8}
-                  hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={tr('ext.missions_message_client_a11y')}
-                >
-                  <Feather name="message-circle" size={16} color={t.text} />
-                </TouchableOpacity>
-              )}
-              {(mission.client.id || mission.client.phone) && (
-                <TouchableOpacity
-                  style={[sd.callBtn, { backgroundColor: t.accent }]}
-                  onPress={() => {
-                    if (mission.client?.id) {
-                      initiateCall({
-                        targetUserId: mission.client.id,
-                        targetName: mission.client.name,
-                        requestId: String(mission.id),
-                      });
-                    } else if (mission.client?.phone) {
-                      Linking.openURL(`tel:${mission.client.phone}`);
-                    }
-                  }}
-                  activeOpacity={0.8}
-                  hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={tr('missions.call_client_a11y')}
-                >
-                  <Feather name="phone" size={16} color={t.accentText} />
-                </TouchableOpacity>
-              )}
             </View>
             <View style={[sd.sep, { backgroundColor: t.border }]} />
           </>
@@ -1134,7 +707,6 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane
   const { t: tr } = useTranslation();
   const tabBarPadding = useTabBarPadding();
   const item = opportunity;
-  const net = item.price ? item.price * NET_RATE : null;
   const { day, time, relative } = formatScheduledDate(item.preferredTimeStart, tr);
   const lat = item.lat, lng = item.lng;
   const hasCoords = !!(lat && lng);
@@ -1191,87 +763,19 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane
       )}
 
       <View style={sd.body}>
-        {/* Titre + catégorie */}
-        <Text style={[sd.title, { color: t.text }]}>{item.serviceType}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 4 }}>
-          <Feather name={getServiceIcon(item.category.name) as any} size={13} color={t.textMuted} />
-          <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>{translateCategory(tr, item.category)}</Text>
-          <Text style={{ color: t.textMuted, fontSize: 13 }}>·</Text>
-          <Text style={{ color: t.textMuted, fontFamily: FONTS.sansMedium, fontSize: 13 }}>{relative}</Text>
+        {/* Fiche mission (planche 4A) : quoi, photos, accès, client, gain */}
+        <MissionTitle brief={item.brief} big />
+        <View style={sd.blocks}>
+          <PhotoGallery photos={item.brief.photos} title={tr('mission.client_photos')} />
+          <View style={sd.factRow}>
+            <Feather name="calendar" size={14} color={t.textMuted} />
+            <Text style={[sd.factText, { color: t.text }]}>{day} · {time} · {relative}</Text>
+          </View>
+          <AccessBlock brief={item.brief} />
+          <ClientBlock brief={item.brief} />
+          <View style={sd.earnWrap}><EarnRow brief={item.brief} /></View>
         </View>
-
-        {/* Gains */}
-        <View style={[sd.earningsBlock, { backgroundColor: t.surfaceAlt }]}>
-          <View>
-            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('missions.net_gain')}</Text>
-            {net ? (
-              <Text style={[sd.earningsNet, { color: t.text }]}>{formatEuros(net)}</Text>
-            ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>{tr('missions.price_tbd')}</Text>
-            )}
-          </View>
-          <View style={[sd.earningsDivider, { backgroundColor: t.border }]} />
-          <View>
-            <Text style={[sd.earningsLabel, { color: t.textMuted }]}>{tr('ext.missions_gross_client')}</Text>
-            {item.price ? (
-              <Text style={[sd.earningsGross, { color: t.textMuted }]}>{formatEuros(item.price)}</Text>
-            ) : (
-              <Text style={[sd.earningsZero, { color: t.textMuted }]}>—</Text>
-            )}
-          </View>
-        </View>
-
-        <View style={[sd.sep, { backgroundColor: t.border }]} />
-
-        {/* Détails mission */}
-        <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('missions.mission_details')}</Text>
-        <View style={sd.infoRow}>
-          <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="calendar" size={12} color={t.textMuted} /></View>
-          <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{day} · {time}</Text></View>
-        </View>
-        {address ? (
-          <View style={sd.infoRow}>
-            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="map-pin" size={12} color={t.textMuted} /></View>
-            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{address}</Text></View>
-          </View>
-        ) : null}
-        {accessRows.map((a, i) => (
-          <View style={sd.infoRow} key={`acc-${i}`}>
-            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name={a.icon as any} size={12} color={t.textMuted} /></View>
-            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{a.text}</Text></View>
-          </View>
-        ))}
-        {item.accessNotes ? (
-          <View style={sd.infoRow}>
-            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="info" size={12} color={t.textMuted} /></View>
-            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{item.accessNotes}</Text></View>
-          </View>
-        ) : null}
-        {item.description ? (
-          <View style={sd.infoRow}>
-            <View style={[sd.infoIcon, { backgroundColor: t.surface }]}><Feather name="file-text" size={12} color={t.textMuted} /></View>
-            <View style={sd.infoContent}><Text style={[sd.infoValue, { color: t.text }]}>{item.description}</Text></View>
-          </View>
-        ) : null}
-
-        {/* Client */}
-        {item.client?.name ? (
-          <>
-            <View style={[sd.sep, { backgroundColor: t.border }]} />
-            <Text style={[sd.sectionLabel, { color: t.textMuted }]}>{tr('ext.missions_client')}</Text>
-            <View style={sd.clientCard}>
-              <ClientAvatar name={cleanName(item.client.name)} size={44} />
-              <View style={{ flex: 1 }}>
-                <Text style={[sd.clientCardName, { color: t.text }]} numberOfLines={1}>{cleanName(item.client.name)}</Text>
-                {item.client.city ? (
-                  <Text style={{ color: t.textMuted, fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{item.client.city}</Text>
-                ) : null}
-              </View>
-            </View>
-          </>
-        ) : null}
       </View>
-
       {/* -- CTA Refuser / Accepter -- */}
       <View style={[sd.actionsBlock, { flexDirection: 'row', gap: 10 }]}>
         <TouchableOpacity
@@ -1291,6 +795,19 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane
   );
 }
 
+// Styles conservés des anciennes cartes : bouton Refuser de la fiche, état vide des opportunités.
+const opp = StyleSheet.create({
+  declineBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  declineText: { fontSize: 14, fontFamily: FONTS.sansMedium },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontFamily: FONTS.sansMedium, marginTop: 8, textAlign: 'center' },
+  emptySub: { fontSize: 14, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 20 },
+});
+
 const sd = StyleSheet.create({
   scroll: { paddingBottom: 80 },
   mapContainer: { height: 150, marginTop: 8, overflow: 'hidden', position: 'relative' },
@@ -1306,17 +823,11 @@ const sd = StyleSheet.create({
   mapFallbackText: { fontSize: 12, fontFamily: FONTS.sans },
 
   body: { paddingHorizontal: 20, paddingTop: 14 },
-  titleRow: { marginBottom: 12, gap: 6 },
-  title:    { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.4 },
-  clientRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
-  clientName:{ fontSize: 13, fontFamily: FONTS.sansMedium, flexShrink: 1 },
+  blocks: { marginTop: 4, marginHorizontal: -20 },
+  earnWrap: { paddingHorizontal: 24, marginTop: 18 },
+  factRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingTop: 16 },
+  factText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
 
-  earningsBlock:  { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 14, marginBottom: 12 },
-  earningsLabel:  { fontSize: 11, fontFamily: FONTS.mono, marginBottom: 3 },
-  earningsNet:    { fontSize: 28, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.8 },
-  earningsZero:   { fontSize: 16, fontFamily: FONTS.sans, fontStyle: 'italic' },
-  earningsDivider:{ width: StyleSheet.hairlineWidth, height: 44, marginHorizontal: 20 },
-  earningsGross:  { fontSize: 16, fontFamily: FONTS.mono },
 
   sep: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
 
@@ -1324,20 +835,14 @@ const sd = StyleSheet.create({
   infoRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   infoIcon:     { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   infoContent:  { flex: 1 },
-  infoLabel:    { fontSize: 10, fontFamily: FONTS.sansMedium, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   infoValue:    { fontSize: 14, fontFamily: FONTS.sans, lineHeight: 20 },
 
-  clientCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  clientCardName: { fontSize: 15, fontFamily: FONTS.sansMedium, flexShrink: 1 },
-  clientCardPhone:{ fontSize: 13, fontFamily: FONTS.sans, marginTop: 2 },
-  callBtn:        { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 
   actionsBlock: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, gap: 10,
   },
   navBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, paddingVertical: 15 },
   navBtnText:     { fontSize: 15, fontFamily: FONTS.sansMedium },
-  completeBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, paddingVertical: 15 },
   completeBtnText:{ fontSize: 15, fontFamily: FONTS.sansMedium },
 });
 
@@ -1408,6 +913,7 @@ export default function Missions() {
         client:      r.client ? { id: r.client.id, name: r.client.name || '', phone: r.client.phone } : undefined,
         createdAt:   r.createdAt,
         scheduledAt: r.preferredTimeStart || r.scheduledAt,
+        brief:       briefOf(r),
       }));
 
       setMissions(list);
@@ -1425,7 +931,8 @@ export default function Missions() {
     try {
       const res = await api.get('/requests/opportunities');
       const data = res?.data ?? res;
-      setOpportunities(Array.isArray(data) ? data : data?.data ?? []);
+      const list: any[] = Array.isArray(data) ? data : data?.data ?? [];
+      setOpportunities(list.map((o) => ({ ...o, brief: briefOf(o) })));
       setOppError(null);
     } catch (e) {
       devError('Opportunities load error:', e);
@@ -1619,6 +1126,7 @@ export default function Missions() {
         client:      r.client ? { id: r.client.id, name: r.client.name || '', phone: r.client.phone } : undefined,
         createdAt:   r.createdAt,
         scheduledAt: r.preferredTimeStart || r.scheduledAt,
+        brief:       briefOf(r),
       });
     } catch { devError('Error loading mission details'); }
     finally   { setLoadingDetails(false); }
@@ -1674,8 +1182,10 @@ export default function Missions() {
     const cfg = STATUS_CFG[item.status] ?? STATUS_CFG.PUBLISHED;
     const isActive = cfg.active ?? false;
     return (
-      <MissionCard
-        mission={item}
+      <MissionRow
+        brief={item.brief}
+        time={formatTime(item.scheduledAt)}
+        showClient
         onPress={() => {
           if (isActive) {
             router.replace({ pathname: '/request/[id]/ongoing', params: { id: item.id } });
@@ -1683,11 +1193,10 @@ export default function Missions() {
             handleMissionPress(item.id);
           }
         }}
-        onNavigate={() => handleNavigate(item)}
-        onComplete={() => handleComplete(item)}
       />
     );
-  }, [handleComplete, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleMissionPress est stable dans la pratique
+  }, [router]);
 
   if (loading) {
     return (
@@ -1783,7 +1292,12 @@ export default function Missions() {
             onScroll={brandRefresh.onScroll}
             scrollEventThrottle={16}
             renderItem={({ item }) => (
-              <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} onDecline={handleDeclineOpp} onOpen={openOpportunity} accepting={acceptingOpp} />
+              <MissionRow
+                brief={item.brief}
+                onPress={() => openOpportunity(item)}
+                onSwipeAccept={acceptingOpp ? undefined : () => handleAcceptOpp(item.id)}
+                onSwipeRefuse={acceptingOpp ? undefined : () => handleDeclineOpp(item.id)}
+              />
             )}
             contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }, !opportunities.length && s.listEmpty]}
             showsVerticalScrollIndicator={false}
