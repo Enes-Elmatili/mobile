@@ -70,8 +70,15 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
   const { isRegular } = useLayoutClass();
   const reduced = useReduceMotion();
 
-  // Onglets visibles : Expo Router marque les routes cachées avec href: null.
-  const routes = state.routes.filter((r) => (descriptors[r.key].options as { href?: unknown }).href !== null);
+  // Onglets visibles. Expo Router ne transmet PAS `href` aux descripteurs :
+  // il le retire des options et marque la route cachée (`href: null`) avec
+  // `tabBarItemStyle: { display: 'none' }` et un `tabBarButton` qui rend null.
+  // Filtrer sur `href` laissait donc passer les onglets de l'autre rôle
+  // (Missions et Gains chez le client, Documents chez le prestataire).
+  const routes = state.routes.filter((r) => {
+    const style = StyleSheet.flatten(descriptors[r.key].options.tabBarItemStyle);
+    return style?.display !== 'none';
+  });
   const activeIndex = Math.max(0, routes.findIndex((r) => r.key === state.routes[state.index]?.key));
 
   const indicator = useSharedValue(activeIndex);
