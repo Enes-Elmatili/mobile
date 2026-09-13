@@ -44,6 +44,9 @@ import { StepPager, type PagerDirection } from '@/components/request/StepPager';
 import { deriveCrumbs } from '@/lib/request/crumbs';
 import { CategoryRail } from '@/components/request/CategoryRail';
 import { ServiceRow } from '@/components/request/ServiceRow';
+import { ShotStrip } from '@/components/request/ShotStrip';
+import { cameraSession } from '@/lib/request/cameraSession';
+import { mergeShots, missingRequiredShots, nextQueue, shotsFor, uploadRequestPhotos, type LocalShot } from '@/lib/request/photos';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { AdaptiveScroll } from '@/lib/layout';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -635,6 +638,9 @@ export default function NewRequestStepper() {
   const [subcategoryId, setSubcategoryId] = useState<number | null>(null);
   const [description,   setDescription]  = useState('');
   const [noteOpen,      setNoteOpen]      = useState(false);
+  // Photos guidées par la prestation (planche 1A) : prises locales, envoyées
+  // à l'étape 4 juste après la création de la demande.
+  const [shots,         setShots]         = useState<LocalShot[]>([]);
 
   // Étape 3
   // Semaines du planning (5 semaines à partir du lundi courant) — lib/scheduling/weeks.
@@ -685,6 +691,21 @@ export default function NewRequestStepper() {
     basePrice, pricingMode, calloutFee, isFreeService, isQuoteFlow,
     serviceChosen, categoryUnavailable,
   } = selection;
+  // Consignes de la prestation choisie et prises requises encore manquantes.
+  const shotSpecs = useMemo(() => shotsFor(selectedSubcategory?.slug), [selectedSubcategory?.slug]);
+  const missingShots = useMemo(() => missingRequiredShots(shots, shotSpecs), [shots, shotSpecs]);
+  const openCamera = (fromKey: string | null) => {
+    cameraSession.start(nextQueue(shotSpecs, shots, fromKey), (taken) => setShots((cur) => mergeShots(cur, taken)));
+    router.push('/request/camera' as any);
+  };
+  const removeFreeShot = (index: number) => setShots((cur) => cur.filter((_, i) => i !== index));
+  /** Après la création de la demande : envoi des photos, sans bloquer le paiement. */
+  const sendPhotos = async (rId: number | string) => {
+    if (shots.length === 0) return;
+    const { failed } = await uploadRequestPhotos(rId, shots, (id, form) => api.requestPhotos.upload(id, form));
+    if (failed > 0) feedback.toast(t('stepper.photos_upload_failed', { count: failed }), 'info');
+  };
+
   // Sens de la poussée de la liste quand on change de catégorie (ordre des pilules).
   const prevCategoryIndexRef = useRef(0);
   const categoryIndex = Math.max(0, categories.findIndex((c) => c.id === categoryId));
@@ -937,6 +958,7 @@ export default function NewRequestStepper() {
           if (!rId) throw new Error('Request ID manquant');
           if (cancelled) return;
           setRequestId(rId);
+          await sendPhotos(rId);
           setPaymentReady(true);
           return;
         }
@@ -965,6 +987,7 @@ export default function NewRequestStepper() {
           if (!rId) throw new Error('Request ID manquant');
           if (cancelled) return;
           setRequestId(rId);
+          await sendPhotos(rId);
           const calloutRes = await api.post('/quotes/callout-payment', { requestId: rId });
           if (calloutRes.amount) setConfirmedCalloutCents(calloutRes.amount);
           // Store-review : { demo:true } → le backend a déjà fait QUOTE_PENDING + broadcast
@@ -1021,6 +1044,7 @@ export default function NewRequestStepper() {
         if (!rId) throw new Error('Request ID manquant');
         if (cancelled) return;
         setRequestId(rId);
+        await sendPhotos(rId);
 
         // Initialiser le payment sheet — prix fixe (DIRECT_CHARGE flow).
         // Le client est d\u00e9bit\u00e9 imm\u00e9diatement via PaymentIntent; le backend
@@ -1613,16 +1637,20 @@ export default function NewRequestStepper() {
                   <StepPager page={categoryId ?? 'none'} direction={railDirection} style={s.flex} render={() => (
                     <AdaptiveScroll style={s.flex} contentContainerStyle={s.step2Pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                       {(selectedCategory?.subcategories ?? []).map((sub: any) => (
-                        <ServiceRow
-                          key={sub.id}
-                          label={translateSubcategory(i18nInstance.language, sub)}
-                          description={sub.description}
-                          pricingMode={sub.pricingMode}
-                          selected={subcategoryId === sub.id}
-                          onPress={() => setSubcategoryId(sub.id)}
-                          fixedLabel={t('stepper.pricing_fixed')}
-                          quoteLabel={t('stepper.pricing_quote')}
-                        />
+                        <React.Fragment key={sub.id}>
+                          <ServiceRow
+                            label={translateSubcategory(i18nInstance.language, sub)}
+                            description={sub.description}
+                            pricingMode={sub.pricingMode}
+                            selected={subcategoryId === sub.id}
+                            onPress={() => setSubcategoryId(sub.id)}
+                            fixedLabel={t('stepper.pricing_fixed')}
+                            quoteLabel={t('stepper.pricing_quote')}
+                          />
+                          {subcategoryId === sub.id && (
+                            <ShotStrip specs={shotSpecs} shots={shots} onTake={openCamera} onRemoveFree={removeFreeShot} />
+                          )}
+                        </React.Fragment>
                       ))}
                       {/* Catégorie sans prestation ET sans prix : non réservable (aucun prix à
                           verrouiller). On l'annonce au lieu de laisser le parcours mener à une
@@ -1661,8 +1689,10 @@ export default function NewRequestStepper() {
             <StepCTA
               label={isQuoteFlow ? t('stepper.request_quote_cta') : t('stepper.continue')}
               onPress={goNext}
-              disabled={!serviceChosen}
-              hint={t('stepper.select_service_type')}
+              disabled={!serviceChosen || missingShots.length > 0}
+              hint={!serviceChosen
+                ? t('stepper.select_service_type')
+                : t('stepper.hint_photo_required', { label: t(`shots.${missingShots[0]?.key}.label`) })}
             />
           </KeyboardAvoidingView>
         )}

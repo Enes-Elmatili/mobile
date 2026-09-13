@@ -114,6 +114,12 @@
           "cameraPermission": "FIXED utilise votre caméra pour prendre des photos lors de vos missions."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FIXED utilise votre caméra pour photographier le problème à réparer."
+        }
+      ],
       "expo-localization",
       "expo-web-browser",
       "expo-font",

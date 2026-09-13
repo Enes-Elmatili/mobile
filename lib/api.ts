@@ -418,6 +418,31 @@ class ApiClient {
     config: (categorySlug: string) => this.request(`/providers/doc-config/${categorySlug}`),
   };
 
+  /** Photos guidées du client (POST /requests/:id/photos, multipart). */
+  requestPhotos = {
+    upload: async (requestId: number | string, formData: FormData, _retry = false): Promise<any> => {
+      const token = await tokenStorage.getToken();
+      const response = await fetch(`${this.baseURL}/requests/${requestId}/photos`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
+          // Content-Type absent : fetch pose le boundary multipart lui-même.
+        },
+        body: formData,
+      });
+      if (response.status === 401 && !_retry) {
+        const newToken = await this.refreshAccessToken();
+        if (newToken) return this.requestPhotos.upload(requestId, formData, true);
+      }
+      const text = await response.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { throw new Error('Réponse invalide du serveur'); }
+      if (!response.ok) throw Object.assign(new Error(data?.message || data?.code || `HTTP ${response.status}`), { status: response.status, data });
+      return data;
+    },
+  };
+
   // ==================== PROVIDER QUIZ ====================
   providerQuiz = {
     /** Questions du quiz pour une catégorie (sans les réponses) */

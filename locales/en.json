@@ -701,7 +701,15 @@
     "month_long_10": "November",
     "month_long_11": "December",
     "prev_week": "Previous week",
-    "next_week": "Next week"
+    "next_week": "Next week",
+    "photos_title": "Photos for the pro",
+    "photos_count": "{{done}} of {{total}}",
+    "photos_nudge": "With photos, the pro brings the right parts and accepts faster.",
+    "hint_photo_required": "Photo required: {{label}}",
+    "photos_upload_failed_one": "One photo could not be sent. Your request went out without it.",
+    "photos_upload_failed_other": "{{count}} photos could not be sent. Your request went out without them.",
+    "shot_required": "REQUIRED",
+    "shot_free": "Extra photo"
   },
   "rating": {
     "skip": "Skip",
@@ -1962,5 +1970,140 @@
     "CRIMINAL_RECORD_desc": "Model 596.1 (or equivalent) less than 3 months old.",
     "IBAN_PROOF_label": "IBAN proof",
     "IBAN_PROOF_desc": "Screenshot / PDF of your bank statement or bank certificate with your Belgian IBAN."
+  },
+  "shots": {
+    "problem": {
+      "label": "The problem",
+      "hint": "What is wrong, up close"
+    },
+    "overview": {
+      "label": "Overview",
+      "hint": "The whole room or installation"
+    },
+    "leak": {
+      "label": "The leak",
+      "hint": "Exactly where it drips"
+    },
+    "under_sink": {
+      "label": "Under the sink",
+      "hint": "The trap and fittings, well lit if possible"
+    },
+    "meter": {
+      "label": "The water meter",
+      "hint": "To shut off the supply if needed"
+    },
+    "trace": {
+      "label": "The damp trace",
+      "hint": "Stain, blister, ring: where it shows"
+    },
+    "column": {
+      "label": "The riser",
+      "hint": "The vertical pipe, floor to ceiling"
+    },
+    "appliance_hose": {
+      "label": "The hose connection",
+      "hint": "The hose and tap behind the appliance"
+    },
+    "drain": {
+      "label": "The drain",
+      "hint": "The clogged drain or grate"
+    },
+    "wc_bowl": {
+      "label": "The bowl",
+      "hint": "The whole toilet, from the front"
+    },
+    "wc_tank": {
+      "label": "The cistern",
+      "hint": "Lid removed if possible"
+    },
+    "tap": {
+      "label": "The tap",
+      "hint": "From the front, with the base"
+    },
+    "bathroom": {
+      "label": "The bathroom",
+      "hint": "The whole room from the door"
+    },
+    "water_heater": {
+      "label": "The water heater",
+      "hint": "The whole unit and its pipes"
+    },
+    "label_plate": {
+      "label": "The rating plate",
+      "hint": "Brand, model, power"
+    },
+    "heat_pump": {
+      "label": "The outdoor unit",
+      "hint": "The whole heat pump"
+    },
+    "boiler_gauge": {
+      "label": "The pressure gauge",
+      "hint": "The pressure needle, readable"
+    },
+    "radiator": {
+      "label": "A radiator",
+      "hint": "With its valve"
+    },
+    "door_full": {
+      "label": "The whole door",
+      "hint": "From the front, floor to top of frame"
+    },
+    "lock_close": {
+      "label": "The lock up close",
+      "hint": "The cylinder and handle"
+    },
+    "key_broken": {
+      "label": "The key",
+      "hint": "The broken or stuck piece"
+    },
+    "door_edge": {
+      "label": "The door edge",
+      "hint": "Door open, lock side"
+    },
+    "door_frame": {
+      "label": "The frame",
+      "hint": "The strike plate and the jamb"
+    },
+    "key_badge": {
+      "label": "The key or badge",
+      "hint": "Flat, in focus"
+    },
+    "mailbox": {
+      "label": "The mailbox",
+      "hint": "From the front, lock visible"
+    },
+    "access_device": {
+      "label": "The access device",
+      "hint": "Strike, keypad, reader"
+    },
+    "safe": {
+      "label": "The safe",
+      "hint": "From the front, with lock or keypad"
+    },
+    "gate": {
+      "label": "The gate",
+      "hint": "Whole, from the street"
+    },
+    "gate_motor": {
+      "label": "The motor",
+      "hint": "The motor and its box"
+    },
+    "shutter": {
+      "label": "The shutter",
+      "hint": "Whole, with the housing"
+    }
+  },
+  "camera": {
+    "skip": "Skip",
+    "retake": "Retake",
+    "keep": "Keep",
+    "close": "Close",
+    "denied_title": "Camera not allowed",
+    "denied_body": "Allow the camera in Settings, or pick a photo from your library.",
+    "pick_gallery": "Pick from library",
+    "open_settings": "Open Settings",
+    "shot_of": "Shot {{n}} of {{total}}",
+    "free_label": "Extra photo",
+    "free_hint": "Anything that helps the pro"
   }
 }

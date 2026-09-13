@@ -701,7 +701,15 @@
     "month_long_10": "november",
     "month_long_11": "december",
     "prev_week": "Vorige week",
-    "next_week": "Volgende week"
+    "next_week": "Volgende week",
+    "photos_title": "Foto’s voor de vakman",
+    "photos_count": "{{done}} van {{total}}",
+    "photos_nudge": "Met foto’s komt de vakman met de juiste onderdelen en aanvaardt hij sneller.",
+    "hint_photo_required": "Foto vereist: {{label}}",
+    "photos_upload_failed_one": "Eén foto kon niet worden verzonden. Uw aanvraag is zonder verstuurd.",
+    "photos_upload_failed_other": "{{count}} foto’s konden niet worden verzonden. Uw aanvraag is zonder verstuurd.",
+    "shot_required": "VEREIST",
+    "shot_free": "Vrije foto"
   },
   "rating": {
     "skip": "Overslaan",
@@ -1962,5 +1970,140 @@
     "CRIMINAL_RECORD_desc": "Model 596.1 (of gelijkwaardig) van minder dan 3 maanden oud.",
     "IBAN_PROOF_label": "IBAN-bewijs",
     "IBAN_PROOF_desc": "Screenshot / PDF van uw rekeninguittreksel of bankattest met uw Belgische IBAN."
+  },
+  "shots": {
+    "problem": {
+      "label": "Het probleem",
+      "hint": "Wat er mis is, van dichtbij"
+    },
+    "overview": {
+      "label": "Overzicht",
+      "hint": "De ruimte of installatie in zijn geheel"
+    },
+    "leak": {
+      "label": "Het lek",
+      "hint": "De plek waar het precies lekt"
+    },
+    "under_sink": {
+      "label": "Onder de gootsteen",
+      "hint": "De sifon en de aansluitingen, liefst verlicht"
+    },
+    "meter": {
+      "label": "De watermeter",
+      "hint": "Om de toevoer af te sluiten indien nodig"
+    },
+    "trace": {
+      "label": "Het vochtspoor",
+      "hint": "Vlek, blaas, kring: waar het zichtbaar is"
+    },
+    "column": {
+      "label": "De stijgleiding",
+      "hint": "De verticale leiding, van vloer tot plafond"
+    },
+    "appliance_hose": {
+      "label": "De aansluiting",
+      "hint": "De slang en de kraan achter het toestel"
+    },
+    "drain": {
+      "label": "De afvoer",
+      "hint": "De verstopte afvoer of het rooster"
+    },
+    "wc_bowl": {
+      "label": "De toiletpot",
+      "hint": "Het hele toilet, van voren"
+    },
+    "wc_tank": {
+      "label": "Het spoelreservoir",
+      "hint": "Met deksel eraf indien mogelijk"
+    },
+    "tap": {
+      "label": "De kraan",
+      "hint": "Van voren, met de voet"
+    },
+    "bathroom": {
+      "label": "De badkamer",
+      "hint": "De hele ruimte vanaf de deur"
+    },
+    "water_heater": {
+      "label": "De boiler",
+      "hint": "Het hele toestel en zijn leidingen"
+    },
+    "label_plate": {
+      "label": "Het typeplaatje",
+      "hint": "Merk, model, vermogen"
+    },
+    "heat_pump": {
+      "label": "De buitenunit",
+      "hint": "De hele warmtepomp"
+    },
+    "boiler_gauge": {
+      "label": "De manometer",
+      "hint": "De druknaald, leesbaar"
+    },
+    "radiator": {
+      "label": "Een radiator",
+      "hint": "Met zijn kraan"
+    },
+    "door_full": {
+      "label": "De hele deur",
+      "hint": "Van voren, van vloer tot bovenkant kozijn"
+    },
+    "lock_close": {
+      "label": "Het slot van dichtbij",
+      "hint": "De cilinder en de klink"
+    },
+    "key_broken": {
+      "label": "De sleutel",
+      "hint": "Het afgebroken of vastzittende stuk"
+    },
+    "door_edge": {
+      "label": "De deurzijkant",
+      "hint": "Deur open, kant van het slot"
+    },
+    "door_frame": {
+      "label": "Het kozijn",
+      "hint": "De sluitplaat en de stijl"
+    },
+    "key_badge": {
+      "label": "De sleutel of badge",
+      "hint": "Plat, scherp"
+    },
+    "mailbox": {
+      "label": "De brievenbus",
+      "hint": "Van voren, slot zichtbaar"
+    },
+    "access_device": {
+      "label": "Het toegangssysteem",
+      "hint": "Sluitplaat, codeklavier, lezer"
+    },
+    "safe": {
+      "label": "De kluis",
+      "hint": "Van voren, met slot of klavier"
+    },
+    "gate": {
+      "label": "Het hek",
+      "hint": "In zijn geheel, vanaf de straat"
+    },
+    "gate_motor": {
+      "label": "De motor",
+      "hint": "De motor en zijn kast"
+    },
+    "shutter": {
+      "label": "Het rolluik",
+      "hint": "In zijn geheel, met de kast"
+    }
+  },
+  "camera": {
+    "skip": "Overslaan",
+    "retake": "Opnieuw",
+    "keep": "Bewaren",
+    "close": "Sluiten",
+    "denied_title": "Camera niet toegestaan",
+    "denied_body": "Sta de camera toe in Instellingen, of kies een foto uit uw galerij.",
+    "pick_gallery": "Kiezen uit galerij",
+    "open_settings": "Instellingen openen",
+    "shot_of": "Foto {{n}} van {{total}}",
+    "free_label": "Vrije foto",
+    "free_hint": "Alles wat de vakman helpt"
   }
 }

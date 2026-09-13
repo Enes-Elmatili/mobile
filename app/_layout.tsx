@@ -196,7 +196,10 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar barStyle={t.statusBar} />
-      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }} />
+      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
+        {/* Appareil photo guidé du stepper : plein écran, fondu, pas de geste de retour latéral. */}
+        <Stack.Screen name="request/camera" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
+      </Stack>
     </>
   );
 }

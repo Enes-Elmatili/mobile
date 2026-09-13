@@ -701,7 +701,15 @@
     "month_long_10": "novembre",
     "month_long_11": "décembre",
     "prev_week": "Semaine précédente",
-    "next_week": "Semaine suivante"
+    "next_week": "Semaine suivante",
+    "photos_title": "Photos pour le prestataire",
+    "photos_count": "{{done}} sur {{total}}",
+    "photos_nudge": "Avec des photos, le prestataire arrive avec les bonnes pièces et accepte plus vite.",
+    "hint_photo_required": "Photo requise : {{label}}",
+    "photos_upload_failed_one": "Une photo n’a pas pu être envoyée. Votre demande est partie sans elle.",
+    "photos_upload_failed_other": "{{count}} photos n’ont pas pu être envoyées. Votre demande est partie sans elles.",
+    "shot_required": "REQUIS",
+    "shot_free": "Photo libre"
   },
   "rating": {
     "skip": "Passer",
@@ -1962,5 +1970,140 @@
     "CRIMINAL_RECORD_desc": "Modèle 596.1 (ou équivalent) de moins de 3 mois.",
     "IBAN_PROOF_label": "Justificatif IBAN",
     "IBAN_PROOF_desc": "Capture / PDF de votre RIB ou attestation bancaire avec votre IBAN belge."
+  },
+  "shots": {
+    "problem": {
+      "label": "Le problème",
+      "hint": "Ce qui ne va pas, de près"
+    },
+    "overview": {
+      "label": "Vue d'ensemble",
+      "hint": "La pièce ou l'installation en entier"
+    },
+    "leak": {
+      "label": "La fuite",
+      "hint": "L'endroit exact où ça coule"
+    },
+    "under_sink": {
+      "label": "Sous l'évier",
+      "hint": "Le siphon et les raccords, éclairés si possible"
+    },
+    "meter": {
+      "label": "Le compteur d'eau",
+      "hint": "Pour couper l’arrivée si besoin"
+    },
+    "trace": {
+      "label": "La trace d'humidité",
+      "hint": "Tache, cloque, auréole : là où ça se voit"
+    },
+    "column": {
+      "label": "La colonne",
+      "hint": "La conduite verticale, du sol au plafond"
+    },
+    "appliance_hose": {
+      "label": "Le raccordement",
+      "hint": "Le flexible et le robinet derrière l'appareil"
+    },
+    "drain": {
+      "label": "L'évacuation",
+      "hint": "La bonde ou la grille bouchée"
+    },
+    "wc_bowl": {
+      "label": "La cuvette",
+      "hint": "Le WC entier, de face"
+    },
+    "wc_tank": {
+      "label": "Le réservoir",
+      "hint": "Couvercle retiré si possible"
+    },
+    "tap": {
+      "label": "Le robinet",
+      "hint": "De face, avec la base"
+    },
+    "bathroom": {
+      "label": "La salle de bain",
+      "hint": "La pièce entière depuis la porte"
+    },
+    "water_heater": {
+      "label": "Le chauffe-eau",
+      "hint": "L'appareil entier et ses tuyaux"
+    },
+    "label_plate": {
+      "label": "La plaque signalétique",
+      "hint": "Marque, modèle, puissance"
+    },
+    "heat_pump": {
+      "label": "L'unité extérieure",
+      "hint": "La pompe à chaleur en entier"
+    },
+    "boiler_gauge": {
+      "label": "Le manomètre",
+      "hint": "L'aiguille de pression, lisible"
+    },
+    "radiator": {
+      "label": "Un radiateur",
+      "hint": "Avec sa vanne"
+    },
+    "door_full": {
+      "label": "La porte entière",
+      "hint": "De face, du sol au haut du cadre"
+    },
+    "lock_close": {
+      "label": "La serrure de près",
+      "hint": "Le cylindre et la poignée"
+    },
+    "key_broken": {
+      "label": "La clé",
+      "hint": "Le morceau cassé ou coincé"
+    },
+    "door_edge": {
+      "label": "La tranche de la porte",
+      "hint": "Porte ouverte, côté serrure"
+    },
+    "door_frame": {
+      "label": "Le cadre",
+      "hint": "La gâche et le montant"
+    },
+    "key_badge": {
+      "label": "La clé ou le badge",
+      "hint": "À plat, bien net"
+    },
+    "mailbox": {
+      "label": "La boîte aux lettres",
+      "hint": "De face, serrure visible"
+    },
+    "access_device": {
+      "label": "Le système d'accès",
+      "hint": "Gâche, digicode, lecteur"
+    },
+    "safe": {
+      "label": "Le coffre-fort",
+      "hint": "De face, avec la serrure ou le clavier"
+    },
+    "gate": {
+      "label": "Le portail",
+      "hint": "En entier, depuis la rue"
+    },
+    "gate_motor": {
+      "label": "La motorisation",
+      "hint": "Le moteur et son boîtier"
+    },
+    "shutter": {
+      "label": "Le volet",
+      "hint": "En entier, avec le caisson"
+    }
+  },
+  "camera": {
+    "skip": "Passer",
+    "retake": "Reprendre",
+    "keep": "Garder",
+    "close": "Fermer",
+    "denied_title": "Caméra non autorisée",
+    "denied_body": "Autorisez la caméra dans les Réglages, ou choisissez une photo dans votre galerie.",
+    "pick_gallery": "Choisir dans la galerie",
+    "open_settings": "Ouvrir les Réglages",
+    "shot_of": "Prise {{n}} sur {{total}}",
+    "free_label": "Photo libre",
+    "free_hint": "Tout ce qui aide le prestataire"
   }
 }
