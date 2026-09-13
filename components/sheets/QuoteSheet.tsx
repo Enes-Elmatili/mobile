@@ -4,8 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Platform, ActivityIndicator, Image, Dimensions,
-} from 'react-native';
+  Platform, ActivityIndicator, Image, } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +16,7 @@ import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { formatEURCents as fmtEur } from '@/lib/format';
 import { useSheetMotion } from '@/lib/motion/sheet';
+import { useLayoutClass } from '@/lib/layout';
 
 interface QuoteSheetProps {
   requestId: string | null;
@@ -31,6 +31,7 @@ const fmtDate = (d: string) =>
 
 export default function QuoteSheet({ requestId, requestStatus, serviceName, isVisible, onClose }: QuoteSheetProps) {
   const theme = useAppTheme();
+  const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();
   const router = useRouter();
   const { t } = useTranslation();
@@ -98,7 +99,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={{ width: 36, height: 4, backgroundColor: theme.textDisabled }}
       backgroundStyle={{ backgroundColor: bg }}
-      maxDynamicContentSize={Dimensions.get('window').height * 0.88}
+      maxDynamicContentSize={windowHeight * 0.88}
       {...sheetMotion}
     >
       <BottomSheetScrollView

@@ -3,7 +3,7 @@ import React, { useRef, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, StatusBar,
-  Dimensions, Animated, Easing,
+  Animated, Easing,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,8 +14,8 @@ import { feedback } from "@/lib/feedback/feedback";
 import { useTranslation } from "react-i18next";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
+import { useLayoutClass } from "@/lib/layout";
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
@@ -29,6 +29,8 @@ const C = {
 };
 
 function GridLines() {
+  // Réactif : au dépliage la grille couvre le nouvel écran (Dimensions.get était lu une fois au chargement).
+  const { width: SCREEN_W, height: SCREEN_H } = useLayoutClass();
   const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
   const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
   const stroke = alpha(darkTokens.text, 0.025);
@@ -98,6 +100,7 @@ export function OnboardingLayout({
   secondaryCta,
 }: Props) {
   const { t } = useTranslation();
+  const { width: SCREEN_W } = useLayoutClass();
   const insets = useSafeAreaInsets();
   const canGoBack = router.canGoBack();
   const shouldShowBack = showBack && (!!onBack || canGoBack);
@@ -131,7 +134,7 @@ export function OnboardingLayout({
       <StatusBar barStyle="light-content" />
 
       <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
         <LinearGradient
           colors={[alpha(darkTokens.text, 0.025), "transparent"]}
           style={s.glowGradient}
@@ -247,7 +250,7 @@ const s = StyleSheet.create({
 
   glowWrap: {
     position: "absolute", top: -80,
-    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
+    width: 420, height: 420,
   },
   glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
 

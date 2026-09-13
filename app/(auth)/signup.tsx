@@ -7,8 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  Dimensions,
-  Easing,
+    Easing,
   StatusBar,
   ScrollView,
   ActivityIndicator,
@@ -49,7 +48,6 @@ import type { ParsedAddress } from "@/components/auth";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const { height: SCREEN_H } = Dimensions.get("window");
 
 // ── SVG logos ───────────────────────────────────────────────────────────────
 function AppleLogo({ color }: { color: string }) {

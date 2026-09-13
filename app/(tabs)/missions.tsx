@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
-  Animated, Dimensions, Linking, Platform,
+  Animated, Linking, Platform,
   TextInput, ScrollView, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,11 +32,11 @@ const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-G
 const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
 
 
-const { width } = Dimensions.get('window');
 const NET_RATE = 0.80;
 
 // --- Grayscale map style (source unique) ---
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
+import { useLayoutClass } from '@/lib/layout';
 
 // ============================================================================
 // TYPES
@@ -1377,6 +1377,7 @@ export default function Missions() {
   const [completeModal, setCompleteModal] = useState<Mission | null>(null);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const { height: windowHeight } = useLayoutClass();
   // Sheet détail montée UNIQUEMENT quand ouverte : toujours montée avec
   // index={-1} + enableDynamicSizing, gorhom l'auto-ouvre sur Android et son
   // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
@@ -1840,7 +1841,7 @@ export default function Missions() {
 
       {/* -- Bottom Sheet Detail -- */}
       {detailSheetOpen && (
-      <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailSheetOpen(false)} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={Dimensions.get('window').height * 0.85}>
+      <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailSheetOpen(false)} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={windowHeight * 0.85}>
         {loadingDetails ? (
           <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
         ) : selectedMission ? (

@@ -5,8 +5,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
-  Platform, Pressable, Dimensions,
-} from 'react-native';
+  Platform, Pressable, } from 'react-native';
 import { api } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import { useCall } from '@/lib/webrtc/CallContext';
@@ -20,6 +19,7 @@ import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
+import { useLayoutClass } from '@/lib/layout';
 
 // ─── Grayscale map style (cohérent avec MissionView) ─────────────────────────
 const MAP_STYLE = [
@@ -125,6 +125,7 @@ const sr = StyleSheet.create({
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose, onNavigateToOngoing }: TicketDetailSheetProps) {
   const theme = useAppTheme();
+  const { height: windowHeight } = useLayoutClass();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -379,7 +380,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={[sd.indicator, { backgroundColor: theme.textDisabled }]}
       backgroundStyle={{ backgroundColor: theme.cardBg }}
-      maxDynamicContentSize={Dimensions.get('window').height * 0.9}
+      maxDynamicContentSize={windowHeight * 0.9}
     >
       <BottomSheetScrollView
         contentContainerStyle={[sd.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}

@@ -11,8 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Dimensions,
-  StatusBar,
+    StatusBar,
   Linking,
 } from 'react-native';
 import Reanimated, {
@@ -54,6 +53,7 @@ import FixedIconBtn from '@/components/ui/IconBtn';
 import FixedStatusChip from '@/components/ui/StatusBadge';
 import FixedAvatar from '@/components/ui/Avatar';
 import FixedPrice from '@/components/ui/PriceDisplay';
+import { useLayoutClass } from '@/lib/layout';
 
 // ─── Press feel constants (tier-1 haptic + opacity) ─────────────────────────
 const PRESS_PRIMARY   = 0.85;  // CTAs, cards, mission island
@@ -1022,6 +1022,7 @@ export default function Dashboard() {
   const { socket, unreadCount, unreadMessages } = useSocket();
   const { initiateCall } = useCall();
   const theme = useAppTheme();
+  const { width: windowWidth, height: windowHeight } = useLayoutClass();
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1474,7 +1475,7 @@ export default function Dashboard() {
                 router.push(`/request/NewRequestStepper?selectedCategory=${card.category}`);
               }}
               activeOpacity={PRESS_PRIMARY}
-              style={{ width: (Dimensions.get('window').width - 42) / 2 }}
+              style={{ width: (windowWidth - 42) / 2 }}
             >
               <FixedCard pad={14}>
                 <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
@@ -1542,7 +1543,7 @@ export default function Dashboard() {
         backdropComponent={renderBackdrop}
         backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
         handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}
-        maxDynamicContentSize={Dimensions.get('window').height * 0.85}
+        maxDynamicContentSize={windowHeight * 0.85}
       >
         <BottomSheetScrollView contentContainerStyle={[s.sheet, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
           {loadingDetails ? (
@@ -1767,7 +1768,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, gap: 10,
   },
   serviceCard: {
-    width: (Dimensions.get('window').width - 42) / 2,
     borderRadius: 18, borderWidth: 1,
     padding: 14,
   },

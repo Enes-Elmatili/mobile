@@ -1,13 +1,15 @@
 import React, { useCallback, useRef } from 'react';
-import { Text, StyleSheet, TouchableOpacity, Dimensions, View } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, View } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
+import { useLayoutClass } from '@/lib/layout';
 
 export function ActionSheet() {
   const theme = useAppTheme();
+  const { height: windowHeight } = useLayoutClass();
   const sheet = useFeedbackStore((s) => s.actionSheet);
   const clear = useFeedbackStore((s) => s.clearActionSheet);
   const ref = useRef<BottomSheet>(null);
@@ -35,7 +37,7 @@ export function ActionSheet() {
       index={0}
       enableDynamicSizing
       enablePanDownToClose
-      maxDynamicContentSize={Dimensions.get('window').height * 0.7}
+      maxDynamicContentSize={windowHeight * 0.7}
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={{ backgroundColor: theme.border }}
       backgroundStyle={{ backgroundColor: theme.cardBg }}

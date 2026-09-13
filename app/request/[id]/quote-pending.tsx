@@ -1,8 +1,7 @@
 // app/request/[id]/quote-pending.tsx — En attente de devis (adaptive dark/light)
 import React, { useEffect, useRef, useState } from "react";
 import {
-  View, Text, StyleSheet, StatusBar, Dimensions,
-  Animated, Easing, Platform, TouchableOpacity,
+  View, Text, StyleSheet, StatusBar, Animated, Easing, Platform, TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,11 +15,13 @@ import { PulseDot } from '@/components/ui/PulseDot';
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSocket } from "@/lib/SocketContext";
 import { useTranslation } from "react-i18next";
+import { useLayoutClass } from "@/lib/layout";
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
 function GridLines({ isDark }: { isDark: boolean }) {
+  // Réactif : au dépliage la grille couvre le nouvel écran (Dimensions.get était lu une fois au chargement).
+  const { width: SCREEN_W, height: SCREEN_H } = useLayoutClass();
   const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
   const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
   const stroke = isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.04)";
@@ -41,6 +42,7 @@ function GridLines({ isDark }: { isDark: boolean }) {
 export default function QuotePending() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { width: SCREEN_W } = useLayoutClass();
   const { t } = useTranslation();
   const { id, serviceName, address, calloutFee, pricingMode } = useLocalSearchParams<{
     id: string;
@@ -213,7 +215,7 @@ export default function QuotePending() {
       <StatusBar barStyle={theme.statusBar} />
 
       <GridLines isDark={theme.isDark} />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
         <LinearGradient
           colors={[glowColor, "transparent"]}
           style={s.glowGradient}
@@ -364,7 +366,7 @@ const s = StyleSheet.create({
 
   glowWrap: {
     position: "absolute", top: -80,
-    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
+    width: 420, height: 420,
   },
   glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
 

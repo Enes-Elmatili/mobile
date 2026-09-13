@@ -6,7 +6,7 @@
 
 import React, { useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Platform,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { feedback } from '@/lib/feedback/feedback';
 import { useSheetMotion } from '@/lib/motion/sheet';
+import { useLayoutClass } from '@/lib/layout';
 
 export interface NotifData {
   category?: string;
@@ -82,6 +83,7 @@ export default function NotificationDetailSheet({
   onDelete?: (id: string) => void;
 }) {
   const theme = useAppTheme();
+  const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();
   const { t } = useTranslation();
   const router = useRouter();
@@ -119,7 +121,7 @@ export default function NotificationDetailSheet({
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={[s.indicator, { backgroundColor: theme.heroSubFaint }]}
       backgroundStyle={{ backgroundColor: theme.heroBg }}
-      maxDynamicContentSize={Dimensions.get('window').height * 0.9}
+      maxDynamicContentSize={windowHeight * 0.9}
       {...sheetMotion}
     >
       <BottomSheetScrollView showsVerticalScrollIndicator={false}>

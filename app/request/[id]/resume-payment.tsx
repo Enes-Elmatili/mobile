@@ -13,14 +13,13 @@ import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
-import { Dimensions } from 'react-native';
 import { api } from '@/lib/api';
 import { FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 import { formatEUR } from '@/lib/format';
+import { useLayoutClass } from '@/lib/layout';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const GRID_SIZE = 40;
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
@@ -34,6 +33,8 @@ const C = {
 };
 
 function GridLines() {
+  // Réactif : au dépliage la grille couvre le nouvel écran (Dimensions.get était lu une fois au chargement).
+  const { width: SCREEN_W, height: SCREEN_H } = useLayoutClass();
   const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
   const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
   const stroke = 'rgba(255,255,255,0.025)';

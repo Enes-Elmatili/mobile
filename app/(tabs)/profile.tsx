@@ -12,8 +12,7 @@ import {
   KeyboardAvoidingView,
   Image,
   StatusBar,
-  Dimensions,
-  InteractionManager,
+    InteractionManager,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -41,6 +40,7 @@ import { tokenStorage } from '../../lib/storage';
 import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLayoutClass } from '@/lib/layout';
 
 const avatarKey = (userId: string) => `@fixed:profile:avatarUri:${userId}`;
 
@@ -220,6 +220,7 @@ const ms = StyleSheet.create({
 // ============================================================================
 
 export default function Profile() {
+  const { height: windowHeight } = useLayoutClass();
   const { user, signOut, refreshMe } = useAuth();
   const { t, i18n }                  = useTranslation();
   const router = useRouter();
@@ -1373,7 +1374,7 @@ export default function Profile() {
         backdropComponent={renderBackdrop}
         backgroundStyle={{ backgroundColor: theme.cardBg }}
         handleIndicatorStyle={{ backgroundColor: theme.border }}
-        maxDynamicContentSize={Dimensions.get('window').height * 0.7}
+        maxDynamicContentSize={windowHeight * 0.7}
       >
         <BottomSheetScrollView contentContainerStyle={[s.sheetContent, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
           <View style={[s.sheetHandle, { backgroundColor: theme.border }]} />

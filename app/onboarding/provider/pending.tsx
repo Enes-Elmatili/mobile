@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  StatusBar, Dimensions, Animated, Easing, ScrollView, Platform,
+  StatusBar, Animated, Easing, ScrollView, Platform,
   KeyboardAvoidingView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -32,13 +32,13 @@ import {
   type ProviderTrades,
 } from "@/lib/providerOnboarding";
 import { cleanName } from "@/lib/displayName";
+import { useLayoutClass } from "@/lib/layout";
 
 // Libellés traduits des documents (au lieu de la clé technique « id_front »)
 const DOC_LABELS: Record<string, string> = Object.fromEntries(
   BASE_REQUIREMENTS.map((d) => [d.type, d.label])
 );
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const GRID_SIZE = 40;
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
@@ -56,6 +56,8 @@ const C = {
 };
 
 function GridLines() {
+  // Réactif : au dépliage la grille couvre le nouvel écran (Dimensions.get était lu une fois au chargement).
+  const { width: SCREEN_W, height: SCREEN_H } = useLayoutClass();
   const cols = Math.ceil(SCREEN_W / GRID_SIZE) + 1;
   const rows = Math.ceil(SCREEN_H / GRID_SIZE) + 1;
   const stroke = alpha(darkTokens.text, 0.025);
@@ -151,6 +153,7 @@ const tl = StyleSheet.create({
 });
 
 export default function PendingValidation() {
+  const { width: SCREEN_W } = useLayoutClass();
   const { signOut, user, refreshMe } = useAuth();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -398,7 +401,7 @@ export default function PendingValidation() {
       <View style={s.root}>
         <StatusBar barStyle="light-content" />
         <GridLines />
-        <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+        <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
           <LinearGradient
             colors={[alpha(darkTokens.text, 0.025), "transparent"]}
             style={s.glowGradient}
@@ -661,7 +664,7 @@ export default function PendingValidation() {
     <View style={s.root}>
       <StatusBar barStyle="light-content" />
       <GridLines />
-      <Animated.View style={[s.glowWrap, { opacity: glowOp, transform: [{ scale: glowScale }] }]}>
+      <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2, opacity: glowOp, transform: [{ scale: glowScale }] }]}>
         <LinearGradient
           colors={[alpha(darkTokens.text, 0.025), "transparent"]}
           style={s.glowGradient}
@@ -818,7 +821,7 @@ const s = StyleSheet.create({
 
   glowWrap: {
     position: "absolute", top: -80,
-    left: (SCREEN_W - 420) / 2, width: 420, height: 420,
+    width: 420, height: 420,
   },
   glowGradient: { width: "100%", height: "100%", borderRadius: 210 },
 

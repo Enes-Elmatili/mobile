@@ -12,8 +12,7 @@ import {
   Platform,
   Image,
   ActivityIndicator,
-  Dimensions,
-} from 'react-native';
+  } from 'react-native';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetBackdrop,
@@ -34,6 +33,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { useSheetMotion } from '@/lib/motion/sheet';
+import { useLayoutClass } from '@/lib/layout';
 
 // Locale BCP-47 dérivée de la langue i18n active. Évite les hardcodes
 // `fr-BE` qui forcent un format date FR même sur device NL/EN.
@@ -154,6 +154,7 @@ export default function InvoiceSheet({
   onNavigateToWallet,
 }: InvoiceSheetProps) {
   const theme = useAppTheme();
+  const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -593,7 +594,7 @@ export default function InvoiceSheet({
         { backgroundColor: theme.textDisabled },
       ]}
       backgroundStyle={{ backgroundColor: bg }}
-      maxDynamicContentSize={Dimensions.get('window').height * 0.88}
+      maxDynamicContentSize={windowHeight * 0.88}
       {...sheetMotion}
     >
       <BottomSheetScrollView

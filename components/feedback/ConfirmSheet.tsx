@@ -1,13 +1,15 @@
 import React, { useCallback, useRef } from 'react';
-import { Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
+import { useLayoutClass } from '@/lib/layout';
 
 export function ConfirmSheet() {
   const theme = useAppTheme();
+  const { height: windowHeight } = useLayoutClass();
   const confirm = useFeedbackStore((s) => s.confirm);
   const clear = useFeedbackStore((s) => s.clearConfirm);
   const ref = useRef<BottomSheet>(null);
@@ -40,7 +42,7 @@ export function ConfirmSheet() {
       index={0}
       enableDynamicSizing
       enablePanDownToClose
-      maxDynamicContentSize={Dimensions.get('window').height * 0.6}
+      maxDynamicContentSize={windowHeight * 0.6}
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={{ backgroundColor: theme.border }}
       backgroundStyle={{ backgroundColor: theme.cardBg }}
