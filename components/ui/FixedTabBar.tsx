@@ -79,7 +79,14 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
     const style = StyleSheet.flatten(descriptors[r.key].options.tabBarItemStyle);
     return style?.display !== 'none';
   });
-  const activeIndex = Math.max(0, routes.findIndex((r) => r.key === state.routes[state.index]?.key));
+  // Route active. Le prestataire atterrit sur `provider-dashboard`, une route
+  // cachée (href: null) rendue par le même écran qu'Accueil : dans ce cas
+  // l'onglet Accueil est celui qu'on marque, sinon aucun onglet ne serait
+  // sélectionné alors que l'indicateur se pose dessous.
+  const currentKey = state.routes[state.index]?.key;
+  const visibleIndex = routes.findIndex((r) => r.key === currentKey);
+  const activeIndex = Math.max(0, visibleIndex);
+  const activeKey = routes[activeIndex]?.key;
 
   const indicator = useSharedValue(activeIndex);
   useEffect(() => {
@@ -115,7 +122,7 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
         </Animated.View>
         {routes.map((route) => {
           const { options } = descriptors[route.key];
-          const focused = route.key === state.routes[state.index]?.key;
+          const focused = route.key === activeKey;
           const label = typeof options.title === 'string' ? options.title : route.name;
           const color = focused ? (theme.accent as string) : (theme.textMuted as string);
           const onPress = () => {
