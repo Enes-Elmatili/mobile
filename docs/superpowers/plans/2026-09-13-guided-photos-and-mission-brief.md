@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**État : livré le 13/09/2026 sur `main` (tâches 1-5). Vérifié : mobile tsc, eslint 0 erreur, jest 198/198 ; backend 727 tests. Reste : la passe manuelle (Tâche 5, dernier point) sur appareil, et le retour visuel d'Enès sur les quatre surfaces.**
+
 **Goal:** Le client photographie ce que sa prestation demande (consignes en code, prises requises ou conseillées) ; le serveur produit une fiche mission unique (`brief`) que quatre surfaces habillent : mission entrante, lignes de liste, fiche détaillée, suivi client. Spec : `docs/superpowers/specs/2026-09-13-guided-photos-and-mission-brief-design.md`.
 
 **Architecture:** Serveur : `RequestPhoto.shotKey`, `POST /requests/:id/photos` (réutilise `missionUpload`), `services/missionBrief.js` (`BRIEF_INCLUDE`, `toMissionBrief`) attaché sous `brief` aux diffusions socket et aux quatre lectures. App : `constants/photoGuides.ts` + `lib/request/photos.ts` (pur) + `ShotStrip` + écran caméra modal piloté par `lib/request/cameraSession.ts` ; `lib/mission/brief.ts` + composants `components/mission/*` branchés dans provider-dashboard, missions, missionview, ongoing.

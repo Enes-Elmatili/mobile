@@ -35,6 +35,8 @@ import { api } from '@/lib/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { feedback } from '@/lib/feedback/feedback';
+import { briefOf } from '@/lib/mission/brief';
+import { PhotoGallery } from '@/components/mission/photos';
 import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -958,6 +960,13 @@ export default function MissionOngoing() {
               </Text>
             </View>
           )}
+
+          {/* Photos du client (planche 4A) : ce qu'il a photographié à la demande. */}
+          {request?.photos?.length ? (
+            <View style={{ marginHorizontal: -14, marginBottom: 6 }}>
+              <PhotoGallery photos={briefOf(request).photos} title={t('mission.client_photos')} />
+            </View>
+          ) : null}
 
           {/* Divider */}
           <View style={[s.divider, { backgroundColor: theme.borderLight }]} />

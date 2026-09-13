@@ -20,6 +20,8 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
+import { briefOf } from '@/lib/mission/brief';
+import { ClientRequestSummary } from '@/components/mission/ClientRequestSummary';
 import { useTranslation } from 'react-i18next';
 import { translateRequestServiceRaw, translateCategoryRaw } from '@/lib/categoryLabel';
 import { useSocket } from '@/lib/SocketContext';
@@ -1263,6 +1265,11 @@ export default function MissionView() {
                 </View>
               </View>
             )}
+
+            {/* Sa demande, ses photos (planche 4A) — le prestataire est déjà au-dessus. */}
+            <View style={{ marginBottom: 14 }}>
+              <ClientRequestSummary brief={briefOf(request)} hideProvider inset={18} />
+            </View>
 
             {/* PIN Card — visible dès que le PIN est généré, avant l'arrivée du prestataire.
                 Donne au client le temps de le préparer pour la vérification mutuelle sur place. */}
