@@ -34,10 +34,13 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { toIoniconName } from '../../lib/iconMapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import Reanimated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
-import { MOTION, spring, useBreathe, useCountingValue, usePresence, usePressScale } from '@/lib/motion';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { MOTION, useBreathe, useCountingValue, usePresence, usePressScale } from '@/lib/motion';
 import { ReText } from '@/components/ui/ReText';
 import { StepCTA } from '@/components/request/StepCTA';
+import { StepHeader } from '@/components/request/StepHeader';
+import { StepPager, type PagerDirection } from '@/components/request/StepPager';
+import { deriveCrumbs } from '@/lib/request/crumbs';
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
@@ -171,98 +174,6 @@ function useTheme() {
     heroSubFaint:    t.heroSubFaint,
   };
 }
-
-// ─── Step Indicator animé ──────────────────────────────────────────────────────
-const STEP_ICONS: ('map-pin' | 'tool' | 'clock' | 'check')[] = [
-  'map-pin', 'tool', 'clock', 'check',
-];
-
-/** Segment entre deux étapes : se remplit quand la progression le dépasse. */
-function StepSegment({ index, progress, trackColor, fillColor }: { index: number; progress: SharedValue<number>; trackColor: string; fillColor: string }) {
-  const fill = useAnimatedStyle(() => ({
-    width: `${interpolate(progress.value, [index, index + 1], [0, 100], Extrapolation.CLAMP)}%`,
-  }));
-  return (
-    <View style={[si.segment, { backgroundColor: trackColor }]}>
-      <Reanimated.View style={[si.segmentFill, { backgroundColor: fillColor }, fill]} />
-    </View>
-  );
-}
-
-function StepIndicator({ step }: { step: number }) {
-  const t = useTheme();
-
-  // Une seule progression (étapes franchies) : les segments se remplissent
-  // l'un après l'autre sur un ressort critique, depuis leur état courant.
-  const progress = useSharedValue(step - 1);
-  useEffect(() => {
-    progress.value = withSpring(step - 1, spring(140, 1));
-  }, [step, progress]);
-
-  return (
-    <View style={si.container}>
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => {
-        const isActive    = i === step - 1;
-        const isCompleted = i < step - 1;
-        const dotBg       = isActive ? t.accent : isCompleted ? t.accent : t.progressTrack;
-        const iconColor   = isActive || isCompleted ? t.accentText as string : t.textMuted as string;
-
-        return (
-          <React.Fragment key={i}>
-            <View style={[si.dot, { backgroundColor: dotBg }]}>
-              {isCompleted
-                ? <Feather name="check" size={14} color={iconColor} />
-                : <Feather name={STEP_ICONS[i]} size={isActive ? 16 : 14} color={iconColor} />
-              }
-            </View>
-            {i < TOTAL_STEPS - 1 && (
-              <StepSegment index={i} progress={progress} trackColor={t.progressTrack as string} fillColor={t.accent as string} />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </View>
-  );
-}
-
-const si = StyleSheet.create({
-  container:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 6 },
-  dot:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  segment:     { flex: 1, height: 2, borderRadius: 1, overflow: 'hidden', marginHorizontal: 4 },
-  segmentFill: { height: '100%', borderRadius: 1 },
-});
-
-// ─── Résumé contextuel ─────────────────────────────────────────────────────────
-function LiveSummary({ location, serviceName, scheduledLabel }: {
-  location:       { address: string } | null;
-  serviceName:    string | null;
-  scheduledLabel: string | null;
-}) {
-  const t = useTheme();
-  const parts: string[] = [];
-  if (location)      parts.push(location.address.split(',')[0]);
-  if (serviceName)   parts.push(serviceName);
-  if (scheduledLabel) parts.push(scheduledLabel);
-
-  if (parts.length === 0) return null;
-
-  return (
-    <View style={ls.wrap}>
-      {parts.map((p, i) => (
-        <View key={i} style={ls.row}>
-          <Feather name="check-circle" size={12} color={t.textMuted as string} />
-          <Text style={[ls.text, { color: t.textMuted }]} numberOfLines={1}>{p}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const ls = StyleSheet.create({
-  wrap: { marginHorizontal: 24, marginTop: 8, marginBottom: 2, gap: 3 },
-  row:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  text: { fontSize: 11, flex: 1, fontFamily: FONTS.sans },
-});
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
 function CategoryCard({ cat, selected, dimmed, onPress }: { cat: any; selected: boolean; dimmed?: boolean; onPress: () => void }) {
@@ -634,9 +545,9 @@ function PromoSheet({
 }
 
 const dim = StyleSheet.create({
+  header:       { paddingHorizontal: 24, gap: 8, marginBottom: 24 },
   sheet:        { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 36, paddingTop: 14 },
   handle:       { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 28, backgroundColor: 'rgba(255,255,255,0.15)' },
-  header:       { paddingHorizontal: 24, gap: 8, marginBottom: 24 },
   titleRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconWrap:     { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(200,130,10,0.15)', borderWidth: 1, borderColor: 'rgba(200,130,10,0.3)' },
   title:        { fontSize: 18, fontFamily: FONTS.sansMedium, letterSpacing: -0.2 },
@@ -824,8 +735,8 @@ export default function NewRequestStepper() {
   const mountedRef = useRef(true);
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const stepFade = useSharedValue(1);
-  const stepFadeStyle = useAnimatedStyle(() => ({ opacity: stepFade.value }));
+  // Sens de la prochaine transition d'étape (StepPager) : 1 en avant, -1 en arrière.
+  const dirRef = useRef<PagerDirection>(1);
 
   const [step,    setStep]    = useState(1);
   const [loading, setLoading] = useState(false);
@@ -1052,12 +963,6 @@ export default function NewRequestStepper() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, preselectedCategory]);
 
-  // Transition entre étapes : fondu court, le contenu change au point bas.
-  const animateStep = (cb: () => void) => {
-    stepFade.value = withSequence(withTiming(0, { duration: 100 }), withTiming(1, { duration: 200 }));
-    setTimeout(cb, 100);
-  };
-
   const goNext = () => {
     feedback.haptic('medium');
     // Save access info to user profile when leaving Step 3.
@@ -1074,7 +979,8 @@ export default function NewRequestStepper() {
         api.patch('/me', profileUpdate).catch(() => {});
       }
     }
-    animateStep(() => setStep((p) => Math.min(p + 1, TOTAL_STEPS)));
+    dirRef.current = 1;
+    setStep((p) => Math.min(p + 1, TOTAL_STEPS));
   };
   const goBack = () => {
     feedback.haptic('light');
@@ -1082,8 +988,15 @@ export default function NewRequestStepper() {
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/dashboard');
     } else {
-      animateStep(() => setStep((p) => p - 1));
+      dirRef.current = -1;
+      setStep((p) => p - 1);
     }
+  };
+  /** Puce de l'en-tête : revenir à une étape déjà franchie. */
+  const goTo = (target: number) => {
+    if (target >= step) return;
+    dirRef.current = -1;
+    setStep(target);
   };
 
   // Android : le retour physique revient à l'étape précédente au lieu de
@@ -1580,31 +1493,16 @@ export default function NewRequestStepper() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerSide}>
-          <TouchableOpacity
-            onPress={goBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel={t('common.back')}
-            accessibilityRole="button"
-            style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.sep }]}
-          >
-            <Feather name="arrow-left" size={18} color={theme.text as string} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={s.headerCenter}>
-          <Text style={[s.stepCounter, { color: theme.textMuted }]}>{t('stepper.step_counter', { step, total: TOTAL_STEPS })}</Text>
-          <Text style={[s.stepName, { color: theme.text }]}>{currentStep.label}</Text>
-        </View>
-
-        <View style={s.headerSide} />
-      </View>
-
-      {/* ── Step Indicator ── */}
-      <StepIndicator step={step} />
+      {/* ── En-tête : retour, titre, ligne de progression, puces (planche 1A) ── */}
+      <StepHeader
+        step={step}
+        total={TOTAL_STEPS}
+        title={currentStep.label}
+        onBack={goBack}
+        backLabel={t('common.back')}
+        crumbs={deriveCrumbs({ step, address: location?.address ?? null, serviceName })}
+        onJump={goTo}
+      />
 
       {/* ── Préférence prestataire (CTA "Demander X" depuis fiche) ── */}
       {preferred && (
@@ -1624,17 +1522,8 @@ export default function NewRequestStepper() {
         </View>
       )}
 
-      {/* ── Live Summary ── */}
-      {step >= 2 && step < 4 && (
-        <LiveSummary
-          location={location}
-          serviceName={step >= 3 ? serviceName : null}
-          scheduledLabel={step >= 3 ? scheduledLabel : null}
-        />
-      )}
-
-      {/* ── Contenu animé ── */}
-      <Reanimated.View style={[s.flex, stepFadeStyle]}>
+      {/* ── Contenu de l'étape, poussé latéralement à chaque changement ── */}
+      <StepPager page={step} direction={dirRef.current} style={s.flex}>
 
         {/* ══ ÉTAPE 1 — Lieu ══ */}
         {step === 1 && (
@@ -2564,7 +2453,7 @@ export default function NewRequestStepper() {
           </View>
         )}
 
-      </Reanimated.View>
+      </StepPager>
       <DevisInfoModal
         visible={devisModalVisible}
         onClose={() => setDevisModalVisible(false)}
@@ -2592,12 +2481,6 @@ const s = StyleSheet.create({
   fogBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, zIndex: 5 },
 
   // Header
-  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
-  iconBtn:      { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  backBtn:      { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerSide:   { width: 60, justifyContent: 'center' },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  stepCounter:  { fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1, marginBottom: 2 },
 
   // Préférence prestataire (CTA "Demander X")
   preferredBanner: {
@@ -2607,11 +2490,6 @@ const s = StyleSheet.create({
     borderRadius: 10, borderWidth: 1,
   },
   preferredBannerText: { flex: 1, fontSize: 12 },
-  stepCount:    { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: FONTS.mono },
-  stepName:     { fontSize: 15, marginTop: 1, fontFamily: FONTS.sansMedium },
-  stepSublabel: { fontSize: 11, marginTop: 1, fontFamily: FONTS.sans },
-  cancelBtn:    { paddingHorizontal: 8, paddingVertical: 6 },
-  cancelText:   { fontSize: 14, fontFamily: FONTS.sans },
 
   scrollPad: { paddingHorizontal: 24, paddingTop: 28 },
 
