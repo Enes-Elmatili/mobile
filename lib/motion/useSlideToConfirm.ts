@@ -28,6 +28,7 @@ export function useSlideToConfirm(opts: { trackWidth: number; knobSize: number; 
   const gesture = useMemo(
     () =>
       Gesture.Pan()
+        .withTestId('slide-to-confirm')
         .onBegin(() => {
           halfwayFired.value = 0;
         })

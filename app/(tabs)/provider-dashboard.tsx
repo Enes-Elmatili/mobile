@@ -1106,6 +1106,10 @@ export default function ProviderDashboard() {
       {/* -- Pop-up mission entrante -- */}
       {activeJob && (
         <IncomingJobCard
+          // Une nouvelle carte = un nouveau compte à rebours et un curseur
+          // vierge : sans clé, l'instance (et son état « confirmé ») survit
+          // quand la demande suivante prend la place de la précédente.
+          key={activeJob.requestId}
           request={activeJob}
           onAccept={() => handleAccept(activeJob)}
           onDecline={() => handleDecline(activeJob.requestId)}

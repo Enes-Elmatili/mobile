@@ -4,10 +4,16 @@
 import { SHEET_OVER_DRAG_RESISTANCE } from './sheet';
 
 /** Règle 5 : élastique aux bords, jamais d'arrêt sec. */
-export function rubberBand(x: number, min: number, max: number, resistance: number = SHEET_OVER_DRAG_RESISTANCE): number {
+export function rubberBand(x: number, min: number, max: number, resistance?: number): number {
   'worklet';
-  if (x < min) return min + (x - min) / resistance;
-  if (x > max) return max + (x - max) / resistance;
+  // Jamais de valeur de la fermeture dans la liste des paramètres d'un
+  // worklet : sur le thread UI, le plugin déballe `this.__closure` dans le
+  // corps, APRÈS l'évaluation des paramètres → ReferenceError à chaque appel
+  // (curseur inerte sur iOS, plantage natif sur Android). On résout le défaut
+  // ici, dans le corps. Garde-fou : __tests__/workletClosure.test.js.
+  const r = resistance ?? SHEET_OVER_DRAG_RESISTANCE;
+  if (x < min) return min + (x - min) / r;
+  if (x > max) return max + (x - max) / r;
   return x;
 }
 
