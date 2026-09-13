@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**État : livré le 13/09/2026 sur `main` (tâches 1-5). Vérifié : tsc, eslint 0 erreur, jest 173/173 ; `NewRequestStepper.tsx` passe de 2 932 à 2 244 lignes. Reste : la passe manuelle (Tâche 5, étape 3) sur appareil.**
+
 **Goal:** Remplacer l'en-tête, la transition, l'étape Service, l'étape Planning et le bouton principal de `app/request/NewRequestStepper.tsx` par dix composants extraits, conformes à la spec `docs/superpowers/specs/2026-09-13-request-stepper-redesign-design.md` (planches 1A, 2A, 3A, 4A ; aucun montant à l'étape Service).
 
 **Architecture:** Les composants vivent dans `components/request/` (plus `components/ui/SegmentedControl.tsx`), reçoivent des props et rendent des callbacks, sans accès aux states du stepper. Les helpers purs (`lib/scheduling/weeks.ts`, `lib/request/crumbs.ts`) sont testés avec jest. Le stepper garde ses states, ses appels API et son paiement ; il perd ~700 lignes de composants internes et de styles morts.

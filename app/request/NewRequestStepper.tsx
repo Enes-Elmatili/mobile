@@ -341,7 +341,6 @@ function PromoSheet({
 const dim = StyleSheet.create({
   header:       { paddingHorizontal: 24, gap: 8, marginBottom: 24 },
   sheet:        { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 36, paddingTop: 14 },
-  handle:       { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 28, backgroundColor: 'rgba(255,255,255,0.15)' },
   titleRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconWrap:     { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(200,130,10,0.15)', borderWidth: 1, borderColor: 'rgba(200,130,10,0.3)' },
   title:        { fontSize: 18, fontFamily: FONTS.sansMedium, letterSpacing: -0.2 },
@@ -359,8 +358,6 @@ const dim = StyleSheet.create({
   closeBtn:     { marginHorizontal: 24, borderRadius: 55, height: 54, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 16, fontFamily: FONTS.sansMedium },
   // legacy
-  step:         { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingBottom: 16, zIndex: 1 },
-  line:         { position: 'absolute', left: 34, top: 22, bottom: 0, width: 1 },
   stepText:     { fontSize: 14, fontFamily: FONTS.sans, lineHeight: 20, paddingTop: 2 },
 });
 
@@ -2176,8 +2173,6 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
 
   // Fog overlays
-  fogTop:    { position: 'absolute', top: 0, left: 0, right: 0, height: 48, zIndex: 5 },
-  fogBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, zIndex: 5 },
 
   // Header
 
@@ -2190,10 +2185,7 @@ const s = StyleSheet.create({
   },
   preferredBannerText: { flex: 1, fontSize: 12 },
 
-  scrollPad: { paddingHorizontal: 24, paddingTop: 28 },
 
-  title:    { fontSize: 28, marginBottom: 6, letterSpacing: 0.5, fontFamily: FONTS.bebas, includeFontPadding: false },
-  subtitle: { fontSize: 15, marginBottom: 28, fontFamily: FONTS.sans },
 
 
   // Step 2
@@ -2214,60 +2206,27 @@ const s = StyleSheet.create({
 
 
   floatingCTA:      { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  floatingGradient: { height: 32 },
 
-  slotsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  planSummary:  { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 14 },
-  planSummaryText: { fontSize: 14, flex: 1, lineHeight: 20, fontFamily: FONTS.sans },
 
   // Step 1 — carte
   searchFloat: { position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10, gap: 8, overflow: 'visible' },
   searchBox:   { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 2, minHeight: 28, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3, overflow: 'visible', zIndex: 999 },
   addrConfirm: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
-  addrDot:     { width: 10, height: 10, borderRadius: 5 },
   addrText:    { flex: 1, fontSize: 13, fontFamily: FONTS.sansMedium },
-  addrClear:   { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   ctaFloating: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 },
 
-  markerWrap: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  markerHalo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.08)', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.06)' },
-  markerDot:  { width: 44, height: 44, borderRadius: 22, borderWidth: 3, alignItems: 'center' as const, justifyContent: 'center' as const, ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 6 } }) },
 
-  pin:      { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
-  pinInner: { width: 8, height: 8, borderRadius: 4 },
 
   // Step 4
-  v4Body:       { flex: 1, justifyContent: 'center' },
   v4Card:       { borderRadius: 18, overflow: 'hidden', marginBottom: 12, marginHorizontal: 16 },
-  v4Row:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
-  v4Val:        { flex: 1, fontSize: 15, fontFamily: FONTS.sansMedium },
-  v4Sub:        { fontSize: 13, maxWidth: 120, fontFamily: FONTS.sans },
   v4Sep:        { height: 1, marginHorizontal: 16 },
-  v4Chevron:    { marginLeft: 'auto' as any },
-  v4PriceBreakdown: { marginTop: 10, marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 0 },
-  v4PriceLine:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  v4PriceLabel: { fontSize: 10, fontFamily: FONTS.sans },
-  v4PriceVal:   { fontSize: 10, fontFamily: FONTS.mono },
-  v4PriceSep:   { height: StyleSheet.hairlineWidth, marginVertical: 1, opacity: 0.3 },
-  v4Total:      { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
-  v4TotalLabel: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas, includeFontPadding: false },
-  v4TotalValue: { fontSize: 30, letterSpacing: 1, fontFamily: FONTS.bebas, includeFontPadding: false },
   v4QuoteInfo:  { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
   v4QuoteInfoTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
   v4QuoteInfoDesc:  { fontSize: 13, fontFamily: FONTS.sans, lineHeight: 19 },
-  v4Footer:     { paddingHorizontal: 0, paddingBottom: Platform.OS === 'ios' ? 16 : 12 },
   v4SecureRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingBottom: 8 },
   v4Secure:     { textAlign: 'center', fontSize: 12, fontFamily: FONTS.sans },
 
   // Legacy
-  recapCard:  { borderRadius: 22, padding: 4, marginBottom: 24 },
-  recapRow:   { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
-  recapIcon:  { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  recapInfo:  { flex: 1 },
-  recapMeta:  { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, fontFamily: FONTS.mono },
-  recapVal:   { fontSize: 15, fontFamily: FONTS.sansMedium },
-  recapPrice: { fontSize: 24, fontFamily: FONTS.mono },
-  recapSep:   { height: 1, marginHorizontal: 16 },
   noteOpt:    { fontFamily: FONTS.sans },
 });
 
