@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
@@ -167,6 +169,7 @@ export default function Documents() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const brandRefresh = useBrandRefresh();
   const [filter, setFilter] = useState<Filter>('all');
   const [activeTab, setActiveTab] = useState<Tab>('factures');
   const tabBarPadding = useTabBarPadding();
@@ -334,10 +337,16 @@ export default function Documents() {
         })}
       </View>
 
-      <ScrollView
+      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+
+      <Animated.ScrollView
+
+        onScroll={brandRefresh.onScroll}
+
+        scrollEventThrottle={16}
         contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
       >
 
         {/* ── ERREUR DE CHARGEMENT — jamais d'état vide trompeur ── */}
@@ -649,7 +658,7 @@ export default function Documents() {
         </>
         )}
 
-      </ScrollView>
+      </Animated.ScrollView>
 
       <InvoiceSheet
         invoice={selectedInvoice}

@@ -30,6 +30,8 @@ import { translateCategory } from '@/lib/categoryLabel';
 import { feedback } from '@/lib/feedback/feedback';
 
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { toFeatherName } from '@/lib/iconMapper';
 import { formatEURInt } from '@/lib/format';
@@ -256,6 +258,7 @@ export default function Profile() {
   const [avatarUri,   setAvatarUri]   = useState<string | null>(null);
   const [isVerified,  setIsVerified]  = useState(false);
   const [refreshing,  setRefreshing]  = useState(false);
+  const brandRefresh = useBrandRefresh();
   // Category management
   const [allCategories, setAllCategories] = useState<any[]>([]);
   const [selectedCatIds, setSelectedCatIds] = useState<number[]>([]);
@@ -680,10 +683,16 @@ export default function Profile() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+
+      <Animated.ScrollView
+
+        onScroll={brandRefresh.onScroll}
+
+        scrollEventThrottle={16}
         contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
       >
 
         {/* Hero Card — dark premium */}
@@ -893,7 +902,7 @@ export default function Profile() {
         </View>
 
         <Text style={[s.version, { color: theme.textDisabled }]}>FIXED v{Constants.expoConfig?.version ?? '1.0.0'} · Bruxelles</Text>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Modal — Édition informations personnelles */}
       <Modal visible={editVisible} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditVisible(false)} statusBarTranslucent navigationBarTranslucent>

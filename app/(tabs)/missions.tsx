@@ -18,6 +18,8 @@ import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
+import Reanimated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useTabBarPadding } from './_layout';
 import { useSocket } from '@/lib/SocketContext';
@@ -1344,6 +1346,7 @@ export default function Missions() {
   const [missions,        setMissions]        = useState<Mission[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [refreshing,      setRefreshing]      = useState(false);
+  const brandRefresh = useBrandRefresh();
   const [error,           setError]           = useState<string | null>(null);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
@@ -1757,22 +1760,25 @@ export default function Missions() {
       )}
 
       {/* -- Opportunites tab -- */}
+      {tab === 'opportunities' && <BrandRefreshHeader style={brandRefresh.headerStyle} />}
       {tab === 'opportunities' && (
         loadingOpps ? (
           <View style={s.center}>
             <ActivityIndicator size="large" color={t.accent} />
           </View>
         ) : (
-          <FlatList
+          <Reanimated.FlatList
             data={opportunities}
             keyExtractor={(item) => String(item.id)}
+            onScroll={brandRefresh.onScroll}
+            scrollEventThrottle={16}
             renderItem={({ item }) => (
               <OpportunityCard item={item} theme={t} onAccept={handleAcceptOpp} onDecline={handleDeclineOpp} onOpen={openOpportunity} accepting={acceptingOpp} />
             )}
             contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }, !opportunities.length && s.listEmpty]}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
             }
             ListEmptyComponent={
               oppError ? null : (

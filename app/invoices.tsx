@@ -12,6 +12,10 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { api } from '../lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+// Reanimated n'expose pas Animated.SectionList : on l'anime nous-mêmes.
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 import { useAuth } from '@/lib/auth/AuthContext';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
@@ -35,6 +39,7 @@ export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const brandRefresh = useBrandRefresh();
   const [loadError, setLoadError] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
@@ -207,7 +212,11 @@ export default function InvoicesScreen() {
           </View>
         )
       ) : (
-        <SectionList
+        <>
+        <BrandRefreshHeader style={brandRefresh.headerStyle} />
+        <AnimatedSectionList
+          onScroll={brandRefresh.onScroll as never}
+          scrollEventThrottle={16}
           sections={sections}
           keyExtractor={item => item.id}
           renderItem={renderItem}
@@ -220,9 +229,10 @@ export default function InvoicesScreen() {
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.textMuted} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
         />
+        </>
       )}
 
       {/* Invoice Detail Sheet */}

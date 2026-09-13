@@ -15,6 +15,8 @@ import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 
 export default function ProvidersListScreen() {
   const router = useRouter();
@@ -23,6 +25,7 @@ export default function ProvidersListScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const brandRefresh = useBrandRefresh();
 
   const loadProviders = useCallback(async () => {
     try {
@@ -131,13 +134,17 @@ export default function ProvidersListScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <>
+        <BrandRefreshHeader style={brandRefresh.headerStyle} />
+        <Animated.FlatList
+          onScroll={brandRefresh.onScroll}
+          scrollEventThrottle={16}
           data={providers}
           renderItem={renderProvider}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -146,6 +153,7 @@ export default function ProvidersListScreen() {
             </View>
           }
         />
+        </>
       )}
     </SafeAreaView>
   );

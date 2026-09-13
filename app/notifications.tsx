@@ -17,6 +17,8 @@ import { feedback } from '@/lib/feedback/feedback';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import NotificationDetailSheet from '@/components/sheets/NotificationDetailSheet';
 
 // ─── Formatage date relative ───────────────────────────────────────────────────
@@ -137,6 +139,7 @@ export default function NotificationsScreen() {
 
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
+  const brandRefresh = useBrandRefresh();
   const [items,        setItems]        = useState<NotifItem[]>([]);
   const [selected,     setSelected]     = useState<NotifItem | null>(null);
 
@@ -231,7 +234,10 @@ export default function NotificationsScreen() {
       </View>
 
       {/* ── Liste ── */}
-      <FlatList
+      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+      <Animated.FlatList
+        onScroll={brandRefresh.onScroll}
+        scrollEventThrottle={16}
         data={items}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
@@ -240,7 +246,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
         }
         ItemSeparatorComponent={() => <View style={s.separator} />}
         ListEmptyComponent={

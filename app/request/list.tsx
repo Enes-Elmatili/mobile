@@ -17,6 +17,8 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { formatEUR } from '@/lib/format';
 
 // Clés i18n des statuts bruts de l'enum backend (traduits au rendu).
@@ -49,6 +51,7 @@ export default function RequestsListScreen() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const brandRefresh = useBrandRefresh();
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -136,13 +139,17 @@ export default function RequestsListScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <>
+        <BrandRefreshHeader style={brandRefresh.headerStyle} />
+        <Animated.FlatList
+          onScroll={brandRefresh.onScroll}
+          scrollEventThrottle={16}
           data={requests}
           renderItem={renderRequest}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -151,6 +158,7 @@ export default function RequestsListScreen() {
             </View>
           }
         />
+        </>
       )}
     </SafeAreaView>
   );

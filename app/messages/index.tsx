@@ -13,6 +13,8 @@ import { onIncomingMessage, useSocket } from '../../lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import Avatar from '@/components/ui/Avatar';
 import { cleanName } from '@/lib/displayName';
+import Animated from 'react-native-reanimated';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -70,6 +72,7 @@ export default function MessagesInbox() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const brandRefresh = useBrandRefresh();
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -234,16 +237,21 @@ export default function MessagesInbox() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <>
+        <BrandRefreshHeader style={brandRefresh.headerStyle} />
+        <Animated.FlatList
+          onScroll={brandRefresh.onScroll}
+          scrollEventThrottle={16}
           data={conversations}
           keyExtractor={item => item.userId}
           renderItem={renderItem}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
           contentContainerStyle={s.list}
           ItemSeparatorComponent={() => <View style={[s.separator, { backgroundColor: theme.border }]} />}
         />
+        </>
       )}
     </SafeAreaView>
   );
