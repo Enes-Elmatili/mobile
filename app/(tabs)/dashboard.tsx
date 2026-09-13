@@ -24,6 +24,9 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { usePressScale } from '@/lib/motion/press';
+import { CascadeItem } from '@/lib/motion/useCascade';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -927,31 +930,10 @@ const uc = StyleSheet.create({
 // ============================================================================
 
 function DashboardSkeleton({ theme }: { theme: AppTheme }) {
-  const reduced = useReduceMotion();
-  const pulse = useSharedValue(0.55);
-
-  useEffect(() => {
-    // Reduce-motion : un squelette qui clignote est précisément ce que ce
-    // réglage cherche à supprimer — on le fige à mi-opacité (règle 8).
-    if (reduced) { pulse.value = 0.78; return; }
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 900, easing: REasing.inOut(REasing.ease) }),
-      -1,
-      true,
-    );
-    return () => cancelAnimation(pulse);
-  }, [reduced, pulse]);
-
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-
+  // Moment 18 : les blocs respirent (composant partagé) ; le contenu réel
+  // arrive ensuite en cascade dans la même géométrie.
   const Block = ({ w, h, style }: { w: number | `${number}%`; h: number; style?: object }) => (
-    <Reanimated.View
-      style={[
-        { width: w, height: h, borderRadius: 8, backgroundColor: theme.surface },
-        pulseStyle,
-        style,
-      ]}
-    />
+    <Skeleton w={w} h={h} style={style} />
   );
 
   return (
@@ -1033,6 +1015,7 @@ export default function Dashboard() {
   const [showAllRequests, setShowAllRequests] = useState(false);
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const tabBarPadding = useTabBarPadding();
+  const brandRefresh = useBrandRefresh();
 
   // CTA — retour à l'appui (règle 4), amortissement critique, aucun rebond.
   const ctaPress = usePressScale();
@@ -1299,10 +1282,14 @@ export default function Dashboard() {
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      <ScrollView
+      {/* Moment 17 : le « fixed. » s'étire avec le tirage ; le RefreshControl natif garde le déclenchement. */}
+      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+      <Reanimated.ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
         showsVerticalScrollIndicator={false}
+        onScroll={brandRefresh.onScroll}
+        scrollEventThrottle={16}
       >
         {/* ── Bannière d'erreur réseau + retry ── */}
         {loadError && (
@@ -1344,6 +1331,7 @@ export default function Dashboard() {
         </View>
 
         {/* ── ÎLOT NOIR — un seul bloc, deux états ── */}
+        <CascadeItem index={0} stepMs={50}>
         <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
           <View style={{
             backgroundColor: theme.heroBg, borderRadius: 24, overflow: 'hidden',
@@ -1435,7 +1423,9 @@ export default function Dashboard() {
           </View>
         </View>
 
+        </CascadeItem>
         {/* ── À VENIR (demandes planifiées futures) ── */}
+        <CascadeItem index={1} stepMs={50}>
         {upcomingRequests.length > 0 && (
           <>
             <View style={{ marginTop: 22 }}>
@@ -1462,7 +1452,9 @@ export default function Dashboard() {
           </>
         )}
 
+        </CascadeItem>
         {/* ── POPULAR SERVICES (2x2 grid) ── */}
+        <CascadeItem index={2} stepMs={50}>
         <View style={{ marginTop: 26 }}>
           <FixedSectionHeader label={t('dashboard.services_available').toUpperCase()} />
         </View>
@@ -1487,6 +1479,7 @@ export default function Dashboard() {
           ))}
         </View>
 
+        </CascadeItem>
         {/* ── ACTIVITÉ RÉCENTE ── */}
         <View style={{ marginTop: 26 }}>
           <FixedSectionHeader label={t('dashboard.recent_activity').toUpperCase()} action={totalCount ? String(totalCount) : undefined} onAction={() => { hapticLight(); onRefresh(); }} />
@@ -1530,7 +1523,7 @@ export default function Dashboard() {
           </TouchableOpacity>
         )}
 
-      </ScrollView>
+      </Reanimated.ScrollView>
 
       {/* ── Bottom Sheet detail ── */}
       {detailSheetOpen && (
