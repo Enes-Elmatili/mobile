@@ -31,6 +31,8 @@ import { spring } from '@/lib/motion/springs';
 import { useBreathe } from '@/lib/motion/useBreathe';
 import { usePressScale } from '@/lib/motion/press';
 import { feedback } from '@/lib/feedback/feedback';
+import { briefOf, type MissionBrief } from '@/lib/mission/brief';
+import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
@@ -104,6 +106,8 @@ interface IncomingRequest {
   isQuote?: boolean;
   pricingMode?: string;
   calloutFee?: number;
+  /** Fiche mission (services/missionBrief) — celle du serveur, sinon le repli. */
+  brief: MissionBrief;
 }
 
 // ============================================================================
@@ -154,37 +158,21 @@ function IncomingJobCard({
   const insets = useSafeAreaInsets();
   const reduced    = useReduceMotion();
   const slideUp    = useSharedValue(400);
-  const arrowAnim  = useSharedValue(0);
-  const badgePulse = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     if (reduced) {
-      // Règle 8 : pas de course ni de clignotement, on pose l'état final.
+      // Règle 8 : pas de course, on pose l'état final.
       slideUp.value = 0;
-      arrowAnim.value = 0;
-      badgePulse.value = 1;
       return;
     }
     // Entrée : spring critique (ζ = 1.0) — arrive vite, ne dépasse pas.
     slideUp.value = withSpring(0, CARD_ENTER_SPRING);
-    arrowAnim.value = withRepeat(
-      withTiming(5, { duration: 900, easing: REasing.inOut(REasing.ease) }), -1, true,
-    );
-    badgePulse.value = withRepeat(
-      withTiming(0.3, { duration: 750, easing: REasing.inOut(REasing.ease) }), -1, true,
-    );
-    return () => {
-      cancelAnimation(slideUp);
-      cancelAnimation(arrowAnim);
-      cancelAnimation(badgePulse);
-    };
-  }, [reduced, slideUp, arrowAnim, badgePulse]);
+    return () => { cancelAnimation(slideUp); };
+  }, [reduced, slideUp]);
 
-  const cardStyle  = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }] }));
-  const badgeStyle = useAnimatedStyle(() => ({ opacity: badgePulse.value }));
-  const arrowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: arrowAnim.value }] }));
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }] }));
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -201,29 +189,7 @@ function IncomingJobCard({
     if (timeLeft === 0) setExpired(true);
   }, [timeLeft]);
 
-  const isQuote = request.isQuote || request.pricingMode === 'estimate' || request.pricingMode === 'diagnostic';
-  const netPrice = Math.round(request.price * 0.80);
-  const etaMin = request.distance != null ? Math.round(request.distance * 3) : null;
-
-  const progress = timeLeft / TIMER_DURATION;
-  const timerColor = timeLeft <= 10 ? COLORS.red : COLORS.amber;
-  const timerRotation = `${-90 + 360 * (1 - progress)}deg`;
-
-  // Theme-aware palette — sourced from tokens
-  const sheetBg   = theme.bg;
-  const borderCol = theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
-  const iconBg    = theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
-  const labelCol  = theme.textDisabled;
-  const valueCol  = theme.textSub;
-  const boldCol   = theme.accent;
-  const passCol   = theme.textVeryMuted;
-  const ctaBg     = theme.accent;
-  const ctaText   = theme.accentText;
-
-  // Address split: bold first part, muted rest
-  const addrParts = request.address.split(',');
-  const addrBold  = addrParts[0] || '';
-  const addrRest  = addrParts.length > 1 ? `, ${addrParts.slice(1).join(',').trim()}` : '';
+  const sheetBg = theme.bg;
 
   return (
     <Reanimated.View style={[jc.wrap, { bottom: insets.bottom }, cardStyle]}>
@@ -234,121 +200,17 @@ function IncomingJobCard({
         style={jc.topFade}
         pointerEvents="none"
       />
-
       <View style={[jc.sheet, { backgroundColor: sheetBg }]}>
         <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
-
-        {/* Timer row: "NOUVELLE MISSION" / "DERNIÈRE CHANCE" + ring */}
-        <View style={jc.timerRow}>
-          <Text style={[jc.newLabel, { color: expired ? COLORS.red : COLORS.amber }]}>
-            {expired ? t('provider.last_chance') : t('mission_sheet.new_mission')}
-          </Text>
-          {!expired && (
-            <View style={jc.timerWrap}>
-              <View style={[jc.timerBg, { borderColor: 'rgba(232,160,48,0.12)' }]} />
-              <View style={[jc.timerProgress, { borderColor: timerColor, borderTopColor: 'transparent', borderRightColor: 'transparent', transform: [{ rotate: timerRotation }] }]} />
-              <Text style={[jc.timerNum, { color: timerColor }]}>{timeLeft}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Title — Bebas 30px */}
-        <Text style={[jc.title, { color: boldCol }]} numberOfLines={2}>{request.title.toUpperCase()}</Text>
-
-        {/* Badge */}
-        <View style={jc.badgeRow}>
-          <View style={[jc.badge, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.2)' }]}>
-            <Reanimated.View style={[jc.badgeDot, badgeStyle]} />
-            <Text style={jc.badgeText}>
-              {isQuote ? t('provider.badge_quote') : t('provider.badge_fixed')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Divider */}
-        <View style={[jc.divider, { backgroundColor: borderCol }]} />
-
-        {/* Info rows */}
-        <View style={jc.infoList}>
-          {/* Address */}
-          <View style={[jc.infoRow, { borderBottomColor: borderCol }]}>
-            <View style={[jc.infoIcon, { backgroundColor: iconBg, borderColor: borderCol }]}>
-              <Feather name="map-pin" size={15} color={theme.textMuted} />
-            </View>
-            <View style={jc.infoContent}>
-              <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.address_label')}</Text>
-              <Text style={[jc.infoValue, { color: valueCol }]} numberOfLines={1}>
-                <Text style={{ color: boldCol, fontFamily: FONTS.sansMedium }}>{addrBold}</Text>
-                {addrRest}
-              </Text>
-            </View>
-            {etaMin != null && (
-              <View style={jc.etaChip}>
-                <Feather name="clock" size={12} color={theme.textMuted} />
-                <Text style={jc.etaChipText}>{etaMin} min</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Client */}
-          <View style={[jc.infoRow, { borderBottomColor: borderCol }]}>
-            <View style={[jc.infoIcon, { backgroundColor: iconBg, borderColor: borderCol }]}>
-              <Feather name="user" size={15} color={theme.textMuted} />
-            </View>
-            <View style={jc.infoContent}>
-              <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.client_label')}</Text>
-              <Text style={[jc.infoValue, { color: boldCol, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-                {cleanName(request.client.name)}{request.client.city ? ` · ${request.client.city}` : ''}
-              </Text>
-            </View>
-          </View>
-
-          {/* Fee / Price — last row, no border */}
-          {isQuote ? (
-            <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
-              <View style={[jc.infoIcon, { backgroundColor: 'rgba(232,160,48,0.12)', borderColor: 'rgba(232,160,48,0.15)' }]}>
-                <Feather name="credit-card" size={15} color={COLORS.amber} />
-              </View>
-              <View style={jc.infoContent}>
-                <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.callout_fee_label')}</Text>
-                <Text style={[jc.infoValue, { color: COLORS.amber, fontFamily: FONTS.sansMedium }]}>{t('provider.callout_guaranteed')}</Text>
-              </View>
-              {request.calloutFee != null && request.calloutFee > 0 && (
-                <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
-                  <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{Math.round(request.calloutFee / 100)} €</Text>
-                </View>
-              )}
-            </View>
-          ) : request.price > 0 ? (
-            <View style={[jc.infoRow, { borderBottomWidth: 0 }]}>
-              <View style={[jc.infoIcon, { backgroundColor: 'rgba(21,193,110,0.10)', borderColor: 'rgba(21,193,110,0.15)' }]}>
-                <Feather name="credit-card" size={15} color={theme.greenText} />
-              </View>
-              <View style={jc.infoContent}>
-                <Text style={[jc.infoLabel, { color: labelCol }]}>{t('provider.estimated_earnings')}</Text>
-                <Text style={[jc.infoValue, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>{t('provider.net_after_commission')}</Text>
-              </View>
-              <View style={[jc.feeBadge, { backgroundColor: iconBg, borderColor: borderCol }]}>
-                <Text style={[jc.feeBadgeNum, { color: boldCol }]}>{netPrice} €</Text>
-              </View>
-            </View>
-          ) : null}
-        </View>
-
-        {/* CTA */}
-        <View style={jc.ctaArea}>
-          <TouchableOpacity style={[jc.acceptBtn, { backgroundColor: ctaBg }]} onPress={onAccept} activeOpacity={0.85}>
-            <Text style={[jc.acceptText, { color: ctaText }]}>{t('provider.accept').toUpperCase()}</Text>
-            <Reanimated.View style={arrowStyle}>
-              <Feather name="arrow-right" size={18} color={ctaText} />
-            </Reanimated.View>
-          </TouchableOpacity>
-          <TouchableOpacity style={jc.passBtn} onPress={onDecline} activeOpacity={0.7}>
-            <Text style={[jc.passText, { color: expired ? COLORS.red : passCol }]}>
-              {expired ? t('missions.cancel').toUpperCase() : t('provider.decline')}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Fiche mission (planche 2A) : quoi, photos, faits, gain, glissé. */}
+        <IncomingMissionCard
+          brief={request.brief}
+          timeLeft={timeLeft}
+          total={TIMER_DURATION}
+          expired={expired}
+          onAccept={onAccept}
+          onDecline={onDecline}
+        />
       </View>
     </Reanimated.View>
   );
@@ -364,51 +226,17 @@ const jc = StyleSheet.create({
   sheet: { paddingBottom: 56 },
   handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
 
-  // Timer row
-  timerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 20 },
-  newLabel: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 11, letterSpacing: 2.5, opacity: 0.7 },
-  timerWrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  timerBg: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 3 },
-  timerProgress: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 3 },
-  timerNum: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 1 },
 
   // Title
-  title: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30, letterSpacing: 0.5, lineHeight: 33, paddingHorizontal: 24, paddingTop: 12 },
 
-  // Badge
-  badgeRow: { paddingHorizontal: 24, paddingTop: 14 },
-  badge: {
-    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
-    gap: 7, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 100, borderWidth: 1,
-  },
-  badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.amber },
-  badgeText: { fontFamily: FONTS.sansMedium, fontSize: 10.5, letterSpacing: 1.8, color: COLORS.amber },
 
   // Divider
-  divider: { height: 1, marginHorizontal: 24, marginVertical: 18 },
 
   // Info
-  infoList: { paddingHorizontal: 24 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 11, borderBottomWidth: 1 },
-  infoIcon: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  infoContent: { flex: 1 },
-  infoLabel: { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 1, marginBottom: 2 },
-  infoValue: { fontFamily: FONTS.sans, fontSize: 13.5 },
 
-  etaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  etaChipText: { fontFamily: FONTS.sans, fontSize: 12 },
 
-  feeBadge: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
-  feeBadgeNum: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 0.5 },
 
   // CTA
-  ctaArea: { paddingHorizontal: 24, paddingTop: 20, gap: 10 },
-  acceptBtn: {
-    height: 58, borderRadius: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 10,
-  },
-  acceptText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 3 },
-  passBtn: { alignItems: 'center', height: 40, justifyContent: 'center' },
   passText: { fontFamily: FONTS.sans, fontSize: 13, letterSpacing: 0.3 },
 });
 
@@ -869,6 +697,7 @@ export default function ProviderDashboard() {
           pricingMode: r.pricingMode,
           isQuote: r.status === 'QUOTE_PENDING',
           calloutFee: r.calloutFee ?? undefined,
+          brief: briefOf(r),
           client: { name: r.client?.name || 'Client' },
         }));
         setIncomingRequests(prev => {
@@ -951,6 +780,7 @@ export default function ProviderDashboard() {
         isQuote:     data.isQuote || false,
         pricingMode: data.pricingMode || null,
         calloutFee:  data.calloutFee ?? undefined,
+        brief:       briefOf(data),
       };
       setIncomingRequests(prev => prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]);
       if (lat && lng) {
