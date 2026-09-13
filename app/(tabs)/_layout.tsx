@@ -10,22 +10,28 @@ import { Redirect, Tabs } from 'expo-router';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useCallback, useMemo } from 'react';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, alpha } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
 import { TabIcon } from '@/components/ui/TabIcon';
+import { FixedTabBar, SIDEBAR_WIDTH, TAB_BAR_HEIGHT as BAR_HEIGHT } from '@/components/ui/FixedTabBar';
+import { useLayoutClass } from '@/lib/layout';
 
 // Hauteur du CONTENU de la tab bar (icône + label), hors inset bas du device.
 // La hauteur réelle rendue = TAB_BAR_HEIGHT + max(insets.bottom, TAB_PB).
 // Les écrans enfants compensent leur paddingBottom via useTabBarPadding().
-export const TAB_BAR_HEIGHT = 56;
+export const TAB_BAR_HEIGHT = BAR_HEIGHT;
 const TAB_PB = Platform.OS === 'ios' ? 20 : 8;
 
-/** Padding bas à appliquer au contenu scrollable d'un écran sous la tab bar absolue. */
+/** Padding bas à appliquer au contenu scrollable d'un écran sous la tab bar absolue.
+ *  Sur un écran « regular », la barre est une sidebar à gauche : plus rien en bas. */
 export function useTabBarPadding(extra: number = 24): number {
   const insets = useSafeAreaInsets();
+  const { isRegular } = useLayoutClass();
+  if (isRegular) return Math.max(insets.bottom, TAB_PB) + extra;
   return TAB_BAR_HEIGHT + Math.max(insets.bottom, TAB_PB) + extra;
 }
 
@@ -55,9 +61,12 @@ export default function TabLayout() {
   const theme    = useAppTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { isRegular } = useLayoutClass();
   // Android gesture bar / iPhone home indicator : la tab bar absolue doit
   // intégrer l'inset bas réel du device, pas une valeur hardcodée.
   const tabBottomPad = Math.max(insets.bottom, TAB_PB);
+  // Tab bar custom : indicateur qui glisse (moment 15), sidebar sur regular.
+  const renderTabBar = useCallback((props: BottomTabBarProps) => <FixedTabBar {...props} />, []);
 
   // ── Stable boolean — ne change que si les rôles changent réellement ───────
   // useMemo évite de recalculer isProvider sur chaque re-render provoqué par
@@ -90,7 +99,8 @@ export default function TabLayout() {
   // ── screenOptions stable ──────────────────────────────────────────────────
   const screenOptions = useMemo(() => ({
     headerShown: false,
-    contentStyle: { backgroundColor: theme.bg },
+    // Sur regular la sidebar occupe la gauche : le contenu se décale.
+    contentStyle: { backgroundColor: theme.bg, paddingLeft: isRegular ? SIDEBAR_WIDTH : 0 },
     tabBarActiveTintColor:   theme.accent,
     tabBarInactiveTintColor: theme.textMuted,
     tabBarShowLabel: true,
@@ -113,7 +123,7 @@ export default function TabLayout() {
     },
     tabBarBackground: renderTabBarBackground,
     tabBarLabel: renderTabLabel,
-  }), [theme.bg, theme.accent, theme.textMuted, theme.border, renderTabBarBackground, renderTabLabel, tabBottomPad]);
+  }), [theme.bg, theme.accent, theme.textMuted, theme.border, renderTabBarBackground, renderTabLabel, tabBottomPad, isRegular]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect
@@ -170,7 +180,7 @@ export default function TabLayout() {
   }
 
   return (
-    <Tabs screenOptions={screenOptions}>
+    <Tabs screenOptions={screenOptions} tabBar={renderTabBar}>
 
       {/* ── 1. ACCUEIL — tous les rôles ─────────────────────────────────── */}
       <Tabs.Screen name="dashboard"         options={dashboardOptions}  />
