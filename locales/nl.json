@@ -80,7 +80,10 @@
     "address": "Adres",
     "amount": "Bedrag",
     "help": "Hulp",
-    "message": "Bericht"
+    "message": "Bericht",
+    "slide_to_accept": "Schuif om te accepteren",
+    "slide_to_accept_hint": "Schuif de knop naar rechts om te accepteren",
+    "accepted": "Geaccepteerd"
   },
   "auth": {
     "login": "Inloggen",

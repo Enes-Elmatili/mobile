@@ -80,7 +80,10 @@
     "address": "Address",
     "amount": "Amount",
     "help": "Help",
-    "message": "Message"
+    "message": "Message",
+    "slide_to_accept": "Slide to accept",
+    "slide_to_accept_hint": "Slide the knob to the right to accept",
+    "accepted": "Accepted"
   },
   "auth": {
     "login": "Sign in",

@@ -80,7 +80,10 @@
     "address": "Adresse",
     "amount": "Montant",
     "help": "Aide",
-    "message": "Message"
+    "message": "Message",
+    "slide_to_accept": "Glisser pour accepter",
+    "slide_to_accept_hint": "Faites glisser le curseur vers la droite pour accepter",
+    "accepted": "Acceptée"
   },
   "auth": {
     "login": "Connexion",
