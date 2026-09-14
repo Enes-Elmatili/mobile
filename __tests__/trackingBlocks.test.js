@@ -3,12 +3,22 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 
+process.env.EXPO_PUBLIC_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost/api';
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k, o) => (o && typeof o === 'object' ? `${k}:${Object.values(o).join(',')}` : k) }), initReactI18next: { type: '3rdParty', init: () => {} } }));
 jest.mock('@expo/vector-icons', () => { const { Text } = require('react-native'); return { Feather: (p) => <Text>{p.name}</Text> }; });
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }), SafeAreaView: ({ children }) => children }));
 jest.mock('expo-image', () => { const { View } = require('react-native'); return { Image: (p) => <View {...p} /> }; });
 
-const { StageHeader, EtaHero, ProviderRow, PinCard, RequestRow, QuoteSteps, WorkTimeline, MoneyLine, providerFirstName } = require('@/components/tracking');
+// Import direct des briques (l'index tire aussi DoneContent, qui charge la
+// pile socket / audio native, hors de portée d'un test de rendu).
+const { StageHeader } = require('@/components/tracking/StageHeader');
+const { EtaHero } = require('@/components/tracking/EtaHero');
+const { ProviderRow, providerFirstName } = require('@/components/tracking/ProviderRow');
+const { PinCard } = require('@/components/tracking/PinCard');
+const { RequestRow } = require('@/components/tracking/RequestRow');
+const { QuoteSteps } = require('@/components/tracking/QuoteSteps');
+const { WorkTimeline } = require('@/components/tracking/WorkTimeline');
+const { MoneyLine } = require('@/components/tracking/MoneyLine');
 
 const brief = {
   id: 7, status: 'ACCEPTED',

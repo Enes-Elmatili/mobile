@@ -21,18 +21,22 @@ Calculés par une fonction pure `stageOf(request, local)` (`lib/mission/stage.ts
 | `quote_pending` | `QUOTE_PENDING` | comme `en_route` (le prestataire vient pour le diagnostic) | kicker `DEVIS · FRAIS PAYÉS` · « {Prénom} prépare votre devis » · 4 étapes · ligne prestataire · ligne demande · annuler |
 | `quote_sent` | `QUOTE_SENT` | — | `router.replace(quote-review)` (écran conservé) |
 | `scheduled` | `ACCEPTED` avec créneau > 30 min | — | `router.replace(scheduled)` (écran conservé, enrichi) |
-| `done` | `DONE` | — | `router.replace(rating)` : écran bilan + note |
+| `done` | `DONE` | effacée (hauteur 0) | la feuille monte jusqu'en haut : bilan + note (`DoneContent`) |
 | terminal | `CANCELLED`, `REFUNDED`, `QUOTE_REFUSED`, `QUOTE_EXPIRED` | — | toast puis accueil |
 
 `accepted` est un stade éphémère : `en_route` avec un titre différent pendant 2,4 s (ou 0 s sous réduction des animations), puis le titre laisse place à l'ETA.
 
+## Une page, une carte, une feuille (révision du 14/09, après retour d'Enès)
+
+Aucun changement d'écran du premier au dernier stade. `missionview` monte **une seule `MapView`** dès le chargement et **une seule feuille** ancrée en bas. La recherche est un calque (`components/searching/SearchingOverlay`, pastilles et traits calculés par `pointForCoordinate`) posé sur cette carte, et un contenu de feuille (`SearchingSheet`) ; les faits (proches, vagues, refus) viennent du hook `lib/mission/useSearching`. Le bilan Terminé est le contenu de la même feuille (`components/tracking/DoneContent`) : la carte se réduit à zéro et la feuille monte jusqu'en haut. La route `rating` ne sert plus qu'aux liens profonds.
+
 ## Transitions
 
-- Recherche → accepté : `LiveMapSearching` reste monté ; il reçoit `acceptedName` et joue « prend » (MOTION.take) sur la pastille acceptée, éteint les autres (opacité 0,28), retire les traits. Après 2,4 s, fondu croisé (240 ms, `MOTION.pane`) vers la carte de suivi. Aucun spinner, aucun `router.replace`.
+- Recherche → accepté : sur la même carte, la pastille acceptée « prend » (MOTION.take), les autres s'éteignent (opacité 0,28), les traits se retirent. Après 2,4 s le calque s'efface en fondu (320 ms) pendant que le marqueur natif du prestataire apparaît, l'itinéraire se révèle et la carte se déverrouille ; la feuille change de contenu (StageHeader), son bord haut suit le nouveau contenu sur `MOTION.pane`. Aucun spinner, aucun `router.replace`.
 - `missionview` écoute lui-même `request:accepted` / `provider:accepted` (refetch puis bascule). L'accueil ne navigue vers le suivi **que s'il est l'écran focalisé**.
 - En route → à la porte : `mapRef.animateToRegion` sur l'adresse (ressort recentrage), la carte PIN compacte grandit vers le héros (même composant, `useTakeScale`).
 - À la porte → en cours : la carte se réduit en bandeau (hauteur animée 132 pt sur `MOTION.pane`), la feuille monte. Haptique `success` sur la même frame (déjà : `mission:pin_verified`).
-- En cours → terminé : `request:completed` → `router.replace(rating)` sans toast intermédiaire (le toast global de `SocketContext` reste).
+- En cours → terminé : `request:completed` → la carte (bandeau) se réduit à zéro et la feuille monte jusqu'en haut avec le bilan (`DoneContent`), sur `MOTION.pane`. Pas de changement d'écran.
 - Réassignation : retour au stade `searching` (inchangé).
 - Sous réduction des animations : coupes nettes.
 

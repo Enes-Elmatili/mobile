@@ -3,8 +3,10 @@
 //   recherche → accepté → en route → à la porte → en cours (→ terminé)
 //   et « devis en préparation » sur la même carte.
 // Chaque stade vient du serveur (statut + faits reçus par socket) via
-// stageOf() ; la carte suit tant qu'elle a quelque chose à dire, puis devient
-// un bandeau ; aucune bascule ne remonte l'écran.
+// stageOf(). UNE carte, UNE feuille, du premier au dernier stade : le calque
+// de recherche s'efface au profit du marqueur du prestataire, la feuille
+// change de contenu, la carte suit puis se réduit en bandeau, et à la fin la
+// feuille monte jusqu'en haut avec le bilan. Aucun changement d'écran.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -16,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
 import { useLayoutClass } from '@/lib/layout';
-import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/lib/mapStyles';
+import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -24,15 +26,17 @@ import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useCall } from '@/lib/webrtc/CallContext';
 import { useConversationUnread } from '@/lib/useConversationUnread';
-import { isCompletionHandled, markCompletionHandled } from '@/lib/navDedup';
+import { markCompletionHandled } from '@/lib/navDedup';
 import { formatClock } from '@/lib/format';
 import { briefOf, isQuoteMode, workOf, type MissionBrief } from '@/lib/mission/brief';
 import { ARRIVAL_RADIUS_M, isFutureScheduled, metersBetween, minutesSince, plannedEnd, stageOf, type Stage } from '@/lib/mission/stage';
 import { distanceKm, fetchRoute, type LatLng } from '@/lib/mission/route';
-import LiveMapSearching from '@/components/searching/LiveMapSearching';
+import { SearchingOverlay } from '@/components/searching/SearchingOverlay';
+import { SearchingSheet } from '@/components/searching/SearchingSheet';
+import { useSearching } from '@/lib/mission/useSearching';
 import Avatar from '@/components/ui/Avatar';
 import { PhotoViewer } from '@/components/mission/photos';
-import { EtaHero, MapBand, MoneyLine, PinCard, ProviderRow, QuoteSteps, RequestRow, StageHeader, WorkTimeline, providerFirstName, providerName, type TimelineRow } from '@/components/tracking';
+import { DoneContent, EtaHero, MapBand, MoneyLine, PinCard, ProviderRow, QuoteSteps, RequestRow, StageHeader, WorkTimeline, providerFirstName, providerName, type TimelineRow } from '@/components/tracking';
 
 const ACCEPTED_MOMENT_MS = 2400;
 const BAND_HEIGHT = 132;
@@ -107,9 +111,16 @@ export default function MissionView() {
   const amount: number | null = request?.price != null && Number(request.price) > 0 ? Number(request.price) : null;
   const calloutFee: number | null = brief?.money.calloutFee ?? null;
   const startedAt: string | null = brief?.timeline.startedAt ?? startedAtLocal;
-  const onSearchMap = stage === 'searching' || (justAccepted && (stage === 'accepted' || stage === 'en_route' || stage === 'quote_pending'));
-  const onTrackingMap = !onSearchMap && (stage === 'en_route' || stage === 'at_door' || stage === 'ongoing' || stage === 'quote_pending' || stage === 'accepted');
+  // Le calque de recherche reste pendant le moment « accepté » (2,4 s), puis s'efface.
+  const searchingLayer = stage === 'searching' || (justAccepted && (stage === 'accepted' || stage === 'en_route' || stage === 'quote_pending'));
+  const tracking = !searchingLayer && (stage === 'en_route' || stage === 'at_door' || stage === 'ongoing' || stage === 'quote_pending' || stage === 'accepted');
+  const done = stage === 'done' && !!request && !request.reviewExists;
   const bandMode = stage === 'ongoing';
+  // Géométrie de la carte : pleine, bandeau, ou effacée (bilan).
+  const mapMode: 'full' | 'band' | 'gone' = done ? 'gone' : bandMode ? 'band' : 'full';
+  const [mapReady, setMapReady] = useState(false);
+  const [now1s, setNow1s] = useState(() => Date.now());
+  const search = useSearching(String(id), clientCoord, searchingLayer);
 
   const providerUserId = provider?.userId || null;
   const { count: unread, reset: resetUnread } = useConversationUnread(providerUserId, authUser?.id);
@@ -143,10 +154,10 @@ export default function MissionView() {
   // Sondage : 15 s en recherche, 45 s en suivi (filet si le socket rate un fait).
   useEffect(() => {
     if (!id) return;
-    const every = onSearchMap || stage === 'loading' ? 15_000 : 45_000;
+    const every = searchingLayer || stage === 'loading' ? 15_000 : 45_000;
     const iv = setInterval(load, every);
     return () => clearInterval(iv);
-  }, [id, onSearchMap, stage, load]);
+  }, [id, searchingLayer, stage, load]);
 
   // « n MIN » de l'en-tête en cours : une fois par demi-minute suffit.
   useEffect(() => {
@@ -154,6 +165,12 @@ export default function MissionView() {
     const iv = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(iv);
   }, [stage]);
+  // La ligne mono de la recherche compte les secondes.
+  useEffect(() => {
+    if (!searchingLayer) return;
+    const iv = setInterval(() => setNow1s(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [searchingLayer]);
 
   // ─── Le moment « accepté » : sur la carte de recherche, 2,4 s ──────────
   const beginAcceptedMoment = useCallback((providerId: string | null, name: string | null) => {
@@ -183,14 +200,15 @@ export default function MissionView() {
     else if (stage === 'quote_sent') { feedback.haptic('success'); router.replace({ pathname: '/request/[id]/quote-review', params: { id: rid } }); }
     else if (stage === 'scheduled') router.replace({ pathname: '/request/[id]/scheduled', params: { id: rid, mode: 'recap' } });
     else if (stage === 'done') {
-      if (isCompletionHandled(rid)) return;
+      // Le bilan s'ouvre ici, dans la feuille ; on marque la complétion pour que
+      // SocketContext ne pousse pas la route rating par-dessus.
       markCompletionHandled(rid);
-      router.replace({ pathname: '/request/[id]/rating', params: { id: rid } });
+      if (request?.reviewExists) router.replace({ pathname: '/(tabs)/documents', params: { openRequestId: rid } });
     } else if (stage === 'terminal') {
       feedback.haptic('warning');
       router.replace('/(tabs)/dashboard');
     }
-  }, [stage, id, router]);
+  }, [stage, id, router, request?.reviewExists]);
 
   // ─── Itinéraire et ETA ──────────────────────────────────────────────────
   const lastRouteFetch = useRef(0);
@@ -203,17 +221,23 @@ export default function MissionView() {
     if (r.coords.length) setRouteCoords(r.coords);
   }, [clientCoord]);
   useEffect(() => {
-    if (!providerLocation || !onTrackingMap || bandMode) return;
+    if (!providerLocation || !tracking || bandMode) return;
     updateRoute(providerLocation, routeCoords.length === 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providerLocation, onTrackingMap, bandMode]);
-  const visibleCount = useRevealCount(routeCoords.length, onTrackingMap && routeCoords.length > 0);
+  }, [providerLocation, tracking, bandMode]);
+  const visibleCount = useRevealCount(routeCoords.length, tracking && routeCoords.length > 0);
   const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
   const distance = providerLocation ? distanceKm(providerLocation, clientCoord) : null;
 
   // ─── La carte suit, puis se resserre, puis s'efface ─────────────────────
   useEffect(() => {
-    if (!mapRef.current || !onTrackingMap) return;
+    if (!mapRef.current || !mapReady) return;
+    if (searchingLayer) {
+      // Recherche : la carte est verrouillée sur l'adresse, rembourrée de la feuille.
+      mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }, reduced ? 0 : 600);
+      return;
+    }
+    if (!tracking) return;
     if (stage === 'at_door' || bandMode) {
       mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.004, longitudeDelta: 0.004 }, reduced ? 0 : 600);
     } else if (providerLocation) {
@@ -221,7 +245,7 @@ export default function MissionView() {
     } else {
       mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.015, longitudeDelta: 0.015 }, reduced ? 0 : 600);
     }
-  }, [stage, bandMode, onTrackingMap, providerLocation, clientCoord, windowHeight, reduced]);
+  }, [stage, bandMode, tracking, searchingLayer, mapReady, providerLocation, clientCoord, windowHeight, reduced]);
 
   // ─── Sockets ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -321,7 +345,7 @@ export default function MissionView() {
 
   // ─── Actions ─────────────────────────────────────────────────────────────
   const cancel = useCallback(async () => {
-    const searching = onSearchMap;
+    const searching = searchingLayer;
     const ok = await feedback.confirm({
       titleKey: searching ? 'mission_view.cancel_search' : 'mission_view.cancel_mission',
       messageKey: searching ? 'mission_view.cancel_search_msg' : 'mission_view.cancel_confirm_msg',
@@ -345,7 +369,7 @@ export default function MissionView() {
         feedback.error(searching ? 'mission_view.cancel_failed' : 'mission_view.cancel_mission_failed');
       }
     }
-  }, [id, onSearchMap, router, load]);
+  }, [id, searchingLayer, router, load]);
 
   const openMenu = useCallback(async () => {
     const options = bandMode
@@ -378,22 +402,46 @@ export default function MissionView() {
   const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
   const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
 
-  // ─── Géométrie animée : carte pleine ↔ bandeau, feuille ancrée en bas ──
+  // ─── Géométrie animée : une carte, une feuille ──────────────────────────
+  // La carte : pleine (recherche, en route, à la porte), bandeau (en cours),
+  // effacée (bilan). La feuille est ancrée en bas ; son bord haut suit le
+  // contenu mesuré, ou le bandeau, ou monte jusqu'en haut pour le bilan.
   const bandH = insets.top + BAND_HEIGHT;
-  const band = useSharedValue(bandMode ? 1 : 0);
-  useEffect(() => {
-    band.value = reduced ? withTiming(bandMode ? 1 : 0, { duration: 150 }) : withSpring(bandMode ? 1 : 0, MOTION.pane);
-  }, [bandMode, reduced, band]);
   const [sheetContentH, setSheetContentH] = useState(0);
-  const sheetFullTop = windowHeight - Math.min(sheetContentH + insets.bottom + 40, windowHeight * SHEET_MAX_RATIO);
-  const mapStyle = useAnimatedStyle(() => ({ height: windowHeight - band.value * (windowHeight - bandH) }));
-  const sheetStyle = useAnimatedStyle(() => ({ top: sheetFullTop + band.value * (bandH - 26 - sheetFullTop) }));
-  const trackingEntrance = useEntrance(24);
-  useEffect(() => { if (onTrackingMap) trackingEntrance.replay(); }, [onTrackingMap]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sheetFullTop = windowHeight - Math.min(sheetContentH + insets.bottom + 44, windowHeight * SHEET_MAX_RATIO);
+  const mapTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandH : windowHeight;
+  const sheetTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandH - 26 : sheetFullTop;
+  const mapH = useSharedValue(windowHeight);
+  const sheetTop = useSharedValue(windowHeight);
+  useEffect(() => {
+    mapH.value = reduced ? withTiming(mapTarget, { duration: 150 }) : withSpring(mapTarget, MOTION.pane);
+    sheetTop.value = reduced ? withTiming(sheetTarget, { duration: 150 }) : withSpring(sheetTarget, MOTION.pane);
+  }, [mapTarget, sheetTarget, reduced, mapH, sheetTop]);
+  const mapStyle = useAnimatedStyle(() => ({ height: mapH.value }));
+  const sheetStyle = useAnimatedStyle(() => ({ top: sheetTop.value }));
+  // Le rembourrage bas de la carte en recherche = la hauteur visible de la feuille.
+  const sheetVisibleH = Math.max(0, windowHeight - sheetFullTop);
+  const topBarEntrance = useEntrance(-12);
+  useEffect(() => { if (tracking) topBarEntrance.replay(); }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Contenu de la feuille par stade ────────────────────────────────────
   const sheet = useMemo(() => {
     if (!brief) return null;
+    if (searchingLayer) {
+      return (
+        <SearchingSheet
+          brief={brief}
+          pros={search.pros} round={search.round} remaining={search.remaining} nextWaveAt={search.nextWaveAt} startedAt={search.startedAt}
+          now={now1s}
+          expiresAt={params.expiresAt || null}
+          cancelling={cancelling}
+          isScheduled={paramIsScheduled || isFutureScheduled(request?.preferredTimeStart, now)}
+          scheduledLabel={params.scheduledLabel || null}
+          acceptedName={justAccepted ? (acceptedName ?? providerName(provider)) : null}
+          onCancel={cancel}
+        />
+      );
+    }
     const sinceMin = minutesSince(startedAt, now);
     const end = plannedEnd({ timeline: { ...brief.timeline, startedAt }, service: brief.service });
     const promise = isQuote ? (amount != null ? t('tracking.quote_promise') : t('tracking.callout_promise')) : t('tracking.fixed_promise');
@@ -451,7 +499,7 @@ export default function MissionView() {
         {requestRow}
       </>
     );
-  }, [brief, stage, startedAt, now, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router]);
+  }, [brief, stage, startedAt, now, now1s, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router, searchingLayer, search, params.expiresAt, params.scheduledLabel, paramIsScheduled, request?.preferredTimeStart, justAccepted, acceptedName]);
 
   // ═════════════════════════════════════════════════════════════════════════
   if (invalidId || notFound) {
@@ -463,6 +511,7 @@ export default function MissionView() {
     );
   }
 
+  const showMap = stage !== 'loading' && !!brief;
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
@@ -473,73 +522,87 @@ export default function MissionView() {
         </View>
       )}
 
-      {onSearchMap && brief && (
-        <LiveMapSearching
-          missionId={String(id)}
-          missionCoord={clientCoord}
-          brief={brief}
-          expiresAt={params.expiresAt || null}
-          cancelling={cancelling}
-          isScheduled={paramIsScheduled || isFutureScheduled(request?.preferredTimeStart, now)}
-          scheduledLabel={params.scheduledLabel || null}
-          acceptedName={justAccepted ? (acceptedName ?? providerName(provider)) : null}
-          acceptedProviderId={justAccepted ? (acceptedProviderId ?? (provider?.id != null ? String(provider.id) : null)) : null}
-          onCancel={cancel}
-        />
-      )}
-
-      {onTrackingMap && brief && (
-        <Animated.View style={[StyleSheet.absoluteFillObject, trackingEntrance.style]}>
+      {showMap && (
+        <>
+          {/* La carte, unique du premier au dernier stade. */}
           <Animated.View style={[s.mapWrap, mapStyle]}>
             <MapView
               ref={mapRef}
               style={StyleSheet.absoluteFillObject}
               provider={PROVIDER_GOOGLE}
               customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
-              initialRegion={{ ...clientCoord, latitudeDelta: 0.015, longitudeDelta: 0.015 }}
-              scrollEnabled={!bandMode}
-              zoomEnabled={!bandMode}
+              initialRegion={{ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
+              onMapReady={() => setMapReady(true)}
+              mapPadding={searchingLayer ? { top: 0, right: 0, bottom: sheetVisibleH, left: 0 } : undefined}
+              scrollEnabled={tracking && !bandMode}
+              zoomEnabled={tracking && !bandMode}
               pitchEnabled={false}
               rotateEnabled={false}
               showsUserLocation={false}
               showsPointsOfInterest={false}
               showsBuildings={false}
+              showsCompass={false}
               toolbarEnabled={false}
             >
-              <Marker coordinate={clientCoord} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><ClientMarker /></Marker>
-              {visibleRoute.length > 1 && !bandMode ? (
+              {tracking ? <Marker coordinate={clientCoord} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><ClientMarker /></Marker> : null}
+              {tracking && visibleRoute.length > 1 && !bandMode ? (
                 <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
               ) : null}
-              {providerLocation && !bandMode ? (
+              {tracking && providerLocation && !bandMode ? (
                 <Marker coordinate={providerLocation} anchor={{ x: 0.5, y: 0.5 }}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} /></Marker>
               ) : null}
             </MapView>
+
+            {/* Le calque de recherche : pastilles et traits, puis fondu. */}
+            {(searchingLayer || search.pros.length > 0) && !bandMode && !done ? (
+              <SearchingOverlay
+                pros={search.pros}
+                mapRef={mapRef}
+                mapReady={mapReady}
+                missionCoord={clientCoord}
+                sheetHeight={sheetVisibleH}
+                acceptedProviderId={justAccepted ? (acceptedProviderId ?? (provider?.id != null ? String(provider.id) : null)) : null}
+                visible={searchingLayer}
+              />
+            ) : null}
+
             {bandMode && provider ? (
               <MapBand top={insets.top + 56} name={firstName} avatarUrl={provider.avatarUrl} sinceLabel={t('tracking.since', { time: formatClock(startedAt ?? now) })} onCall={call} />
             ) : null}
           </Animated.View>
 
-          <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
-            <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
-              <Feather name="arrow-left" size={20} color={theme.text as string} />
-            </Pressable>
-            <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-              <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
-              <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
-              <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
-            </View>
-            <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
-              <Feather name="more-horizontal" size={22} color={theme.text as string} />
-            </Pressable>
-          </SafeAreaView>
+          {tracking ? (
+            <Animated.View style={topBarEntrance.style}>
+              <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
+                <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
+                  <Feather name="arrow-left" size={20} color={theme.text as string} />
+                </Pressable>
+                <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+                  <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
+                  <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
+                  <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
+                </View>
+                <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
+                  <Feather name="more-horizontal" size={22} color={theme.text as string} />
+                </Pressable>
+              </SafeAreaView>
+            </Animated.View>
+          ) : null}
 
-          <Animated.View style={[s.sheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04 }, sheetStyle]}>
-            <View style={[s.handle, { backgroundColor: theme.borderLight }]} />
-            <ScrollView showsVerticalScrollIndicator={false} bounces={bandMode} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-              <View onLayout={(e) => setSheetContentH(e.nativeEvent.layout.height)}>{sheet}</View>
-            </ScrollView>
+          {/* La feuille, unique : son contenu change, son bord haut suit. */}
+          <Animated.View style={[s.sheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04 }, done && { borderTopLeftRadius: 0, borderTopRightRadius: 0 }, sheetStyle]}>
+            {done ? (
+              <DoneContent request={request} topInset={insets.top} />
+            ) : (
+              <>
+                <View style={[s.handle, { backgroundColor: theme.borderLight }]} />
+                <ScrollView showsVerticalScrollIndicator={false} bounces={bandMode} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
+                  <View onLayout={(e) => setSheetContentH(e.nativeEvent.layout.height)}>{sheet}</View>
+                </ScrollView>
+              </>
+            )}
           </Animated.View>
-        </Animated.View>
+        </>
       )}
 
       <PhotoViewer photos={viewerPhotos} index={viewer ? 0 : null} onClose={() => setViewer(null)} />

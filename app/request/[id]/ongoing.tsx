@@ -45,7 +45,7 @@ import { formatEUR as formatEuros } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useTranslation } from 'react-i18next';
-import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/lib/mapStyles';
+import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
