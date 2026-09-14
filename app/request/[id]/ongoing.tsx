@@ -662,8 +662,8 @@ export default function MissionOngoing() {
       const response = await api.post(`/requests/${id}/complete`);
       if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
       feedback.event('mission_complete');
-      const earnings = response.earnings ?? (request?.price * 0.80);
-      router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id), earnings: String(earnings) } });
+      // L'écran de fin lit le net et le taux réels sur le serveur : rien à passer.
+      router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id) } });
     } catch (error: any) {
       if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
       else feedback.error(error.data?.message || error.message || t('ext.ongoing_complete_generic_error'));

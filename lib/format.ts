@@ -30,3 +30,29 @@ export function formatClock(value: string | number | Date | null | undefined): s
   if (!Number.isFinite(d.getTime())) return '';
   return d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
 }
+
+const LANG_LOCALE: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB' };
+const localeFor = (lang?: string) => LANG_LOCALE[(lang || 'fr').split('-')[0]] ?? 'fr-BE';
+
+/** « sam. 13 sept. » dans la langue de l'app. */
+export function formatDay(value: string | number | Date | null | undefined, lang?: string): string {
+  if (value == null) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.toLocaleDateString(localeFor(lang), { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** « jeu. 18 » — le jour court pour une date d'arrivée. */
+export function formatDayShort(value: string | number | Date | null | undefined, lang?: string): string {
+  if (value == null) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.toLocaleDateString(localeFor(lang), { weekday: 'short', day: 'numeric' });
+}
+
+/** « septembre 2026 » / « septembre » si c'est l'année en cours. */
+export function formatMonth(year: number, month: number, lang?: string, now: Date = new Date()): string {
+  const d = new Date(year, month, 1);
+  const withYear = year !== now.getFullYear();
+  return d.toLocaleDateString(localeFor(lang), withYear ? { month: 'long', year: 'numeric' } : { month: 'long' });
+}

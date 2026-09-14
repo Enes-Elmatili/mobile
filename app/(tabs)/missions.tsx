@@ -22,7 +22,7 @@ import Reanimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } 
 import { MOTION } from '@/lib/motion/springs';
 import { SHEET_SPRING } from '@/lib/motion/sheet';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
-import { briefOf, type MissionBrief } from '@/lib/mission/brief';
+import { briefOf, netFor, type MissionBrief } from '@/lib/mission/brief';
 import { MissionRow } from '@/components/mission/MissionRow';
 import { AccessBlock, ClientBlock, EarnRow, MissionTitle } from '@/components/mission/blocks';
 import { PhotoGallery } from '@/components/mission/photos';
@@ -40,7 +40,6 @@ const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-G
 const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
 
 
-const NET_RATE = 0.80;
 
 // --- Grayscale map style (source unique) ---
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
@@ -334,7 +333,7 @@ function EarningsBanner({ missions }: { missions: Mission[] }) {
       const d = m.scheduledAt || m.createdAt;
       return m.status === 'DONE' && d && isSameDay(new Date(d), today);
     })
-    .reduce((acc, m) => acc + m.price * NET_RATE, 0);
+    .reduce((acc, m) => acc + (netFor(m.brief) ?? 0), 0);
 
   if (todayMs.length === 0 && doneTodayEarnings === 0) return null;
 
@@ -1063,7 +1062,7 @@ export default function Missions() {
         const d = m.scheduledAt || m.createdAt;
         return m.status === 'DONE' && d && isSameDay(new Date(d), today);
       })
-      .reduce((acc, m) => acc + m.price * NET_RATE, 0);
+      .reduce((acc, m) => acc + (netFor(m.brief) ?? 0), 0);
   }, [missions]);
 
   const historyFilterOptions = useMemo(() => {
@@ -1156,8 +1155,7 @@ export default function Missions() {
 
     try {
       const response = await api.post(`/requests/${mission.id}/complete`);
-      const earnings = response.earnings ?? (mission.price * NET_RATE);
-      devLog(`[Missions] Mission ${mission.id} terminee. Gains: ${formatEuros(earnings)}`);
+      devLog(`[Missions] Mission ${mission.id} terminée. Net: ${response?.earnings ?? '—'}`);
       await loadMissions();
       router.push({ pathname: '/request/[id]/earnings', params: { id: mission.id } });
     } catch (error: any) {

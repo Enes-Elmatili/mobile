@@ -1,668 +1,289 @@
-// app/(tabs)/wallet.tsx — Onglet Gains (Provider)
-// Solde · filtres · historique consolide par mission
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity,
-  FlatList, ActivityIndicator,
-  Platform, RefreshControl, StatusBar,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTabBarPadding } from './_layout';
+// app/(tabs)/wallet.tsx — Onglet Gains (prestataire), « le relevé » (planche B,
+// spec 2026-09-14-gains-releve). La banque d'abord : ce qui arrive sur le
+// compte et quand, ce qui est arrivé ; puis les missions par mois, une ligne
+// chacune, le mois courant ouvert, les autres repliés. Chaque chiffre est un
+// fait Stripe : le portefeuille est une projection des virements faits à la
+// complétion, Stripe dépose sur le compte (quotidien, J+délai).
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { api } from '../../lib/api';
-import { showSocketToast } from '@/lib/SocketContext';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import Animated from 'react-native-reanimated';
-import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { devError } from '@/lib/logger';
-import { formatEUR as fmtEur } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
-import i18n from '@/lib/i18n';
+import { useTabBarPadding } from './_layout';
+import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
+import { feedback } from '@/lib/feedback/feedback';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { usePressScale } from '@/lib/motion/press';
+import { formatDay, formatEURCents, formatMonth } from '@/lib/format';
+import { DEFAULT_PAYOUT_DELAY_DAYS, groupByMonth, inTransit, toLine, type GainLine, type MonthGroup, type Payout, type WalletTx } from '@/lib/gains/model';
+import { GainRow } from '@/components/gains/GainRow';
+import { MoneySheet } from '@/components/gains/MoneySheet';
 
-// --- Formatage ---
-const fromCents = (n: number) => n / 100;
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-const fmtTime = (d: string) =>
-  new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+type Segment = 'missions' | 'payouts';
+type ConnectBalance = { needsOnboarding?: boolean; payoutsEnabled?: boolean; available?: number; pending?: number; lastPayout?: Payout | null; payouts?: Payout[]; payoutSchedule?: { interval: string; delayDays: number } | null; bank?: { last4: string; bankName?: string | null } | null };
 
-// --- Date relative pour les en-tetes ---
-function dateGroup(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const txDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = (today.getTime() - txDay.getTime()) / 86_400_000;
-  if (diff === 0) return i18n.t('ext.wallet_date_today');
-  if (diff === 1) return i18n.t('ext.wallet_date_yesterday');
-  if (diff < 7) return i18n.t('ext.wallet_date_days_ago', { n: Math.floor(diff) });
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+// ─── Cartes banque ───────────────────────────────────────────────────────────
+function BankCard({ icon, title, sub, onPress, accent }: { icon: React.ComponentProps<typeof Feather>['name']; title: string; sub?: string | null; onPress?: () => void; accent?: boolean }) {
+  const theme = useAppTheme();
+  const press = usePressScale(0.98);
+  const body = (
+    <Animated.View style={[s.bank, { borderColor: accent ? theme.accent : theme.border, backgroundColor: accent ? theme.surface : 'transparent' }, onPress ? press.style : null]}>
+      <Feather name={icon} size={16} color={theme.textSub as string} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[s.bankTitle, { color: theme.text }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{title}</Text>
+        {sub ? <Text style={[s.bankSub, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{sub}</Text> : null}
+      </View>
+      {onPress ? <Feather name="chevron-right" size={16} color={theme.textMuted as string} /> : null}
+    </Animated.View>
+  );
+  if (!onPress) return body;
+  return <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityLabel={title}>{body}</Pressable>;
 }
 
-// --- Label lisible depuis la reference ---
-function readableLabel(type: string, reference?: string | null): string {
-  if (!reference) return type === 'CREDIT' ? i18n.t('ext.wallet_label_credit') : type === 'DEBIT' ? i18n.t('ext.wallet_label_debit') : type;
-  const m = reference.match(/request[_-](\d+)/i);
-  if (m) return i18n.t('ext.wallet_tx_mission', { id: m[1] });
-  if (/withdraw|retrait/i.test(reference)) return i18n.t('ext.wallet_tx_withdraw');
-  if (/stripe_transfer/i.test(reference)) return i18n.t('ext.wallet_tx_stripe_transfer');
-  return reference.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).slice(0, 36);
-}
-
-// --- Onglets de filtre ---
-type Filter = 'all' | 'gains' | 'pending' | 'withdrawals';
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'ext.wallet_filter_all' },
-  { key: 'gains', label: 'ext.wallet_earnings_title' },
-  { key: 'pending', label: 'wallet.pending' },
-  { key: 'withdrawals', label: 'ext.wallet_filter_withdrawals' },
-];
-
-// --- Statut des retraits ---
-const WD_STATUS_CFG: Record<string, { i18nKey: string; color: string }> = {
-  PENDING:   { i18nKey: 'ext.wallet_status_pending',   color: COLORS.amber },
-  APPROVED:  { i18nKey: 'ext.wallet_status_approved',  color: COLORS.green },
-  REJECTED:  { i18nKey: 'ext.wallet_status_rejected',  color: COLORS.red },
-  COMPLETED: { i18nKey: 'ext.wallet_status_completed', color: COLORS.green },
-};
-
-// --- Consolidation : fusionne HOLD+RELEASE d'une meme mission ---
-interface ConsolidatedTx {
-  id: string;
-  missionId: string | null;
-  label: string;
-  amount: number;
-  status: 'released' | 'pending' | 'credit' | 'debit';
-  date: string;
-  balanceAfter: number | null;
-}
-
-function consolidateTxs(raw: any[]): ConsolidatedTx[] {
-  const releasedMissions = new Set<string>();
-  for (const t of raw) {
-    if (t.type === 'RELEASE' && t.reference) {
-      const m = t.reference.match(/request[_-](\d+)/i);
-      if (m) releasedMissions.add(m[1]);
-    }
-  }
-
-  const result: ConsolidatedTx[] = [];
-  const seenMissions = new Set<string>();
-
-  for (const t of raw) {
-    const missionMatch = t.reference?.match(/request[_-](\d+)/i);
-    const missionId = missionMatch?.[1] ?? null;
-
-    if (t.type === 'HOLD' && missionId && releasedMissions.has(missionId)) continue;
-
-    if (missionId && (t.type === 'RELEASE' || t.type === 'HOLD')) {
-      if (seenMissions.has(missionId)) continue;
-      seenMissions.add(missionId);
-    }
-
-    let status: ConsolidatedTx['status'];
-    if (t.type === 'HOLD') status = 'pending';
-    else if (t.type === 'RELEASE' || t.type === 'CREDIT') status = t.type === 'RELEASE' ? 'released' : 'credit';
-    else status = 'debit';
-
-    result.push({
-      id: t.id,
-      missionId,
-      label: readableLabel(t.type, t.reference),
-      amount: t.amount,
-      status,
-      date: t.createdAt,
-      balanceAfter: t.type !== 'HOLD' ? t.balanceAfter : null,
-    });
-  }
-
-  return result;
-}
-
-// --- Ligne transaction ---
-function TxRow({ item, theme: t }: { item: ConsolidatedTx; theme: any }) {
-  const { t: tr } = useTranslation();
-  const cfg = {
-    released: { icon: 'check-circle' as const, iconColor: COLORS.green, badge: tr('ext.wallet_tx_released'), badgeColor: COLORS.green, sign: '+' },
-    credit:   { icon: 'arrow-down' as const,   iconColor: COLORS.green, badge: tr('ext.wallet_tx_credit'),   badgeColor: COLORS.green, sign: '+' },
-    pending:  { icon: 'clock' as const,        iconColor: COLORS.amber, badge: tr('ext.wallet_tx_pending_validation'), badgeColor: COLORS.amber, sign: '' },
-    debit:    { icon: 'arrow-up' as const,     iconColor: COLORS.red,   badge: tr('ext.wallet_tx_debit'),    badgeColor: COLORS.red, sign: '−' },
-  }[item.status];
-
-  const isGain = item.status === 'released' || item.status === 'credit';
-  // vert de marque illisible en texte/icône sur fond clair → greenText theme-aware (tint gardé)
-  const cfgIconFg  = cfg.iconColor  === COLORS.green ? t.greenText : cfg.iconColor;
-  const cfgBadgeFg = cfg.badgeColor === COLORS.green ? t.greenText : cfg.badgeColor;
-
+function MonthHeader({ group, open, onToggle, lang }: { group: MonthGroup; open: boolean; onToggle: () => void; lang: string }) {
+  const theme = useAppTheme();
+  const { t } = useTranslation();
   return (
-    <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
-      <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
-        <Feather name={cfg.icon} size={18} color={cfgIconFg} />
+    <Pressable onPress={() => { feedback.haptic('selection'); onToggle(); }} style={s.month} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${formatMonth(group.year, group.month, lang)}, ${formatEURCents(group.net, 0)}`}>
+      <Text style={[s.monthLabel, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{`${formatMonth(group.year, group.month, lang)} · ${t('gains.month_missions', { count: group.missions })}`.toUpperCase()}</Text>
+      <View style={s.monthRight}>
+        <Text style={[s.monthNet, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{formatEURCents(group.net, 0)}</Text>
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textMuted as string} />
       </View>
-      <View style={styles.txInfo}>
-        <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{item.label}</Text>
-        <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.date)} · {fmtTime(item.date)}</Text>
-      </View>
-      <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: isGain ? t.greenText : item.status === 'pending' ? t.textMuted : COLORS.red }]}>
-          {cfg.sign}{fmtEur(fromCents(item.amount))}
-        </Text>
-        <View style={[styles.txBadge, { backgroundColor: cfg.badgeColor + '18' }]}>
-          <Text style={[styles.txBadgeText, { color: cfgBadgeFg }]}>{cfg.badge}</Text>
-        </View>
-      </View>
-    </View>
+    </Pressable>
   );
 }
 
-// --- Ligne retrait ---
-function WithdrawRow({ item, theme: t }: { item: any; theme: any }) {
-  const { t: tr } = useTranslation();
-  const st = WD_STATUS_CFG[item.status] ?? WD_STATUS_CFG.PENDING;
-  // vert de marque illisible en texte/icône sur fond clair → greenText theme-aware (tint gardé)
-  const stFg = st.color === COLORS.green ? t.greenText : st.color;
-  return (
-    <View style={[styles.txCard, { backgroundColor: t.cardBg, shadowOpacity: t.shadowOpacity }]}>
-      <View style={[styles.txIcon, { backgroundColor: t.surface }]}>
-        <Feather name="credit-card" size={18} color={stFg} />
-      </View>
-      <View style={styles.txInfo}>
-        <Text style={[styles.txLabel, { color: t.text }]} numberOfLines={1}>{tr('wallet.withdraw')}</Text>
-        <Text style={[styles.txDate, { color: t.textMuted }]}>{fmtDate(item.createdAt)}</Text>
-        {item.destination ? <Text style={[styles.txDate, { color: t.textMuted }]} numberOfLines={1}>{item.destination}</Text> : null}
-      </View>
-      <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: COLORS.red }]}>−{fmtEur(fromCents(item.amount))}</Text>
-        <View style={[styles.txBadge, { backgroundColor: st.color + '18' }]}>
-          <Text style={[styles.txBadgeText, { color: stFg }]}>{tr(st.i18nKey)}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ====================================================================
-// MAIN SCREEN
-// ====================================================================
+// ═════════════════════════════════════════════════════════════════════════════
 export default function WalletTab() {
-  const [loading, setLoading]           = useState(true);
-  const [refreshing, setRefreshing]     = useState(false);
-  const [balance, setBalance]           = useState(0);
-  const [escrowAmount, setEscrowAmount] = useState(0);
-  const [totalEarnings, setTotalEarnings] = useState(0);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [withdrawals, setWithdrawals]   = useState<any[]>([]);
-  const [stripeReady, setStripeReady]   = useState(false);
-  const [stripeLoading, setStripeLoading] = useState(false);
-  const [stripeData, setStripeData]     = useState<{
-    needsOnboarding?: boolean; payoutsEnabled?: boolean; available: number; pending: number;
-    lastPayout: { amount: number; currency?: string; status?: string; arrivalDate: number | null } | null;
-  } | null>(null);
-  const [filter, setFilter]             = useState<Filter>('all');
-  const [balanceError, setBalanceError] = useState(false);
-  const t = useAppTheme();
-  const { t: tr } = useTranslation();
+  const theme = useAppTheme();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const tabBarPadding = useTabBarPadding();
-  const insetsTop = useSafeAreaInsets().top;
   const brandRefresh = useBrandRefresh();
 
-  const load = useCallback(async () => {
-    try {
-      const [balData, txData, wdData, connectData, stripeBalData] = await Promise.allSettled([
-        api.wallet.balance(),
-        api.wallet.transactions(50),
-        api.wallet.withdraws(),
-        api.connect.status(),
-        api.connect.balance(),
-      ]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
+  const [txs, setTxs] = useState<WalletTx[]>([]);
+  const [connect, setConnect] = useState<ConnectBalance | null>(null);
+  const [stripeReady, setStripeReady] = useState<boolean | null>(null);
+  const [segment, setSegment] = useState<Segment>('missions');
+  const [openMonths, setOpenMonths] = useState<Set<string> | null>(null);
+  const [selected, setSelected] = useState<GainLine | null>(null);
+  const [stripeBusy, setStripeBusy] = useState(false);
+  const now = Date.now();
 
-      if (balData.status === 'fulfilled') {
-        const b = balData.value as any;
-        setBalance(b?.balance ?? 0);
-        setEscrowAmount(b?.escrowAmount ?? 0);
-        setTotalEarnings(b?.totalEarnings ?? 0);
-        setBalanceError(false);
-      } else {
-        // Le solde n'a pas pu etre charge : ne pas afficher un faux "0,00 €".
-        devError('[WalletTab] balance error:', balData.reason);
-        setBalanceError(true);
-      }
-      if (txData.status === 'fulfilled') {
-        const raw = txData.value as any;
-        setTransactions(Array.isArray(raw) ? raw : (raw?.transactions ?? raw?.data ?? []));
-      }
-      if (wdData.status === 'fulfilled') {
-        const raw = wdData.value as any;
-        setWithdrawals(Array.isArray(raw) ? raw : (raw?.data ?? []));
-      }
-      if (connectData.status === 'fulfilled') {
-        const c = connectData.value as any;
-        setStripeReady(!!c?.isStripeReady);
-      }
-      if (stripeBalData.status === 'fulfilled') {
-        setStripeData(stripeBalData.value as any);
-      }
-    } catch (e) {
-      devError('[WalletTab] load error:', e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const load = useCallback(async () => {
+    const [tx, status, bal] = await Promise.allSettled([api.wallet.transactions(100), api.connect.status(), api.connect.balance()]);
+    if (tx.status === 'fulfilled') {
+      const raw = tx.value as any;
+      setTxs(Array.isArray(raw) ? raw : (raw?.transactions ?? raw?.data ?? []));
+      setError(false);
+    } else {
+      devError('[Gains] txs', tx.reason);
+      setError(true);
     }
+    if (status.status === 'fulfilled') setStripeReady(!!(status.value as any)?.isStripeReady);
+    if (bal.status === 'fulfilled') setConnect(bal.value as ConnectBalance);
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
-  const lastWalletFetch = useRef(0);
+  const lastFetch = useRef(0);
   useFocusEffect(useCallback(() => {
-    const now = Date.now();
-    if (now - lastWalletFetch.current > 60_000) { // 60s cache between focus
-      lastWalletFetch.current = now;
-      load();
-    }
+    if (Date.now() - lastFetch.current > 60_000) { lastFetch.current = Date.now(); load(); }
   }, [load]));
-  const onRefresh = () => { lastWalletFetch.current = 0; setRefreshing(true); load(); };
+  const onRefresh = () => { lastFetch.current = 0; setRefreshing(true); load(); };
 
-
-  const handleOpenStripeDashboard = useCallback(async () => {
-    setStripeLoading(true);
+  // ─── Stripe Express : tableau de bord, ou reprise de l'onboarding ────────
+  const openStripe = useCallback(async () => {
+    setStripeBusy(true);
+    const onboard = async () => {
+      const Linking = await import('expo-linking');
+      const onb: any = await api.connect.onboarding(Linking.createURL('connect/success'), Linking.createURL('connect/reauth'));
+      if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
+      else feedback.error('ext.wallet_stripe_setup_failed');
+    };
     try {
       const res: any = await api.connect.dashboard();
-      if (res?.needsOnboarding && res?.url) {
-        // Compte reset (mode mismatch) → relancer l'onboarding
-        await WebBrowser.openBrowserAsync(res.url);
-      } else if (res?.needsOnboarding || res?.code === 'STRIPE_MODE_MISMATCH') {
-        // Pas d'URL → rediriger vers la page d'onboarding
-        const Linking = await import('expo-linking');
-        const returnUrl = Linking.createURL('connect/success');
-        const refreshUrl = Linking.createURL('connect/reauth');
-        const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
-        if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
-        else showSocketToast(tr('ext.wallet_stripe_setup_failed'), 'error');
-      } else if (res?.url) {
-        await WebBrowser.openBrowserAsync(res.url);
-      } else {
-        showSocketToast(tr('ext.wallet_stripe_open_failed'), 'error');
-      }
+      if (res?.url && !res?.needsOnboarding) await WebBrowser.openBrowserAsync(res.url);
+      else if (res?.url) await WebBrowser.openBrowserAsync(res.url);
+      else await onboard();
     } catch (e: any) {
-      // api.ts place le corps de la réponse dans e.data → code/needsOnboarding
-      // sont là-dedans, pas à la racine de l'erreur (sinon on affichait juste le
-      // message « Aucun compte Stripe Connect lié » en cul-de-sac).
       const body = e?.data ?? e;
-      const needsOnboarding =
-        body?.needsOnboarding ||
-        body?.code === 'STRIPE_MODE_MISMATCH' ||
-        body?.code === 'NO_STRIPE_ACCOUNT';
-      if (needsOnboarding) {
-        try {
-          const Linking = await import('expo-linking');
-          const returnUrl = Linking.createURL('connect/success');
-          const refreshUrl = Linking.createURL('connect/reauth');
-          const onb: any = await api.connect.onboarding(returnUrl, refreshUrl);
-          if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
-          else showSocketToast(tr('ext.wallet_stripe_setup_failed'), 'error');
-        } catch (onbErr: any) {
-          showSocketToast(onbErr?.message || tr('ext.wallet_stripe_error'), 'error');
-        }
+      if (body?.needsOnboarding || body?.code === 'STRIPE_MODE_MISMATCH' || body?.code === 'NO_STRIPE_ACCOUNT') {
+        try { await onboard(); } catch { feedback.error('ext.wallet_stripe_error'); }
       } else {
-        showSocketToast(e?.message || tr('ext.wallet_stripe_error'), 'error');
+        feedback.error('ext.wallet_stripe_error');
       }
     } finally {
-      setStripeLoading(false);
+      setStripeBusy(false);
     }
   }, []);
 
-  // -- Consolidation et filtrage --
-  const consolidated = useMemo(() => consolidateTxs(transactions), [transactions]);
+  const openMenu = useCallback(async () => {
+    const choice = await feedback.actionSheet({ titleKey: 'gains.title', options: [{ labelKey: 'gains.menu_manage' }, { labelKey: 'gains.menu_invoices' }], cancelKey: 'common.close' });
+    if (choice === 0) openStripe();
+    else if (choice === 1) router.push('/invoices');
+  }, [openStripe, router]);
 
-  const pendingWithdrawTotal = useMemo(() =>
-    withdrawals.filter(w => w.status === 'PENDING').reduce((s, w) => s + (w.amount ?? 0), 0),
-    [withdrawals],
-  );
+  // ─── Le relevé ───────────────────────────────────────────────────────────
+  const delay = connect?.payoutSchedule?.delayDays ?? DEFAULT_PAYOUT_DELAY_DAYS;
+  const payouts = useMemo<Payout[]>(() => connect?.payouts ?? (connect?.lastPayout ? [connect.lastPayout] : []), [connect]);
+  const lines = useMemo(() => txs.map((tx) => toLine(tx, payouts, now, delay, lang)), [txs, payouts, now, delay, lang]);
+  const months = useMemo(() => groupByMonth(lines), [lines]);
+  const transit = useMemo(() => inTransit(lines), [lines]);
+  const lastPaid = payouts.find((p) => p.status === 'paid') ?? null;
+  const ready = stripeReady === true && connect?.payoutsEnabled !== false && !connect?.needsOnboarding;
+  const bankLabel = connect?.bank?.last4 ? `${connect.bank.bankName ? `${connect.bank.bankName} ` : ''}···· ${connect.bank.last4}` : null;
+  const isOpen = (key: string, index: number) => (openMonths ? openMonths.has(key) : index === 0);
+  const toggleMonth = (key: string, index: number) => setOpenMonths((cur) => {
+    const next = new Set(cur ?? months.filter((_, i) => i === 0).map((g) => g.key));
+    if (isOpen(key, index)) next.delete(key); else next.add(key);
+    return next;
+  });
 
-  const filteredItems = useMemo(() => {
-    type ListItem =
-      | { key: string; type: 'date-header'; title: string }
-      | { key: string; type: 'tx'; data: ConsolidatedTx }
-      | { key: string; type: 'withdraw'; data: any }
-      | { key: string; type: 'empty' };
+  type Item =
+    | { key: string; kind: 'bank'; icon: React.ComponentProps<typeof Feather>['name']; title: string; sub?: string | null; onPress?: () => void; accent?: boolean }
+    | { key: string; kind: 'month'; group: MonthGroup; index: number }
+    | { key: string; kind: 'line'; line: GainLine }
+    | { key: string; kind: 'payout'; payout: Payout }
+    | { key: string; kind: 'empty'; title: string; sub: string; cta?: { label: string; onPress: () => void } };
 
-    let txList: ConsolidatedTx[] = [];
-    let wdList: any[] = [];
-
-    switch (filter) {
-      case 'gains':
-        txList = consolidated.filter(t => t.status === 'released' || t.status === 'credit');
-        break;
-      case 'pending':
-        txList = consolidated.filter(t => t.status === 'pending');
-        break;
-      case 'withdrawals':
-        wdList = withdrawals;
-        break;
-      default:
-        txList = consolidated;
-        wdList = withdrawals;
-    }
-
-    const items: ListItem[] = [];
-    let lastGroup = '';
-
-    const combined: { date: string; type: 'tx' | 'withdraw'; data: any }[] = [
-      ...txList.map(tx => ({ date: tx.date, type: 'tx' as const, data: tx })),
-      ...wdList.map(wd => ({ date: wd.createdAt, type: 'withdraw' as const, data: wd })),
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    if (combined.length === 0) {
-      items.push({ key: 'empty', type: 'empty' });
-    } else {
-      for (const entry of combined) {
-        const group = dateGroup(entry.date);
-        if (group !== lastGroup) {
-          items.push({ key: `dh-${group}`, type: 'date-header', title: group });
-          lastGroup = group;
-        }
-        if (entry.type === 'tx') {
-          items.push({ key: `tx-${entry.data.id}`, type: 'tx', data: entry.data });
-        } else {
-          items.push({ key: `wd-${entry.data.id}`, type: 'withdraw', data: entry.data });
-        }
+  const items = useMemo<Item[]>(() => {
+    const out: Item[] = [];
+    if (segment === 'missions') {
+      if (!ready) {
+        out.push({ key: 'setup', kind: 'bank', icon: 'credit-card', title: t('gains.setup_title'), sub: t('gains.setup_body'), onPress: openStripe, accent: true });
+      } else {
+        if (transit.amount > 0) out.push({ key: 'transit', kind: 'bank', icon: 'clock', title: t('gains.in_transit', { amount: formatEURCents(transit.amount, 0) }), sub: [transit.arrivesAt ? t('gains.arrives_on', { date: formatDay(transit.arrivesAt, lang) }) : null, t('gains.missions_n', { count: transit.missions })].filter(Boolean).join(' · ') });
+        if (lastPaid) out.push({ key: 'last', kind: 'bank', icon: 'check', title: t('gains.paid_out', { amount: formatEURCents(lastPaid.amount, 0), date: formatDay(lastPaid.arrivalDate ?? lastPaid.createdAt, lang) }), sub: bankLabel });
       }
+      if (months.length === 0) {
+        out.push({ key: 'empty', kind: 'empty', title: t('gains.empty_title'), sub: t('gains.empty_sub'), cta: ready ? { label: t('gains.go_online'), onPress: () => router.push('/(tabs)/provider-dashboard') } : undefined });
+      }
+      months.forEach((g, i) => {
+        out.push({ key: `m-${g.key}`, kind: 'month', group: g, index: i });
+        if (isOpen(g.key, i)) g.lines.forEach((l) => out.push({ key: l.key, kind: 'line', line: l }));
+      });
+    } else {
+      if (!ready) out.push({ key: 'setup', kind: 'bank', icon: 'credit-card', title: t('gains.setup_title'), sub: t('gains.setup_body'), onPress: openStripe, accent: true });
+      if (payouts.length === 0) out.push({ key: 'empty', kind: 'empty', title: t('gains.no_payouts'), sub: t('gains.no_payouts_sub') });
+      payouts.forEach((p) => out.push({ key: p.id, kind: 'payout', payout: p }));
     }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openMonths pilote isOpen
+  }, [segment, ready, transit, lastPaid, months, payouts, openMonths, bankLabel, lang, t, openStripe, router]);
 
-    return items;
-  }, [consolidated, withdrawals, filter]);
-
-  // -- Rendu --
-  const renderItem = useCallback(({ item }: { item: any }) => {
-    if (item.type === 'date-header') {
-      return <Text style={[styles.dateHeader, { color: t.textMuted }]}>{item.title}</Text>;
-    }
-    if (item.type === 'tx') return <TxRow item={item.data} theme={t} />;
-    if (item.type === 'withdraw') return <WithdrawRow item={item.data} theme={t} />;
-    if (item.type === 'empty') {
-      return (
-        <View style={styles.empty}>
-          <Feather name="credit-card" size={48} color={t.textDisabled} />
-          <Text style={[styles.emptyTitle, { color: t.textSub }]}>{tr('ext.wallet_no_transactions')}</Text>
-          <Text style={[styles.emptySubtitle, { color: t.textMuted }]}>
-            {tr('ext.wallet_no_tx_sub')}
-          </Text>
+  const renderItem = ({ item }: { item: Item }) => {
+    switch (item.kind) {
+      case 'bank': return <BankCard icon={item.icon} title={item.title} sub={item.sub} onPress={item.onPress} accent={item.accent} />;
+      case 'month': return <MonthHeader group={item.group} open={isOpen(item.group.key, item.index)} onToggle={() => toggleMonth(item.group.key, item.index)} lang={lang} />;
+      case 'line': return <GainRow line={item.line} onPress={setSelected} />;
+      case 'payout': return (
+        <View style={[s.payout, { borderBottomColor: theme.borderLight }]} accessible accessibilityLabel={`${formatEURCents(item.payout.amount)} ${t(`gains.payout_status_${item.payout.status}`, { defaultValue: item.payout.status })}`}>
+          <View style={[s.payoutIc, { backgroundColor: theme.surface }]}><Feather name={item.payout.status === 'paid' ? 'check' : item.payout.status === 'failed' || item.payout.status === 'canceled' ? 'x' : 'clock'} size={15} color={theme.textSub as string} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.payoutTitle, { color: theme.text }]} maxFontSizeMultiplier={1.3}>{formatEURCents(item.payout.amount)}</Text>
+            <Text style={[s.payoutSub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{[formatDay(item.payout.arrivalDate ?? item.payout.createdAt, lang), bankLabel].filter(Boolean).join(' · ')}</Text>
+          </View>
+          <Text style={[s.payoutState, { color: item.payout.status === 'paid' ? theme.greenText : theme.textMuted }]} maxFontSizeMultiplier={1.2}>{t(`gains.payout_status_${item.payout.status}`, { defaultValue: item.payout.status }).toUpperCase()}</Text>
+        </View>
+      );
+      case 'empty': return (
+        <View style={s.empty}>
+          <View style={[s.emptyIc, { backgroundColor: theme.surface }]}><Feather name="zap" size={22} color={theme.textSub as string} /></View>
+          <Text style={[s.emptyTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{item.title}</Text>
+          <Text style={[s.emptySub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{item.sub}</Text>
+          {item.cta ? (
+            <Pressable style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); item.cta!.onPress(); }} accessibilityRole="button" accessibilityLabel={item.cta.label}>
+              <Text style={[s.ctaText, { color: theme.accentText }]}>{item.cta.label.toUpperCase()}</Text>
+            </Pressable>
+          ) : null}
         </View>
       );
     }
-    return null;
-  }, [t]);
+  };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
-        <StatusBar barStyle={t.statusBar} />
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={t.accent} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const schedule = ready
+    ? (bankLabel ? t('gains.schedule', { bank: bankLabel, days: delay }) : t('gains.schedule_no_bank', { days: delay }))
+    : t('gains.setup_sub');
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
-      <StatusBar barStyle={t.statusBar} />
-
-      {/* -- Header -- */}
-      <View style={[styles.header, { backgroundColor: t.bg }]}>
-        <View>
-          <Text style={[styles.headerGreeting, { color: t.textMuted }]}>{tr('ext.wallet_available_balance')}</Text>
-          <Text style={[styles.headerTitle, { color: t.text }]}>{tr('ext.wallet_earnings_title')}</Text>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
+      <StatusBar barStyle={theme.statusBar} />
+      <View style={s.header}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('gains.title')}</Text>
+          <Text style={[s.schedule, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{schedule}</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.headerIconBtn, { backgroundColor: t.surface, borderColor: t.borderLight }]}
-          onPress={onRefresh}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={tr('common.refresh')}
-        >
-          <Feather name="refresh-cw" size={18} color={t.text} />
-        </TouchableOpacity>
+        <Pressable onPress={openMenu} disabled={stripeBusy} style={[s.menuBtn, { backgroundColor: theme.surface }]} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={8}>
+          {stripeBusy ? <ActivityIndicator size="small" color={theme.textSub as string} /> : <Feather name="more-horizontal" size={20} color={theme.text as string} />}
+        </Pressable>
       </View>
-
-      {/* -- Hero solde -- */}
-      <View style={[styles.hero, { backgroundColor: t.heroBg }]}>
-        <Text style={[styles.heroLabel, { color: t.heroSub }]}>{tr('ext.wallet_available_balance')}</Text>
-        <Text style={[styles.heroAmount, { color: t.heroText }]}>{fmtEur(fromCents(stripeData ? stripeData.available : balance))}</Text>
-
-        {/* Sous-stats : en transit (pending Stripe, pas encore settle) */}
-        <View style={styles.heroStats}>
-          {(stripeData?.pending ?? 0) > 0 && (
-            <View style={styles.heroStatItem}>
-              <Feather name="clock" size={13} color={t.heroSub} />
-              <Text style={[styles.heroStatText, { color: t.heroSubFaint }]}>{fmtEur(fromCents(stripeData!.pending))} {tr('ext.wallet_in_transit')}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Dernier virement (payout Stripe vers la banque) */}
-        <View style={[styles.heroTotalRow, { borderTopColor: 'rgba(255,255,255,0.12)' }]}>
-          <Text style={[styles.heroTotalLabel, { color: t.heroSub }]}>{tr('ext.wallet_last_payout')}</Text>
-          {stripeData?.lastPayout ? (
-            <Text style={[styles.heroTotalValue, { color: t.heroText }]} numberOfLines={1}>
-              {fmtEur(fromCents(stripeData.lastPayout.amount))}
-              {stripeData.lastPayout.arrivalDate ? ` · ${fmtDate(new Date(stripeData.lastPayout.arrivalDate).toISOString())}` : ''}
-            </Text>
-          ) : (
-            <Text style={[styles.heroTotalLabel, { color: t.heroSubFaint }]}>{tr('ext.wallet_no_payout')}</Text>
-          )}
-        </View>
-
-        {(stripeData ? !stripeData.payoutsEnabled : !stripeReady) && (
-          <View style={styles.payoutNotice}>
-            <Feather name="info" size={14} color={t.heroSub} />
-            <Text style={[styles.payoutNoticeText, { color: t.heroSubFaint }]}>{tr('wallet.configure_stripe')}</Text>
-          </View>
-        )}
+      <View style={s.segment}>
+        <SegmentedControl<Segment> options={[{ value: 'missions', label: t('gains.seg_missions') }, { value: 'payouts', label: t('gains.seg_payouts') }]} value={segment} onChange={(v) => { feedback.haptic('selection'); setSegment(v); }} />
       </View>
+      {error ? <Text style={[s.error, { color: theme.textMuted }]}>{t('gains.balance_error')}</Text> : null}
 
-      {/* -- Bannière erreur solde -- */}
-      {balanceError && (
-        <TouchableOpacity
-          style={[styles.errorBanner, { backgroundColor: COLORS.red + '15', borderColor: COLORS.red + '40' }]}
-          onPress={onRefresh}
-          activeOpacity={0.8}
-        >
-          <Feather name="alert-triangle" size={15} color={COLORS.red} />
-          <Text style={[styles.errorBannerText, { color: t.text }]}>{tr('ext.wallet_balance_unavailable')}</Text>
-          <Feather name="refresh-cw" size={14} color={t.textMuted} />
-        </TouchableOpacity>
+      {loading ? (
+        <View style={s.center}><ActivityIndicator size="large" color={theme.accent as string} /></View>
+      ) : (
+        <>
+          <BrandRefreshHeader style={brandRefresh.headerStyle} top={insets.top} />
+          <Animated.FlatList
+            data={items}
+            keyExtractor={(it) => it.key}
+            renderItem={renderItem}
+            contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }]}
+            showsVerticalScrollIndicator={false}
+            onScroll={brandRefresh.onScroll}
+            scrollEventThrottle={16}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
+          />
+        </>
       )}
 
-      {/* -- Stripe + Factures (côte à côte) -- */}
-      <View style={styles.linkRow}>
-        <TouchableOpacity
-          style={[styles.linkCard, { backgroundColor: t.surface, borderColor: t.borderLight }]}
-          onPress={handleOpenStripeDashboard}
-          disabled={stripeLoading}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-        >
-          {stripeLoading
-            ? <ActivityIndicator size="small" color={t.accent} />
-            : <>
-                <Feather name="credit-card" size={18} color={t.accent} />
-                <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={1}>
-                  {stripeReady ? tr('ext.wallet_manage_payments') : tr('ext.wallet_setup_stripe')}
-                </Text>
-              </>
-          }
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.linkCard, { backgroundColor: t.surface, borderColor: t.borderLight }]}
-          onPress={() => router.push('/invoices')}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={tr('ext.wallet_my_invoices')}
-        >
-          <Feather name="file-text" size={18} color={t.accent} />
-          <Text style={[styles.linkCardText, { color: t.text }]} numberOfLines={1}>{tr('ext.wallet_my_invoices')}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* -- Filtres -- */}
-      <View style={styles.filterRow}>
-        {FILTERS.map(f => {
-          const active = filter === f.key;
-          return (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, { borderColor: t.borderLight }, active && { backgroundColor: t.text, borderColor: t.text }]}
-              onPress={() => setFilter(f.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterChipText, { color: active ? t.bg : t.textMuted }]}>
-                {tr(f.label)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* -- Liste -- */}
-      {/* Moment 17 : le « fixed. » s'étire avec le tirage ; le RefreshControl natif garde le déclenchement. */}
-      <BrandRefreshHeader style={brandRefresh.headerStyle} top={insetsTop} />
-      <Animated.FlatList
-        data={filteredItems}
-        keyExtractor={item => item.key}
-        renderItem={renderItem}
-        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarPadding }]}
-        showsVerticalScrollIndicator={false}
-        onScroll={brandRefresh.onScroll}
-        scrollEventThrottle={16}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
-      />
-
+      <MoneySheet line={selected} bankLabel={bankLabel} onClose={() => setSelected(null)} onInvoice={() => { setSelected(null); router.push('/invoices'); }} />
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   root: { flex: 1 },
-  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 6, paddingBottom: 12,
-  },
-  headerGreeting: {
-    fontFamily: FONTS.mono, fontSize: 10.5, letterSpacing: 1,
-    textTransform: 'uppercase', marginBottom: 6,
-  },
-  headerTitle: { fontSize: 34, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
-  headerIconBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1,
-  },
-
-  // Hero
-  hero: {
-    marginHorizontal: 16, borderRadius: 24,
-    paddingVertical: 24, paddingHorizontal: 24, marginBottom: 12,
-    alignItems: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
-      android: { elevation: 10 },
-    }),
-  },
-  heroLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' },
-  heroAmount: { fontSize: 44, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -1.5, marginBottom: 8 },
-
-  heroStats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  heroStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  heroStatText: { fontSize: 12, fontFamily: FONTS.mono },
-
-  heroTotalRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    width: '100%', borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 12,
-  },
-  heroTotalLabel: { fontSize: 13, fontFamily: FONTS.sansMedium },
-  heroTotalValue: { fontSize: 16, fontFamily: FONTS.monoMedium, flexShrink: 1, textAlign: 'right' },
-
-  payoutNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
-  payoutNoticeText: { fontSize: 12, fontFamily: FONTS.sans },
-
-  // Bannière erreur
-  errorBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    marginHorizontal: 16, marginBottom: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: 14, borderWidth: 1,
-  },
-  errorBannerText: { flex: 1, fontSize: 13, fontFamily: FONTS.sansMedium },
-
-  // Stripe link
-  stripeLink: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    marginHorizontal: 16, marginBottom: 8, paddingVertical: 10,
-  },
-  stripeLinkText: { fontSize: 13, fontFamily: FONTS.sansMedium },
-  linkRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 8 },
-  linkCard: {
-    flex: 1,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    paddingVertical: 11, paddingHorizontal: 10,
-    borderRadius: 12, borderWidth: 1,
-  },
-  linkCardText: { fontSize: 13, fontFamily: FONTS.sansMedium, flexShrink: 1 },
-
-  // Filters
-  filterRow: {
-    flexDirection: 'row', gap: 8,
-    paddingHorizontal: 16, marginBottom: 14,
-  },
-  filterChip: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: 'transparent',
-    borderWidth: 1,
-  },
-  filterChipText: { fontSize: 13, fontFamily: FONTS.sansMedium },
-
-  // Date headers
-  dateHeader: {
-    fontSize: 11, fontFamily: FONTS.mono, textTransform: 'uppercase',
-    letterSpacing: 1.2, marginBottom: 10, marginTop: 8,
-  },
-
-  // Tx card
-  txCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12,
-    marginBottom: 8,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-      android: { elevation: 1 },
-    }),
-  },
-  txIcon: {
-    width: 38, height: 38, borderRadius: 19,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  txInfo: { flex: 1 },
-  txLabel: { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 2 },
-  txDate: { fontSize: 11, fontFamily: FONTS.mono },
-  txRight: { alignItems: 'flex-end', gap: 4 },
-  txAmount: { fontSize: 15, fontFamily: FONTS.monoMedium },
-  txBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  txBadgeText: { fontSize: 10, fontFamily: FONTS.sansMedium },
-
-  // List
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
-
-  // Empty
-  empty: { alignItems: 'center', paddingVertical: 50, gap: 10 },
-  emptyTitle: { fontSize: 17, fontFamily: FONTS.sansMedium },
-  emptySubtitle: { fontSize: 13, fontFamily: FONTS.sans, textAlign: 'center', lineHeight: 19, paddingHorizontal: 30 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 20, paddingTop: 12 },
+  title: { fontFamily: FONTS.bebas, fontSize: 34, includeFontPadding: false, letterSpacing: 0.3 },
+  schedule: { fontFamily: FONTS.sans, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  menuBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  segment: { paddingHorizontal: 20, paddingTop: 14 },
+  error: { fontFamily: FONTS.sans, fontSize: 12, paddingHorizontal: 20, paddingTop: 10 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  list: { paddingHorizontal: 20, paddingTop: 14 },
+  bank: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, marginTop: 10 },
+  bankTitle: { fontFamily: FONTS.sansMedium, fontSize: 13.5 },
+  bankSub: { fontFamily: FONTS.sans, fontSize: 11.5, marginTop: 2 },
+  month: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 22, paddingBottom: 6 },
+  monthLabel: { fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.5, flex: 1 },
+  monthRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  monthNet: { fontFamily: FONTS.bebas, fontSize: 18, includeFontPadding: false, fontVariant: ['tabular-nums'] },
+  payout: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1 },
+  payoutIc: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  payoutTitle: { fontFamily: FONTS.bebas, fontSize: 19, includeFontPadding: false, fontVariant: ['tabular-nums'] },
+  payoutSub: { fontFamily: FONTS.sans, fontSize: 11.5, marginTop: 2 },
+  payoutState: { fontFamily: FONTS.monoMedium, fontSize: 9.5, letterSpacing: 0.5 },
+  empty: { alignItems: 'center', paddingTop: 36, paddingHorizontal: 12 },
+  emptyIc: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  emptyTitle: { fontFamily: FONTS.bebas, fontSize: 24, includeFontPadding: false, textAlign: 'center' },
+  emptySub: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: 8 },
+  cta: { marginTop: 16, height: 48, borderRadius: 24, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  ctaText: { fontFamily: FONTS.bebas, fontSize: 16, letterSpacing: 1.5, includeFontPadding: false },
 });
