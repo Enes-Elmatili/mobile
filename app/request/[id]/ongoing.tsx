@@ -45,6 +45,7 @@ import { formatEUR as formatEuros } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useTranslation } from 'react-i18next';
+import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/lib/mapStyles';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -76,31 +77,6 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
-
-// ─── Map styles ──────────────────────────────────────────────────────────────
-
-const MAP_STYLE_LIGHT = [
-  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-];
-
-const MAP_STYLE_DARK = [
-  { elementType: 'geometry', stylers: [{ color: '#1A1A1A' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#333333' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#111111' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-];
 
 const RETRY_MAX = 6;
 const RETRY_DELAY = 800;

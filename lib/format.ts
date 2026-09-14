@@ -22,3 +22,11 @@ export function formatEURCents(cents: number, decimals: number = 2): string {
 export function formatEURInt(amount: number): string {
   return formatEUR(amount, 0);
 }
+
+/** Heure locale « 14:32 » depuis une date ou une chaîne ISO ; '' si invalide. */
+export function formatClock(value: string | number | Date | null | undefined): string {
+  if (value == null) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+}

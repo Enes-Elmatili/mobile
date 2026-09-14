@@ -1,1588 +1,564 @@
-// app/request/[id]/MissionView.tsx
-// ─── Page unifiée : SEARCHING → TRACKING (même écran, transition de phase) ───
-
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Platform, StatusBar,
-  TextInput, KeyboardAvoidingView, Modal, Pressable, Linking, Image,
-  ActivityIndicator,
-} from 'react-native';
-import Animated, {
-  Easing, interpolate, useAnimatedStyle, useSharedValue,
-  withDelay, withRepeat, withSequence, withSpring, withTiming,
-} from 'react-native-reanimated';
-import { DigitReel } from '@/components/ui/DigitReel';
-import { MOTION, SHEET_SPRING, useReduceMotion, useRevealCount, useTakeScale } from '@/lib/motion';
-import { useLayoutClass } from '@/lib/layout';
+// app/request/[id]/missionview.tsx
+// Le suivi côté client, un seul écran à stades (spec 2026-09-14) :
+//   recherche → accepté → en route → à la porte → en cours (→ terminé)
+//   et « devis en préparation » sur la même carte.
+// Chaque stade vient du serveur (statut + faits reçus par socket) via
+// stageOf() ; la carte suit tant qu'elle a quelque chose à dire, puis devient
+// un bandeau ; aucune bascule ne remonte l'écran.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { feedback } from '@/lib/feedback/feedback';
-import { briefOf } from '@/lib/mission/brief';
-import { ClientRequestSummary } from '@/components/mission/ClientRequestSummary';
 import { useTranslation } from 'react-i18next';
-import { translateRequestServiceRaw, translateCategoryRaw } from '@/lib/categoryLabel';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
+import { useLayoutClass } from '@/lib/layout';
+import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/lib/mapStyles';
+import { feedback } from '@/lib/feedback/feedback';
+import { api } from '@/lib/api';
+import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useCall } from '@/lib/webrtc/CallContext';
 import { useConversationUnread } from '@/lib/useConversationUnread';
 import { isCompletionHandled, markCompletionHandled } from '@/lib/navDedup';
-import { resolveAvatarUrl } from '@/lib/avatarUrl';
-import { api } from '@/lib/api';
-import { devLog, devError } from '@/lib/logger';
-import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
-import { PulseDot } from '@/components/ui/PulseDot';
+import { formatClock } from '@/lib/format';
+import { briefOf, isQuoteMode, workOf, type MissionBrief } from '@/lib/mission/brief';
+import { ARRIVAL_RADIUS_M, isFutureScheduled, metersBetween, minutesSince, plannedEnd, stageOf, type Stage } from '@/lib/mission/stage';
+import { distanceKm, fetchRoute, type LatLng } from '@/lib/mission/route';
 import LiveMapSearching from '@/components/searching/LiveMapSearching';
-import { formatEUR as formatEuros } from '@/lib/format';
-import { isOpaqueName } from '@/lib/displayName';
+import Avatar from '@/components/ui/Avatar';
+import { PhotoViewer } from '@/components/mission/photos';
+import { EtaHero, MapBand, MoneyLine, PinCard, ProviderRow, QuoteSteps, RequestRow, StageHeader, WorkTimeline, providerFirstName, providerName, type TimelineRow } from '@/components/tracking';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
-const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+const ACCEPTED_MOMENT_MS = 2400;
+const BAND_HEIGHT = 132;
+const SHEET_MAX_RATIO = 0.62;
 
-
-// ─── Phase de la page ────────────────────────────────────────────────────────
-type Phase = 'LOADING' | 'SEARCHING' | 'TRACKING';
-
-// ─── Params ──────────────────────────────────────────────────────────────────
-interface MissionParams {
-  id: string;
-  serviceName?: string;
-  address?: string;
-  price?: string;
-  scheduledLabel?: string;
-  expiresAt?: string;
-  lat?: string;
-  lng?: string;
-  // Set to '1' when the request is scheduled for the future — changes the
-  // SEARCHING phase copy from active "searching now" to passive "scheduled, waiting".
-  isScheduled?: string;
-  isQuote?: string;
-  calloutFee?: string;
+// ─── Marqueurs ───────────────────────────────────────────────────────────────
+function ClientMarker() {
+  const theme = useAppTheme();
+  return <View style={[m.client, { backgroundColor: theme.greenText, borderColor: theme.cardBg }]} />;
 }
-
-// ─── Utils ───────────────────────────────────────────────────────────────────
-// ─── Toast System ─────────────────────────────────────────────────────────────
-// Delegates to the unified app-wide feedback engine (mounted via <FeedbackHost/>
-// at app root) so there is exactly ONE toast renderer.
-type ToastType = 'success' | 'error' | 'info';
-
-function showToast(message: string, type: ToastType = 'info') {
-  feedback.toast(message, type);
-}
-
-// ─── ConfirmModal (remplace Alert.alert) ─────────────────────────────────────
-interface ConfirmModalProps {
-  visible: boolean;
-  title: string;
-  message?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  destructive?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function ConfirmModal({ visible, title, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel }: ConfirmModalProps) {
-  const { t } = useTranslation();
-  const th = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const resolvedConfirmLabel = confirmLabel || t('common.confirm');
-  const resolvedCancelLabel = cancelLabel || t('common.cancel');
-  // Ressort critique (SHEET_SPRING) : l'ancien damping 20 / stiffness 260
-  // donnait ζ ≈ 0,62, un sheet qui rebondissait.
-  const slide = useSharedValue(300);
-  const fade = useSharedValue(0);
-  useEffect(() => {
-    if (visible) {
-      fade.value = withTiming(1, { duration: 220 });
-      slide.value = withSpring(0, SHEET_SPRING);
-    } else {
-      fade.value = withTiming(0, { duration: 180 });
-      slide.value = withTiming(300, { duration: 200 });
-    }
-  }, [visible, fade, slide]);
-  const overlayStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slide.value }] }));
-
-  return (
-    <Modal transparent animationType="none" visible={visible} onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent>
-      <Pressable style={cm.overlay} onPress={onCancel}>
-        <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }, overlayStyle]} />
-      </Pressable>
-      <Animated.View style={[cm.sheet, { backgroundColor: th.cardBg, paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 40 : 28) }, sheetStyle]}>
-        <View style={[cm.handle, { backgroundColor: th.borderLight }]} />
-        <Text style={[cm.title, { color: th.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{title}</Text>
-        {message ? <Text style={[cm.message, { color: th.textSub, fontFamily: FONTS.sans }]}>{message}</Text> : null}
-        <View style={cm.actions}>
-          <TouchableOpacity style={[cm.cancelBtn, { borderColor: th.border }]} onPress={onCancel} activeOpacity={0.75}>
-            <Text style={[cm.cancelLabel, { color: th.textSub, fontFamily: FONTS.sansMedium }]}>{resolvedCancelLabel}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[cm.confirmBtn, { backgroundColor: th.accent }, destructive && { backgroundColor: COLORS.red }]} onPress={onConfirm} activeOpacity={0.75}>
-            <Text style={[cm.confirmLabel, { fontFamily: FONTS.sansMedium }]}>{resolvedConfirmLabel}</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </Modal>
-  );
-}
-
-const cm = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject },
-  sheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 24, shadowOffset: { width: 0, height: -4 } }, android: { elevation: 16 } }),
-  },
-  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  title: { fontSize: 24, textAlign: 'center', letterSpacing: 1, marginBottom: 10 },
-  message: { fontSize: 14, textAlign: 'center', lineHeight: 21, marginBottom: 28 },
-  actions: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, alignItems: 'center' },
-  cancelLabel: { fontSize: 15 },
-  confirmBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
-  confirmLabel: { fontSize: 15, color: darkTokens.text },
-});
-
-
-
-
-/** Display name for provider — checks provider.name, then user.name, detects slugs */
-const providerDisplayName = (provider: any): string => {
-  // Try provider.name first, then user.name (joined via backend include)
-  const candidates = [provider?.name, provider?.user?.name, provider?.firstName];
-  const email = provider?.user?.email ?? provider?.email;
-  for (const raw of candidates) {
-    if (!raw) continue;
-    // Slug detection: all lowercase alphanumeric, no spaces, 6+ chars = probably a hash
-    if (/^[a-z0-9]{6,}$/.test(raw)) continue;
-    // Email detection: skip if it looks like an email
-    if (raw.includes('@')) continue;
-    // Token opaque du relay « Sign in with Apple »
-    if (isOpaqueName(raw, email)) continue;
-    return raw;
-  }
-  return 'Prestataire';
-};
-
-/** First name only for humanized text */
-const providerFirstName = (provider: any): string => {
-  const full = providerDisplayName(provider);
-  return full.split(' ')[0];
-};
-
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const fallbackETA = (oLat: number, oLng: number, dLat: number, dLng: number) => {
-  const min = Math.ceil((calculateDistance(oLat, oLng, dLat, dLng) * 1.4 / 30) * 60);
-  return min <= 1 ? '1 min' : `${min} min`;
-};
-
-// ─── Decode Google encoded polyline ──────────────────────────────────────────
-function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
-  const points: { latitude: number; longitude: number }[] = [];
-  let index = 0, lat = 0, lng = 0;
-  while (index < encoded.length) {
-    let shift = 0, result = 0, b: number;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
-  }
-  return points;
-}
-
-// ─── Grayscale map style (light) ──────────────────────────────────────────────
-const MAP_STYLE_LIGHT = [
-  { elementType: 'geometry',           stylers: [{ color: '#f0f0f0' }] },
-  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'poi',     elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
-  { featureType: 'road',    elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d6d6d6' }] },
-  { featureType: 'water',   elementType: 'geometry', stylers: [{ color: '#d0d0d0' }] },
-];
-
-// ─── Dark map style (monochrome branded — no blue) ───────────────────────────
-const MAP_STYLE_DARK = [
-  { elementType: 'geometry',           stylers: [{ color: '#1A1A1A' }] },
-  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#888888' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1A1A1A' }] },
-  { featureType: 'poi',           stylers: [{ visibility: 'off' }] },
-  { featureType: 'road',          elementType: 'geometry', stylers: [{ color: '#2C2C2C' }] },
-  { featureType: 'road.highway',  elementType: 'geometry', stylers: [{ color: '#333333' }] },
-  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
-  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#666666' }] },
-  { featureType: 'water',         elementType: 'geometry', stylers: [{ color: '#111111' }] },
-  { featureType: 'water',         elementType: 'labels.text.fill', stylers: [{ color: '#555555' }] },
-];
-
-
-// ─── Ghost Markers (prestataires fantômes sur carte) ─────────────────────────
-const GHOST_OFFSETS = [
-  { lat: 0.008, lng: 0.006 },
-  { lat: -0.005, lng: 0.012 },
-  { lat: 0.003, lng: -0.010 },
-];
-
-function GhostMarker({ coord, index, color, iconColor }: { coord: { latitude: number; longitude: number }; index: number; color: string; iconColor: string }) {
-  const p = useSharedValue(0);
-  useEffect(() => {
-    p.value = withDelay(
-      index * 1100,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [index, p]);
-  const style = useAnimatedStyle(() => ({
-    opacity: interpolate(p.value, [0, 1], [0.25, 0.5]),
-    transform: [{ scale: interpolate(p.value, [0, 1], [0.9, 1.05]) }],
-  }));
-  return (
-    <Marker coordinate={coord} anchor={{ x: 0.5, y: 0.5 }}>
-      <Animated.View style={[gm.outer, { backgroundColor: color }, style]}>
-        <Feather name="user" size={12} color={iconColor} />
-      </Animated.View>
-    </Marker>
-  );
-}
-
-function GhostMarkers({ center }: { center: { latitude: number; longitude: number } }) {
+function ProviderMarker({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
   const theme = useAppTheme();
   return (
-    <>
-      {GHOST_OFFSETS.map((offset, i) => (
-        <GhostMarker
-          key={i}
-          index={i}
-          coord={{ latitude: center.latitude + offset.lat, longitude: center.longitude + offset.lng }}
-          color={theme.accent}
-          iconColor={theme.accentText as string}
-        />
-      ))}
-    </>
+    <View style={[m.provider, { borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.2 }]}>
+      <Avatar name={name} size={36} avatarUrl={avatarUrl} />
+    </View>
   );
 }
-
-const gm = StyleSheet.create({
-  outer: {
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)',
-  },
+const m = StyleSheet.create({
+  client: { width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
+  provider: { borderRadius: 20, borderWidth: 2, shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
 });
 
-// ─── Logo central pulsant ─────────────────────────────────────────────────────
-function CenterLogo() {
-  const theme = useAppTheme();
-  const pulse = useSharedValue(1);
-  useEffect(() => {
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1.06, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    );
-  }, [pulse]);
-  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
-
-  return (
-    <Animated.View style={[cl.outer, { backgroundColor: theme.accent }, pulseStyle]}>
-      <Feather name="search" size={28} color={theme.accentText as string} />
-    </Animated.View>
-  );
-}
-
-const cl = StyleSheet.create({
-  outer: {
-    width: 80, height: 80, borderRadius: 40,
-    alignItems: 'center', justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } },
-      android: { elevation: 16 },
-    }),
-  },
-});
-
-// ─── Messages dynamiques (SEARCHING) ─────────────────────────────────────────
-const getSteps = (t: any) => [
-  { at: 0,   title: t('mission_view.search_step1_title'), sub: t('mission_view.search_step1_sub') },
-  { at: 4,   title: t('mission_view.search_step2_title'), sub: t('mission_view.search_step2_sub') },
-  { at: 10,  title: t('mission_view.search_step3_title'), sub: t('mission_view.search_step3_sub') },
-  { at: 25,  title: t('mission_view.search_step4_title'), sub: t('mission_view.search_step4_sub') },
-  { at: 70,  title: t('mission_view.search_step5_title'), sub: t('mission_view.search_step5_sub') },
-  { at: 140, title: t('mission_view.search_step6_title'), sub: t('mission_view.search_step6_sub') },
-];
-
-function DynamicMessage({ elapsed }: { elapsed: number }) {
-  const { t } = useTranslation();
-  const th = useAppTheme();
-  const steps = getSteps(t);
-  const current = [...steps].reverse().find(s => elapsed >= s.at) || steps[0];
-  const opacity = useSharedValue(1);
-  const prev = useRef(current.title);
-
-  useEffect(() => {
-    if (prev.current === current.title) return;
-    prev.current = current.title;
-    opacity.value = withSequence(withTiming(0, { duration: 180 }), withTiming(1, { duration: 280 }));
-  }, [current.title, opacity]);
-  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return (
-    <Animated.View style={[dm.wrap, fadeStyle]}>
-      <Text style={[dm.title, { color: th.text }]}>{current.title}</Text>
-      <Text style={[dm.sub, { color: th.textSub }]}>{current.sub}</Text>
-    </Animated.View>
-  );
-}
-
-const dm = StyleSheet.create({
-  wrap:  { alignItems: 'center', paddingHorizontal: 32 },
-  title: { fontSize: 22, textAlign: 'center', letterSpacing: 1, marginBottom: 7, fontFamily: FONTS.bebas, includeFontPadding: false },
-  sub:   { fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: FONTS.sans },
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PROVIDER MARKER (TRACKING)
-// ═══════════════════════════════════════════════════════════════════════════════
-function ProviderMarker() {
-  const theme = useAppTheme();
-  // Atterrissage : 0 → 1 avec un léger dépassement (ζ 0,8) au premier rendu,
-  // haptique success sur la frame d'impact, une seule fois (moment 2).
-  const [landed, setLanded] = useState(false);
-  useEffect(() => {
-    setLanded(true);
-    feedback.haptic('success');
-  }, []);
-  const { style } = useTakeScale(landed, { on: 1, off: 0, preset: MOTION.land });
-  return (
-    <Animated.View style={[pm.wrap, style]}>
-      <View style={[pm.pin, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-        <Feather name="navigation" size={14} color={theme.text} />
-      </View>
-      <View style={[pm.stem, { backgroundColor: theme.cardBg }]} />
-    </Animated.View>
-  );
-}
-
-const pm = StyleSheet.create({
-  wrap: { alignItems: 'center' },
-  pin: {
-    width: 30, height: 30, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 4 },
-    }),
-  },
-  stem: {
-    width: 2, height: 6, borderRadius: 1, marginTop: -1,
-  },
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 export default function MissionView() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<Record<string, string>>();
   const id = params.id;
-  const serviceName = params.serviceName;
-  const address = params.address;
-  const price = params.price;
-  const scheduledLabel = params.scheduledLabel;
-  const expiresAt = params.expiresAt;
-  const lat = params.lat;
-  const lng = params.lng;
-  const isScheduledMission = params.isScheduled === '1';
-  const isQuoteMission = params.isQuote === '1';
+  const invalidId = !id || !/^\d+$/.test(id);
+  const paramIsScheduled = params.isScheduled === '1';
   const { socket, joinRoom, leaveRoom } = useSocket();
   const { user: authUser } = useAuth();
-
-  const { t } = useTranslation();
-  // Guard: id is required. Le RETURN conditionnel est déplacé APRÈS tous les hooks
-  // (cf. plus bas) pour ne jamais changer le nombre de hooks entre deux renders.
-  const invalidId = !id || !/^\d+$/.test(id);
-  const theme = useAppTheme();
-  const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
+  const { initiateCall } = useCall();
+  const reduced = useReduceMotion();
+  const { height: windowHeight } = useLayoutClass();
   const mapRef = useRef<MapView>(null);
 
-  // ─── Phase state ─────────────────────────────────────────────────────────
-  // Démarre en LOADING : on ne connaît pas encore le statut réel de la demande.
-  // Tant qu'on n'a pas confirmé qu'elle est PUBLISHED (recherche en cours), on
-  // n'affiche PAS la "searching view" — sinon une notif vers une mission
-  // terminée/devis/annulée fait clignoter à tort l'écran de recherche.
-  const [phase, setPhase] = useState<Phase>('LOADING');
-  const phase01 = useSharedValue(0); // 0 = searching, 1 = tracking
-  const hasTransitionedRef = useRef(false); // guard anti-double-transition
-
-  // ─── Modal state ──────────────────────────────────────────────────────────
-  const [cancelSearchModal, setCancelSearchModal] = useState(false);
-  const [cancelTrackModal, setCancelTrackModal] = useState(false);
-
-  // ─── Searching state ──────────────────────────────────────────────────────
-  const [elapsed, setElapsed] = useState(0);
-  const [cancelling, setCancelling] = useState(false);
-  // Countdown removed — no timer shown to client during searching
-
-  // ─── Tracking state ───────────────────────────────────────────────────────
+  // ─── La demande et les faits ────────────────────────────────────────────
   const [request, setRequest] = useState<any>(null);
-  const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [eta, setEta] = useState('');
-  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
-  // Moment 2 : l'itinéraire se dessine du prestataire vers le client.
-  const visibleCount = useRevealCount(routeCoords.length, phase === 'TRACKING' && routeCoords.length > 0);
-  const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
-  const [message, setMessage] = useState('');
-  // Ref : vrai dès qu'on a reçu une position GPS réelle via socket
-  const hasRealLocationRef = useRef(false);
-  // State miroir (déclenche un re-render) : conditionne l'indicateur "LIVE · GPS"
-  // à la réception d'une vraie position — pas affiché tant qu'aucun GPS reçu.
-  const [hasLiveGps, setHasLiveGps] = useState(false);
-
-  // ─── PIN state ──────────────────────────────────────────────────────────
-  const [pinCode, setPinCode] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [arrived, setArrived] = useState(false);
   const [pinVerified, setPinVerified] = useState(false);
-  const [providerArrived, setProviderArrived] = useState(false);
+  const [pinCode, setPinCode] = useState<string | null>(null);
+  const [work, setWork] = useState<{ beforePhotoUrl: string | null; beforePhotoAt: string | null; afterPhotoUrl: string | null; afterPhotoAt: string | null } | null>(null);
+  const [startedAtLocal, setStartedAtLocal] = useState<string | null>(null);
+  const [justAccepted, setJustAccepted] = useState(false);
+  const [acceptedProviderId, setAcceptedProviderId] = useState<string | null>(null);
+  const [acceptedName, setAcceptedName] = useState<string | null>(null);
+  const [providerLocation, setProviderLocation] = useState<LatLng | null>(null);
+  const [hasLiveGps, setHasLiveGps] = useState(false);
+  const [etaMin, setEtaMin] = useState<number | null>(null);
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
+  const [cancelling, setCancelling] = useState(false);
+  const [viewer, setViewer] = useState<string | null>(null);
+  const viewerPhotos = useMemo(() => (viewer ? [{ id: 0, url: viewer, shotKey: null, width: 0, height: 0 }] : []), [viewer]);
+  const [now, setNow] = useState(() => Date.now());
+  const prevStatusRef = useRef<string | null>(null);
 
-  // ─── Conversation badge (provider → client) ──────────────────────────────
-  const providerUserId = request?.provider?.userId || request?.provider?.id || null;
-  const { count: unreadFromProvider, reset: resetUnread } = useConversationUnread(
-    providerUserId,
-    authUser?.id,
-  );
+  const stage: Stage = stageOf(request, { arrived, pinVerified, justAccepted, now });
+  const status = (request?.status || '').toUpperCase();
+  const brief: MissionBrief | null = useMemo(() => (request ? briefOf(request) : null), [request]);
+  const provider = request?.provider ?? null;
+  const firstName = providerFirstName(provider);
+  const clientCoord: LatLng = useMemo(() => ({
+    latitude: request?.lat ?? (params.lat ? parseFloat(params.lat) : 50.8466),
+    longitude: request?.lng ?? (params.lng ? parseFloat(params.lng) : 4.3528),
+  }), [request?.lat, request?.lng, params.lat, params.lng]);
+  const isQuote = isQuoteMode(brief?.money.pricingMode ?? brief?.service.pricingMode ?? request?.pricingMode);
+  const amount: number | null = request?.price != null && Number(request.price) > 0 ? Number(request.price) : null;
+  const calloutFee: number | null = brief?.money.calloutFee ?? null;
+  const startedAt: string | null = brief?.timeline.startedAt ?? startedAtLocal;
+  const onSearchMap = stage === 'searching' || (justAccepted && (stage === 'accepted' || stage === 'en_route' || stage === 'quote_pending'));
+  const onTrackingMap = !onSearchMap && (stage === 'en_route' || stage === 'at_door' || stage === 'ongoing' || stage === 'quote_pending' || stage === 'accepted');
+  const bandMode = stage === 'ongoing';
 
-  // ─── Shared ───────────────────────────────────────────────────────────────
-  // Entrée de page : fondu + glissé sur un ressort (cross-fade seul sous
-  // reduce-motion, règle 8).
-  const reducedMotion = useReduceMotion();
-  const { height: windowHeight } = useLayoutClass();
-  const entrance = useSharedValue(0);
-  const entranceStyle = useAnimatedStyle(() => ({
-    opacity: entrance.value,
-    transform: reducedMotion ? [] : [{ translateY: 40 * (1 - entrance.value) }],
-  }));
+  const providerUserId = provider?.userId || null;
+  const { count: unread, reset: resetUnread } = useConversationUnread(providerUserId, authUser?.id);
 
-  const clientLocation = {
-    latitude: lat ? parseFloat(lat) : request?.lat || 50.8503,
-    longitude: lng ? parseFloat(lng) : request?.lng || 4.3517,
-  };
+  // ─── Charger la demande, en tirer les faits ─────────────────────────────
+  const apply = useCallback((data: any) => {
+    if (!data) return;
+    setRequest(data);
+    if (data.pinCode) setPinCode(String(data.pinCode));
+    if (data.pinVerified) setPinVerified(true);
+    if (data.beforePhotoUrl || data.beforePhotoAt) setArrived(true);
+    setWork(workOf(data));
+    if (data.provider?.lat && data.provider?.lng) {
+      setProviderLocation((cur) => (hasLiveGps && cur ? cur : { latitude: data.provider.lat, longitude: data.provider.lng }));
+    }
+  }, [hasLiveGps]);
 
-  // Computed distance between provider and client (km)
-  const distance = providerLocation
-    ? calculateDistance(providerLocation.latitude, providerLocation.longitude, clientLocation.latitude, clientLocation.longitude)
-    : null;
-
-  // Extract numeric ETA from string (e.g. "21 minutes" → "21", "Arrivée dans 5 min" → "5")
-  const etaNumMatch = eta.match(/(\d+)/);
-  const etaNum = etaNumMatch ? etaNumMatch[1] : null;
-
-  // ─── Entrée page ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    entrance.value = reducedMotion ? withTiming(1, { duration: 200 }) : withSpring(1, MOTION.pane);
-  }, [entrance, reducedMotion]);
-
-  // ─── Elapsed (searching) — only for now-requests, not scheduled missions ───
-  useEffect(() => {
-    if (phase !== 'SEARCHING' || isScheduledMission) return;
-    const iv = setInterval(() => setElapsed(p => p + 1), 1000);
-    return () => clearInterval(iv);
-  }, [phase, isScheduledMission]);
-
-  // ─── Drift carte (SEARCHING) — only for urgent now-requests, static for scheduled
-  useEffect(() => {
-    if (phase !== 'SEARCHING' || isScheduledMission || !mapRef.current) return;
-    const radius = 0.004;
-    let angle = 0;
-    const iv = setInterval(() => {
-      angle += 0.15;
-      mapRef.current?.animateToRegion({
-        latitude:  clientLocation.latitude  + Math.sin(angle) * radius,
-        longitude: clientLocation.longitude + Math.cos(angle) * radius,
-        latitudeDelta:  0.025,
-        longitudeDelta: 0.025,
-      }, 3000);
-    }, 3000);
-    return () => clearInterval(iv);
-  }, [phase, isScheduledMission, clientLocation.latitude, clientLocation.longitude]);
-
-  // ─── Recenter map dès que la position client réelle est chargée ───────────
-  // Sans ça, la carte reste sur la région par défaut (Bruxelles) jusqu'à ce
-  // que le drift / le tracking ne fire — l'utilisateur ne voit pas son adresse.
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const clat = request?.lat ?? (lat ? parseFloat(lat) : null);
-    const clng = request?.lng ?? (lng ? parseFloat(lng) : null);
-    if (clat == null || clng == null) return;
-    mapRef.current.animateToRegion(
-      { latitude: clat, longitude: clng, latitudeDelta: 0.015, longitudeDelta: 0.015 },
-      600,
-    );
-  }, [request?.lat, request?.lng, lat, lng]);
-
-  // ─── Fetch PIN (silencieux — le 404 NO_PIN est un état normal) ───────────
-  const fetchPin = useCallback(async (requestId: string) => {
+  const load = useCallback(async () => {
+    if (!id) return;
     try {
-      const token = await (await import('@/lib/storage')).tokenStorage.getToken();
-      const baseUrl = (await import('@/lib/config')).default.apiUrl;
-      const res = await fetch(`${baseUrl}/requests/${requestId}/pin`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}),
-        },
-      });
-      if (!res.ok) return; // 404 NO_PIN = normal, pas encore généré
-      const data = await res.json();
-      if (data?.pinCode) setPinCode(data.pinCode);
-      if (data?.pinVerified) setPinVerified(true);
-    } catch { /* network error — ignore silently */ }
-  }, []);
-
-  // ─── Transition vers TRACKING ─────────────────────────────────────────────
-  const transitionToTracking = useCallback((requestData: any) => {
-    // Guard : évite la double-transition si le polling et le socket arrivent en même temps
-    if (hasTransitionedRef.current) return;
-    hasTransitionedRef.current = true;
-
-    setRequest(requestData);
-    if (requestData.beforePhotoUrl) setProviderArrived(true);
-    if (requestData.pinVerified) setPinVerified(true);
-
-    // Fix : set provider location depuis la réponse polling
-    if (requestData.provider?.lat && requestData.provider?.lng) {
-      setProviderLocation({
-        latitude: requestData.provider.lat,
-        longitude: requestData.provider.lng,
-      });
+      const res: any = await api.get(`/requests/${id}`);
+      apply(res?.data || res);
+    } catch (e: any) {
+      if (e?.status === 404 || e?.status === 403) setNotFound(true);
+      else devError('[MissionView] load', e);
     }
+  }, [id, apply]);
 
-    // Fix PIN : set directement depuis la réponse REST (évite race condition socket)
-    const resolvedPin = requestData.pinCode || null;
-    devLog('[MissionView] transitionToTracking — pinCode:', resolvedPin, 'pinVerified:', requestData.pinVerified);
-    if (resolvedPin) {
-      setPinCode(resolvedPin);
-    }
+  useEffect(() => { load(); }, [load]);
 
+  // Sondage : 15 s en recherche, 45 s en suivi (filet si le socket rate un fait).
+  useEffect(() => {
+    if (!id) return;
+    const every = onSearchMap || stage === 'loading' ? 15_000 : 45_000;
+    const iv = setInterval(load, every);
+    return () => clearInterval(iv);
+  }, [id, onSearchMap, stage, load]);
+
+  // « n MIN » de l'en-tête en cours : une fois par demi-minute suffit.
+  useEffect(() => {
+    if (stage !== 'ongoing') return;
+    const iv = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(iv);
+  }, [stage]);
+
+  // ─── Le moment « accepté » : sur la carte de recherche, 2,4 s ──────────
+  const beginAcceptedMoment = useCallback((providerId: string | null, name: string | null) => {
+    setAcceptedProviderId(providerId);
+    setAcceptedName(name);
+    setJustAccepted(true);
     feedback.haptic('success');
-    fetchPin(String(requestData.id)); // fallback si pinCode absent de la réponse
-
-    // Fix : setPhase AVANT l'animation pour que la PIN card s'affiche immédiatement
-    setPhase('TRACKING');
-    devLog('[MissionView] phase → TRACKING, pinCode:', resolvedPin);
-    phase01.value = withTiming(1, { duration: 600, easing: Easing.inOut(Easing.quad) });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchPin]);
-
-  // ─── ETA Google ──────────────────────────────────────────────────────────
-  const fetchETA = useCallback(async (oLat: number, oLng: number, dLat: number, dLng: number) => {
-    try {
-      if (!GOOGLE_MAPS_API_KEY) throw new Error('No key');
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.status === 'OK' && data.routes?.length > 0) {
-        setEta(data.routes[0].legs[0].duration.text);
-        // Decode route polyline
-        const encoded = data.routes[0].overview_polyline?.points;
-        if (encoded) setRouteCoords(decodePolyline(encoded));
-      } else throw new Error(data.status);
-    } catch {
-      setEta(fallbackETA(oLat, oLng, dLat, dLng));
-    }
   }, []);
-
-  // ─── Polling SEARCHING (5s) — s'arrête dès que phase passe en TRACKING ──
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pinPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    if (!id || (phase !== 'SEARCHING' && phase !== 'LOADING')) return;
-    const poll = async () => {
-      try {
-        const res = await api.get(`/requests/${id}`);
-        const data = res?.data || res;
-        devLog('[MissionView] poll data keys:', Object.keys(data || {}), 'pinCode:', data?.pinCode, 'status:', data?.status);
-        const status = (data?.status || '').toUpperCase();
-        // Tracking = prestataire en route ou sur place (ONGOING). Pour ACCEPTED, on bascule
-        // en tracking SEULEMENT si la demande est immédiate (rendez-vous dans <30 min) ;
-        // sinon (mission planifiée), on redirige vers le récap pour ne pas afficher un faux
-        // tracking alors que le prestataire ne bouge pas encore.
-        const startTs = data?.preferredTimeStart ? new Date(data.preferredTimeStart).getTime() : null;
-        const isFutureScheduled = startTs != null && startTs > Date.now() + 30 * 60 * 1000;
-        const isScheduled = isScheduledMission || isFutureScheduled;
-
-        if (status === 'ONGOING' || (status === 'ACCEPTED' && !isScheduled)) {
-          // Stop polling before transitioning
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          transitionToTracking(data);
-        } else if (status === 'ACCEPTED' && isScheduled) {
-          // Mission planifiée acceptée → récap, pas de tracking prématuré
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          router.replace({ pathname: '/request/[id]/scheduled', params: { id: String(id), mode: 'recap' } });
-        } else if (status === 'QUOTE_PENDING') {
-          // Provider est en train de préparer le devis → écran d'attente dédié.
-          // Stoppe le polling pour éviter de tourner indéfiniment depuis missionview
-          // (l'écran quote-pending gère son propre polling).
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          router.replace({ pathname: '/request/[id]/quote-pending', params: { id: String(id) } });
-        } else if (status === 'QUOTE_SENT') {
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          feedback.haptic('success');
-          router.replace({ pathname: '/request/[id]/quote-review', params: { id: String(id) } });
-        } else if (status === 'QUOTE_REFUSED' || status === 'QUOTE_EXPIRED') {
-          // Quote refused/expired — stop polling, redirect to dashboard
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          feedback.haptic('warning');
-          router.replace('/(tabs)/dashboard');
-        } else if (status === 'QUOTE_ACCEPTED') {
-          // Devis accepté → le backend bascule vers ACCEPTED/ONGOING. On GARDE le
-          // polling actif (loader) jusqu'à la transition, sinon on resterait bloqué
-          // sur un écran de chargement (ou pire, sur la searching view).
-        } else if (['CANCELLED', 'EXPIRED', 'COMPLETED', 'DONE'].includes(status)) {
-          // Stop polling on terminal statuses
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          feedback.haptic('error');
-          router.replace('/(tabs)/dashboard');
-        } else if (status === 'PUBLISHED') {
-          // Demande encore en recherche de prestataire → c'est le SEUL cas où la
-          // searching view est légitime. On y bascule depuis LOADING.
-          if (phase !== 'SEARCHING') setPhase('SEARCHING');
-        } else if (status === 'PENDING_PAYMENT') {
-          // Paiement pas finalisé → reprise paiement, pas la carte de recherche.
-          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-          router.replace({ pathname: '/request/[id]/resume-payment', params: { id: String(id) } });
-        }
-      } catch (e) { devError('[MissionView] poll:', e); }
-    };
-    poll();
-    pollingRef.current = setInterval(poll, 15000);
-    return () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, phase]);
-
-  // Countdown auto-redirect removed — backend handles expiration via cron
-
-  // ─── Polling PIN de sécurité (fallback si socket raté) ────────────────────
-  useEffect(() => {
-    if (phase !== 'TRACKING' || pinCode || pinVerified) return;
-
-    fetchPin(id);
-    pinPollRef.current = setInterval(() => fetchPin(id), 10000);
-
-    return () => {
-      if (pinPollRef.current) { clearInterval(pinPollRef.current); pinPollRef.current = null; }
-    };
-  }, [phase, pinCode, pinVerified, id, fetchPin]);
-
-  useEffect(() => {
-    if (pinCode && pinPollRef.current) {
-      clearInterval(pinPollRef.current);
-      pinPollRef.current = null;
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status || prev;
+    if (prev === 'PUBLISHED' && (status === 'ACCEPTED' || status === 'QUOTE_PENDING') && !isFutureScheduled(request?.preferredTimeStart, now)) {
+      beginAcceptedMoment(request?.provider?.id != null ? String(request.provider.id) : null, providerName(request?.provider));
     }
-  }, [pinCode]);
-
-  // ─── Polling lent en TRACKING (complément du socket, toutes les 45 s) ──────
-  // En phase TRACKING tout repose sur le socket (sauf le PIN). Si le socket se
-  // déconnecte, complétion/annulation ne sont jamais rattrapées et l'écran reste
-  // figé "en route". Ce poll lent est le filet de sécurité pour les statuts terminaux.
+  }, [status, request?.preferredTimeStart, request?.provider, now, beginAcceptedMoment]);
   useEffect(() => {
-    if (phase !== 'TRACKING' || !id) return;
-    const poll = async () => {
-      try {
-        const res = await api.get(`/requests/${id}`);
-        const data = res?.data || res;
-        const st = (data?.status || '').toUpperCase();
-        if (st === 'DONE' || st === 'COMPLETED') {
-          if (isCompletionHandled(id)) return; // SocketContext / socket a déjà pris la main
-          markCompletionHandled(id);
-          feedback.haptic('success');
-          showToast(t('mission_view.mission_completed'), 'success');
-          router.replace({ pathname: '/request/[id]/rating', params: { id: String(id) } });
-        } else if (st === 'CANCELLED') {
-          showToast(t('mission_view.mission_cancelled'), 'error');
-          router.replace('/(tabs)/dashboard');
-        }
-      } catch (e) { devError('[MissionView] tracking poll:', e); }
-    };
-    const iv = setInterval(poll, 45000);
-    return () => clearInterval(iv);
+    if (!justAccepted) return;
+    const tm = setTimeout(() => setJustAccepted(false), reduced ? 0 : ACCEPTED_MOMENT_MS);
+    return () => clearTimeout(tm);
+  }, [justAccepted, reduced]);
+
+  // ─── Redirections : les stades qui ne se rendent pas ici ────────────────
+  useEffect(() => {
+    if (!id) return;
+    const rid = String(id);
+    if (stage === 'pending_payment') router.replace({ pathname: '/request/[id]/resume-payment', params: { id: rid } });
+    else if (stage === 'quote_sent') { feedback.haptic('success'); router.replace({ pathname: '/request/[id]/quote-review', params: { id: rid } }); }
+    else if (stage === 'scheduled') router.replace({ pathname: '/request/[id]/scheduled', params: { id: rid, mode: 'recap' } });
+    else if (stage === 'done') {
+      if (isCompletionHandled(rid)) return;
+      markCompletionHandled(rid);
+      router.replace({ pathname: '/request/[id]/rating', params: { id: rid } });
+    } else if (stage === 'terminal') {
+      feedback.haptic('warning');
+      router.replace('/(tabs)/dashboard');
+    }
+  }, [stage, id, router]);
+
+  // ─── Itinéraire et ETA ──────────────────────────────────────────────────
+  const lastRouteFetch = useRef(0);
+  const updateRoute = useCallback(async (from: LatLng, force = false) => {
+    const t0 = Date.now();
+    if (!force && t0 - lastRouteFetch.current < 30_000) return;
+    lastRouteFetch.current = t0;
+    const r = await fetchRoute(from, clientCoord);
+    setEtaMin(r.etaMin);
+    if (r.coords.length) setRouteCoords(r.coords);
+  }, [clientCoord]);
+  useEffect(() => {
+    if (!providerLocation || !onTrackingMap || bandMode) return;
+    updateRoute(providerLocation, routeCoords.length === 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, id]);
+  }, [providerLocation, onTrackingMap, bandMode]);
+  const visibleCount = useRevealCount(routeCoords.length, onTrackingMap && routeCoords.length > 0);
+  const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
+  const distance = providerLocation ? distanceKm(providerLocation, clientCoord) : null;
 
-  // ─── PIN — affichage inline dans la sheet de tracking ────────────────────
-  // Plus de navigation vers /request/[id]/pin : le code est désormais visible
-  // directement dans la card PIN du tracking sheet (cf. block "PIN Card" ci-dessous).
-
-  // ─── Socket (TRACKING) ────────────────────────────────────────────────────
-  const destRef = useRef<{ lat: number; lng: number } | null>(null);
+  // ─── La carte suit, puis se resserre, puis s'efface ─────────────────────
   useEffect(() => {
-    if (request?.lat && request?.lng) destRef.current = { lat: request.lat, lng: request.lng };
-  }, [request]);
+    if (!mapRef.current || !onTrackingMap) return;
+    if (stage === 'at_door' || bandMode) {
+      mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.004, longitudeDelta: 0.004 }, reduced ? 0 : 600);
+    } else if (providerLocation) {
+      mapRef.current.fitToCoordinates([providerLocation, clientCoord], { edgePadding: { top: 120, right: 60, bottom: Math.round(windowHeight * SHEET_MAX_RATIO) + 40, left: 60 }, animated: !reduced });
+    } else {
+      mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.015, longitudeDelta: 0.015 }, reduced ? 0 : 600);
+    }
+  }, [stage, bandMode, onTrackingMap, providerLocation, clientCoord, windowHeight, reduced]);
 
+  // ─── Sockets ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket || !id) return;
-    joinRoom('request', id);
+    const rid = String(id);
+    const same = (d: any) => String(d?.requestId ?? d?.id) === rid;
+    joinRoom('request', rid);
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
-    // Track deferred navigations so we can cancel them on unmount or effect
-    // re-run — otherwise a 1.8–2s setTimeout can fire router.replace() into
-    // an already-unmounted screen or after the user tapped something else.
-    const deferredNavTimers: ReturnType<typeof setTimeout>[] = [];
-
-    let lastEtaFetch = 0;
-    const onLocation = async (data: any) => {
-      if (String(data.requestId) !== String(id)) return;
-      hasRealLocationRef.current = true;
+    const onAccepted = (d: any) => {
+      if (!same(d)) return;
+      beginAcceptedMoment(d?.providerId != null ? String(d.providerId) : null, d?.providerName ?? null);
+      load();
+    };
+    const onLocation = (d: any) => {
+      if (!same(d) || typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
+      const loc = { latitude: d.lat, longitude: d.lng };
       setHasLiveGps(true);
-      const loc = { latitude: data.lat, longitude: data.lng };
       setProviderLocation(loc);
-      // Throttle ETA fetch to max 1 per 30 seconds
-      const now = Date.now();
-      if (destRef.current && now - lastEtaFetch >= 30_000) {
-        lastEtaFetch = now;
-        await fetchETA(data.lat, data.lng, destRef.current.lat, destRef.current.lng);
-      } else if (data.eta) {
-        setEta(data.eta);
-      }
-      // Fit map to show both provider and destination pins
-      if (destRef.current) {
-        mapRef.current?.fitToCoordinates(
-          [loc, { latitude: destRef.current.lat, longitude: destRef.current.lng }],
-          { edgePadding: { top: 80, right: 60, bottom: 380, left: 60 }, animated: true }
-        );
-      } else {
-        mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+      if (metersBetween(loc.latitude, loc.longitude, clientCoord.latitude, clientCoord.longitude) <= ARRIVAL_RADIUS_M) {
+        setArrived((was) => { if (!was) feedback.haptic('success'); return true; });
       }
     };
-
-    const onStarted = (data: any) => {
-      if (String(data.id || data.requestId) === String(id))
-        setRequest((p: any) => p ? { ...p, status: 'ONGOING' } : p);
+    const onStarted = (d: any) => {
+      if (!same(d)) return;
+      setStartedAtLocal((cur) => cur ?? new Date().toISOString());
+      setRequest((p: any) => (p ? { ...p, status: 'ONGOING' } : p));
     };
-
-    const onStatusUpdated = (data: any) => {
-      if (String(data.requestId) !== String(id)) return;
-      const st = data.status?.toUpperCase();
-      if (st === 'QUOTE_SENT') {
-        feedback.haptic('success');
-        router.replace({ pathname: '/request/[id]/quote-review', params: { id: String(id) } });
-      } else if (st === 'QUOTE_REFUSED' || st === 'QUOTE_EXPIRED') {
-        feedback.haptic('warning');
-        router.replace('/(tabs)/dashboard');
-      } else if (st === 'ONGOING') {
-        // Quote accepted and paid — reload request data for tracking
-        api.get(`/requests/${id}`).then((res: any) => {
-          const d = res?.data || res;
-          if (d) transitionToTracking(d);
-        }).catch(() => {});
-      }
+    const onPinReady = (d: any) => { if (same(d) && d.pinCode) setPinCode(String(d.pinCode)); };
+    const onBeforePhoto = (d: any) => {
+      if (!same(d)) return;
+      setArrived((was) => { if (!was) feedback.haptic('success'); return true; });
+      setWork((w) => ({ ...(w ?? { beforePhotoUrl: null, beforePhotoAt: null, afterPhotoUrl: null, afterPhotoAt: null }), beforePhotoUrl: d.photoUrl ?? w?.beforePhotoUrl ?? null, beforePhotoAt: w?.beforePhotoAt ?? new Date().toISOString() }));
     };
-
-    const onCompleted = (data: any) => {
-      if (String(data.requestId) === String(id)) {
-        if (isCompletionHandled(id)) return; // SocketContext a déjà pris la main
-        markCompletionHandled(id);
-        feedback.haptic('success');
-        showToast(t('mission_view.mission_completed'), 'success');
-        deferredNavTimers.push(setTimeout(() => router.replace({
-          pathname: '/request/[id]/rating',
-          params: { id: String(id) },
-        }), 2000));
-      }
+    const onAfterPhoto = (d: any) => {
+      if (!same(d)) return;
+      setWork((w) => ({ ...(w ?? { beforePhotoUrl: null, beforePhotoAt: null, afterPhotoUrl: null, afterPhotoAt: null }), afterPhotoUrl: d.photoUrl ?? w?.afterPhotoUrl ?? null, afterPhotoAt: w?.afterPhotoAt ?? new Date().toISOString() }));
     };
-
-    const onCancelled = (data: any) => {
-      if (String(data.requestId || data.id) === String(id)) {
-        showToast(t('mission_view.mission_cancelled'), 'error');
-        deferredNavTimers.push(setTimeout(() => router.replace('/(tabs)/dashboard'), 1800));
-      }
+    const onPinVerified = (d: any) => {
+      if (!same(d)) return;
+      setPinVerified(true);
+      setStartedAtLocal((cur) => cur ?? new Date().toISOString());
+      feedback.haptic('success');
+      load();
     };
-
-    // ── PIN / photo events ──────────────────────────────────────────────────
-    const onPinReady = (data: any) => {
-      if (String(data.requestId) === String(id) && data.pinCode) {
-        setPinCode(data.pinCode);
-      }
+    const onCompleted = (d: any) => {
+      if (!same(d)) return;
+      setRequest((p: any) => (p ? { ...p, status: 'DONE' } : p));
     };
-
-    const onBeforePhoto = (data: any) => {
-      if (String(data.requestId) === String(id)) {
-        setProviderArrived(true);
-        // La navigation vers /pin est gérée par le useEffect dédié
-      }
+    const onCancelled = (d: any) => {
+      if (!same(d)) return;
+      feedback.toast(t('mission_view.mission_cancelled'), 'error');
+      timers.push(setTimeout(() => router.replace('/(tabs)/dashboard'), 1200));
     };
-
-    const onPinVerified = (data: any) => {
-      if (String(data.requestId) === String(id)) {
-        setPinVerified(true);
-        showToast(t('ext.missionview_pin_verified_toast'), 'success');
-      }
-    };
-
-    // ── Reassigning : le prestataire s'est désisté, on cherche un remplaçant.
-    // On rebascule l'écran en phase SEARCHING en réinitialisant les states liés
-    // au tracking (PIN, position provider, request data partielle).
-    const onReassigning = (data: any) => {
-      if (String(data.requestId) !== String(id)) return;
+    const onReassigning = (d: any) => {
+      if (!same(d)) return;
       feedback.haptic('warning');
-      showToast(t('ext.missionview_reassigning_toast'), 'info');
-      hasTransitionedRef.current = false;
-      hasRealLocationRef.current = false;
-      setHasLiveGps(false);
-      setPinCode(null);
-      setPinVerified(false);
-      setProviderArrived(false);
-      setProviderLocation(null);
-      setRouteCoords([]);
-      setEta('');
-      setRequest((p: any) => p ? { ...p, status: 'PUBLISHED', providerId: null, provider: null, pinCode: null, pinVerified: false } : p);
-      setPhase('SEARCHING');
-      phase01.value = withTiming(0, { duration: 400, easing: Easing.inOut(Easing.quad) });
+      feedback.toast(t('ext.missionview_reassigning_toast'), 'info');
+      setArrived(false); setPinVerified(false); setPinCode(null); setJustAccepted(false);
+      setAcceptedProviderId(null); setAcceptedName(null); setProviderLocation(null); setHasLiveGps(false);
+      setEtaMin(null); setRouteCoords([]); setStartedAtLocal(null);
+      prevStatusRef.current = 'PUBLISHED';
+      setRequest((p: any) => (p ? { ...p, status: 'PUBLISHED', providerId: null, provider: null, pinCode: null, pinVerified: false } : p));
     };
+    const onStatusUpdated = (d: any) => { if (same(d)) load(); };
 
+    socket.on('request:accepted', onAccepted);
+    socket.on('provider:accepted', onAccepted);
     socket.on('provider:location_update', onLocation);
     socket.on('request:started', onStarted);
+    socket.on('mission:pin_ready', onPinReady);
+    socket.on('mission:before_photo', onBeforePhoto);
+    socket.on('mission:after_photo', onAfterPhoto);
+    socket.on('mission:pin_verified', onPinVerified);
     socket.on('request:completed', onCompleted);
     socket.on('request:cancelled', onCancelled);
     socket.on('request:reassigning', onReassigning);
-    socket.on('mission:pin_ready', onPinReady);
-    socket.on('mission:before_photo', onBeforePhoto);
-    socket.on('mission:pin_verified', onPinVerified);
     socket.on('request:statusUpdated', onStatusUpdated);
     return () => {
-      leaveRoom('request', id);
-      deferredNavTimers.forEach(clearTimeout);
+      leaveRoom('request', rid);
+      timers.forEach(clearTimeout);
+      socket.off('request:accepted', onAccepted);
+      socket.off('provider:accepted', onAccepted);
       socket.off('provider:location_update', onLocation);
       socket.off('request:started', onStarted);
+      socket.off('mission:pin_ready', onPinReady);
+      socket.off('mission:before_photo', onBeforePhoto);
+      socket.off('mission:after_photo', onAfterPhoto);
+      socket.off('mission:pin_verified', onPinVerified);
       socket.off('request:completed', onCompleted);
       socket.off('request:cancelled', onCancelled);
       socket.off('request:reassigning', onReassigning);
-      socket.off('mission:pin_ready', onPinReady);
-      socket.off('mission:before_photo', onBeforePhoto);
-      socket.off('mission:pin_verified', onPinVerified);
       socket.off('request:statusUpdated', onStatusUpdated);
     };
-  }, [socket, id, fetchETA, joinRoom, leaveRoom]);
-
-  // ─── Set provider location depuis request initial ─────────────────────────
-  // N'écrase JAMAIS l'ETA si on a déjà reçu une position réelle via socket
-  // (évite le bug : request:started → setRequest → useEffect → reset ETA)
-  useEffect(() => {
-    if (!request) return;
-    if (request.provider?.lat && request.provider?.lng) {
-      const loc = { latitude: request.provider.lat, longitude: request.provider.lng };
-      setProviderLocation(loc);
-      if (!hasRealLocationRef.current && request.lat && request.lng) {
-        fetchETA(request.provider.lat, request.provider.lng, request.lat, request.lng);
-      }
-    } else if (!hasRealLocationRef.current) {
-      // Seulement si aucun GPS réel reçu — ne pas écraser l'ETA du socket
-      setEta(t('mission_view.waiting_location'));
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request]);
+  }, [socket, id, clientCoord.latitude, clientCoord.longitude, load, beginAcceptedMoment]);
 
-  // ─── Annuler (SEARCHING) ──────────────────────────────────────────────────
-  const handleCancelSearching = useCallback(() => {
-    setCancelSearchModal(true);
-  }, []);
-
-  const doConfirmCancelSearching = useCallback(async () => {
-    setCancelSearchModal(false);
+  // ─── Actions ─────────────────────────────────────────────────────────────
+  const cancel = useCallback(async () => {
+    const searching = onSearchMap;
+    const ok = await feedback.confirm({
+      titleKey: searching ? 'mission_view.cancel_search' : 'mission_view.cancel_mission',
+      messageKey: searching ? 'mission_view.cancel_search_msg' : 'mission_view.cancel_confirm_msg',
+      confirmKey: 'missions.yes_cancel',
+      cancelKey: 'common.continue',
+    });
+    if (!ok) return;
     setCancelling(true);
     try {
       await api.post(`/requests/${id}/cancel`);
       feedback.haptic('warning');
       router.replace('/(tabs)/dashboard');
-    } catch {
-      showToast(t('mission_view.cancel_failed'), 'error');
+    } catch (e: any) {
       setCancelling(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, router]);
-
-  // ─── Annuler (TRACKING) ───────────────────────────────────────────────────
-  // useCallback avec status en dep pour qu'openActionsMenu lise toujours la valeur fraîche.
-  // Le guard ONGOING est traité via confirm (pas toast) car le toast peut être invisible
-  // selon la pile UI active — un confirm garantit que le client voit l'explication.
-  const handleCancelTracking = useCallback(async () => {
-    const status = (request?.status || '').toUpperCase();
-    if (status === 'ONGOING') {
-      const ok = await feedback.confirm({ titleKey: 'missions.ongoing', messageKey: 'mission_view.mission_ongoing_contact', confirmKey: 'mission_view.contact_support', cancelKey: 'common.close' });
-      if (ok) router.push('/settings/help');
-      return;
-    }
-    setCancelTrackModal(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request?.status, router]);
-
-  const doConfirmCancelTracking = async () => {
-    setCancelTrackModal(false);
-    try {
-      await api.post(`/requests/${id}/cancel`);
-      showToast(t('mission_view.mission_was_cancelled'), 'info');
-      setTimeout(() => router.replace('/(tabs)/dashboard'), 1600);
-    } catch (error: any) {
-      const code = error?.data?.code || error?.response?.data?.code;
-      if (code === 'INVALID_STATE' || error?.status === 400) {
-        // L'état serveur a changé entre l'ouverture de la modale et la confirmation
-        // (ex : le prestataire a démarré la mission entre-temps). On refresh + on explique.
-        try {
-          const res: any = await api.get(`/requests/${id}`);
-          setRequest(res?.data || res);
-        } catch { /* ignore */ }
-        const ok = await feedback.confirm({ titleKey: 'common.error', messageKey: 'mission_view.state_updated', confirmKey: 'mission_view.contact_support', cancelKey: 'common.close' });
-        if (ok) router.push('/settings/help');
+      const code = e?.data?.code;
+      if (code === 'INVALID_STATE' || e?.status === 400) {
+        await load();
+        const go = await feedback.confirm({ titleKey: 'common.error', messageKey: 'mission_view.state_updated', confirmKey: 'mission_view.contact_support', cancelKey: 'common.close' });
+        if (go) router.push('/settings/help');
       } else {
-        feedback.error('mission_view.cancel_mission_failed');
+        feedback.error(searching ? 'mission_view.cancel_failed' : 'mission_view.cancel_mission_failed');
       }
     }
-  };
+  }, [id, onSearchMap, router, load]);
 
-  // ─── Menu d'actions (ellipsis en haut à droite) ──────────────────────────
-  const openActionsMenu = useCallback(async () => {
-    const goSupport = () => router.push('/settings/help');
+  const openMenu = useCallback(async () => {
+    const options = bandMode
+      ? [{ labelKey: 'mission_view.contact_support' }]
+      : [{ labelKey: 'mission_view.contact_support' }, { labelKey: 'mission_view.cancel_mission', destructive: true }];
+    const choice = await feedback.actionSheet({ titleKey: 'missions.options', options, cancelKey: 'common.close' });
+    if (choice === 0) router.push('/settings/help');
+    else if (choice === 1) cancel();
+  }, [bandMode, router, cancel]);
 
-    const choice = await feedback.actionSheet({
-      titleKey: 'missions.options',
-      options: [
-        { labelKey: 'mission_view.contact_support' },
-        { labelKey: 'mission_view.cancel_mission', destructive: true },
-      ],
-      cancelKey: 'common.close',
-    });
-    if (choice === 0) goSupport();
-    else if (choice === 1) handleCancelTracking();
-  }, [router, handleCancelTracking]);
-
-  // ─── Actions communication ───────────────────────────────────────────────
-  const handleCall = useCallback(() => {
-    const phone = request?.provider?.phone;
-    if (!phone) {
-      showToast(t('mission_view.phone_unavailable'), 'error');
-      return;
+  const call = useCallback(() => {
+    if (!provider) return;
+    const name = providerName(provider);
+    if (provider.userId && socket) {
+      initiateCall({ targetUserId: String(provider.userId), targetName: name, requestId: String(id) });
+    } else if (provider.phone) {
+      Linking.openURL(`tel:${String(provider.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
+    } else {
+      feedback.error('mission_view.phone_unavailable');
     }
-    const url = `tel:${phone.replace(/\s+/g, '')}`;
-    Linking.canOpenURL(url).then((supported) => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        showToast(t('mission_view.call_failed'), 'error');
-      }
-    }).catch(() => showToast(t('mission_view.call_failed'), 'error'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request]);
+  }, [provider, socket, initiateCall, id]);
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return;
-    const recipientId = request?.provider?.userId || request?.provider?.id;
-    if (!recipientId) {
-      showToast(t('mission_view.provider_not_found'), 'error');
-      return;
+  const message = useCallback(() => {
+    const uid = provider?.userId || provider?.id;
+    if (!uid) { feedback.error('mission_view.provider_not_found'); return; }
+    resetUnread();
+    router.push({ pathname: '/messages/[userId]', params: { userId: String(uid), name: providerName(provider), requestId: String(id) } });
+  }, [provider, id, router, resetUnread]);
+
+  const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
+  const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
+
+  // ─── Géométrie animée : carte pleine ↔ bandeau, feuille ancrée en bas ──
+  const bandH = insets.top + BAND_HEIGHT;
+  const band = useSharedValue(bandMode ? 1 : 0);
+  useEffect(() => {
+    band.value = reduced ? withTiming(bandMode ? 1 : 0, { duration: 150 }) : withSpring(bandMode ? 1 : 0, MOTION.pane);
+  }, [bandMode, reduced, band]);
+  const [sheetContentH, setSheetContentH] = useState(0);
+  const sheetFullTop = windowHeight - Math.min(sheetContentH + insets.bottom + 40, windowHeight * SHEET_MAX_RATIO);
+  const mapStyle = useAnimatedStyle(() => ({ height: windowHeight - band.value * (windowHeight - bandH) }));
+  const sheetStyle = useAnimatedStyle(() => ({ top: sheetFullTop + band.value * (bandH - 26 - sheetFullTop) }));
+  const trackingEntrance = useEntrance(24);
+  useEffect(() => { if (onTrackingMap) trackingEntrance.replay(); }, [onTrackingMap]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Contenu de la feuille par stade ────────────────────────────────────
+  const sheet = useMemo(() => {
+    if (!brief) return null;
+    const sinceMin = minutesSince(startedAt, now);
+    const end = plannedEnd({ timeline: { ...brief.timeline, startedAt }, service: brief.service });
+    const promise = isQuote ? (amount != null ? t('tracking.quote_promise') : t('tracking.callout_promise')) : t('tracking.fixed_promise');
+    const moneyAmount = amount ?? (isQuote ? calloutFee : null);
+    const moneyCaption = amount != null ? t('mission.ttc') : (isQuote ? t('mission.callout') : t('mission.ttc'));
+    const requestRow = <RequestRow brief={brief} amount={moneyAmount} amountCaption={moneyCaption} />;
+    const providerRow = provider ? <View style={{ marginTop: 14 }}><ProviderRow provider={provider} unread={unread} onMessage={message} onCall={call} onOpenProfile={openProfile} /></View> : null;
+
+    if (stage === 'quote_pending') {
+      return (
+        <>
+          <StageHeader stageKey="quote" kicker={t('tracking.quote_kicker')} title={t('tracking.quote_title', { name: firstName })} sub={t('tracking.quote_sub')} />
+          <QuoteSteps calloutFee={calloutFee} current={arrived ? '72h' : 'diag'} />
+          {providerRow}
+          {requestRow}
+          <Pressable onPress={cancel} disabled={cancelling} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: COLORS.red }]}>{t('missions.cancel')}</Text></Pressable>
+        </>
+      );
     }
-    const text = message.trim();
-    setMessage('');
-    try {
-      await api.messages.send(recipientId, text);
-      showToast(t('mission_view.message_sent'), 'success');
-    } catch {
-      showToast(t('mission_view.message_failed'), 'error');
-      setMessage(text);
+    if (stage === 'at_door') {
+      return (
+        <>
+          <StageHeader stageKey="at_door" kicker={t('tracking.arrived', { time: formatClock(brief.timeline.arrivedAt ?? work?.beforePhotoAt ?? now) })} title={t('tracking.at_door_title', { name: firstName })} />
+          {pinCode ? <PinCard code={pinCode} mode="hero" name={firstName} /> : null}
+          {providerRow}
+          <Text style={[s.reassurance, { color: theme.textMuted }]}>{t('tracking.at_door_reassurance')}</Text>
+        </>
+      );
     }
-  };
-
-  // ─── Map region ──────────────────────────────────────────────────────────
-  const mapRegion = {
-    latitude:  clientLocation.latitude,
-    longitude: clientLocation.longitude,
-    latitudeDelta:  phase === 'SEARCHING' ? 0.025 : 0.015,
-    longitudeDelta: phase === 'SEARCHING' ? 0.025 : 0.015,
-  };
-
-  const status = (request?.status || '').toUpperCase();
-
-  // ─── Slide animation pour bottom sheets ──────────────────────────────────
-  const trackingSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: interpolate(phase01.value, [0, 1], [400, 0]) }],
-  }));
-
-  // ═════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═════════════════════════════════════════════════════════════════════════
-  // Guard id invalide — placé APRÈS tous les hooks (rules of hooks respectées).
-  if (invalidId) {
+    if (stage === 'ongoing') {
+      const rows: TimelineRow[] = [];
+      const arrivedAt = brief.timeline.arrivedAt ?? work?.beforePhotoAt;
+      if (arrivedAt) rows.push({ key: 'arrived', time: formatClock(arrivedAt), label: t('tracking.tl_arrived') });
+      if (startedAt) rows.push({ key: 'started', time: formatClock(startedAt), label: t('tracking.tl_started') });
+      if (work?.beforePhotoUrl) rows.push({ key: 'before', time: formatClock(work.beforePhotoAt ?? arrivedAt ?? startedAt), label: t('tracking.tl_before_photo'), sub: t('tracking.tl_by', { name: firstName }), photoUrl: work.beforePhotoUrl, onPhoto: () => setViewer(work.beforePhotoUrl) });
+      if (work?.afterPhotoUrl) rows.push({ key: 'after', time: formatClock(work.afterPhotoAt), label: t('tracking.tl_after_photo'), sub: t('tracking.tl_by', { name: firstName }), photoUrl: work.afterPhotoUrl, onPhoto: () => setViewer(work.afterPhotoUrl) });
+      if (end && !work?.afterPhotoUrl) rows.push({ key: 'end', time: formatClock(end), label: t('tracking.tl_end_planned'), sub: brief.service.durationMinutes ? t('tracking.tl_usual_duration', { n: brief.service.durationMinutes }) : null, next: true });
+      return (
+        <>
+          <StageHeader stageKey="ongoing" live kicker={t('tracking.ongoing', { n: sinceMin ?? 0 })} title={t('tracking.ongoing_title', { name: firstName })} sub={end ? t('tracking.ongoing_sub', { time: formatClock(end) }) : t('tracking.ongoing_sub_no_end')} />
+          {rows.length ? <WorkTimeline rows={rows} /> : null}
+          <MoneyLine amount={moneyAmount} caption={moneyCaption} promise={promise} />
+          {requestRow}
+          <Pressable onPress={() => router.push('/settings/help')} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.textMuted }]}>{t('tracking.support_link')}</Text></Pressable>
+        </>
+      );
+    }
+    // en_route (et le très court « accepted » si la carte de recherche n'est plus là)
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>{t('mission_view.mission_not_found')}</Text>
+      <>
+        <StageHeader stageKey="en_route" live={hasLiveGps} kicker={hasLiveGps ? `${t('tracking.en_route')} · ${t('tracking.live_gps')}` : t('tracking.en_route')} />
+        <EtaHero etaMin={etaMin} distanceKm={distance} hasGps={hasLiveGps || !!providerLocation} />
+        {providerRow}
+        {pinCode ? <PinCard code={pinCode} mode="compact" name={firstName} /> : null}
+        {requestRow}
+      </>
+    );
+  }, [brief, stage, startedAt, now, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router]);
+
+  // ═════════════════════════════════════════════════════════════════════════
+  if (invalidId || notFound) {
+    return (
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <Text style={[s.notFound, { color: theme.textSub }]}>{t('mission_view.mission_not_found')}</Text>
+        <Pressable onPress={back} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.text }]}>{t('common.back')}</Text></Pressable>
       </SafeAreaView>
     );
   }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* ── LOADING ── statut pas encore connu : loader neutre, surtout PAS la
-          searching view (qui ne vaut que pour une demande en recherche) ── */}
-      {phase === 'LOADING' && (
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }]}>
-          <ActivityIndicator size="large" color={theme.accent} />
+      {stage === 'loading' && (
+        <View style={[StyleSheet.absoluteFillObject, s.center]}>
+          <ActivityIndicator size="large" color={theme.accent as string} />
         </View>
       )}
 
-      {/* ── CARTE ── rendue uniquement en TRACKING (l'overlay LiveMapSearching
-          porte sa propre carte pour éviter un double MapView) ── */}
-      {phase === 'TRACKING' && (
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        provider={PROVIDER_GOOGLE}
-        customMapStyle={mapStyle}
-        initialRegion={mapRegion}
-        scrollEnabled={phase === 'TRACKING'}
-        zoomEnabled={phase === 'TRACKING'}
-        showsUserLocation={false}
-        showsPointsOfInterest={false}
-        showsBuildings={false}
-      >
-        {/* Marker client — toujours */}
-        <Marker coordinate={clientLocation} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={s.clientMarker}>
-            <View style={[s.clientMarkerInner, { backgroundColor: theme.accent, borderColor: theme.cardBg }]} />
-          </View>
-        </Marker>
-
-        {/* Itinéraire prestataire → client */}
-        {phase === 'TRACKING' && routeCoords.length > 0 && (
-          <Polyline
-            coordinates={visibleRoute}
-            strokeColor={theme.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(26,26,26,0.4)'}
-            strokeWidth={3}
-            lineDashPattern={[0]}
-          />
-        )}
-
-        {/* Marker prestataire — seulement en TRACKING */}
-        {phase === 'TRACKING' && providerLocation && (
-          <Marker coordinate={providerLocation} anchor={{ x: 0.5, y: 0.5 }}>
-            <ProviderMarker />
-          </Marker>
-        )}
-
-      </MapView>
+      {onSearchMap && brief && (
+        <LiveMapSearching
+          missionId={String(id)}
+          missionCoord={clientCoord}
+          brief={brief}
+          expiresAt={params.expiresAt || null}
+          cancelling={cancelling}
+          isScheduled={paramIsScheduled || isFutureScheduled(request?.preferredTimeStart, now)}
+          scheduledLabel={params.scheduledLabel || null}
+          acceptedName={justAccepted ? (acceptedName ?? providerName(provider)) : null}
+          acceptedProviderId={justAccepted ? (acceptedProviderId ?? (provider?.id != null ? String(provider.id) : null)) : null}
+          onCancel={cancel}
+        />
       )}
 
-      {/* ── PHASE SEARCHING : live map + bottom sheet ── */}
-      {phase === 'SEARCHING' && (
-        <Animated.View
-          style={[StyleSheet.absoluteFillObject, entranceStyle]}
-          pointerEvents="box-none"
-        >
-          <LiveMapSearching
-            missionId={id}
-            missionCoord={clientLocation}
-            brief={request ? briefOf(request) : briefOf({ id, serviceType: serviceName, address, price, scheduledFor: null })}
-            expiresAt={expiresAt || null}
-            cancelling={cancelling}
-            isScheduled={isScheduledMission}
-            scheduledLabel={scheduledLabel || null}
-            acceptedName={request?.provider ? providerDisplayName(request.provider) : null}
-            onCancel={handleCancelSearching}
-          />
+      {onTrackingMap && brief && (
+        <Animated.View style={[StyleSheet.absoluteFillObject, trackingEntrance.style]}>
+          <Animated.View style={[s.mapWrap, mapStyle]}>
+            <MapView
+              ref={mapRef}
+              style={StyleSheet.absoluteFillObject}
+              provider={PROVIDER_GOOGLE}
+              customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+              initialRegion={{ ...clientCoord, latitudeDelta: 0.015, longitudeDelta: 0.015 }}
+              scrollEnabled={!bandMode}
+              zoomEnabled={!bandMode}
+              pitchEnabled={false}
+              rotateEnabled={false}
+              showsUserLocation={false}
+              showsPointsOfInterest={false}
+              showsBuildings={false}
+              toolbarEnabled={false}
+            >
+              <Marker coordinate={clientCoord} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><ClientMarker /></Marker>
+              {visibleRoute.length > 1 && !bandMode ? (
+                <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
+              ) : null}
+              {providerLocation && !bandMode ? (
+                <Marker coordinate={providerLocation} anchor={{ x: 0.5, y: 0.5 }}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} /></Marker>
+              ) : null}
+            </MapView>
+            {bandMode && provider ? (
+              <MapBand top={insets.top + 56} name={firstName} avatarUrl={provider.avatarUrl} sinceLabel={t('tracking.since', { time: formatClock(startedAt ?? now) })} onCall={call} />
+            ) : null}
+          </Animated.View>
+
+          <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
+            <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
+              <Feather name="arrow-left" size={20} color={theme.text as string} />
+            </Pressable>
+            <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+              <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
+              <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
+              <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
+            </View>
+            <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
+              <Feather name="more-horizontal" size={22} color={theme.text as string} />
+            </Pressable>
+          </SafeAreaView>
+
+          <Animated.View style={[s.sheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04 }, sheetStyle]}>
+            <View style={[s.handle, { backgroundColor: theme.borderLight }]} />
+            <ScrollView showsVerticalScrollIndicator={false} bounces={bandMode} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
+              <View onLayout={(e) => setSheetContentH(e.nativeEvent.layout.height)}>{sheet}</View>
+            </ScrollView>
+          </Animated.View>
         </Animated.View>
       )}
 
-      {/* ── PHASE TRACKING ── */}
-      {phase === 'TRACKING' && (
-        <>
-          {/* Bouton retour flottant */}
-          <SafeAreaView style={s.floatingTopBar} edges={['top']} pointerEvents="box-none">
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.8} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
-              <Feather name="arrow-left" size={20} color={theme.text} />
-            </TouchableOpacity>
-
-            {/* FIXED · #ID */}
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-                <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, letterSpacing: 2, color: theme.text }}>FIXED</Text>
-                <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.textMuted }}>·</Text>
-                <Text style={{ fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 1, color: theme.textSub }}>#{id}</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openActionsMenu} activeOpacity={0.8} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
-              <Feather name="more-horizontal" size={22} color={theme.text} />
-            </TouchableOpacity>
-          </SafeAreaView>
-
-          {/* Bottom sheet tracking */}
-          <Animated.View style={[s.trackingSheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04 }, trackingSheetStyle, Platform.OS === 'android' && { paddingBottom: insets.bottom + 12 }]}>
-            <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
-            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={[s.trackingScroll, { maxHeight: windowHeight * 0.55 }]} contentContainerStyle={s.trackingScrollContent}>
-
-            {/* Status badge + LIVE indicator */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(59,130,246,0.10)' }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.statusOngoing }} />
-                <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: COLORS.statusOngoing }}>
-                  {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : t('missions.status_en_route')}
-                </Text>
-              </View>
-              {hasLiveGps && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <PulseDot size={6} color={COLORS.greenBrand} />
-                  <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>LIVE · GPS</Text>
-                </View>
-              )}
-            </View>
-
-            {/* ETA — the star of the show */}
-            <View style={{ marginBottom: 10 }}>
-              {status !== 'ONGOING' && etaNum ? (
-                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 2 }}>
-                  <DigitReel
-                    value={etaNum}
-                    lineHeight={60}
-                    textStyle={{ fontFamily: FONTS.bebas, fontSize: 60, color: theme.text, letterSpacing: -1 }}
-                    accessibilityLabel={`${etaNum} ${t('mission_view.min_away')}`}
-                  />
-                  <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 16, color: theme.text, letterSpacing: 0.5, marginBottom: 8 }}>
-                    {t('mission_view.min_away')}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 36, color: theme.text, marginBottom: 2 }}>
-                  {status === 'ONGOING' ? t('mission_view.on_site').toUpperCase() : t('mission_view.calculating')}
-                </Text>
-              )}
-              <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }}>
-                {request?.provider
-                  ? t('mission_view.distance_from_you', { name: providerFirstName(request.provider), distance: distance ? `${distance.toFixed(1)} km` : '...' })
-                  : t('mission_view.provider_on_way')}
-              </Text>
-            </View>
-
-            {/* Divider */}
-            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-            {/* Provider row — compact, balanced sizing */}
-            {request?.provider && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <TouchableOpacity onPress={() => router.push(`/providers/${request.provider.id}`)} activeOpacity={0.75}>
-                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    {request.provider.avatarUrl ? (
-                      <Image source={{ uri: resolveAvatarUrl(request.provider.avatarUrl) || '' }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-                    ) : (
-                      <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 13, color: theme.text }}>
-                        {providerDisplayName(request.provider).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
-                      </Text>
-                    )}
-                    {request.provider.validationStatus === 'ACTIVE' && (
-                      <View style={{ position: 'absolute', bottom: -1, right: -1, width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.cardBg }}>
-                        <Feather name="check" size={8} color="#fff" />
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, paddingRight: 8 }} onPress={() => router.push(`/providers/${request.provider.id}`)} activeOpacity={0.75}>
-                  <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
-                    {providerDisplayName(request.provider)}
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Feather name="star" size={12} color={theme.text} />
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, color: theme.textSub }}>
-                      {request.provider.avgRating > 0 ? request.provider.avgRating.toFixed(1) : '-'}
-                    </Text>
-                    <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.textMuted }}>·</Text>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, color: theme.textSub }}>
-                      {request.provider.jobsCompleted || 0} missions
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity
-                    style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center' }}
-                    onPress={handleCall} activeOpacity={0.75}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('common.call')}
-                  >
-                    <Feather name="phone" size={16} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
-                    onPress={() => {
-                      const recipientId = request?.provider?.userId || request?.provider?.id;
-                      if (recipientId) {
-                        resetUnread();
-                        router.push({ pathname: '/messages/[userId]', params: { userId: recipientId, name: request?.provider?.name || '' } });
-                      } else {
-                        showToast(t('mission_view.provider_not_found'), 'error');
-                      }
-                    }}
-                    activeOpacity={0.75}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('common.message')}
-                  >
-                    <Feather name="message-circle" size={16} color={theme.text} />
-                    {unreadFromProvider > 0 && (
-                      <View style={{
-                        position: 'absolute', top: -3, right: -3,
-                        minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
-                        backgroundColor: COLORS.greenBrand,
-                        alignItems: 'center', justifyContent: 'center',
-                        borderWidth: 1.5, borderColor: theme.cardBg,
-                      }}>
-                        <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 9, color: '#fff', lineHeight: 11 }}>
-                          {unreadFromProvider > 9 ? '9+' : unreadFromProvider}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* Sa demande, ses photos (planche 4A) — le prestataire est déjà au-dessus. */}
-            <View style={{ marginBottom: 14 }}>
-              <ClientRequestSummary brief={briefOf(request)} hideProvider inset={18} />
-            </View>
-
-            {/* PIN Card — visible dès que le PIN est généré, avant l'arrivée du prestataire.
-                Donne au client le temps de le préparer pour la vérification mutuelle sur place. */}
-            {pinCode && !pinVerified && (
-              <>
-                <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-                <View style={pinStyles.card}>
-                  <View style={pinStyles.header}>
-                    <Feather name="key" size={14} color={theme.textMuted} />
-                    <Text style={[pinStyles.label, { color: theme.textMuted }]}>{t('mission_view.pin_label_full')}</Text>
-                  </View>
-                  <View style={pinStyles.digitsRow}>
-                    {pinCode.split('').map((digit, i) => (
-                      <View key={i} style={[pinStyles.digitBox, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                        <Text style={[pinStyles.digitText, { color: theme.text }]}>{digit}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text style={[pinStyles.hint, { color: theme.textSub }]}>
-                    {t('mission_view.pin_communicate')}
-                  </Text>
-                </View>
-              </>
-            )}
-            {pinVerified && (
-              <>
-                <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-                <View style={[pinStyles.verified, { backgroundColor: 'rgba(21,193,110,0.10)' }]}>
-                  <Feather name="check-circle" size={16} color={theme.greenText} />
-                  <Text style={[pinStyles.verifiedText, { color: theme.greenText }]}>
-                    {t('mission_view.pin_verified_started')}
-                  </Text>
-                </View>
-              </>
-            )}
-
-            {/* Divider */}
-            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-            {/* 3 metrics — SERVICE · MONTANT · DISTANCE */}
-            {(() => {
-              const priceNum = price ? parseFloat(String(price)) : NaN;
-              const hasPrice = Number.isFinite(priceNum) && priceNum > 0;
-              const priceLabel = isQuoteMission && !hasPrice ? t('quote.short_label') : (hasPrice ? Math.round(priceNum).toString() : '—');
-              const priceUnit = hasPrice ? '€' : '';
-              return (
-                <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
-                  <View style={{ flex: 1, paddingVertical: 4 }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('mission_view.label_service')}</Text>
-                    <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text }} numberOfLines={1}>
-                      {(translateRequestServiceRaw(request) || translateCategoryRaw(request?.category) || t('mission_view.label_service')).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ width: 1, backgroundColor: theme.borderLight, marginHorizontal: 12 }} />
-                  <View style={{ flex: 1, paddingVertical: 4 }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('common.amount').toUpperCase()}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                      <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text }} numberOfLines={1}>{priceLabel}</Text>
-                      {priceUnit ? <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>{priceUnit}</Text> : null}
-                    </View>
-                  </View>
-                  <View style={{ width: 1, backgroundColor: theme.borderLight, marginHorizontal: 12 }} />
-                  <View style={{ flex: 1, paddingVertical: 4 }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted, marginBottom: 6 }}>{t('mission_view.label_distance')}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                      <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, color: theme.text }}>{distance ? distance.toFixed(1) : '-'}</Text>
-                      <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 11, color: theme.textSub }}>km</Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })()}
-
-            </ScrollView>
-          </Animated.View>
-        </>
-      )}
-
-      {/* ── MODALS ── */}
-      <ConfirmModal
-        visible={cancelSearchModal}
-        title={`${t('mission_view.cancel_search')} ?`}
-        message={t('mission_view.cancel_search_msg')}
-        confirmLabel={t('common.cancel')}
-        cancelLabel={t('common.continue')}
-        destructive
-        onConfirm={doConfirmCancelSearching}
-        onCancel={() => setCancelSearchModal(false)}
-      />
-      <ConfirmModal
-        visible={cancelTrackModal}
-        title={`${t('mission_view.cancel_mission')} ?`}
-        message={t('mission_view.cancel_confirm_msg')}
-        confirmLabel={t('missions.yes_cancel')}
-        cancelLabel={t('common.no')}
-        destructive
-        onConfirm={doConfirmCancelTracking}
-        onCancel={() => setCancelTrackModal(false)}
-      />
-
+      <PhotoViewer photos={viewerPhotos} index={viewer ? 0 : null} onClose={() => setViewer(null)} />
     </View>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═════════════════════════════════════════════════════════════════════════════
 const s = StyleSheet.create({
   root: { flex: 1 },
-  safe: { flex: 1 },
-  veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.45)' },
-
-  // ─── SEARCHING ────────────────────────────────────────────────────────────
-  searchingContent: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 0,
-  },
-
-  searchingSheet: {
-    width: '100%',
-    borderRadius: 22,
-    padding: 16,
-    marginBottom: 10,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
-      android: { elevation: 6 },
-    }),
-  },
-
-  sheetHandle: {
-    width: 38, height: 4, borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 12,
-  },
-
-  missionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  missionName: { fontSize: 14, fontFamily: FONTS.sansMedium, marginBottom: 6 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
-  metaText: { fontSize: 12, flex: 1 },
-  missionRight: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
-  missionPrice: { fontSize: 24, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.4 },
-  quoteBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  quoteBadgeText: { fontSize: 12 },
-
-
-  cancelSearchBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    width: '100%', paddingVertical: 11, borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  cancelSearchText: { fontSize: 15, letterSpacing: -0.2 },
-
-  // ─── TRACKING ─────────────────────────────────────────────────────────────
-  floatingTopBar: {
-    position: 'absolute',
-    top: 0, left: 16, right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    // Le SafeAreaView applique deja l'inset haut (additif) : simple respiration
-    // sous la safe area, pas de compensation status bar manuelle.
-    paddingTop: 8,
-    gap: 12,
-    zIndex: 10,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 4 },
-    }),
-  },
-  // recenterBtn removed — map auto-fits both pins on every location update
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 22,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 4 },
-    }),
-  },
-  statusText: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.8 },
-
-  trackingScroll: {},
-  trackingScrollContent: { paddingBottom: 4 },
-  trackingSheet: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 18,
-    paddingTop: 6,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
-      android: { elevation: 8 },
-    }),
-  },
-
-  etaRow: { alignItems: 'center', marginBottom: 12 },
-  etaLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.8, marginBottom: 4, textAlign: 'center', textTransform: 'uppercase' },
-  etaTime: { fontSize: 40, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5, textAlign: 'center' },
-  etaBadge: {
-    width: 38, height: 38, borderRadius: 19,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  divider: { height: 1, marginVertical: 12 },
-
-  // ── Premium provider card ──
-  providerCard: {
-    borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12,
-    overflow: 'hidden',
-  },
-  providerCardTop: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  providerIdentity: { flex: 1, gap: 3 },
-  providerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  providerName: { fontSize: 14, fontFamily: FONTS.sansMedium },
-  verifiedBadge: {
-    width: 20, height: 20, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  providerCityRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  providerCityText: { fontSize: 12 },
-  providerDesc: { fontSize: 12, lineHeight: 17, marginTop: 2 },
-
-  providerStats: {
-    flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: 1, paddingTop: 10, marginBottom: 10,
-  },
-  providerStat: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  providerStatValue: { fontSize: 13, fontFamily: FONTS.monoMedium },
-  providerStatLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.5 },
-  providerStatSep: { width: 1, height: 20 },
-
-  providerChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  providerChip: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  providerChipText: { fontSize: 11 },
-
-  profileHint: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 4,
-  },
-  profileHintText: { fontSize: 12 },
-
-  // ── Communication row ──
-  comRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  comBtnPrimary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    height: 44, borderRadius: 12,
-  },
-  comBtnSecondary: {
-    width: 44, height: 44, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
-  },
-  comBtnText: { fontSize: 14 },
-  btnIconWrap: { marginRight: 8 },
-
-  cancelTrackBtn: {
-    flexDirection: 'row', paddingVertical: 11, borderRadius: 12,
-    borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cancelTrackText: { fontSize: 13 },
-
-  ongoingBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  ongoingText: { fontSize: 13, flex: 1 },
-
-  // ─── PIN ────────────────────────────────────────────────────────────────
-  pinVerifiedBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 8,
-    marginBottom: 10, borderWidth: 1,
-  },
-  pinVerifiedText: { fontSize: 13, flex: 1 },
-
-  // ─── Markers ──────────────────────────────────────────────────────────────
-  clientMarker: {
-    width: 20, height: 20, borderRadius: 10,
-    backgroundColor: 'rgba(26,26,26,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  clientMarkerInner: {
-    width: 10, height: 10, borderRadius: 5,
-    borderWidth: 2,
-  },
-});
-
-// ─── PIN Card (TRACKING phase, inline) ───────────────────────────────────────
-const pinStyles = StyleSheet.create({
-  card: {
-    paddingVertical: 4,
-    gap: 4,
-  },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  label: { fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2 },
-  digitsRow: { flexDirection: 'row', gap: 5 },
-  digitBox: {
-    width: 36, height: 40, borderRadius: 8,
-    borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  digitText: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 1, lineHeight: 22 },
-  hint: { fontFamily: FONTS.sans, fontSize: 11 },
-  verified: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: 10, marginVertical: 4,
-  },
-  verifiedText: { fontFamily: FONTS.sansMedium, fontSize: 13, flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  notFound: { fontFamily: FONTS.sans, fontSize: 14 },
+  mapWrap: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' },
+  topBar: { position: 'absolute', left: 16, right: 16, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 },
+  roundBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  badgeText: { fontFamily: FONTS.monoMedium, fontSize: 11, letterSpacing: 1.5 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 12, shadowColor: '#000', shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 20 },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+  linkBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 6 },
+  link: { fontFamily: FONTS.sansMedium, fontSize: 13 },
+  reassurance: { fontFamily: FONTS.sans, fontSize: 11.5, textAlign: 'center', marginTop: 12 },
 });

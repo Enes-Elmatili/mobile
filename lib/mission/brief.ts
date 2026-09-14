@@ -19,7 +19,9 @@ export type MissionBrief = {
   access: { buildingType: string | null; floor: number | null; hasElevator: boolean | null; notes: string | null } | null;
   client: { name: string | null; language: string | null; avatarUrl: string | null; city: string | null; missionsCount: number | null } | null;
   money: { gross: number | null; net: number | null; calloutFee: number | null; pricingMode: string | null };
-  timeline: { createdAt: string | null; acceptedAt: string | null; completedAt: string | null };
+  timeline: { createdAt: string | null; acceptedAt: string | null; arrivedAt?: string | null; startedAt?: string | null; completedAt: string | null };
+  /** Photos du prestataire sur place (avant / après), absentes des anciennes fiches. */
+  work?: { beforePhotoUrl: string | null; beforePhotoAt: string | null; afterPhotoUrl: string | null; afterPhotoAt: string | null };
   provider: { name: string | null; avatarUrl: string | null; avgRating: number | null; missionsCount: number | null } | null;
 };
 
@@ -79,7 +81,8 @@ export function briefFromLegacy(item: any): MissionBrief {
       : null,
     // Les anciens payloads portent les frais de déplacement en cents (Request.calloutFee).
     money: { gross: price, net: null, calloutFee: item?.calloutFee != null ? Number(item.calloutFee) / 100 : null, pricingMode: item?.pricingMode ?? null },
-    timeline: { createdAt, acceptedAt: item?.acceptedAt ?? null, completedAt: item?.completedAt ?? null },
+    timeline: { createdAt, acceptedAt: item?.acceptedAt ?? null, arrivedAt: item?.beforePhotoAt ?? null, startedAt: item?.startedAt ?? null, completedAt: item?.completedAt ?? null },
+    work: { beforePhotoUrl: item?.beforePhotoUrl ?? null, beforePhotoAt: item?.beforePhotoAt ?? null, afterPhotoUrl: item?.afterPhotoUrl ?? null, afterPhotoAt: item?.afterPhotoAt ?? null },
     provider: item?.provider ? { name: item.provider.name ?? null, avatarUrl: item.provider.avatarUrl ?? null, avgRating: item.provider.avgRating ?? null, missionsCount: item.provider.jobsCompleted ?? null } : null,
   };
 }
@@ -87,6 +90,13 @@ export function briefFromLegacy(item: any): MissionBrief {
 /** Fiche d'un item d'API : celle du serveur si présente, sinon le repli. */
 export function briefOf(item: any): MissionBrief {
   return item?.brief ?? briefFromLegacy(item);
+}
+
+/** Photos et horodatages du chantier : la fiche serveur, sinon les champs bruts de la demande. */
+export function workOf(item: any): NonNullable<MissionBrief['work']> {
+  const b = item?.brief as MissionBrief | undefined;
+  if (b?.work) return b.work;
+  return { beforePhotoUrl: item?.beforePhotoUrl ?? null, beforePhotoAt: item?.beforePhotoAt ?? null, afterPhotoUrl: item?.afterPhotoUrl ?? null, afterPhotoAt: item?.afterPhotoAt ?? null };
 }
 
 /** « 3e, ascenseur » / « RDC » / « Maison » — null si rien à dire. */

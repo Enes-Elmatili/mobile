@@ -17,7 +17,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
+import { Linking } from 'react-native';
+import { ProviderRow } from '@/components/tracking';
+import { PhotoGallery } from '@/components/mission/photos';
+import { briefOf } from '@/lib/mission/brief';
+import { useCall } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -55,6 +60,7 @@ export default function ScheduledConfirmation() {
   const router = useRouter();
   const theme = useAppTheme();
   const { socket } = useSocket();
+  const { initiateCall } = useCall();
   const { t } = useTranslation();
 
   // État local alimenté par params puis écrasé par l'API quand disponible
@@ -65,6 +71,8 @@ export default function ScheduledConfirmation() {
   const [isQuoteFlow, setIsQuoteFlow] = useState<boolean>(params.isQuote === '1');
   const [calloutFee, setCalloutFee] = useState<string>(params.calloutFee || '');
   const [providerName, setProviderName] = useState<string>('');
+  // La demande complète : bloc prestataire (message, appel) et photos du récap.
+  const [requestData, setRequestData] = useState<any>(null);
   const [isAccepted, setIsAccepted] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(isRecapMode);
   const [cancelling, setCancelling] = useState<boolean>(false);
@@ -129,6 +137,7 @@ export default function ScheduledConfirmation() {
       if (status === 'ACCEPTED' && isStillFuture) {
         setIsAccepted(true);
         setProviderName(cleanName(r.provider?.name, { fallback: '' }));
+        setRequestData(r);
       } else if (status === 'ONGOING' || (status === 'ACCEPTED' && !isStillFuture)) {
         // Mission vraiment en cours (ONGOING) OU ACCEPTED dont l'heure est passée
         // → basculer vers le flow actif missionview.
@@ -283,14 +292,37 @@ export default function ScheduledConfirmation() {
           </View>
 
           {isAccepted ? (
-            <View style={[st.infoBadge, { backgroundColor: 'rgba(21,193,110,0.08)', borderWidth: 1, borderColor: 'rgba(21,193,110,0.2)' }]}>
-              <Feather name="check-circle" size={16} color={theme.greenText} />
-              <Text style={[st.infoText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>
-                {providerName
-                  ? t('ext.scheduled_confirmed_by', { name: providerName })
-                  : t('ext.scheduled_confirmed_by_generic')}
-              </Text>
-            </View>
+            <>
+              <View style={[st.infoBadge, { backgroundColor: alpha(COLORS.greenBrand, 0.08), borderWidth: 1, borderColor: alpha(COLORS.greenBrand, 0.2) }]}>
+                <Feather name="check-circle" size={16} color={theme.greenText} />
+                <Text style={[st.infoText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>
+                  {providerName
+                    ? t('ext.scheduled_confirmed_by', { name: providerName })
+                    : t('ext.scheduled_confirmed_by_generic')}
+                </Text>
+              </View>
+              {/* Le prestataire engagé : on peut lui écrire ou l'appeler avant le jour J. */}
+              {requestData?.provider ? (
+                <View style={{ marginTop: 12 }}>
+                  <ProviderRow
+                    provider={requestData.provider}
+                    onOpenProfile={() => router.push(`/providers/${requestData.provider.id}`)}
+                    onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(requestData.provider.userId || requestData.provider.id), name: providerName, requestId: String(id) } })}
+                    onCall={() => {
+                      const p = requestData.provider;
+                      if (p.userId && socket) initiateCall({ targetUserId: String(p.userId), targetName: providerName, requestId: String(id) });
+                      else if (p.phone) Linking.openURL(`tel:${String(p.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
+                      else feedback.error('mission_view.phone_unavailable');
+                    }}
+                  />
+                </View>
+              ) : null}
+              {requestData?.photos?.length ? (
+                <View style={{ marginTop: 8, marginHorizontal: -20 }}>
+                  <PhotoGallery photos={briefOf(requestData).photos} title={t('mission.your_photos')} />
+                </View>
+              ) : null}
+            </>
           ) : (
             <View style={[st.infoBadge, { backgroundColor: theme.surface }]}>
               <Feather name="info" size={16} color={theme.textSub} />

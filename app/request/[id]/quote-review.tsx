@@ -27,6 +27,11 @@ import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import { useAppTheme, FONTS, COLORS, alpha } from "@/hooks/use-app-theme";
 import Avatar from "@/components/ui/Avatar";
+import { ProviderRow } from "@/components/tracking";
+import { PhotoGallery } from "@/components/mission/photos";
+import { briefOf } from "@/lib/mission/brief";
+import { useCall } from "@/lib/webrtc/CallContext";
+import { Linking } from "react-native";
 import { RaisedButton } from "@/components/ui/RaisedButton";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { useAndroidBackClose } from "@/hooks/use-android-back-close";
@@ -121,6 +126,7 @@ export default function QuoteReview() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { user } = useAuth();
   const { socket } = useSocket();
+  const { initiateCall } = useCall();
 
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<any>(null);
@@ -242,7 +248,7 @@ export default function QuoteReview() {
       // traité depuis un autre appareil. Évite une erreur générique côté backend.
       const currentStatus = await load({ silent: true });
       if (currentStatus && currentStatus !== "QUOTE_SENT") {
-        feedback.info("Ce devis n'est plus disponible.");
+        feedback.toast(t('tracking.quote_gone'), 'info');
         return;
       }
 
@@ -286,16 +292,8 @@ export default function QuoteReview() {
       }
 
       feedback.event('quote_accepted');
-      router.replace({
-        pathname: "/request/[id]/missionview",
-        params: {
-          id: String(id),
-          serviceName: "",
-          address: "",
-          price: String(quote.totalAmount / 100),
-          scheduledLabel: "",
-        },
-      });
+      // Le suivi lit le montant et la fiche sur le serveur, aucun paramètre à passer.
+      router.replace({ pathname: "/request/[id]/missionview", params: { id: String(id) } });
     } catch (e: any) {
       devError("Accept quote error:", e);
       feedback.error(e?.message || t('common.error'));
@@ -632,6 +630,27 @@ export default function QuoteReview() {
               </View>
               <Feather name="chevron-right" size={18} color={theme.textMuted} />
             </TouchableOpacity>
+            {/* Message et appel : le prestataire a accepté, on peut lui parler avant de décider. */}
+            <View style={{ marginTop: 8 }}>
+              <ProviderRow
+                provider={provider}
+                onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(provider.userId || provider.id), name: providerName, requestId: String(id) } })}
+                onCall={() => {
+                  if (provider.userId && socket) initiateCall({ targetUserId: String(provider.userId), targetName: providerName, requestId: String(id) });
+                  else if (provider.phone) Linking.openURL(`tel:${String(provider.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
+                  else feedback.error('mission_view.phone_unavailable');
+                }}
+              />
+            </View>
+          </Reveal>
+        ) : null}
+
+        {/* ── Les photos de la demande, pour relire le devis face au problème ── */}
+        {request?.photos?.length ? (
+          <Reveal delay={200}>
+            <View style={{ marginHorizontal: -20 }}>
+              <PhotoGallery photos={briefOf(request).photos} title={t('mission.your_photos')} />
+            </View>
           </Reveal>
         ) : null}
 

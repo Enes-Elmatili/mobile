@@ -514,7 +514,7 @@ export default function Documents() {
                     if (isPendingPay) {
                       router.push({ pathname: '/request/[id]/resume-payment', params: { id: req.id } });
                     } else if (isPending) {
-                      router.push({ pathname: '/request/[id]/quote-pending', params: { id: req.id } });
+                      router.push({ pathname: '/request/[id]/missionview', params: { id: req.id } });
                     } else {
                       setSelectedQuote(req);
                     }

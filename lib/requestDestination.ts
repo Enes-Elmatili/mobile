@@ -83,7 +83,8 @@ export function resolveRequestDestination(req: RequestLike | null | undefined): 
         : missionView('cta_track_mission', 'map-pin');
 
     case 'QUOTE_PENDING':
-      return { pathname: '/request/[id]/quote-pending', params: { id }, ctaKey: 'cta_track_quote', icon: 'clock' };
+      // Le devis en préparation est un stade du suivi (spec 2026-09-14), plus une page à part.
+      return { pathname: '/request/[id]/missionview', params: { id }, ctaKey: 'cta_track_quote', icon: 'clock' };
     case 'QUOTE_SENT':
       return { pathname: '/request/[id]/quote-review', params: { id }, ctaKey: 'cta_view_quote', icon: 'file-text' };
 

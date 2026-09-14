@@ -58,6 +58,8 @@ export interface LiveMapSearchingProps {
   isScheduled?: boolean;
   scheduledLabel?: string | null;
   acceptedName?: string | null;
+  /** Prestataire qui a accepté : sa pastille prend, les autres s'éteignent, les traits se retirent. */
+  acceptedProviderId?: string | null;
   onCancel: () => void;
 }
 
@@ -72,10 +74,10 @@ const firstName = (name: string | null | undefined) => cleanName(name ?? '').spl
 
 // ── Pastille d'un prestataire (vue à l'écran, pas un Marker) ─────────────────
 const PIN = 40;
-function ProPin({ pro, x, y, order }: { pro: Pro; x: number; y: number; order: number }) {
+function ProPin({ pro, x, y, order, accepted, dimmed }: { pro: Pro; x: number; y: number; order: number; accepted?: boolean; dimmed?: boolean }) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
-  const awake = pro.wave > 0 && !pro.declined;
+  const awake = (pro.wave > 0 && !pro.declined) || !!accepted;
   const scale = useSharedValue(1);
   const opacity = useSharedValue(pro.declined ? 0.3 : 1);
   useEffect(() => {
@@ -83,8 +85,12 @@ function ProPin({ pro, x, y, order }: { pro: Pro; x: number; y: number; order: n
       // Le réveil : la pastille « prend » (MOTION.take), en cascade dans la vague.
       scale.value = withDelay(order * 110, withSpring(1.12, MOTION.take, () => { scale.value = withSpring(1, MOTION.take); }));
     }
-    opacity.value = withTiming(pro.declined ? 0.3 : 1, { duration: 250 });
-  }, [awake, pro.declined, reduced, order, scale, opacity]);
+    opacity.value = withTiming(pro.declined || dimmed ? 0.28 : 1, { duration: 250 });
+  }, [awake, pro.declined, dimmed, reduced, order, scale, opacity]);
+  useEffect(() => {
+    // Le moment « accepté » : la pastille prend une fois de plus, un cran plus grand.
+    if (accepted && !reduced) scale.value = withSpring(1.22, MOTION.take, () => { scale.value = withSpring(1.08, MOTION.take); });
+  }, [accepted, reduced, scale]);
   const st = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }));
   const initials = cleanName(pro.name ?? '').split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '·';
   return (
@@ -96,9 +102,9 @@ function ProPin({ pro, x, y, order }: { pro: Pro; x: number; y: number; order: n
           <Text style={[s.pinText, { color: awake ? theme.accentText : theme.textMuted }]}>{initials}</Text>
         )}
       </View>
-      {awake && pro.etaMin != null ? (
+      {awake && (pro.etaMin != null || accepted) ? (
         <View style={[s.pinLabel, { backgroundColor: theme.isDark ? 'rgba(20,20,20,0.85)' : 'rgba(255,255,255,0.9)' }]}>
-          <Text style={[s.pinLabelText, { color: theme.textSub }]}>{`${firstName(pro.name).toUpperCase()} · ${pro.etaMin} MIN`}</Text>
+          <Text style={[s.pinLabelText, { color: accepted ? theme.text : theme.textSub }]}>{pro.etaMin != null ? `${firstName(pro.name).toUpperCase()} · ${pro.etaMin} MIN` : firstName(pro.name).toUpperCase()}</Text>
         </View>
       ) : null}
     </Animated.View>
@@ -148,7 +154,7 @@ function Headline({ text, sub }: { text: string; sub: string }) {
 
 // ── Écran ────────────────────────────────────────────────────────────────────
 export default function LiveMapSearching(props: LiveMapSearchingProps) {
-  const { missionId, missionCoord: rawCoord, brief, expiresAt, cancelling, isScheduled, scheduledLabel, acceptedName, onCancel } = props;
+  const { missionId, missionCoord: rawCoord, brief, expiresAt, cancelling, isScheduled, scheduledLabel, acceptedName, acceptedProviderId, onCancel } = props;
   const missionCoord = useMemo(() => ({ latitude: rawCoord.latitude, longitude: rawCoord.longitude }), [rawCoord.latitude, rawCoord.longitude]);
   const theme = useAppTheme();
   const { t } = useTranslation();
@@ -300,12 +306,13 @@ export default function LiveMapSearching(props: LiveMapSearchingProps) {
         {me ? pros.map((p, i) => {
           const pt = points[p.id];
           if (!pt) return null;
-          return <Link key={`l-${p.id}`} from={me} to={pt} visible={p.wave > 0 && !p.declined} order={i} color={theme.text as string} />;
+          return <Link key={`l-${p.id}`} from={me} to={pt} visible={p.wave > 0 && !p.declined && !acceptedProviderId} order={i} color={theme.text as string} />;
         }) : null}
         {pros.map((p, i) => {
           const pt = points[p.id];
           if (!pt) return null;
-          return <ProPin key={p.id} pro={p} x={pt.x} y={pt.y} order={i} />;
+          const accepted = !!acceptedProviderId && p.id === acceptedProviderId;
+          return <ProPin key={p.id} pro={p} x={pt.x} y={pt.y} order={i} accepted={accepted} dimmed={!!acceptedProviderId && !accepted} />;
         })}
         {me ? <View style={[s.me, { left: me.x - 9, top: me.y - 9, borderColor: theme.cardBg }]} /> : null}
       </View>

@@ -1052,6 +1052,13 @@ export default function Dashboard() {
   // we don't double-navigate on reconnect. Module-local would bleed across
   // users, so it's scoped per Dashboard mount via useRef.
   const acceptedIdsRef = useRef<Set<string>>(new Set());
+  // Vrai tant que l'accueil est l'écran affiché (voir handleAccepted).
+  const isFocusedRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    isFocusedRef.current = true;
+    return () => { isFocusedRef.current = false; };
+  }, []));
+
   useFocusEffect(useCallback(() => {
     const now = Date.now();
     if (now - lastFetchRef.current > 60_000) { // 60s cache — socket handles real-time updates
@@ -1110,6 +1117,10 @@ export default function Dashboard() {
       if (d.clientId && d.clientId !== user?.id) return;
       acceptedIdsRef.current.add(reqId);
       updateRequestStatus(reqId, 'ACCEPTED');
+      // Le suivi (missionview) joue lui-même la bascule « accepté » sur sa
+      // carte : on ne navigue que si l'accueil est l'écran affiché, sinon on
+      // remonterait l'écran de suivi sous les pieds du client.
+      if (!isFocusedRef.current) return;
       if (reqId) {
         api.get(`/requests/${reqId}`)
           .then(res => {
@@ -1360,7 +1371,7 @@ export default function Dashboard() {
                   if (st === 'QUOTE_SENT') {
                     router.push({ pathname: '/request/[id]/quote-review', params: { id: String(quoteMission.id) } });
                   } else {
-                    router.push({ pathname: '/request/[id]/quote-pending', params: { id: String(quoteMission.id) } });
+                    router.push({ pathname: '/request/[id]/missionview', params: { id: String(quoteMission.id) } });
                   }
                 }}
                 onCallProvider={() => {
@@ -1641,7 +1652,7 @@ export default function Dashboard() {
                     bottomSheetRef.current?.close();
                     const path = selectedRequest.status?.toUpperCase() === 'QUOTE_SENT'
                       ? '/request/[id]/quote-review'
-                      : '/request/[id]/quote-pending';
+                      : '/request/[id]/missionview';
                     router.push({
                       pathname: path,
                       params: { id: String(selectedRequest.id) },
