@@ -74,6 +74,8 @@ function Reveal({ delay = 0, children }: { delay?: number; children: React.React
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 /** Longueur du tracé « M5 12.5 L10 17.5 L19 7 » : √50 + √191,25 ≈ 20,9. */
 const CHECK_LENGTH = 21;
+const HERO_BORDER_PENDING = alpha(COLORS.amber, 0.45);
+const HERO_BORDER_ACCEPTED = alpha(COLORS.greenBrand, 0.6);
 function SealCheck({ color }: { color: string }) {
   const [drawn, setDrawn] = useState(false);
   useEffect(() => { setDrawn(true); }, []);
@@ -150,8 +152,11 @@ export default function QuoteReview() {
   const fold = useSharedValue(foldOn ? 1 : 0);
   useEffect(() => { seal.value = withSpring(sealOn ? 1 : 0, MOTION.trace); }, [sealOn, seal]);
   useEffect(() => { fold.value = withSpring(foldOn ? 1 : 0, MOTION.pane); }, [foldOn, fold]);
+  // Les deux couleurs sont calculées ICI, sur le thread JS : `alpha` n'est pas
+  // un worklet, l'appeler dans useAnimatedStyle plante le runtime UI en release
+  // (l'app se fermait à la réception du devis).
   const heroBorderStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(seal.value, [0, 1], [alpha(COLORS.amber, 0.45), alpha(COLORS.greenBrand, 0.6)]),
+    borderColor: interpolateColor(seal.value, [0, 1], [HERO_BORDER_PENDING, HERO_BORDER_ACCEPTED]),
   }));
   const foldStyle = useAnimatedStyle(() => ({
     opacity: 1 - 0.35 * fold.value,

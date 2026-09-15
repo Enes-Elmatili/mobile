@@ -5,6 +5,7 @@
 // appel, alors que le jumeau côté JS (celui que jest exécute) fonctionne.
 // C'est ce qui a rendu le curseur « glisser pour accepter » inerte (iOS) et
 // planté l'app (Android) en 1.0.6 → 1.0.9.
+process.env.EXPO_PUBLIC_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost/api';
 const babel = require('@babel/core');
 const fs = require('fs');
 const path = require('path');
@@ -54,6 +55,67 @@ describe('worklets : aucune valeur par défaut lue depuis la fermeture', () => {
     for (const code of emittedWorklets(file)) {
       expect({ file, worklet: code.slice(0, 120), closureRefsInDefaults: closureRefsInDefaults(code) }).toEqual(
         { file, worklet: code.slice(0, 120), closureRefsInDefaults: [] },
+      );
+    }
+  });
+});
+
+// ── Classe 2 : un worklet qui APPELLE une fonction de sa fermeture qui n'est
+// pas un worklet (ex. `alpha(...)` dans useAnimatedStyle). Sur le thread UI,
+// l'appel jette « Tried to synchronously call a non-worklet function » ; en
+// release c'est un plantage natif (l'app se fermait à la réception du devis).
+// On résout chaque identifiant appelé : import → module chargé, fonction sans
+// __workletHash = faute ; local → doit porter 'worklet' dans le fichier.
+const KNOWN_WORKLET_MODULES = /^(react-native-reanimated|react-native-worklets|react-native-gesture-handler)/;
+function importMapOf(src) {
+  const map = {};
+  for (const m of src.matchAll(/import\s+(?:type\s+)?(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?\s*from\s*['"]([^'"]+)['"]/g)) {
+    const [, def, named, mod] = m;
+    if (def) map[def] = { mod, name: 'default' };
+    for (const part of (named || '').split(',')) {
+      const seg = part.trim().replace(/^type\s+/, '');
+      if (!seg) continue;
+      const [orig, alias] = seg.split(/\s+as\s+/).map((x) => x.trim());
+      map[alias || orig] = { mod, name: orig };
+    }
+  }
+  return map;
+}
+function localWorkletNames(src) {
+  const names = new Set();
+  for (const m of src.matchAll(/(?:function\s+(\w+)\s*\([^)]*\)\s*(?::[^{]+)?\{|(?:const|let)\s+(\w+)\s*=\s*(?:\([^)]*\)|\w+)\s*(?::[^=]+)?=>\s*\{)\s*['"]worklet['"]/g)) names.add(m[1] || m[2]);
+  return names;
+}
+function calledNonWorklets(code, file) {
+  const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const closure = (code.match(/const\{([^}]*)\}=this\.__closure/) || [, ''])[1].split(',').map((s) => s.trim()).filter(Boolean);
+  const body = code.replace(/const\{[^}]*\}=this\.__closure;?/, '');
+  const imports = importMapOf(src);
+  const locals = localWorkletNames(src);
+  const bad = [];
+  for (const name of closure) {
+    if (!new RegExp(`(^|[^.\\w$])${name}\\s*\\(`).test(body)) continue; // pas appelé
+    const imp = imports[name];
+    if (imp) {
+      if (KNOWN_WORKLET_MODULES.test(imp.mod)) continue;
+      let mod;
+      try { mod = require(imp.mod.startsWith('@/') ? path.join(ROOT, imp.mod.slice(2)) : imp.mod.startsWith('.') ? path.join(ROOT, path.dirname(file), imp.mod) : imp.mod); } catch { continue; }
+      const v = imp.name === 'default' ? (mod && mod.default) : (mod && mod[imp.name]);
+      if (typeof v === 'function' && !v.__workletHash) bad.push(`${name} (import ${imp.mod})`);
+    } else if (/^[a-z]/.test(name) && new RegExp(`(function\\s+${name}\\b|(?:const|let)\\s+${name}\\s*=)`).test(src) && !locals.has(name)) {
+      // Fonction locale au fichier, sans directive 'worklet' (les valeurs non
+      // fonctions — nombres, objets — ne matchent pas `nom(`).
+      if (new RegExp(`(function\\s+${name}\\s*\\(|(?:const|let)\\s+${name}\\s*=\\s*(?:\\([^)]*\\)|\\w+)\\s*(?::[^=]+)?=>|(?:const|let)\\s+${name}\\s*=\\s*function)`).test(src)) bad.push(`${name} (local, sans 'worklet')`);
+    }
+  }
+  return bad;
+}
+
+describe('worklets : aucun appel à une fonction non-worklet de la fermeture', () => {
+  it.each(sources())('%s', (file) => {
+    for (const code of emittedWorklets(file)) {
+      expect({ file, worklet: code.slice(0, 120), calledNonWorklets: calledNonWorklets(code, file) }).toEqual(
+        { file, worklet: code.slice(0, 120), calledNonWorklets: [] },
       );
     }
   });
