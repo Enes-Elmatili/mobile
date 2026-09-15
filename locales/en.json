@@ -2322,7 +2322,8 @@
     "load_error": "This job could not be loaded.",
     "retry": "Try again",
     "call": "Call {{name}}",
-    "message": "Message {{name}}"
+    "message": "Message {{name}}",
+    "ongoing_now": "IN PROGRESS · JUST NOW"
   },
   "gains": {
     "title": "Earnings",

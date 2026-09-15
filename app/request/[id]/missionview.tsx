@@ -39,7 +39,9 @@ import { PhotoViewer } from '@/components/mission/photos';
 import { DoneContent, EtaHero, MapBand, MoneyLine, PinCard, ProviderRow, QuoteSteps, RequestRow, StageHeader, WorkTimeline, providerFirstName, providerName, type TimelineRow } from '@/components/tracking';
 
 const ACCEPTED_MOMENT_MS = 2400;
-const BAND_HEIGHT = 132;
+// En cours : la carte garde au moins cette hauteur sous la barre de statut ;
+// si la feuille n'a pas besoin de tout l'écran, la carte garde le reste.
+const BAND_HEIGHT = 200;
 const SHEET_MAX_RATIO = 0.62;
 
 // ─── Marqueurs ───────────────────────────────────────────────────────────────
@@ -119,8 +121,35 @@ export default function MissionView() {
   // Géométrie de la carte : pleine, bandeau, ou effacée (bilan).
   const mapMode: 'full' | 'band' | 'gone' = done ? 'gone' : bandMode ? 'band' : 'full';
   const [mapReady, setMapReady] = useState(false);
+  const [regionKey, setRegionKey] = useState(0);
   const [now1s, setNow1s] = useState(() => Date.now());
   const search = useSearching(String(id), clientCoord, searchingLayer);
+
+  // ─── Géométrie animée : une carte, une feuille ──────────────────────────
+  // La carte : pleine (recherche, en route, à la porte), bandeau (en cours),
+  // effacée (bilan). La feuille est ancrée en bas ; son bord haut suit le
+  // contenu mesuré, ou le bandeau, ou monte jusqu'en haut pour le bilan.
+  const bandH = insets.top + BAND_HEIGHT;
+  const [sheetContentH, setSheetContentH] = useState(0);
+  const sheetFullTop = windowHeight - Math.min(sheetContentH + insets.bottom + 44, windowHeight * SHEET_MAX_RATIO);
+  // Bandeau : la feuille prend ce que son contenu demande, jamais moins que le
+  // bandeau minimum ; la carte occupe le reste (pas de feuille à moitié vide).
+  const bandSheetTop = Math.max(bandH - 26, sheetFullTop);
+  const mapTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandSheetTop + 26 : windowHeight;
+  const sheetTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandSheetTop : sheetFullTop;
+  const mapH = useSharedValue(windowHeight);
+  const sheetTop = useSharedValue(windowHeight);
+  useEffect(() => {
+    mapH.value = reduced ? withTiming(mapTarget, { duration: 150 }) : withSpring(mapTarget, MOTION.pane);
+    sheetTop.value = reduced ? withTiming(sheetTarget, { duration: 150 }) : withSpring(sheetTarget, MOTION.pane);
+  }, [mapTarget, sheetTarget, reduced, mapH, sheetTop]);
+  const mapStyle = useAnimatedStyle(() => ({ height: mapH.value }));
+  const sheetStyle = useAnimatedStyle(() => ({ top: sheetTop.value }));
+  // Le rembourrage bas de la carte en recherche = la hauteur visible de la feuille.
+  const sheetVisibleH = Math.max(0, windowHeight - sheetFullTop);
+  const topBarEntrance = useEntrance(-12);
+  useEffect(() => { if (tracking) topBarEntrance.replay(); }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const providerUserId = provider?.userId || null;
   const { count: unread, reset: resetUnread } = useConversationUnread(providerUserId, authUser?.id);
@@ -233,8 +262,19 @@ export default function MissionView() {
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;
     if (searchingLayer) {
-      // Recherche : la carte est verrouillée sur l'adresse, rembourrée de la feuille.
-      mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }, reduced ? 0 : 600);
+      // Recherche : la carte est verrouillée, cadrée sur l'adresse et les
+      // prestataires les plus proches (le serveur prévient jusqu'à 30 km),
+      // rembourrée de la feuille pour que rien ne passe dessous.
+      const near = search.pros
+        .filter((p) => p.lat != null && p.lng != null)
+        .map((p) => ({ latitude: p.lat as number, longitude: p.lng as number, d: metersBetween(p.lat as number, p.lng as number, clientCoord.latitude, clientCoord.longitude) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 4);
+      if (near.length) {
+        mapRef.current.fitToCoordinates([clientCoord, ...near], { edgePadding: { top: insets.top + 80, right: 56, bottom: sheetVisibleH + 60, left: 56 }, animated: !reduced });
+      } else {
+        mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }, reduced ? 0 : 600);
+      }
       return;
     }
     if (!tracking) return;
@@ -245,7 +285,7 @@ export default function MissionView() {
     } else {
       mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.015, longitudeDelta: 0.015 }, reduced ? 0 : 600);
     }
-  }, [stage, bandMode, tracking, searchingLayer, mapReady, providerLocation, clientCoord, windowHeight, reduced]);
+  }, [stage, bandMode, tracking, searchingLayer, mapReady, providerLocation, clientCoord, windowHeight, reduced, search.pros, sheetVisibleH, insets.top]);
 
   // ─── Sockets ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -402,28 +442,6 @@ export default function MissionView() {
   const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
   const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
 
-  // ─── Géométrie animée : une carte, une feuille ──────────────────────────
-  // La carte : pleine (recherche, en route, à la porte), bandeau (en cours),
-  // effacée (bilan). La feuille est ancrée en bas ; son bord haut suit le
-  // contenu mesuré, ou le bandeau, ou monte jusqu'en haut pour le bilan.
-  const bandH = insets.top + BAND_HEIGHT;
-  const [sheetContentH, setSheetContentH] = useState(0);
-  const sheetFullTop = windowHeight - Math.min(sheetContentH + insets.bottom + 44, windowHeight * SHEET_MAX_RATIO);
-  const mapTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandH : windowHeight;
-  const sheetTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandH - 26 : sheetFullTop;
-  const mapH = useSharedValue(windowHeight);
-  const sheetTop = useSharedValue(windowHeight);
-  useEffect(() => {
-    mapH.value = reduced ? withTiming(mapTarget, { duration: 150 }) : withSpring(mapTarget, MOTION.pane);
-    sheetTop.value = reduced ? withTiming(sheetTarget, { duration: 150 }) : withSpring(sheetTarget, MOTION.pane);
-  }, [mapTarget, sheetTarget, reduced, mapH, sheetTop]);
-  const mapStyle = useAnimatedStyle(() => ({ height: mapH.value }));
-  const sheetStyle = useAnimatedStyle(() => ({ top: sheetTop.value }));
-  // Le rembourrage bas de la carte en recherche = la hauteur visible de la feuille.
-  const sheetVisibleH = Math.max(0, windowHeight - sheetFullTop);
-  const topBarEntrance = useEntrance(-12);
-  useEffect(() => { if (tracking) topBarEntrance.replay(); }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ─── Contenu de la feuille par stade ────────────────────────────────────
   const sheet = useMemo(() => {
     if (!brief) return null;
@@ -481,7 +499,7 @@ export default function MissionView() {
       if (end && !work?.afterPhotoUrl) rows.push({ key: 'end', time: formatClock(end), label: t('tracking.tl_end_planned'), sub: brief.service.durationMinutes ? t('tracking.tl_usual_duration', { n: brief.service.durationMinutes }) : null, next: true });
       return (
         <>
-          <StageHeader stageKey="ongoing" live kicker={t('tracking.ongoing', { n: sinceMin ?? 0 })} title={t('tracking.ongoing_title', { name: firstName })} sub={end ? t('tracking.ongoing_sub', { time: formatClock(end) }) : t('tracking.ongoing_sub_no_end')} />
+          <StageHeader stageKey="ongoing" live kicker={sinceMin ? t('tracking.ongoing', { n: sinceMin }) : t('tracking.ongoing_now')} title={t('tracking.ongoing_title', { name: firstName })} sub={end ? t('tracking.ongoing_sub', { time: formatClock(end) }) : t('tracking.ongoing_sub_no_end')} />
           {rows.length ? <WorkTimeline rows={rows} /> : null}
           <MoneyLine amount={moneyAmount} caption={moneyCaption} promise={promise} />
           {requestRow}
@@ -533,6 +551,7 @@ export default function MissionView() {
               customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
               initialRegion={{ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
               onMapReady={() => setMapReady(true)}
+              onRegionChangeComplete={() => setRegionKey((k) => k + 1)}
               mapPadding={searchingLayer ? { top: 0, right: 0, bottom: sheetVisibleH, left: 0 } : undefined}
               scrollEnabled={tracking && !bandMode}
               zoomEnabled={tracking && !bandMode}
@@ -563,11 +582,12 @@ export default function MissionView() {
                 sheetHeight={sheetVisibleH}
                 acceptedProviderId={justAccepted ? (acceptedProviderId ?? (provider?.id != null ? String(provider.id) : null)) : null}
                 visible={searchingLayer}
+                regionKey={regionKey}
               />
             ) : null}
 
             {bandMode && provider ? (
-              <MapBand top={insets.top + 56} name={firstName} avatarUrl={provider.avatarUrl} sinceLabel={t('tracking.since', { time: formatClock(startedAt ?? now) })} onCall={call} />
+              <MapBand top={insets.top + 56} name={firstName} avatarUrl={provider.avatarUrl} sinceLabel={t('tracking.since', { time: formatClock(startedAt ?? now) })} onCall={call} onMessage={message} unread={unread} />
             ) : null}
           </Animated.View>
 

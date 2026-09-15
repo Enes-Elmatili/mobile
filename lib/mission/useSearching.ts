@@ -26,6 +26,15 @@ type WaveEvent = {
 };
 type DeclinedEvent = { requestId: number | string; kind: 'declined'; providerId: string };
 
+type Snapshot = {
+  requestId: number | string; kind: 'snapshot'; round: number;
+  providers: { id: string; name: string | null; avatarUrl: string | null; lat: number | null; lng: number | null; distanceKm: number | null; etaMin: number | null; wave: number; declined: boolean }[];
+  remaining: number | null; nextWaveInMs: number | null;
+};
+
+/** Le serveur prévient jusqu'à 30 km : les endormis sont cherchés dans le même rayon. */
+export const NEARBY_RADIUS_KM = 30;
+
 export function useSearching(missionId: string | number, coord: { latitude: number; longitude: number }, active: boolean) {
   const { socket } = useSocket();
   const [pros, setPros] = useState<Pro[]>([]);
@@ -34,13 +43,46 @@ export function useSearching(missionId: string | number, coord: { latitude: numb
   const [nextWaveAt, setNextWaveAt] = useState<number | null>(null);
   const [startedAt] = useState(() => Date.now());
 
+  // L'état déjà acquis : la première vague part quelques centaines de ms après
+  // le paiement, avant que cet écran n'écoute. Le serveur la rejoue depuis son
+  // journal (GET /requests/:id/matching).
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res: any = await api.get(`/requests/${missionId}/matching`);
+        const snap: Snapshot | null = res?.data ?? res ?? null;
+        if (cancelled || !snap || !Array.isArray(snap.providers)) return;
+        setRound((r) => Math.max(r, snap.round ?? 0));
+        if (snap.remaining != null) setRemaining(snap.remaining);
+        if (snap.nextWaveInMs != null) setNextWaveAt(Date.now() + snap.nextWaveInMs);
+        setPros((cur) => {
+          const byId = new Map(cur.map((p) => [p.id, p]));
+          for (const p of snap.providers) {
+            const prev = byId.get(String(p.id));
+            byId.set(String(p.id), {
+              id: String(p.id), name: p.name ?? prev?.name ?? null, avatarUrl: p.avatarUrl ?? prev?.avatarUrl ?? null,
+              lat: p.lat ?? prev?.lat ?? null, lng: p.lng ?? prev?.lng ?? null, etaMin: p.etaMin ?? prev?.etaMin ?? null,
+              wave: Math.max(prev?.wave ?? 0, p.wave || 1), declined: p.declined || prev?.declined || false,
+            });
+          }
+          return Array.from(byId.values());
+        });
+      } catch (e: any) {
+        devError('[useSearching] snapshot failed:', e?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [active, missionId]);
+
   // Prestataires proches : endormis tant que le serveur ne les a pas prévenus.
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
     (async () => {
       try {
-        const res: any = await api.providers.nearby(coord.latitude, coord.longitude, 5);
+        const res: any = await api.providers.nearby(coord.latitude, coord.longitude, NEARBY_RADIUS_KM);
         const list: Pro[] = (res?.providers ?? [])
           .map((p: any) => ({ id: String(p.id), name: p.name ?? null, avatarUrl: p.avatarUrl ?? null, lat: Number(p.lat), lng: Number(p.lng), etaMin: null, wave: 0, declined: false }))
           .filter((p: Pro) => Number.isFinite(p.lat) && Number.isFinite(p.lng))

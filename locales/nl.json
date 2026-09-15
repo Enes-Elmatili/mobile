@@ -2322,7 +2322,8 @@
     "load_error": "Deze opdracht kan niet geladen worden.",
     "retry": "Opnieuw proberen",
     "call": "{{name}} bellen",
-    "message": "Bericht aan {{name}}"
+    "message": "Bericht aan {{name}}",
+    "ongoing_now": "BEZIG · ZONET"
   },
   "gains": {
     "title": "Inkomsten",

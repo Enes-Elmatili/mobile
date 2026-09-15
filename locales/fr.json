@@ -2204,7 +2204,8 @@
     "load_error": "Impossible de charger cette mission.",
     "retry": "Réessayer",
     "call": "Appeler {{name}}",
-    "message": "Écrire à {{name}}"
+    "message": "Écrire à {{name}}",
+    "ongoing_now": "EN COURS · À L’INSTANT"
   },
   "gains": {
     "title": "Gains",

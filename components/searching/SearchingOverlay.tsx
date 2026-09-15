@@ -85,9 +85,11 @@ type Props = {
   acceptedProviderId?: string | null;
   /** Faux = le calque s'efface (fondu) avant de disparaître. */
   visible: boolean;
+  /** Change quand la carte a fini de bouger : les points sont recalculés. */
+  regionKey?: number;
 };
 
-export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHeight, acceptedProviderId, visible }: Props) {
+export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHeight, acceptedProviderId, visible, regionKey = 0 }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
   const [points, setPoints] = useState<Record<string, { x: number; y: number }>>({});
@@ -111,7 +113,7 @@ export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHe
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prosKey résume la liste
-  }, [mapReady, prosKey, missionCoord.latitude, missionCoord.longitude, sheetHeight]);
+  }, [mapReady, prosKey, missionCoord.latitude, missionCoord.longitude, sheetHeight, regionKey]);
 
   const fade = useSharedValue(visible ? 1 : 0);
   useEffect(() => { fade.value = withTiming(visible ? 1 : 0, { duration: reduced ? 0 : 320 }); }, [visible, reduced, fade]);
