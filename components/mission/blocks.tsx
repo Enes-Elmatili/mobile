@@ -55,10 +55,13 @@ export function distanceLabel(brief: MissionBrief, t: (k: string, o?: any) => st
 }
 
 /** Quartier / ville : le dernier segment de l'adresse, sans le code postal. */
+const COUNTRY = /^(belgique|belgi[eë]|belgium|france|nederland|netherlands|luxembourg)$/i;
+/** « Rue de Livourne 13, 1050 Ixelles, Belgique » → « Ixelles » (jamais le pays). */
 export function placeShort(address: string | null): string | null {
   if (!address) return null;
-  const parts = address.split(',').map((p) => p.trim()).filter(Boolean);
-  const last = parts[parts.length - 1] ?? address;
+  const parts = address.split(',').map((p) => p.trim()).filter(Boolean).filter((p) => !COUNTRY.test(p));
+  const withZip = parts.find((p) => /^\d{4}\s+\S/.test(p));
+  const last = withZip ?? parts[parts.length - 1] ?? address;
   return last.replace(/^\d{4}\s*/, '') || last;
 }
 

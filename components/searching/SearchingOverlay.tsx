@@ -7,7 +7,7 @@
 // natif du suivi — sur la même carte, sans changer d'écran.
 // Les positions à l'écran viennent de pointForCoordinate (carte verrouillée).
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type MapView from 'react-native-maps';
 import { Image } from 'expo-image';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
@@ -92,6 +92,7 @@ type Props = {
 export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHeight, acceptedProviderId, visible, regionKey = 0 }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
+  const { width, height } = useWindowDimensions();
   const [points, setPoints] = useState<Record<string, { x: number; y: number }>>({});
   const prosKey = pros.map((p) => `${p.id}:${p.lat}:${p.lng}`).join('|');
   useEffect(() => {
@@ -106,6 +107,8 @@ export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHe
       for (const tg of targets) {
         try {
           const pt = await mapRef.current!.pointForCoordinate({ latitude: tg.lat, longitude: tg.lng });
+          // Hors de la zone visible (sous la feuille ou au-delà des bords) : pas de pastille.
+          if (pt.x < -PIN || pt.y < -PIN || pt.x > width + PIN || pt.y > height - sheetHeight + PIN / 2) continue;
           next[tg.key] = { x: pt.x, y: pt.y };
         } catch { /* hors carte */ }
       }
@@ -113,7 +116,7 @@ export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHe
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prosKey résume la liste
-  }, [mapReady, prosKey, missionCoord.latitude, missionCoord.longitude, sheetHeight, regionKey]);
+  }, [mapReady, prosKey, missionCoord.latitude, missionCoord.longitude, sheetHeight, regionKey, width, height]);
 
   const fade = useSharedValue(visible ? 1 : 0);
   useEffect(() => { fade.value = withTiming(visible ? 1 : 0, { duration: reduced ? 0 : 320 }); }, [visible, reduced, fade]);

@@ -48,9 +48,12 @@ export type MonthGroup = { key: string; year: number; month: number; net: number
 export const DEFAULT_PAYOUT_DELAY_DAYS = 7;
 
 /** « Avenue Louise 1, 1050 Ixelles » → « Ixelles ». */
+const COUNTRY = /^(belgique|belgi[eë]|belgium|france|nederland|netherlands|luxembourg)$/i;
 export function cityOf(address: string | null | undefined): string | null {
   if (!address) return null;
-  const last = address.split(',').map((s) => s.trim()).filter(Boolean).pop() ?? '';
+  const parts = address.split(',').map((s) => s.trim()).filter(Boolean).filter((p) => !COUNTRY.test(p));
+  const withZip = parts.find((p) => /^\d{4}\s+\S/.test(p));
+  const last = withZip ?? parts[parts.length - 1] ?? '';
   const m = last.match(/^\d{4}\s+(.+)$/);
   return (m ? m[1] : last) || null;
 }

@@ -270,8 +270,11 @@ export default function MissionView() {
         .map((p) => ({ latitude: p.lat as number, longitude: p.lng as number, d: metersBetween(p.lat as number, p.lng as number, clientCoord.latitude, clientCoord.longitude) }))
         .sort((a, b) => a.d - b.d)
         .slice(0, 4);
-      if (near.length) {
-        mapRef.current.fitToCoordinates([clientCoord, ...near], { edgePadding: { top: insets.top + 80, right: 56, bottom: sheetVisibleH + 60, left: 56 }, animated: !reduced });
+      // mapPadding porte déjà la feuille : le rembourrage ici est seulement
+      // la marge visuelle (sinon la zone utile devient négative et Google
+      // dézoome sur le monde entier).
+      if (near.length && near[near.length - 1].d <= 40_000) {
+        mapRef.current.fitToCoordinates([clientCoord, ...near], { edgePadding: { top: insets.top + 90, right: 60, bottom: 60, left: 60 }, animated: !reduced });
       } else {
         mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }, reduced ? 0 : 600);
       }

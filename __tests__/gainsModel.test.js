@@ -52,3 +52,10 @@ describe('gains', () => {
     expect(ledgerOf(toLine(tx({ mission: null }), [], NOW, 7, 'fr'))).toEqual({ gross: null, commission: null, rate: null, net: 24545 });
   });
 });
+
+describe('cityOf ignore le pays', () => {
+  it('« Rue de Livourne 13, Saint-Gilles, Belgique » → Saint-Gilles', () => {
+    expect(cityOf('Rue de Livourne 13, Saint-Gilles, Belgique')).toBe('Saint-Gilles');
+    expect(cityOf('Rue Haute 12, 1000 Bruxelles, Belgium')).toBe('Bruxelles');
+  });
+});
