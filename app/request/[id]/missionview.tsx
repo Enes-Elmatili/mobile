@@ -8,7 +8,7 @@
 // change de contenu, la carte suit puis se réduit en bandeau, et à la fin la
 // feuille monte jusqu'en haut avec le bilan. Aucun changement d'écran.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -17,7 +17,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
-import { useLayoutClass } from '@/lib/layout';
 import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
@@ -29,37 +28,45 @@ import { useConversationUnread } from '@/lib/useConversationUnread';
 import { markCompletionHandled } from '@/lib/navDedup';
 import { formatClock } from '@/lib/format';
 import { briefOf, isQuoteMode, workOf, type MissionBrief } from '@/lib/mission/brief';
-import { ARRIVAL_RADIUS_M, isFutureScheduled, metersBetween, minutesSince, plannedEnd, stageOf, type Stage } from '@/lib/mission/stage';
+import { ARRIVAL_RADIUS_M, isFutureScheduled, metersBetween, plannedEnd, stageOf, type Stage } from '@/lib/mission/stage';
 import { distanceKm, fetchRoute, type LatLng } from '@/lib/mission/route';
 import { SearchingOverlay } from '@/components/searching/SearchingOverlay';
 import { SearchingSheet } from '@/components/searching/SearchingSheet';
 import { useSearching } from '@/lib/mission/useSearching';
 import Avatar from '@/components/ui/Avatar';
 import { PhotoViewer } from '@/components/mission/photos';
-import { DoneContent, EtaHero, MapBand, MoneyLine, PinCard, ProviderRow, QuoteSteps, RequestRow, StageHeader, WorkTimeline, providerFirstName, providerName, type TimelineRow } from '@/components/tracking';
+import { DoneContent, EtaHero, MoneyLine, PhotoCard, PinCard, ProviderRow, QuoteSteps, Rail, RequestRow, StageHeader, StageSheet, TimerHero, providerFirstName, providerName, type RailRow, type SheetLevel } from '@/components/tracking';
+import { useMapCamera, type CameraMode } from '@/lib/mission/useMapCamera';
+import { usePresence } from '@/lib/motion/usePresence';
 
 const ACCEPTED_MOMENT_MS = 2400;
-// En cours : la carte garde au moins cette hauteur sous la barre de statut ;
-// si la feuille n'a pas besoin de tout l'écran, la carte garde le reste.
-const BAND_HEIGHT = 200;
-const SHEET_MAX_RATIO = 0.62;
+
 
 // ─── Marqueurs ───────────────────────────────────────────────────────────────
 function ClientMarker() {
   const theme = useAppTheme();
   return <View style={[m.client, { backgroundColor: theme.greenText, borderColor: theme.cardBg }]} />;
 }
-function ProviderMarker({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
+// Le prestataire sur la carte : avatar 44 pt et bulle de minutes, atterrit
+// sur MOTION.land à sa première apparition.
+function ProviderMarker({ name, avatarUrl, etaMin }: { name: string; avatarUrl?: string | null; etaMin: number | null }) {
   const theme = useAppTheme();
+  const land = useEntrance(10, MOTION.land);
   return (
-    <View style={[m.provider, { borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.2 }]}>
-      <Avatar name={name} size={36} avatarUrl={avatarUrl} />
-    </View>
+    <Animated.View style={[m.providerWrap, land.style]}>
+      <View style={[m.provider, { borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.2 }]}>
+        <Avatar name={name} size={40} avatarUrl={avatarUrl} />
+      </View>
+      {etaMin != null ? <View style={[m.bubble, { backgroundColor: theme.accent }]}><Text style={[m.bubbleText, { color: theme.accentText }]}>{etaMin} MIN</Text></View> : null}
+    </Animated.View>
   );
 }
 const m = StyleSheet.create({
   client: { width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
-  provider: { borderRadius: 20, borderWidth: 2, shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  providerWrap: { alignItems: 'center' },
+  provider: { borderRadius: 24, borderWidth: 3, shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  bubble: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  bubbleText: { fontFamily: FONTS.bebas, fontSize: 14, letterSpacing: 1, includeFontPadding: false },
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -76,7 +83,6 @@ export default function MissionView() {
   const { user: authUser } = useAuth();
   const { initiateCall } = useCall();
   const reduced = useReduceMotion();
-  const { height: windowHeight } = useLayoutClass();
   const mapRef = useRef<MapView>(null);
 
   // ─── La demande et les faits ────────────────────────────────────────────
@@ -125,34 +131,23 @@ export default function MissionView() {
   const [now1s, setNow1s] = useState(() => Date.now());
   const search = useSearching(String(id), clientCoord, searchingLayer);
 
-  // ─── Géométrie animée : une carte, une feuille ──────────────────────────
-  // La carte : pleine (recherche, en route, à la porte), bandeau (en cours),
-  // effacée (bilan). La feuille est ancrée en bas ; son bord haut suit le
-  // contenu mesuré, ou le bandeau, ou monte jusqu'en haut pour le bilan.
-  const bandH = insets.top + BAND_HEIGHT;
-  const [sheetContentH, setSheetContentH] = useState(0);
-  const sheetFullTop = windowHeight - Math.min(sheetContentH + insets.bottom + 44, windowHeight * SHEET_MAX_RATIO);
-  // Bandeau : la feuille prend ce que son contenu demande, jamais moins que le
-  // bandeau minimum ; la carte occupe le reste (pas de feuille à moitié vide).
-  const bandSheetTop = Math.max(bandH - 26, sheetFullTop);
-  const mapTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandSheetTop + 26 : windowHeight;
-  const sheetTarget = mapMode === 'gone' ? 0 : mapMode === 'band' ? bandSheetTop : sheetFullTop;
-  const mapH = useSharedValue(windowHeight);
-  const sheetTop = useSharedValue(windowHeight);
-  useEffect(() => {
-    mapH.value = reduced ? withTiming(mapTarget, { duration: 150 }) : withSpring(mapTarget, MOTION.pane);
-    sheetTop.value = reduced ? withTiming(sheetTarget, { duration: 150 }) : withSpring(sheetTarget, MOTION.pane);
-  }, [mapTarget, sheetTarget, reduced, mapH, sheetTop]);
-  const mapStyle = useAnimatedStyle(() => ({ height: mapH.value }));
-  const sheetStyle = useAnimatedStyle(() => ({ top: sheetTop.value }));
-  // Le rembourrage bas de la carte en recherche = la hauteur visible de la feuille.
-  const sheetVisibleH = Math.max(0, windowHeight - sheetFullTop);
-  const topBarEntrance = useEntrance(-12);
-  useEffect(() => { if (tracking) topBarEntrance.replay(); }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
-
-
   const providerUserId = provider?.userId || null;
   const { count: unread, reset: resetUnread } = useConversationUnread(providerUserId, authUser?.id);
+
+  // ─── Une carte, une feuille qu'on tient ────────────────────────────────
+  // La feuille gorhom impose un palier par stade (l'utilisateur peut tirer) ;
+  // sa hauteur atteinte rembourre la carte. Le bilan (done) est une page.
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const sheetLevels: SheetLevel[] = done ? ['page'] : stage === 'at_door' || stage === 'ongoing' ? ['half', 'full'] : ['peek', 'half', 'full'];
+  const sheetLevel: SheetLevel = done ? 'page' : 'half';
+  const sheetVisibleH = sheetHeight;
+  const mapOpacity = useSharedValue(1);
+  useEffect(() => { mapOpacity.value = reduced ? withTiming(mapMode === 'gone' ? 0 : 1, { duration: 150 }) : withSpring(mapMode === 'gone' ? 0 : 1, MOTION.pane); }, [mapMode, reduced, mapOpacity]);
+  const mapStyle = useAnimatedStyle(() => ({ opacity: mapOpacity.value }));
+  const topBarEntrance = useEntrance(-12);
+  // Le bilan monte depuis le bas quand la mission se termine (même page).
+  const donePresence = usePresence(done, { from: 'bottom', preset: MOTION.pane });
+  useEffect(() => { if (tracking) topBarEntrance.replay(); }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Charger la demande, en tirer les faits ─────────────────────────────
   const apply = useCallback((data: any) => {
@@ -258,37 +253,10 @@ export default function MissionView() {
   const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
   const distance = providerLocation ? distanceKm(providerLocation, clientCoord) : null;
 
-  // ─── La carte suit, puis se resserre, puis s'efface ─────────────────────
-  useEffect(() => {
-    if (!mapRef.current || !mapReady) return;
-    if (searchingLayer) {
-      // Recherche : la carte est verrouillée, cadrée sur l'adresse et les
-      // prestataires les plus proches (le serveur prévient jusqu'à 30 km),
-      // rembourrée de la feuille pour que rien ne passe dessous.
-      const near = search.pros
-        .filter((p) => p.lat != null && p.lng != null)
-        .map((p) => ({ latitude: p.lat as number, longitude: p.lng as number, d: metersBetween(p.lat as number, p.lng as number, clientCoord.latitude, clientCoord.longitude) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 4);
-      // mapPadding porte déjà la feuille : le rembourrage ici est seulement
-      // la marge visuelle (sinon la zone utile devient négative et Google
-      // dézoome sur le monde entier).
-      if (near.length && near[near.length - 1].d <= 40_000) {
-        mapRef.current.fitToCoordinates([clientCoord, ...near], { edgePadding: { top: insets.top + 90, right: 60, bottom: 60, left: 60 }, animated: !reduced });
-      } else {
-        mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }, reduced ? 0 : 600);
-      }
-      return;
-    }
-    if (!tracking) return;
-    if (stage === 'at_door' || bandMode) {
-      mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.004, longitudeDelta: 0.004 }, reduced ? 0 : 600);
-    } else if (providerLocation) {
-      mapRef.current.fitToCoordinates([providerLocation, clientCoord], { edgePadding: { top: 120, right: 60, bottom: Math.round(windowHeight * SHEET_MAX_RATIO) + 40, left: 60 }, animated: !reduced });
-    } else {
-      mapRef.current.animateToRegion({ ...clientCoord, latitudeDelta: 0.015, longitudeDelta: 0.015 }, reduced ? 0 : 600);
-    }
-  }, [stage, bandMode, tracking, searchingLayer, mapReady, providerLocation, clientCoord, windowHeight, reduced, search.pros, sheetVisibleH, insets.top]);
+  // ─── La caméra : cherche, suit, se resserre, se réduit, s'efface ─────────
+  const cameraMode: CameraMode = searchingLayer ? 'search' : !tracking ? 'none' : stage === 'at_door' ? 'door' : bandMode ? 'band' : 'follow';
+  const searchPoints = useMemo(() => search.pros.filter((p) => p.lat != null && p.lng != null).map((p) => ({ latitude: p.lat as number, longitude: p.lng as number })), [search.pros]);
+  useMapCamera({ mapRef, ready: mapReady, mode: cameraMode, door: clientCoord, other: providerLocation, others: searchPoints, sheetHeight: sheetVisibleH, topInset: insets.top, reduced });
 
   // ─── Sockets ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -463,7 +431,6 @@ export default function MissionView() {
         />
       );
     }
-    const sinceMin = minutesSince(startedAt, now);
     const end = plannedEnd({ timeline: { ...brief.timeline, startedAt }, service: brief.service });
     const promise = isQuote ? (amount != null ? t('tracking.quote_promise') : t('tracking.callout_promise')) : t('tracking.fixed_promise');
     const moneyAmount = amount ?? (isQuote ? calloutFee : null);
@@ -493,17 +460,26 @@ export default function MissionView() {
       );
     }
     if (stage === 'ongoing') {
-      const rows: TimelineRow[] = [];
       const arrivedAt = brief.timeline.arrivedAt ?? work?.beforePhotoAt;
-      if (arrivedAt) rows.push({ key: 'arrived', time: formatClock(arrivedAt), label: t('tracking.tl_arrived') });
-      if (startedAt) rows.push({ key: 'started', time: formatClock(startedAt), label: t('tracking.tl_started') });
-      if (work?.beforePhotoUrl) rows.push({ key: 'before', time: formatClock(work.beforePhotoAt ?? arrivedAt ?? startedAt), label: t('tracking.tl_before_photo'), sub: t('tracking.tl_by', { name: firstName }), photoUrl: work.beforePhotoUrl, onPhoto: () => setViewer(work.beforePhotoUrl) });
-      if (work?.afterPhotoUrl) rows.push({ key: 'after', time: formatClock(work.afterPhotoAt), label: t('tracking.tl_after_photo'), sub: t('tracking.tl_by', { name: firstName }), photoUrl: work.afterPhotoUrl, onPhoto: () => setViewer(work.afterPhotoUrl) });
-      if (end && !work?.afterPhotoUrl) rows.push({ key: 'end', time: formatClock(end), label: t('tracking.tl_end_planned'), sub: brief.service.durationMinutes ? t('tracking.tl_usual_duration', { n: brief.service.durationMinutes }) : null, next: true });
+      const rows: RailRow[] = [
+        { key: 'arrived', label: t('tracking.tl_arrived'), when: formatClock(arrivedAt ?? startedAt), done: true },
+        { key: 'started', label: t('tracking.tl_started'), when: formatClock(startedAt), done: true },
+        { key: 'after', label: t('tracking.tl_after_photo'), when: work?.afterPhotoUrl ? formatClock(work.afterPhotoAt) : null, done: !!work?.afterPhotoUrl },
+        ...(end && !work?.afterPhotoUrl ? [{ key: 'end', label: t('tracking.tl_end_planned'), when: `~${formatClock(end)}`, done: false }] : []),
+      ];
       return (
         <>
-          <StageHeader stageKey="ongoing" live kicker={sinceMin ? t('tracking.ongoing', { n: sinceMin }) : t('tracking.ongoing_now')} title={t('tracking.ongoing_title', { name: firstName })} sub={end ? t('tracking.ongoing_sub', { time: formatClock(end) }) : t('tracking.ongoing_sub_no_end')} />
-          {rows.length ? <WorkTimeline rows={rows} /> : null}
+          <StageHeader stageKey="ongoing" live kicker={t('tracking.at_home', { name: firstName }).toUpperCase() + ' · ' + t('tracking.since', { time: formatClock(startedAt ?? now) })} />
+          <TimerHero since={startedAt} />
+          <Text style={[s.sub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{end ? t('tracking.ongoing_sub', { time: formatClock(end) }) : t('tracking.ongoing_sub_no_end')}</Text>
+          {providerRow}
+          <Rail rows={rows} />
+          {work?.beforePhotoUrl || work?.afterPhotoUrl ? (
+            <View style={s.photoRow}>
+              {work?.beforePhotoUrl ? <PhotoCard uri={work.beforePhotoUrl} label={`${t('tracking.before')} · ${formatClock(work.beforePhotoAt)}`} onPress={() => setViewer(work.beforePhotoUrl)} /> : null}
+              {work?.afterPhotoUrl ? <PhotoCard uri={work.afterPhotoUrl} label={`${t('tracking.after')} · ${formatClock(work.afterPhotoAt)}`} onPress={() => setViewer(work.afterPhotoUrl)} /> : null}
+            </View>
+          ) : null}
           <MoneyLine amount={moneyAmount} caption={moneyCaption} promise={promise} />
           {requestRow}
           <Pressable onPress={() => router.push('/settings/help')} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.textMuted }]}>{t('tracking.support_link')}</Text></Pressable>
@@ -520,7 +496,7 @@ export default function MissionView() {
         {requestRow}
       </>
     );
-  }, [brief, stage, startedAt, now, now1s, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router, searchingLayer, search, params.expiresAt, params.scheduledLabel, paramIsScheduled, request?.preferredTimeStart, justAccepted, acceptedName]);
+  }, [brief, stage, startedAt, now, now1s, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, theme.textSub, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router, searchingLayer, search, params.expiresAt, params.scheduledLabel, paramIsScheduled, request?.preferredTimeStart, justAccepted, acceptedName]);
 
   // ═════════════════════════════════════════════════════════════════════════
   if (invalidId || notFound) {
@@ -546,7 +522,7 @@ export default function MissionView() {
       {showMap && (
         <>
           {/* La carte, unique du premier au dernier stade. */}
-          <Animated.View style={[s.mapWrap, mapStyle]}>
+          <Animated.View style={[StyleSheet.absoluteFillObject, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
             <MapView
               ref={mapRef}
               style={StyleSheet.absoluteFillObject}
@@ -571,7 +547,7 @@ export default function MissionView() {
                 <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
               ) : null}
               {tracking && providerLocation && !bandMode ? (
-                <Marker coordinate={providerLocation} anchor={{ x: 0.5, y: 0.5 }}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} /></Marker>
+                <Marker coordinate={providerLocation} anchor={{ x: 0.5, y: 1 }}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} etaMin={hasLiveGps ? etaMin : null} /></Marker>
               ) : null}
             </MapView>
 
@@ -587,10 +563,6 @@ export default function MissionView() {
                 visible={searchingLayer}
                 regionKey={regionKey}
               />
-            ) : null}
-
-            {bandMode && provider ? (
-              <MapBand top={insets.top + 56} name={firstName} avatarUrl={provider.avatarUrl} sinceLabel={t('tracking.since', { time: formatClock(startedAt ?? now) })} onCall={call} onMessage={message} unread={unread} />
             ) : null}
           </Animated.View>
 
@@ -612,19 +584,16 @@ export default function MissionView() {
             </Animated.View>
           ) : null}
 
-          {/* La feuille, unique : son contenu change, son bord haut suit. */}
-          <Animated.View style={[s.sheet, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.04 }, done && { borderTopLeftRadius: 0, borderTopRightRadius: 0 }, sheetStyle]}>
-            {done ? (
+          {/* La feuille, unique : son contenu change, on la tient au doigt. */}
+          {!done ? (
+            <StageSheet levels={sheetLevels} level={sheetLevel} onHeightChange={setSheetHeight}>
+              {sheet}
+            </StageSheet>
+          ) : (
+            <Animated.View style={[StyleSheet.absoluteFillObject, donePresence.style]}>
               <DoneContent request={request} topInset={insets.top} />
-            ) : (
-              <>
-                <View style={[s.handle, { backgroundColor: theme.borderLight }]} />
-                <ScrollView showsVerticalScrollIndicator={false} bounces={bandMode} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-                  <View onLayout={(e) => setSheetContentH(e.nativeEvent.layout.height)}>{sheet}</View>
-                </ScrollView>
-              </>
-            )}
-          </Animated.View>
+            </Animated.View>
+          )}
         </>
       )}
 
@@ -637,13 +606,12 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   notFound: { fontFamily: FONTS.sans, fontSize: 14 },
-  mapWrap: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' },
   topBar: { position: 'absolute', left: 16, right: 16, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 },
   roundBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
   badgeText: { fontFamily: FONTS.monoMedium, fontSize: 11, letterSpacing: 1.5 },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 12, shadowColor: '#000', shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 20 },
-  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+  sub: { fontFamily: FONTS.sans, fontSize: 13.5, lineHeight: 18, marginTop: 6 },
+  photoRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   linkBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 6 },
   link: { fontFamily: FONTS.sansMedium, fontSize: 13 },
   reassurance: { fontFamily: FONTS.sans, fontSize: 11.5, textAlign: 'center', marginTop: 12 },

@@ -1,376 +1,227 @@
-// app/request/[id]/ongoing.tsx
-// v5 — Step-by-step guided mission flow for providers + Design System dark mode
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Linking,
-  ActivityIndicator,
-  Platform,
-  StatusBar,
-  BackHandler,
-  TextInput,
-  KeyboardAvoidingView,
-  Pressable,
-  Image,
-} from 'react-native';
+// app/request/[id]/ongoing.tsx — la mission côté prestataire (spec
+// 2026-09-16, plan « la prochaine action sous le pouce »).
+// Un seul écran à stades (providerStageOf) : en route → sur place → code →
+// (devis) → intervention → clôture. À chaque stade, une action pleine en pied
+// de feuille, et tout ce qu'il faut savoir sans chercher : l'adresse et
+// l'accès, le client à joindre, le problème en photos, ce qu'on gagne.
+// La carte suit (en route), devient un bandeau (sur place), s'efface
+// (intervention). Les règles du serveur ne changent pas : photo avant → code
+// (3 essais, 4 h) → photo après → clôture.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, BackHandler, Linking, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
-import Reanimated from 'react-native-reanimated';
-import { MOTION } from '@/lib/motion/springs';
-import { useTakeScale } from '@/lib/motion/useTakeScale';
-import { useEntrance } from '@/lib/motion/useEntrance';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from 'react-i18next';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
+import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
+import { feedback } from '@/lib/feedback/feedback';
+import { api } from '@/lib/api';
+import { tokenStorage } from '@/lib/storage';
+import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useConversationUnread } from '@/lib/useConversationUnread';
 import { markCompletionHandled } from '@/lib/navDedup';
-import Avatar from '@/components/ui/Avatar';
-import { api } from '@/lib/api';
-import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
-import { feedback } from '@/lib/feedback/feedback';
-import { briefOf } from '@/lib/mission/brief';
-import { PhotoGallery } from '@/components/mission/photos';
-import { tokenStorage } from '@/lib/storage';
-import { devError } from '@/lib/logger';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import { DigitReel } from '@/components/ui/DigitReel';
-import { formatEUR as formatEuros } from '@/lib/format';
+import { formatClock, formatEUR } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
-import { PulseDot } from '@/components/ui/PulseDot';
-import { useTranslation } from 'react-i18next';
-import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
+import { briefOf, isQuoteMode, type MissionBrief } from '@/lib/mission/brief';
+import { ARRIVAL_RADIUS_M, metersBetween, plannedEnd } from '@/lib/mission/stage';
+import { distanceKm, fetchRoute, type LatLng } from '@/lib/mission/route';
+import { providerMapMode, providerStageOf, type ProviderStage } from '@/lib/mission/providerStage';
+import { useMapCamera } from '@/lib/mission/useMapCamera';
+import { serviceName, modeLabel } from '@/components/mission/blocks';
+import { PhotoGallery, PhotoViewer } from '@/components/mission/photos';
+import { AccessChips, CodeEntry, Cta, EtaHero, NetLine, PhotoCard, ProviderRow, Rail, StageHeader, StageSheet, TimerHero, type RailRow, type SheetLevel } from '@/components/tracking';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
-const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
-
-// Avatar consolidé sur @/components/ui/Avatar (photo réelle + fallback initiales + onError).
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-
-// ─── Utils ───────────────────────────────────────────────────────────────────
-
-const decodePolyline = (encoded: string) => {
-  const points: { latitude: number; longitude: number }[] = [];
-  let index = 0, lat = 0, lng = 0;
-  while (index < encoded.length) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
-  }
-  return points;
-};
-
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
 const RETRY_MAX = 6;
 const RETRY_DELAY = 800;
-const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const GPS_STALE_MS = 30_000;
+const PIN_MAX_ATTEMPTS = 3;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// ─── Upload helper ───────────────────────────────────────────────────────────
-
-async function uploadMissionPhoto(
-  requestId: string,
-  type: 'before' | 'after',
-  imageUri: string,
-  coords?: { latitude: number; longitude: number } | null,
-): Promise<string> {
+// ─── Envoi d'une photo de chantier (multipart + position, preuve) ────────────
+async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', imageUri: string, coords?: LatLng | null): Promise<string> {
   const token = await tokenStorage.getToken();
-  const endpoint = type === 'before' ? 'before-photo' : 'after-photo';
-  const url = `${API_BASE_URL}/requests/${requestId}/${endpoint}`;
+  const url = `${API_BASE_URL}/requests/${requestId}/${type === 'before' ? 'before-photo' : 'after-photo'}`;
   const formData = new FormData();
   const filename = imageUri.split('/').pop() || `mission_${type}.jpg`;
   const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
   const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
   formData.append('photo', { uri: imageUri, name: filename, type: mimeType } as any);
-  // GPS anti-fraud metadata
-  if (coords) {
-    formData.append('latitude', String(coords.latitude));
-    formData.append('longitude', String(coords.longitude));
-  }
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}) },
-    body: formData,
-  });
+  if (coords) { formData.append('latitude', String(coords.latitude)); formData.append('longitude', String(coords.longitude)); }
+  const response = await fetch(url, { method: 'POST', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}) }, body: formData });
   const text = await response.text();
   let data: any;
-  try { data = JSON.parse(text); } catch {
-    const snippet = (text || '').slice(0, 200).replace(/\s+/g, ' ').trim();
-    throw new Error(`Réponse invalide du serveur (HTTP ${response.status}${snippet ? `: ${snippet}` : ''})`);
-  }
-  if (!response.ok) throw Object.assign(new Error(data?.error?.message || data?.message || `HTTP ${response.status}`), { status: response.status, data });
+  try { data = JSON.parse(text); } catch { throw Object.assign(new Error('INVALID_RESPONSE'), { status: response.status, code: 'INVALID_RESPONSE' }); }
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || data?.message || `HTTP ${response.status}`), { status: response.status, data, code: data?.code });
   return data.photoUrl;
 }
 
-// ─── Step indicator component ────────────────────────────────────────────────
-
-type MissionStep = 1 | 2 | 3 | 4;
-
-const STEP_LABELS_CFG: Record<number, { i18nKey: string; icon: string }> = {
-  1: { i18nKey: 'ext.ongoing_step1_title', icon: 'camera' },
-  2: { i18nKey: 'ext.ongoing_step2_title', icon: 'key' },
-  3: { i18nKey: 'ext.ongoing_step3_title', icon: 'file-text' },
-  4: { i18nKey: 'ext.ongoing_step4_title', icon: 'check-circle' },
-};
-
-function StepIndicator({ current, total, theme }: { current: number; total: number; theme: ReturnType<typeof useAppTheme> }) {
-  return (
-    <View style={si.row}>
-      {Array.from({ length: total }, (_, i) => {
-        const step = i + 1;
-        const isFilled = step <= current;
-        return (
-          <View
-            key={step}
-            style={[
-              si.bar,
-              { backgroundColor: theme.borderLight },
-              isFilled && { backgroundColor: theme.accent },
-            ]}
-          />
-        );
-      })}
-    </View>
-  );
+// ─── Marqueurs ───────────────────────────────────────────────────────────────
+function DoorMarker() {
+  const theme = useAppTheme();
+  return <View style={[m.door, { backgroundColor: theme.greenText, borderColor: theme.cardBg }]}><Feather name="home" size={14} color={theme.bg as string} /></View>;
 }
-
-const si = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
-  bar: { flex: 1, height: 3, borderRadius: 2 },
-});
-
-// ─── Action card component ───────────────────────────────────────────────────
-
-function ActionCard({ icon, title, subtitle, children, theme }: {
-  icon: string; title: string; subtitle: string; children: React.ReactNode; theme: ReturnType<typeof useAppTheme>;
-}) {
-  const entrance = useEntrance(20);
-
-  return (
-    <Reanimated.View style={[ac.card, entrance.style, {
-      backgroundColor: theme.cardBg,
-      ...Platform.select({
-        ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-        android: { elevation: 3 },
-      }),
-    }]}>
-      <View style={ac.header}>
-        <View style={[ac.iconCircle, { backgroundColor: theme.surface }]}>
-          <Feather name={icon as any} size={22} color={theme.text} />
-        </View>
-        <View style={ac.headerText}>
-          <Text style={[ac.title, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{title}</Text>
-          <Text style={[ac.subtitle, { color: theme.textSub, fontFamily: FONTS.sans }]}>{subtitle}</Text>
-        </View>
-      </View>
-      {children}
-    </Reanimated.View>
-  );
+function MeMarker() {
+  const theme = useAppTheme();
+  return <View style={[m.me, { backgroundColor: theme.accent, borderColor: theme.cardBg }]} />;
 }
-
-const ac = StyleSheet.create({
-  card: { borderRadius: 14, padding: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  iconCircle: {
-    width: 38, height: 38, borderRadius: 19,
-    alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  headerText: { flex: 1 },
-  title: { fontSize: 15, marginBottom: 1 },
-  subtitle: { fontSize: 12 },
+const m = StyleSheet.create({
+  door: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  me: { width: 22, height: 22, borderRadius: 11, borderWidth: 4 },
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═════════════════════════════════════════════════════════════════════════════
-
-// Moment 13 : la vignette ne s'affiche pas, elle se DÉPOSE (1,1 → 1, léger
-// dépassement) — comme une photo qu'on pose sur la table.
-const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
-function PhotoThumb({ uri, style }: { uri: string; style: any }) {
-  const [placed, setPlaced] = useState(false);
-  useEffect(() => { setPlaced(true); }, []);
-  const take = useTakeScale(placed, { on: 1, off: 1.1, preset: MOTION.take });
-  return <ReanimatedImage source={{ uri }} style={[style, take.style]} />;
-}
-
 export default function MissionOngoing() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const theme = useAppTheme();
+  const reduced = useReduceMotion();
   const { socket, joinRoom, leaveRoom } = useSocket();
   const { user: authUser } = useAuth();
-  const theme = useAppTheme();
-  const mapStyle = theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const mapRef = useRef<MapView>(null);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
 
+  // ─── La demande et les faits du terrain ──────────────────────────────────
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [myLocation, setMyLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [distance, setDistance] = useState('');
-  const [duration, setDuration] = useState('');
-  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
-  const [actionLoading, setActionLoading] = useState(false);
-
-  // Photo + PIN + Quote state
-  const [beforePhotoUploaded, setBeforePhotoUploaded] = useState(false);
-  const [pin, setPin] = useState('');
+  const [myLocation, setMyLocation] = useState<LatLng | null>(null);
+  const [gpsAt, setGpsAt] = useState<number | null>(null);
+  const [gpsDenied, setGpsDenied] = useState(false);
+  const [etaMin, setEtaMin] = useState<number | null>(null);
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [beforeUri, setBeforeUri] = useState<string | null>(null);
+  const [afterUri, setAfterUri] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<'before' | 'after' | null>(null);
   const [pinVerified, setPinVerified] = useState(false);
-  const [afterPhotoUploaded, setAfterPhotoUploaded] = useState(false);
-  // URIs affichables des photos prises : locale (file://) juste après la prise,
-  // serveur (/api/uploads/…) après rechargement de l'écran. Sans vignette, le
-  // presta n'avait AUCUN retour visuel que sa photo était bien enregistrée.
-  const [beforePhotoUri, setBeforePhotoUri] = useState<string | null>(null);
-  const [afterPhotoUri, setAfterPhotoUri] = useState<string | null>(null);
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState(false);
+  const [attemptsLeft, setAttemptsLeft] = useState(PIN_MAX_ATTEMPTS);
   const [hasQuote, setHasQuote] = useState(false);
-  const pinInputRef = useRef<TextInput>(null);
+  const [quoteAmount, setQuoteAmount] = useState<number | null>(null);
+  const [arrivedTapped, setArrivedTapped] = useState(false);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const [mapReady, setMapReady] = useState(false);
+  const [viewer, setViewer] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const pendingCameraChecked = useRef(false);
 
-  // URL affichable d'une photo mission (relative backend → absolue serveur).
-  const resolvePhotoUri = (raw?: string | null): string | null => {
-    if (!raw) return null;
-    if (/^(https?|file|content):/.test(raw)) return raw;
-    return `${SERVER_BASE}${raw}`;
-  };
+  const brief: MissionBrief | null = useMemo(() => (request ? briefOf(request) : null), [request]);
+  const isQuote = isQuoteMode(request?.pricingMode);
+  const door: LatLng = useMemo(() => ({ latitude: request?.lat ?? 50.8466, longitude: request?.lng ?? 4.3528 }), [request?.lat, request?.lng]);
+  const near = !!myLocation && !!request?.lat && metersBetween(myLocation.latitude, myLocation.longitude, door.latitude, door.longitude) <= ARRIVAL_RADIUS_M;
+  const stage: ProviderStage = providerStageOf(request, { near, arrivedTapped, beforePhoto: !!beforeUri, pinVerified, afterPhoto: !!afterUri, isQuote, hasQuote });
+  const mapMode = providerMapMode(stage);
+  const clientName = cleanName(request?.client?.name, { fallback: t('provider.client') });
+  const clientFirst = clientName.split(/\s+/)[0];
+  const gpsLost = !gpsDenied && gpsAt != null && now - gpsAt > GPS_STALE_MS;
+  const distance = myLocation ? distanceKm(myLocation, door) : null;
 
-  // ─── Conversation badge (client → provider) ──────────────────────────────
   const clientUserId = request?.client?.id || request?.clientId || null;
-  const { count: unreadFromClient, reset: resetUnread } = useConversationUnread(
-    clientUserId,
-    authUser?.id,
-  );
+  const { count: unread, reset: resetUnread } = useConversationUnread(clientUserId, authUser?.id);
 
-  // ─── Route fetch ──────────────────────────────────────────────────────────
-
-  const fetchRoute = useCallback(async (oLat: number, oLng: number, dLat: number, dLng: number) => {
-    try {
-      if (!GOOGLE_MAPS_API_KEY) throw new Error('No key');
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}&key=${GOOGLE_MAPS_API_KEY}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.status !== 'OK') throw new Error(data.status);
-      const leg = data.routes[0].legs[0];
-      setDistance(leg.distance.text);
-      setDuration(leg.duration.text);
-      setRouteCoords(decodePolyline(data.routes[0].overview_polyline.points));
-      return { distance: leg.distance.text, duration: leg.duration.text };
-    } catch {
-      const d = calculateDistance(oLat, oLng, dLat, dLng);
-      setDistance(`${d.toFixed(1)} km`);
-      setDuration(`${Math.ceil(d * 3)} min`);
-      return { distance: `${d.toFixed(1)} km`, duration: `${Math.ceil(d * 3)} min` };
-    }
-  }, []);
-
-  // ─── Load request ─────────────────────────────────────────────────────────
-
+  // ─── Charger ─────────────────────────────────────────────────────────────
   const loadRequest = useCallback(async (attempt = 0) => {
     try {
-      const response = await api.get(`/requests/${id}`);
-      const data = response.data || response;
+      const response: any = await api.get(`/requests/${id}`);
+      const data = response?.data || response;
       const st = (data?.status || '').toUpperCase();
-
       if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
         if (attempt < RETRY_MAX) { setLoading(true); await sleep(RETRY_DELAY); return loadRequest(attempt + 1); }
         feedback.error('missions.load_error');
-        router.replace('/(tabs)/dashboard');
+        router.replace('/(tabs)/provider-dashboard');
         return;
       }
-
       if (!['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(st)) {
-        if (st === 'DONE') router.replace(`/request/${id}/earnings`);
-        else router.replace('/(tabs)/dashboard');
+        if (st === 'DONE') router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id) } });
+        else router.replace('/(tabs)/provider-dashboard');
         return;
       }
-
-      // ── Gate temporel ──
-      // Mission planifiée hors fenêtre d'activation (>30 min avant) → écran dédié
-      // /early (countdown, récap mission, itinéraire, refus). On évite l'Alert
-      // qui interrompt brutalement le provider sans contexte. Les ONGOING bypassent.
+      // Mission planifiée hors fenêtre (> 30 min avant) → écran d'attente dédié.
       if (st === 'ACCEPTED' && data?.preferredTimeStart) {
-        const startTs = new Date(data.preferredTimeStart).getTime();
-        const minutesUntilStart = Math.round((startTs - Date.now()) / 60_000);
-        if (minutesUntilStart > 30) {
-          router.replace({ pathname: '/request/[id]/early', params: { id: String(id) } });
-          return;
-        }
+        const minutesUntilStart = Math.round((new Date(data.preferredTimeStart).getTime() - Date.now()) / 60_000);
+        if (minutesUntilStart > 30) { router.replace({ pathname: '/request/[id]/early', params: { id: String(id) } }); return; }
       }
-
-      if (data.beforePhotoUrl) { setBeforePhotoUploaded(true); setBeforePhotoUri(resolvePhotoUri(data.beforePhotoUrl)); }
+      if (data.beforePhotoUrl) setBeforeUri((cur) => cur ?? data.beforePhotoUrl);
+      if (data.afterPhotoUrl) setAfterUri((cur) => cur ?? data.afterPhotoUrl);
       if (data.pinVerified) setPinVerified(true);
-      if (data.afterPhotoUrl) { setAfterPhotoUploaded(true); setAfterPhotoUri(resolvePhotoUri(data.afterPhotoUrl)); }
       setRequest(data);
-
-      // Check if a quote was already sent for this request
-      if (data.pricingMode === 'estimate' || data.pricingMode === 'diagnostic') {
+      if (isQuoteMode(data.pricingMode)) {
         try {
-          const qRes = await api.get(`/quotes/request/${id}`);
-          if (qRes?.quotes?.length > 0) setHasQuote(true);
-        } catch { /* no quote yet */ }
+          const qRes: any = await api.get(`/quotes/request/${id}`);
+          const q = qRes?.quotes?.[0];
+          if (q) { setHasQuote(true); setQuoteAmount(q.totalAmount != null ? q.totalAmount / 100 : null); }
+        } catch { /* pas encore de devis */ }
       }
     } catch {
       feedback.error('missions.load_error');
-      router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
+      if (router.canGoBack()) router.back(); else router.replace('/(tabs)/provider-dashboard');
     } finally {
       setLoading(false);
     }
   }, [id, router]);
 
-  // Quitter la mission : MÊME comportement (confirmation identique) pour le bouton
-  // système Android et la flèche back UI. Fini l'incohérence (l'un bloquait, l'autre
-  // revenait en arrière). La mission reste assignée — on peut y revenir.
-  const handleLeave = useCallback(async () => {
-    const ok = await feedback.confirm({
-      title: t('ext.ongoing_leave_title'),
-      message: t('ext.ongoing_leave_msg'),
-      confirm: t('ext.leave'),
-      cancel: t('ext.stay'),
-    });
-    if (!ok) return;
-    router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
-  }, [router]);
+  useEffect(() => { loadRequest(); }, [loadRequest]);
+  const hasMountedRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!hasMountedRef.current) { hasMountedRef.current = true; return; }
+    loadRequest();
+  }, [loadRequest]));
 
+  // Horloge : le kicker « GPS perdu » et les heures affichées.
+  useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(iv); }, []);
+
+  // ─── Quitter (bouton système et flèche : même confirmation) ──────────────
+  const handleLeave = useCallback(async () => {
+    const ok = await feedback.confirm({ title: t('ext.ongoing_leave_title'), message: t('ext.ongoing_leave_msg'), confirm: t('ext.leave'), cancel: t('ext.stay') });
+    if (!ok) return;
+    if (router.canGoBack()) router.back(); else router.replace('/(tabs)/provider-dashboard');
+  }, [router, t]);
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleLeave(); return true; });
     return () => sub.remove();
   }, [handleLeave]);
-  useEffect(() => { loadRequest(); }, [loadRequest]);
 
-  // Re-fetch les données quand l'écran regagne le focus (retour d'app switch)
-  const hasMountedRef = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      // Skip first mount (loadRequest already called via useEffect)
-      if (!hasMountedRef.current) { hasMountedRef.current = true; return; }
-      loadRequest();
-    }, [loadRequest])
-  );
+  // ─── Photos ──────────────────────────────────────────────────────────────
+  const sendPhoto = useCallback(async (type: 'before' | 'after', uri: string) => {
+    setUploading(type);
+    if (type === 'before') setBeforeUri(uri); else setAfterUri(uri);
+    try {
+      await uploadMissionPhoto(String(id), type, uri, myLocation);
+      feedback.haptic('success');
+    } catch (err: any) {
+      devError('[ONGOING] photo', err);
+      if (type === 'before') setBeforeUri(null); else setAfterUri(null);
+      const code = err?.code || err?.data?.code;
+      if (code === 'INVALID_STATE') await loadRequest();
+      feedback.error(code === 'INVALID_STATE' ? 'mission_view.state_updated' : 'pro.photo_error_generic');
+    } finally {
+      setUploading(null);
+    }
+  }, [id, myLocation, loadRequest]);
 
-  // ─── Android : récupération d'une photo perdue ────────────────────────────
-  // Sur Android, l'OS peut tuer l'activité de l'app pendant que la caméra est
-  // ouverte (pression mémoire). Au retour, l'app redémarre : la promesse de
-  // launchCameraAsync est perdue et la photo prise semblait disparaître (bug
-  // remonté en beta : « il n'affiche pas les photos »). getPendingResultAsync
-  // rend ce cliché orphelin — on reprend alors l'upload à l'étape courante,
-  // déterminée par l'état serveur (before manquante → before, sinon after).
+  const takePhoto = useCallback(async (type: 'before' | 'after') => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { feedback.error('profile.camera_denied'); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      await sendPhoto(type, result.assets[0].uri);
+    } catch (err) { devError('[ONGOING] camera', err); }
+  }, [sendPhoto]);
+
+  // Android : l'OS peut tuer l'app pendant que la caméra est ouverte. Au
+  // retour, le cliché orphelin est repris à l'étape courante.
   useEffect(() => {
     if (Platform.OS !== 'android' || loading || pendingCameraChecked.current) return;
     pendingCameraChecked.current = true;
@@ -379,946 +230,386 @@ export default function MissionOngoing() {
         const pending = await ImagePicker.getPendingResultAsync();
         const first = (Array.isArray(pending) ? pending[0] : null) as ImagePicker.ImagePickerResult | null;
         const uri = first && !(first as any).code && !first.canceled ? first.assets?.[0]?.uri : null;
-        if (!uri) return;
-        const type: 'before' | 'after' = !beforePhotoUploaded ? 'before' : 'after';
-        setActionLoading(true);
-        try {
-          await uploadMissionPhoto(id!, type, uri, myLocation);
-          if (type === 'before') { setBeforePhotoUploaded(true); setBeforePhotoUri(uri); }
-          else { setAfterPhotoUploaded(true); setAfterPhotoUri(uri); }
-          feedback.haptic('light'); // la photo se dépose : une seule haptique, sur la frame du visuel
-          feedback.haptic('success');
-        } catch (err: any) {
-          devError('[ONGOING] Pending photo upload:', err);
-          feedback.error(err.message || t('ext.ongoing_photo_send_fail'));
-        } finally { setActionLoading(false); }
-      } catch (err) {
-        devError('[ONGOING] getPendingResultAsync:', err);
-      }
+        if (uri) await sendPhoto(beforeUri ? 'after' : 'before', uri);
+      } catch (err) { devError('[ONGOING] getPendingResultAsync', err); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  // ─── Location tracking ────────────────────────────────────────────────────
-
+  // ─── Position : suivre, prévenir le client, détecter l'arrivée ───────────
   const requestRef = useRef<any>(null);
+  useEffect(() => { requestRef.current = request; }, [request]);
   const trackingStartedRef = useRef(false);
   const lastEmitRef = useRef(0);
-
-  // Keep requestRef in sync without re-triggering effects
-  useEffect(() => { requestRef.current = request; }, [request]);
-
+  const lastRouteRef = useRef(0);
+  const updateRoute = useCallback(async (from: LatLng) => {
+    const req = requestRef.current;
+    if (!req?.lat || !req?.lng) return null;
+    const r = await fetchRoute(from, { latitude: req.lat, longitude: req.lng });
+    setEtaMin(r.etaMin);
+    if (r.coords.length) setRouteCoords(r.coords);
+    return r;
+  }, []);
   const startTracking = useCallback(async () => {
-    if (trackingStartedRef.current) return; // Prevent duplicate watchers
+    if (trackingStartedRef.current) return;
     trackingStartedRef.current = true;
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { trackingStartedRef.current = false; return; }
+      if (status !== 'granted') { setGpsDenied(true); trackingStartedRef.current = false; return; }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      setMyLocation(coords);
-      const req = requestRef.current;
-      if (req?.lat && req?.lng) await fetchRoute(coords.latitude, coords.longitude, req.lat, req.lng);
-
+      setMyLocation(coords); setGpsAt(Date.now());
+      await updateRoute(coords);
       locationSub.current = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 10000, distanceInterval: 30 },
         async (newLoc) => {
           const c = { latitude: newLoc.coords.latitude, longitude: newLoc.coords.longitude };
-          setMyLocation(c);
-          const curReq = requestRef.current;
-          if (curReq?.lat && curReq?.lng) {
-            const rd = await fetchRoute(c.latitude, c.longitude, curReq.lat, curReq.lng);
-            // Throttle socket emissions to max 1 per 10 seconds
-            const now = Date.now();
-            if (now - lastEmitRef.current >= 10_000 && socket?.connected) {
-              lastEmitRef.current = now;
-              socket.emit('provider:location_update', { requestId: Number(id), lat: c.latitude, lng: c.longitude, eta: rd.duration });
-            }
+          setMyLocation(c); setGpsAt(Date.now());
+          const t0 = Date.now();
+          let eta: number | null = null;
+          if (t0 - lastRouteRef.current >= 30_000) { lastRouteRef.current = t0; eta = (await updateRoute(c))?.etaMin ?? null; }
+          if (t0 - lastEmitRef.current >= 10_000 && socket?.connected) {
+            lastEmitRef.current = t0;
+            socket.emit('provider:location_update', { requestId: Number(id), lat: c.latitude, lng: c.longitude, eta: eta != null ? `${eta} min` : undefined });
           }
-        }
+        },
       );
-    } catch (e) { devError('[ONGOING] Location:', e); trackingStartedRef.current = false; }
-  }, [fetchRoute, socket, id]);
-
+    } catch (e) { devError('[ONGOING] Location', e); trackingStartedRef.current = false; }
+  }, [updateRoute, socket, id]);
   useEffect(() => {
     if (request && !trackingStartedRef.current) startTracking();
     return () => {
       if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
       trackingStartedRef.current = false;
     };
-  }, [!!request]); // Only trigger on request existence change (null→object), not on every update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!request]);
+  // À l'arrivée dans le rayon : une haptique, une seule fois.
+  const wasNearRef = useRef(false);
+  useEffect(() => { if (near && !wasNearRef.current) { wasNearRef.current = true; feedback.haptic('success'); } }, [near]);
 
-  // ─── Socket ───────────────────────────────────────────────────────────────
-
+  // ─── Sockets ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket || !id) return;
-    joinRoom('request', id);
-    const onCancelled = (data: any) => {
-      // Une réassignation admin émet AUSSI request:cancelled (pour que les
-      // builds antérieurs sortent de l'écran) : ici on laisse onUnassigned
-      // faire, il affiche le bon message. Sans ce filtre, double navigation.
-      if (data?.reason === 'admin_reassign') return;
-      if (String(data.requestId || data.id) === String(id)) {
-        if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
-        router.replace('/(tabs)/dashboard');
-      }
-    };
-    const onStatusUpdated = (data: any) => {
-      if (String(data.requestId) !== String(id)) return;
-      // Devis accepté → statut revient à ONGOING, reload pour avancer le step
-      loadRequest();
-    };
-    // L'admin a réassigné la mission à un autre prestataire (le client a pu
-    // demander quelqu'un d'autre, même en pleine intervention). Sans ce
-    // handler, l'écran reste ouvert sur une mission qui n'est plus la nôtre et
-    // le prochain chargement se solde par un 403 sec.
-    const onUnassigned = (data: any) => {
-      if (String(data.requestId || data.id) !== String(id)) return;
-      if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
-      feedback.info('ext.ongoing_unassigned_msg');
-      router.replace('/(tabs)/dashboard');
-    };
+    joinRoom('request', String(id));
+    const same = (d: any) => String(d?.requestId ?? d?.id) === String(id);
+    const stop = () => { if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; } };
+    const onCancelled = (d: any) => { if (d?.reason === 'admin_reassign' || !same(d)) return; stop(); router.replace('/(tabs)/provider-dashboard'); };
+    const onStatusUpdated = (d: any) => { if (same(d)) loadRequest(); };
+    const onUnassigned = (d: any) => { if (!same(d)) return; stop(); feedback.info('ext.ongoing_unassigned_msg'); router.replace('/(tabs)/provider-dashboard'); };
     socket.on('request:cancelled', onCancelled);
     socket.on('request:unassigned', onUnassigned);
     socket.on('request:statusUpdated', onStatusUpdated);
     return () => {
-      leaveRoom('request', id);
+      leaveRoom('request', String(id));
       socket.off('request:cancelled', onCancelled);
       socket.off('request:unassigned', onUnassigned);
       socket.off('request:statusUpdated', onStatusUpdated);
     };
-  }, [socket, id, router, joinRoom, leaveRoom]);
+  }, [socket, id, router, joinRoom, leaveRoom, loadRequest]);
 
-  // ─── Actions ──────────────────────────────────────────────────────────────
-
-  const handleCall = () => {
-    if (request?.client?.phone) Linking.openURL(`tel:${request.client.phone}`);
+  // ─── Actions ─────────────────────────────────────────────────────────────
+  const call = useCallback(() => {
+    if (request?.client?.phone) Linking.openURL(`tel:${String(request.client.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
     else feedback.error('mission_view.phone_unavailable');
-  };
+  }, [request?.client?.phone]);
+  const message = useCallback(() => {
+    if (!clientUserId) return;
+    resetUnread();
+    router.push({ pathname: '/messages/[userId]', params: { userId: String(clientUserId), name: clientName, requestId: String(id) } });
+  }, [clientUserId, clientName, id, router, resetUnread]);
+  const navigate = useCallback(async () => {
+    if (!request?.lat || !request?.lng) return;
+    const { lat, lng } = request;
+    const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    try {
+      if (Platform.OS === 'ios') {
+        const g = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+        const a = `maps://?daddr=${lat},${lng}`;
+        if (await Linking.canOpenURL(g)) return Linking.openURL(g);
+        return Linking.openURL((await Linking.canOpenURL(a)) ? a : web);
+      }
+      const nav = `google.navigation:q=${lat},${lng}&mode=d`;
+      return Linking.openURL((await Linking.canOpenURL(nav)) ? nav : web);
+    } catch { return Linking.openURL(web); }
+  }, [request]);
 
-  const openActionsMenu = useCallback(async () => {
-    const goSupport = () => router.push('/settings/help');
-    // Safety valve : si le provider est bloqué sur une mission anormale (pas de PIN,
-    // données manquantes...), il doit pouvoir sortir proprement. Le backend libère
-    // la mission (status → PUBLISHED, providerId → null) et reset le prestataire à
-    // ONLINE pour qu'il puisse recevoir d'autres missions immédiatement. Le client
-    // est notifié qu'on cherche un autre prestataire.
-    const abandonMission = async () => {
-      const ok = await feedback.confirm({
-        titleKey: 'missions.abandon_title',
-        messageKey: 'missions.abandon_msg',
-        confirmKey: 'missions.abandon_short',
-        cancelKey: 'missions.keep_mission',
-        destructive: true,
-      });
+  const openMenu = useCallback(async () => {
+    const abandon = async () => {
+      const ok = await feedback.confirm({ titleKey: 'missions.abandon_title', messageKey: 'missions.abandon_msg', confirmKey: 'missions.abandon_short', cancelKey: 'missions.keep_mission', destructive: true });
       if (!ok) return;
-      // Plus d'optimisme silencieux : on attend la confirmation backend AVANT de
-      // naviguer. Si l'appel échoue (offline), toast d'échec + possibilité de réessayer
-      // — sinon le prestataire croit avoir abandonné alors que la mission lui reste.
+      // On attend la confirmation du serveur avant de partir : sinon le
+      // prestataire croit avoir abandonné alors que la mission lui reste.
       const attempt = async (): Promise<void> => {
-        setActionLoading(true);
+        setBusy(true);
         try {
           await api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' });
           feedback.haptic('warning');
-          router.replace('/(tabs)/dashboard');
+          router.replace('/(tabs)/provider-dashboard');
         } catch (err: any) {
-          console.warn('[abandon] backend release failed', err?.message);
-          feedback.error(t('ext.ongoing_abandon_failed'));
-          const retry = await feedback.confirm({
-            title: t('ext.ongoing_abandon_retry_title'),
-            message: t('ext.ongoing_abandon_retry_msg'),
-            confirm: t('common.retry'),
-            cancel: t('ext.later'),
-          });
+          devError('[abandon]', err?.message);
+          feedback.error('ext.ongoing_abandon_failed');
+          const retry = await feedback.confirm({ title: t('ext.ongoing_abandon_retry_title'), message: t('ext.ongoing_abandon_retry_msg'), confirm: t('common.retry'), cancel: t('ext.later') });
           if (retry) return attempt();
-        } finally {
-          setActionLoading(false);
-        }
+        } finally { setBusy(false); }
       };
       await attempt();
     };
+    const choice = await feedback.actionSheet({ titleKey: 'missions.options', options: [{ labelKey: 'mission_view.contact_support' }, { labelKey: 'missions.cancel', destructive: true }], cancelKey: 'common.close' });
+    if (choice === 0) router.push('/settings/help');
+    else if (choice === 1) abandon();
+  }, [router, id, t]);
 
-    const choice = await feedback.actionSheet({
-      titleKey: 'missions.options',
-      options: [
-        { labelKey: 'mission_view.contact_support' },
-        { labelKey: 'missions.cancel', destructive: true },
-      ],
-      cancelKey: 'common.close',
-    });
-    if (choice === 0) goSupport();
-    else if (choice === 1) abandonMission();
-  }, [router, id]);
-
-  const handleNavigate = async () => {
-    if (!request?.lat || !request?.lng) return;
-    const { lat, lng } = request;
-    if (Platform.OS === 'ios') {
-      const gUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
-      const aUrl = `maps://?daddr=${lat},${lng}`;
-      const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-      const canG = await Linking.canOpenURL(gUrl);
-      if (canG) Linking.openURL(gUrl);
-      else { const canA = await Linking.canOpenURL(aUrl); Linking.openURL(canA ? aUrl : web); }
-    } else {
-      const gNav = `google.navigation:q=${lat},${lng}&mode=d`;
-      const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-      const can = await Linking.canOpenURL(gNav);
-      Linking.openURL(can ? gNav : web);
-    }
-  };
-
-  // Step 1: Before photo (with GPS)
-  const handleBeforePhoto = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { feedback.error('profile.camera_denied'); return; }
-      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
-      if (result.canceled || !result.assets?.[0]?.uri) return;
-      setActionLoading(true);
-      try {
-        await uploadMissionPhoto(id!, 'before', result.assets[0].uri, myLocation);
-        setBeforePhotoUploaded(true);
-        setBeforePhotoUri(result.assets[0].uri);
-        feedback.haptic('success');
-      } catch (err: any) {
-        devError('[ONGOING] Before photo:', err);
-        feedback.error(err.message || t('ext.ongoing_photo_send_fail'));
-      } finally { setActionLoading(false); }
-    } catch (err) { devError('[ONGOING] Camera:', err); }
-  };
-
-  // Step 2: PIN
-  const handlePinChange = (value: string) => {
-    const cleaned = value.replace(/[^0-9]/g, '').slice(0, 4);
-    setPin(cleaned);
-    // Pas de re-focus à chaque frappe : le champ garde le focus tout seul depuis
-    // qu'il est réellement tappable (cf. s.pinInput). Le rAF() d'avant relançait
-    // showSoftInput() à chaque chiffre → clavier qui saute sur Android.
-  };
-
-  // Step 2: PIN → auto-start
-  const handleVerifyPin = async () => {
+  const verifyPin = useCallback(async () => {
     if (pin.length !== 4) return;
-    setActionLoading(true);
+    setBusy(true); setPinError(false);
     try {
       await api.post(`/requests/${id}/verify-pin`, { pin });
       setPinVerified(true);
-      // Backend auto-starts the mission on PIN verify
-      setRequest((p: any) => ({ ...p, status: 'ONGOING' }));
+      setRequest((p: any) => (p ? { ...p, status: 'ONGOING', startedAt: p.startedAt ?? new Date().toISOString() } : p));
       feedback.haptic('success');
     } catch (error: any) {
       const code = error?.data?.code;
+      setPin(''); setPinError(true);
       if (code === 'PIN_INCORRECT') {
-        feedback.error(error.data?.message || t('common.retry'));
-        setPin('');
-        pinInputRef.current?.focus();
-      } else if (code === 'PIN_EXPIRED') {
-        feedback.error('ext.ongoing_pin_expired_msg');
-      } else if (code === 'PIN_MAX_ATTEMPTS') {
-        feedback.error('ext.ongoing_pin_max_msg');
-      } else {
-        feedback.error(error.message || t('ext.ongoing_pin_verify_fail'));
-      }
-    } finally { setActionLoading(false); }
-  };
+        const left = error?.data?.attemptsRemaining;
+        if (typeof left === 'number') setAttemptsLeft(left); else setAttemptsLeft((n) => Math.max(0, n - 1));
+        feedback.haptic('error');
+      } else if (code === 'PIN_EXPIRED') feedback.error('ext.ongoing_pin_expired_msg');
+      else if (code === 'PIN_MAX_ATTEMPTS') feedback.error('ext.ongoing_pin_max_msg');
+      else feedback.error('ext.ongoing_pin_verify_fail');
+    } finally { setBusy(false); }
+  }, [id, pin]);
 
-  // Step 3a: After photo (with GPS)
-  const handleAfterPhoto = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { feedback.error('profile.camera_denied'); return; }
-      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
-      if (result.canceled || !result.assets?.[0]?.uri) return;
-      setActionLoading(true);
-      try {
-        await uploadMissionPhoto(id!, 'after', result.assets[0].uri, myLocation);
-        setAfterPhotoUploaded(true);
-        setAfterPhotoUri(result.assets[0].uri);
-        feedback.haptic('success');
-      } catch (err: any) {
-        devError('[ONGOING] After photo:', err);
-        feedback.error(err.message || t('ext.ongoing_photo_send_fail'));
-      } finally { setActionLoading(false); }
-    } catch (err) { devError('[ONGOING] Camera:', err); }
-  };
-
-  // Step 5: Complete
-  const handleComplete = async () => {
-    const ok = await feedback.confirm({
-      titleKey: 'ext.ongoing_complete_title',
-      messageKey: 'ext.ongoing_complete_msg',
-      confirmKey: 'common.confirm',
-      cancelKey: 'common.cancel',
-    });
+  const complete = useCallback(async () => {
+    const ok = await feedback.confirm({ titleKey: 'ext.ongoing_complete_title', messageKey: 'ext.ongoing_complete_msg', confirmKey: 'common.confirm', cancelKey: 'common.cancel' });
     if (!ok) return;
-    setActionLoading(true);
-    // Marquer AVANT l'await : le backend émet le socket request:completed
-    // avant de répondre HTTP, donc SocketContext reçoit l'event pendant
-    // que l'await est en cours. Sans mark préalable, SocketContext
-    // schedule sa propre nav 900ms et on se retrouve avec 2 mounts.
-    markCompletionHandled(id);
+    setBusy(true);
+    // Marqué AVANT l'appel : le serveur émet request:completed avant de
+    // répondre, SocketContext ne doit pas naviguer une seconde fois.
+    markCompletionHandled(String(id));
     try {
-      const response = await api.post(`/requests/${id}/complete`);
+      await api.post(`/requests/${id}/complete`);
       if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; }
       feedback.event('mission_complete');
-      // L'écran de fin lit le net et le taux réels sur le serveur : rien à passer.
       router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id) } });
     } catch (error: any) {
-      if (error?.data?.code === 'INVALID_STATE') { await loadRequest(); }
-      else feedback.error(error.data?.message || error.message || t('ext.ongoing_complete_generic_error'));
-    } finally { setActionLoading(false); }
-  };
+      if (error?.data?.code === 'INVALID_STATE') await loadRequest();
+      else feedback.error('ext.ongoing_complete_generic_error');
+    } finally { setBusy(false); }
+  }, [id, router, loadRequest]);
 
-  // ─── Computed ─────────────────────────────────────────────────────────────
-  // NB : les guards `loading` / `!request` sont plus bas, APRÈS le useEffect du
-  // focus PIN. Un early return avant un hook = "Rendered more hooks than during
-  // the previous render" (crash ErrorBoundary constaté en prod Android, build 8).
+  // ─── Carte et feuille ─────────────────────────────────────────────────────
+  useMapCamera({ mapRef, ready: mapReady && mapMode !== 'none', mode: mapMode, door, other: myLocation, sheetHeight, topInset: insets.top, reduced });
+  const visibleCount = useRevealCount(routeCoords.length, stage === 'en_route' && routeCoords.length > 0);
+  const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
+  const mapVisible = useSharedValue(1);
+  useEffect(() => { mapVisible.value = reduced ? withTiming(mapMode === 'none' ? 0 : 1, { duration: 150 }) : withSpring(mapMode === 'none' ? 0 : 1, MOTION.pane); }, [mapMode, reduced, mapVisible]);
+  const mapStyle = useAnimatedStyle(() => ({ opacity: mapVisible.value }));
+  const topBar = useEntrance(-12);
+  useEffect(() => { topBar.replay(); }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const clientLoc = { latitude: request?.lat || 50.8503, longitude: request?.lng || 4.3517 };
-  const mapRegion = myLocation
-    ? { ...myLocation, latitudeDelta: 0.04, longitudeDelta: 0.04 }
-    : { ...clientLoc, latitudeDelta: 0.04, longitudeDelta: 0.04 };
-  const status = (request?.status || '').toUpperCase();
+  const levels: SheetLevel[] = stage === 'working' || stage === 'closing' ? ['page'] : stage === 'en_route' ? ['peek', 'half', 'full'] : ['half', 'full'];
+  const level: SheetLevel = stage === 'working' || stage === 'closing' ? 'page' : 'half';
 
-  // Is this a quote/diagnostic mission?
-  const isQuoteMission = request?.pricingMode === 'estimate' || request?.pricingMode === 'diagnostic';
-  const totalSteps = isQuoteMission ? 4 : 3;
+  // ─── Contenu par stade ───────────────────────────────────────────────────
+  const clientMeta = brief?.client?.missionsCount != null
+    ? t('pro.client_meta_missions', { lang: (brief.client.language ?? i18n.language).toUpperCase(), n: brief.client.missionsCount })
+    : t('pro.client_meta', { lang: (brief?.client?.language ?? i18n.language).toUpperCase() });
+  const clientRow = request?.client ? (
+    <View style={{ marginTop: 16 }}>
+      <ProviderRow provider={{ id: request.client.id, name: clientName, avatarUrl: request.client.avatarUrl, phone: request.client.phone }} meta={clientMeta} unread={unread} onMessage={message} onCall={call} />
+    </View>
+  ) : null;
+  const addressBlock = brief ? (
+    <View style={s.addr}>
+      <Text style={[s.addrTitle, { color: theme.text }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{brief.place.address}</Text>
+      <Text style={[s.addrSub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+        {[serviceName(brief), modeLabel(brief, t).toLowerCase(), brief.service.durationMinutes ? t('mission.minutes', { n: brief.service.durationMinutes }) : null].filter(Boolean).join(' · ')}
+      </Text>
+      <AccessChips brief={brief} />
+    </View>
+  ) : null;
+  const net = brief ? <NetLine brief={brief} commissionRate={request?.commissionRate != null ? Number(request.commissionRate) : null} sub={stage === 'working' || stage === 'closing' ? t('pro.net_at_close') : undefined} /> : null;
+  const end = brief ? plannedEnd(brief) : null;
 
-  // Current step — prix fixe: 3 étapes / devis: 4 étapes
-  let currentStep: MissionStep = 1;
-  if (!beforePhotoUploaded) currentStep = 1;
-  else if (!pinVerified || status === 'ACCEPTED') currentStep = 2;
-  else if (isQuoteMission && !hasQuote) currentStep = 3;           // devis pas encore envoyé
-  else if (isQuoteMission && status === 'QUOTE_SENT') currentStep = 3; // devis envoyé, attente client
-  else currentStep = isQuoteMission ? 4 : 3;                       // photo après + terminer
-
-  const stepInfoRaw = isQuoteMission ? STEP_LABELS_CFG[currentStep] : STEP_LABELS_CFG[currentStep === 3 ? 4 : currentStep];
-
-  // Focus le champ PIN APRÈS la transition d'écran quand on arrive à l'étape 2.
-  // NE PAS revenir à InteractionManager.runAfterInteractions : toutes nos anims
-  // tournent en useNativeDriver → RN ne pose aucun interaction handle
-  // (Animation.js: `__isInteraction = config.isInteraction ?? !useNativeDriver`),
-  // donc le callback part au tick suivant, pendant la transition native-stack.
-  // À ce moment la fenêtre n'a pas encore le focus IME et showSoftInput() est
-  // ignoré silencieusement → le clavier ne s'ouvrait jamais.
-  useEffect(() => {
-    if (currentStep !== 2) return;
-    const t = setTimeout(() => pinInputRef.current?.focus(), 450);
-    return () => clearTimeout(t);
-  }, [currentStep]);
-  const stepInfo = { title: t(stepInfoRaw.i18nKey), icon: stepInfoRaw.icon };
-
-  // ─── Guards — après TOUS les hooks (cf. commentaire du bloc Computed) ─────
-
-  if (loading) {
-    return (
-      <View style={[s.loadingWrap, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
-        <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={[s.loadingText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('common.loading')}</Text>
-      </View>
-    );
+  let content: React.ReactNode = null;
+  let footer: React.ReactNode = null;
+  if (brief) {
+    switch (stage) {
+      case 'en_route':
+        content = (
+          <>
+            <StageHeader stageKey="en_route" live={!gpsLost && !gpsDenied && !!myLocation} kicker={gpsDenied ? `${t('pro.en_route')} · ${t('pro.gps_denied')}` : gpsLost ? `${t('pro.en_route')} · ${t('pro.gps_lost')}` : `${t('pro.en_route')} · ${t('pro.live_gps')}`} />
+            <EtaHero etaMin={etaMin} distanceKm={distance} hasGps={!!myLocation} />
+            {addressBlock}
+            {clientRow}
+            {brief.photos.length ? <View style={{ marginTop: 14, marginHorizontal: -20 }}><PhotoGallery photos={brief.photos} title={t('mission.client_photos')} /></View> : null}
+            {net}
+          </>
+        );
+        footer = (<><Cta label={t('pro.navigate')} icon="navigation" onPress={navigate} /><Cta label={t('pro.arrived_cta')} tone="ghost" onPress={() => setArrivedTapped(true)} /></>);
+        break;
+      case 'on_site':
+        content = (
+          <>
+            <StageHeader stageKey="on_site" kicker={t('pro.on_site', { time: formatClock(now) })} title={t('pro.before_title')} sub={t('pro.before_sub')} />
+            {addressBlock}
+            {clientRow}
+            {net}
+          </>
+        );
+        footer = <Cta label={t('pro.before_cta')} icon="camera" onPress={() => takePhoto('before')} loading={uploading === 'before'} />;
+        break;
+      case 'code':
+        content = (
+          <>
+            <StageHeader stageKey="code" kicker={t('pro.before_done')} title={t('pro.code_title')} sub={t('pro.code_sub', { name: clientFirst })} />
+            <CodeEntry value={pin} onChange={(v) => { setPin(v); setPinError(false); }} onSubmit={verifyPin} error={pinError} hint={t('pro.code_hint', { n: attemptsLeft })} />
+            <View style={s.thumbRow}><View style={{ width: 120 }}><PhotoCard uri={beforeUri} label={t('pro.photo_before')} pending={uploading === 'before'} onPress={() => setViewer(0)} /></View></View>
+            {clientRow}
+          </>
+        );
+        footer = (<><Cta label={t('pro.code_cta')} onPress={verifyPin} disabled={pin.length !== 4} loading={busy} /><Cta label={t('pro.call_client', { name: clientFirst })} icon="phone" tone="ghost" onPress={call} /></>);
+        break;
+      case 'quote_write':
+        content = (
+          <>
+            <StageHeader stageKey="quote_write" kicker={t('pro.before_done')} title={t('pro.quote_write_title')} sub={t('pro.quote_write_sub')} />
+            {addressBlock}
+            {clientRow}
+            {brief.photos.length ? <View style={{ marginTop: 14, marginHorizontal: -20 }}><PhotoGallery photos={brief.photos} title={t('mission.client_photos')} /></View> : null}
+            {net}
+          </>
+        );
+        footer = <Cta label={t('pro.quote_write_cta')} icon="file-text" onPress={() => router.push({ pathname: '/request/[id]/send-quote', params: { id: String(id) } })} />;
+        break;
+      case 'quote_wait':
+        content = (
+          <>
+            <StageHeader stageKey="quote_wait" kicker={t('pro.quote_wait_kicker')} title={t('pro.quote_wait_title', { amount: quoteAmount != null ? formatEUR(quoteAmount, 0) : '', name: clientFirst })} sub={t('pro.quote_wait_sub')} />
+            {clientRow}
+          </>
+        );
+        footer = <Cta label={t('pro.call_client', { name: clientFirst })} icon="phone" tone="ghost" onPress={call} />;
+        break;
+      case 'working':
+      case 'closing': {
+        const rows: RailRow[] = [
+          { key: 'arrived', label: t('pro.rail_arrived'), when: formatClock(request.beforePhotoAt ?? request.startedAt), done: true },
+          { key: 'started', label: t('pro.rail_started'), when: formatClock(request.startedAt), done: true },
+          { key: 'after', label: t('pro.rail_after'), when: afterUri ? formatClock(request.afterPhotoAt ?? now) : null, done: !!afterUri },
+          { key: 'done', label: t('pro.rail_done'), done: false },
+        ];
+        content = (
+          <>
+            <StageHeader stageKey={stage} live kicker={t('pro.working', { time: formatClock(request.startedAt ?? now) })} />
+            <TimerHero since={request.startedAt ?? null} />
+            <Text style={[s.sub, { color: theme.textSub }]}>{end ? t('pro.working_sub', { time: formatClock(end), n: brief.service.durationMinutes }) : t('pro.working_sub_no_end')}</Text>
+            {net}
+            <Rail rows={rows} />
+            <View style={s.thumbRow}>
+              <PhotoCard uri={beforeUri} label={t('pro.photo_before')} onPress={() => setViewer(0)} pending={uploading === 'before'} />
+              <PhotoCard uri={afterUri} label={t('pro.photo_after')} placeholder={t('pro.photo_after_placeholder')} onPress={() => setViewer(beforeUri ? 1 : 0)} pending={uploading === 'after'} />
+            </View>
+            {clientRow}
+          </>
+        );
+        footer = (
+          <>
+            {stage === 'working' ? <Cta label={t('pro.after_cta')} icon="camera" onPress={() => takePhoto('after')} loading={uploading === 'after'} /> : null}
+            <Cta label={t('pro.complete_cta')} tone="green" onPress={complete} disabled={stage !== 'closing'} loading={busy && stage === 'closing'} />
+          </>
+        );
+        break;
+      }
+      default:
+        break;
+    }
   }
 
-  if (!request) return null;
+  const gallery = useMemo(() => [beforeUri, afterUri].filter(Boolean).map((u, i) => ({ id: i, url: u as string, shotKey: null, width: 0, height: 0 })), [beforeUri, afterUri]);
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═════════════════════════════════════════════════════════════════════════
+  if (loading || !request || !brief) {
+    return <View style={[s.center, { backgroundColor: theme.bg }]}><StatusBar barStyle={theme.statusBar} /><ActivityIndicator size="large" color={theme.accent as string} /></View>;
+  }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* ── Carte ── */}
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={s.map}
-        customMapStyle={mapStyle}
-        initialRegion={mapRegion}
-        showsUserLocation
-        followsUserLocation
-        showsMyLocationButton={false}
-        showsCompass={false}
-      >
-        <Marker coordinate={clientLoc} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={[s.clientPin, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
-            <Feather name="map-pin" size={18} color={theme.accentText} />
-          </View>
-        </Marker>
-        {routeCoords.length > 0 ? (
-          <Polyline coordinates={routeCoords} strokeColor={theme.accent} strokeWidth={4} />
-        ) : myLocation ? (
-          <Polyline coordinates={[myLocation, clientLoc]} strokeColor={theme.textMuted} strokeWidth={3} lineDashPattern={[8, 6]} />
-        ) : null}
-      </MapView>
-
-      {/* ── Top bar flottant — pattern aligné sur missionview tracking ── */}
-      <SafeAreaView style={s.floatingTopBar} edges={['top']} pointerEvents="box-none">
-        <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
-          onPress={handleLeave}
-          activeOpacity={0.8}
-          accessibilityLabel={t('common.back')}
-          accessibilityRole="button"
-          hitSlop={8}
-        >
-          <Feather name="arrow-left" size={20} color={theme.text} />
-        </TouchableOpacity>
-
-        {/* FIXED · #ID */}
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <View style={[s.statusBadge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-            <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 12, letterSpacing: 2, color: theme.text }}>FIXED</Text>
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.textMuted }}>·</Text>
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 1, color: theme.textSub }}>#{id}</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
-          onPress={openActionsMenu}
-          activeOpacity={0.8}
-          accessibilityLabel={t('missions.options')}
-          accessibilityRole="button"
-          hitSlop={8}
-        >
-          <Feather name="more-horizontal" size={22} color={theme.text} />
-        </TouchableOpacity>
-      </SafeAreaView>
-
-      {/* ── Bottom sheet ── */}
-      {/* behavior : JAMAIS "position" ici. La sheet est en position:absolute
-          bottom:0 ; "position" décale le contenu HORS des bornes du parent, où
-          il reste dessiné mais ne reçoit plus les touches (clip du hit-test sur
-          les deux OS) → bouton « Vérifier » mort dès que le clavier est ouvert.
-          "padding" fait grandir la boîte vers le haut : le contenu reste dedans.
-          Pas de garde Platform : tout le reste de l'app est en "padding" sur les
-          deux OS depuis le pass Android edge-to-edge (targetSdk 35+ n'honore plus
-          adjustResize, donc Android a besoin d'une compensation explicite). */}
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={s.sheetWrapper}
-      >
-        <View style={[s.sheet, {
-          backgroundColor: theme.bg,
-          ...Platform.select({
-            ios: { shadowColor: '#000', shadowOpacity: theme.shadowOpacity + 0.04, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
-            android: { elevation: 8, paddingBottom: insets.bottom + 10 },
-          }),
-        }]}>
-          <View style={[s.sheetHandle, { backgroundColor: theme.borderLight }]} />
-
-          {/* Status pill + LIVE · GPS — aligné sur missionview tracking */}
-          {(() => {
-            const statusLabel =
-              status === 'ONGOING' ? (afterPhotoUploaded ? t('missions.status_closure') : t('missions.status_intervention')) :
-              status === 'QUOTE_SENT' ? t('missions.status_quote_sent_short') :
-              status === 'QUOTE_ACCEPTED' ? t('missions.status_quote_accepted_short') :
-              t('missions.status_en_route');
-            return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(59,130,246,0.10)' }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.statusOngoing }} />
-                  <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: COLORS.statusOngoing }}>
-                    {statusLabel}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <PulseDot size={6} color={COLORS.greenBrand} />
-                  <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>LIVE · GPS</Text>
-                </View>
-              </View>
-            );
-          })()}
-
-          {/* Hero — ETA quand en route, sinon titre de l'étape */}
-          {(() => {
-            const etaMatch = (duration || '').match(/(\d+)/);
-            const etaMin = etaMatch ? etaMatch[1] : '';
-            const inRoute = status === 'ACCEPTED' && etaMin;
-            return (
-              <View style={{ marginBottom: 6 }}>
-                {inRoute ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 }}>
-                    <DigitReel
-                      value={etaMin}
-                      lineHeight={52}
-                      textStyle={{ fontFamily: FONTS.bebas, fontSize: 52, color: theme.text, letterSpacing: -1 }}
-                      accessibilityLabel={`${etaMin} ${t('mission_view.min_away')}`}
-                    />
-                    <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 14, color: theme.text, letterSpacing: 0.5, marginBottom: 6 }}>{t('mission_view.min_away')}</Text>
-                  </View>
-                ) : (
-                  <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 30, color: theme.text, marginBottom: 2 }}>
-                    {stepInfo.title.toUpperCase()}
-                  </Text>
-                )}
-                <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: theme.textSub }} numberOfLines={1}>
-                  {cleanName(request.client?.name, { fallback: t('provider.client') })}{distance ? ` · ${t('missions.distance_from_you', { distance })}` : ''}
-                </Text>
-              </View>
-            );
-          })()}
-
-          {/* Divider */}
-          <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-          {/* Client row — identité + actions rapides */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Avatar avatarUrl={request.client?.avatarUrl} name={cleanName(request.client?.name, { fallback: t('provider.client') })} size={40} />
-            <View style={{ flex: 1, paddingRight: 8 }}>
-              <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 15, color: theme.text, marginBottom: 2 }} numberOfLines={1}>
-                {cleanName(request.client?.name, { fallback: t('provider.client') })}
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Feather name="user" size={11} color={theme.textMuted} />
-                <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.textMuted, letterSpacing: 0.6 }}>
-                  {t('provider.client').toUpperCase()} FIXED
-                </Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center' }}
-                onPress={handleCall}
-                activeOpacity={0.75}
-                accessibilityLabel={t('missions.call_client_a11y')}
-              >
-                <Feather name="phone" size={16} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
-                onPress={() => {
-                  const clientId = request?.client?.id || request?.clientId;
-                  if (clientId) {
-                    resetUnread();
-                    router.push({ pathname: '/messages/[userId]', params: { userId: clientId, name: request?.client?.name || '' } });
-                  }
-                }}
-                activeOpacity={0.75}
-                accessibilityLabel={t('missions.send_message_a11y')}
-              >
-                <Feather name="message-circle" size={16} color={theme.text} />
-                {unreadFromClient > 0 && (
-                  <View style={{
-                    position: 'absolute', top: -3, right: -3,
-                    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
-                    backgroundColor: COLORS.greenBrand,
-                    alignItems: 'center', justifyContent: 'center',
-                    borderWidth: 1.5, borderColor: theme.cardBg,
-                  }}>
-                    <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 9, color: '#fff', lineHeight: 11 }}>
-                      {unreadFromClient > 9 ? '9+' : unreadFromClient}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}
-                onPress={handleNavigate}
-                activeOpacity={0.75}
-                accessibilityLabel={t('missions.directions_a11y')}
-              >
-                <Feather name="navigation" size={16} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Adresse — toujours visible (info critique pour le prestataire qui arrive) */}
-          {request.address && (
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
-              <Feather name="map-pin" size={13} color={theme.textMuted} style={{ marginTop: 2 }} />
-              <Text style={{ flex: 1, fontFamily: FONTS.sans, fontSize: 13, color: theme.text, lineHeight: 17 }}>
-                {request.address}
-              </Text>
-            </View>
-          )}
-
-          {/* Photos du client (planche 4A) : ce qu'il a photographié à la demande. */}
-          {request?.photos?.length ? (
-            <View style={{ marginHorizontal: -14, marginBottom: 6 }}>
-              <PhotoGallery photos={briefOf(request).photos} title={t('mission.client_photos')} />
+      {mapMode !== 'none' ? (
+        <Animated.View style={[StyleSheet.absoluteFillObject, mapStyle]}>
+          <MapView
+            ref={mapRef}
+            style={StyleSheet.absoluteFillObject}
+            provider={PROVIDER_GOOGLE}
+            customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+            initialRegion={{ ...door, latitudeDelta: 0.03, longitudeDelta: 0.03 }}
+            onMapReady={() => setMapReady(true)}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            showsPointsOfInterest={false}
+            showsBuildings={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+            toolbarEnabled={false}
+            scrollEnabled={stage === 'en_route'}
+            zoomEnabled={stage === 'en_route'}
+          >
+            <Marker coordinate={door} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><DoorMarker /></Marker>
+            {myLocation && stage === 'en_route' ? <Marker coordinate={myLocation} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><MeMarker /></Marker> : null}
+            {stage === 'en_route' && visibleRoute.length > 1 ? <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} /> : null}
+          </MapView>
+          {near && stage === 'on_site' ? (
+            <View style={[s.arrive, { top: insets.top + 60, backgroundColor: theme.cardBg, borderColor: theme.border }]}>
+              <Text style={[s.arriveTitle, { color: theme.greenText }]}>{t('pro.you_are_here')}</Text>
+              <Text style={[s.arriveSub, { color: theme.textSub }]} numberOfLines={1}>{brief.place.address}</Text>
             </View>
           ) : null}
+        </Animated.View>
+      ) : null}
 
-          {/* Divider */}
-          <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-          {/* Step header — label étape + indicateur barres */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textMuted }}>
-              {t('ext.ongoing_step_label', { current: currentStep, total: totalSteps })}
-            </Text>
-            <Text style={{ fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.2, color: theme.textSub }} numberOfLines={1}>
-              {stepInfo.title.toUpperCase()}
-            </Text>
+      <Animated.View style={topBar.style}>
+        <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
+          <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={handleLeave} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
+            <Feather name="arrow-left" size={20} color={theme.text as string} />
+          </Pressable>
+          <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+            <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
+            <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
+            <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
           </View>
-          <StepIndicator current={currentStep} total={totalSteps} theme={theme} />
+          <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} disabled={busy} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
+            <Feather name="more-horizontal" size={22} color={theme.text as string} />
+          </Pressable>
+        </SafeAreaView>
+      </Animated.View>
 
-          {/* ── Step content ───────────────────────────────────────────────── */}
+      <StageSheet levels={levels} level={level} onHeightChange={setSheetHeight} footer={footer} keyboard={stage === 'code'}>
+        {level === 'page' ? <View style={{ height: 52 }} /> : null}
+        {content}
+      </StageSheet>
 
-          {/* STEP 1: Before photo */}
-          {currentStep === 1 && (
-            <ActionCard icon="camera" title={t('missions.photo_before_title')} subtitle={t('missions.photo_before_sub')} theme={theme}>
-              <TouchableOpacity
-                style={[s.primaryBtn, { backgroundColor: theme.accent }, actionLoading && s.btnDisabled]}
-                onPress={handleBeforePhoto}
-                disabled={actionLoading}
-                activeOpacity={0.75}
-              >
-                {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
-                  <>
-                    <Feather name="camera" size={20} color={theme.accentText} />
-                    <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.open_camera')}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </ActionCard>
-          )}
-
-          {/* STEP 2: PIN */}
-          {currentStep === 2 && (
-            <Pressable onPress={() => pinInputRef.current?.focus()}>
-              <View style={[s.pinCard, { backgroundColor: theme.heroBg }]}>
-                <Text style={[s.pinCardLabel, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>{t('ext.ongoing_pin_card_label')}</Text>
-                {/* Le champ recouvre exactement la rangée de cases : le tap tombe
-                    sur l'EditText / UITextField natif, qui ouvre le clavier lui-même.
-                    Un champ 1x1 en opacity:0 n'est pas hit-testable → il fallait
-                    passer par focus() programmatique, silencieusement ignoré. */}
-                <View style={s.pinInputWrap}>
-                  <View style={s.pinRow}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <View key={i} style={[s.pinBox, { backgroundColor: 'rgba(255,255,255,0.08)' }, pin.length === i && { borderColor: theme.heroText, borderWidth: 1 }]}>
-                        {pin.length > i ? (
-                          <Text style={[s.pinDigit, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{pin[i]}</Text>
-                        ) : (
-                          <View style={[s.pinEmpty, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                  <TextInput
-                    ref={pinInputRef}
-                    value={pin}
-                    onChangeText={handlePinChange}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    caretHidden
-                    contextMenuHidden
-                    selectionColor="transparent"
-                    underlineColorAndroid="transparent"
-                    style={s.pinInput}
-                    accessibilityLabel={t('missions.verify_code')}
-                  />
-                </View>
-                <TouchableOpacity
-                  style={[s.primaryBtn, { backgroundColor: theme.accent }, (actionLoading || pin.length < 4) && s.btnDisabled]}
-                  onPress={handleVerifyPin}
-                  disabled={actionLoading || pin.length < 4}
-                  activeOpacity={0.75}
-                >
-                  {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
-                    <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.verify_code')}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          )}
-
-          {/* STEP 3 (quote only): Send or wait for quote */}
-          {currentStep === 3 && isQuoteMission && !hasQuote && (
-            <ActionCard icon="file-text" title={t('missions.send_quote_card_title')} subtitle={t('missions.send_quote_card_sub')} theme={theme}>
-              <TouchableOpacity
-                style={[s.primaryBtn, { backgroundColor: theme.accent }]}
-                onPress={() => router.push({ pathname: '/request/[id]/send-quote', params: { id: String(id) } })}
-                activeOpacity={0.75}
-              >
-                <Feather name="file-text" size={20} color={theme.accentText} />
-                <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.write_quote')}</Text>
-              </TouchableOpacity>
-            </ActionCard>
-          )}
-          {currentStep === 3 && isQuoteMission && hasQuote && status === 'QUOTE_SENT' && (
-            <ActionCard icon="clock" title={t('missions.quote_sent_card_title')} subtitle={t('missions.waiting_response')} theme={theme}>
-              <View style={[s.primaryBtn, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}>
-                <Feather name="check-circle" size={20} color={theme.greenText} />
-                <Text style={[s.primaryBtnText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{t('missions.waiting_response')}</Text>
-              </View>
-            </ActionCard>
-          )}
-
-          {/* STEP 3 (fixed) / STEP 4 (quote): After photo + Complete */}
-          {((currentStep === 3 && !isQuoteMission) || currentStep === 4) && (
-            <ActionCard
-              icon={afterPhotoUploaded ? 'check-circle' : 'camera'}
-              title={afterPhotoUploaded ? t('ext.ongoing_complete_card_title') : t('ext.ongoing_after_card_title')}
-              subtitle={afterPhotoUploaded ? t('ext.ongoing_complete_card_sub') : t('ext.ongoing_after_card_sub')}
-              theme={theme}
-            >
-              <View style={[s.ongoingBadge, { backgroundColor: theme.badgeDoneBg }]}>
-                <View style={[s.liveDot, { backgroundColor: COLORS.green }]} />
-                <Text style={[s.ongoingBadgeText, { color: theme.greenText, fontFamily: FONTS.sansMedium }]}>{t('missions.ongoing')}</Text>
-              </View>
-
-              {!afterPhotoUploaded ? (
-                <TouchableOpacity
-                  style={[s.primaryBtn, { backgroundColor: theme.accent }, actionLoading && s.btnDisabled]}
-                  onPress={handleAfterPhoto}
-                  disabled={actionLoading}
-                  activeOpacity={0.75}
-                >
-                  {actionLoading ? <ActivityIndicator color={theme.accentText} /> : (
-                    <>
-                      <Feather name="camera" size={20} color={theme.accentText} />
-                      <Text style={[s.primaryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('missions.open_camera')}</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[s.successBtn, actionLoading && s.btnDisabled]}
-                  onPress={handleComplete}
-                  disabled={actionLoading}
-                  activeOpacity={0.75}
-                >
-                  {actionLoading ? <ActivityIndicator color={theme.bg} /> : (
-                    <>
-                      <Feather name="check-circle" size={20} color={theme.bg} />
-                      <Text style={[s.successBtnText, { fontFamily: FONTS.sansMedium, color: theme.bg }]}>{t('missions.complete_cta')}</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </ActionCard>
-          )}
-
-          {/* Vignettes des photos prises — retour visuel que le cliché est bien
-              enregistré (le bug Android « photo invisible » venait de l'absence
-              totale d'aperçu, combinée au kill d'activité pendant la caméra). */}
-          {(beforePhotoUri || afterPhotoUri) && (
-            <View style={s.photoStrip}>
-              {beforePhotoUri && (
-                <View style={s.photoThumbWrap}>
-                  <PhotoThumb uri={beforePhotoUri} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
-                  <View style={s.photoThumbLabelRow}>
-                    <Feather name="check-circle" size={11} color={theme.greenText} />
-                    <Text style={[s.photoThumbLabel, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>
-                      {t('ext.ongoing_thumb_before')}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {afterPhotoUri && (
-                <View style={s.photoThumbWrap}>
-                  <PhotoThumb uri={afterPhotoUri} style={[s.photoThumb, { borderColor: theme.borderLight }]} />
-                  <View style={s.photoThumbLabelRow}>
-                    <Feather name="check-circle" size={11} color={theme.greenText} />
-                    <Text style={[s.photoThumbLabel, { color: theme.textSub, fontFamily: FONTS.monoMedium }]}>
-                      {t('ext.ongoing_thumb_after')}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-        </View>
-      </KeyboardAvoidingView>
+      <PhotoViewer photos={gallery} index={viewer} onClose={() => setViewer(null)} />
     </View>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═════════════════════════════════════════════════════════════════════════════
-
 const s = StyleSheet.create({
   root: { flex: 1 },
-  map: { flex: 1 },
-
-  // ── Vignettes photos mission ──
-  photoStrip: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  photoThumbWrap: { alignItems: 'center', gap: 5 },
-  photoThumb: { width: 64, height: 64, borderRadius: 12, borderWidth: 1 },
-  photoThumbLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  photoThumbLabel: { fontSize: 9, letterSpacing: 1 },
-
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 15 },
-
-  // ── Client pin on map ──
-  clientPin: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
-      android: { elevation: 6 },
-    }),
-  },
-
-  // ── Top bar flottant (mirror missionview tracking) ──
-  floatingTopBar: {
-    position: 'absolute',
-    top: 0, left: 16, right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    // Le SafeAreaView edges={['top']} applique deja l'inset haut (additif) :
-    // simple respiration sous la safe area, pas de compensation status bar manuelle.
-    paddingTop: 8,
-    gap: 12,
-    zIndex: 10,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 4 },
-    }),
-  },
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 22,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 4 },
-    }),
-  },
-
-  // ── Bottom sheet (rythme compact) ──
-  sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  sheet: {
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingHorizontal: 14, paddingTop: 4,
-    paddingBottom: Platform.OS === 'ios' ? 14 : 10,
-  },
-  sheetHandle: {
-    width: 36, height: 4, borderRadius: 2,
-    alignSelf: 'center', marginBottom: 8,
-  },
-
-  // Divider partagé (compact)
-  divider: { height: 1, marginVertical: 8 },
-
-  // ── Client row ──
-  clientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 12,
-  },
-  clientInfo: { flex: 1 },
-  clientName: { fontSize: 13.5, marginBottom: 2 },
-  address: { fontSize: 10.5, letterSpacing: 0.5 },
-  actionBtn: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center',
-    marginLeft: 8,
-  },
-  actionBtnOutline: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center',
-    marginLeft: 8, borderWidth: 1.5,
-  },
-
-  // ── Access info card ──
-  accessCard: {
-    borderRadius: 12, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 10,
-    marginTop: 8,
-    gap: 8,
-  },
-  accessHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-  },
-  accessTitle: { fontSize: 10, letterSpacing: 1.2, flex: 1 },
-  langBadge: {
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1,
-  },
-  langText: { fontSize: 9, letterSpacing: 1.2 },
-  // Grille KV (key-value) pour bâtiment / étage / ascenseur
-  accessKvGrid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    columnGap: 12, rowGap: 8,
-  },
-  accessKv: {
-    flexBasis: '47%',
-    gap: 2,
-  },
-  accessKvHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  accessKvLabel: { fontSize: 9, letterSpacing: 1.2 },
-  accessKvValue: { fontSize: 14 },
-
-  accessNotesBlock: {
-    borderRadius: 8, borderWidth: 1,
-    paddingHorizontal: 10, paddingVertical: 8,
-    gap: 4,
-  },
-  accessNotesLabel: { fontSize: 9, letterSpacing: 1.2 },
-  accessNotesValue: { fontSize: 14, lineHeight: 18, letterSpacing: 0.5 },
-
-  // ── Mission row ──
-  missionRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingBottom: 8, marginBottom: 2,
-    borderBottomWidth: 1,
-  },
-  missionName: { fontSize: 18, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.4, marginBottom: 3 },
-  stepLabel: { fontSize: 10.5, fontFamily: FONTS.mono, letterSpacing: 0.6 },
-  price: { fontSize: 24, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.3 },
-
-  // ── Buttons ──
-  primaryBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 11, borderRadius: 12, minHeight: 44,
-  },
-  primaryBtnText: { fontSize: 14 },
-  successBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: COLORS.green, paddingVertical: 11, borderRadius: 12, minHeight: 44,
-  },
-  successBtnText: { fontSize: 15 },
-  btnDisabled: { opacity: 0.5 },
-
-  // ── PIN ──
-  // Champ transparent posé PAR-DESSUS les cases (jamais opacity:0 ni 1x1 : iOS ignore au
-  // hit-test tout ce qui est sous alpha 0.01, et un champ hors flux n'est jamais
-  // tappable). Le texte est invisible, les cases dessous font l'affichage.
-  pinInputWrap: { position: 'relative' },
-  pinInput: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.02,
-    color: 'transparent',
-    backgroundColor: 'transparent',
-    fontSize: 1,
-    textAlign: 'center',
-  },
-  pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 8 },
-  pinCard: {
-    borderRadius: 14, padding: 12, marginTop: 2,
-  },
-  pinCardLabel: {
-    fontSize: 10, letterSpacing: 1.2, marginBottom: 10, textAlign: 'center',
-  },
-  pinBox: {
-    flex: 1, height: 46, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pinDigit: { fontSize: 28, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
-  pinEmpty: { width: 10, height: 10, borderRadius: 5 },
-
-  // ── Ongoing badge ──
-  ongoingBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6, marginBottom: 6,
-  },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5 },
-  ongoingBadgeText: { fontSize: 12 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  topBar: { position: 'absolute', left: 16, right: 16, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, zIndex: 10 },
+  roundBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  badgeText: { fontFamily: FONTS.monoMedium, fontSize: 11, letterSpacing: 1.5 },
+  arrive: { position: 'absolute', left: 16, right: 16, padding: 10, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  arriveTitle: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 1, includeFontPadding: false },
+  arriveSub: { flex: 1, fontFamily: FONTS.sans, fontSize: 11.5 },
+  addr: { marginTop: 16 },
+  addrTitle: { fontFamily: FONTS.sansMedium, fontSize: 15, lineHeight: 20 },
+  addrSub: { fontFamily: FONTS.sans, fontSize: 12.5, marginTop: 2 },
+  sub: { fontFamily: FONTS.sans, fontSize: 13.5, lineHeight: 18, marginTop: 6 },
+  thumbRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
 });

@@ -42,6 +42,8 @@ type Props = {
   onOpenProfile?: () => void;
   /** Sans fond (dans une carte déjà contrastée). */
   plain?: boolean;
+  /** Remplace « note · missions » (ex. « Client · FR · 2 missions »). */
+  meta?: string | null;
 };
 
 function RoundBtn({ icon, onPress, label, primary, badge }: { icon: React.ComponentProps<typeof Feather>['name']; onPress?: () => void; label: string; primary?: boolean; badge?: number }) {
@@ -62,11 +64,11 @@ function RoundBtn({ icon, onPress, label, primary, badge }: { icon: React.Compon
   );
 }
 
-export function ProviderRow({ provider, unread = 0, onMessage, onCall, onOpenProfile, plain = false }: Props) {
+export function ProviderRow({ provider, unread = 0, onMessage, onCall, onOpenProfile, plain = false, meta: metaOverride }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const name = providerName(provider);
-  const meta = [formatRating(provider.avgRating), provider.jobsCompleted != null ? t('mission.missions_count', { n: provider.jobsCompleted }) : null].filter(Boolean).join(' · ');
+  const meta = metaOverride ?? [formatRating(provider.avgRating), provider.jobsCompleted != null ? t('mission.missions_count', { n: provider.jobsCompleted }) : null].filter(Boolean).join(' · ');
   return (
     <View style={[s.row, !plain && { backgroundColor: theme.bg, borderRadius: 16, padding: 12 }]}>
       <Pressable onPress={onOpenProfile} disabled={!onOpenProfile} style={s.id} accessibilityRole={onOpenProfile ? 'button' : undefined} accessibilityLabel={name}>

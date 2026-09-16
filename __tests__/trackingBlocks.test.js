@@ -17,7 +17,7 @@ const { ProviderRow, providerFirstName } = require('@/components/tracking/Provid
 const { PinCard } = require('@/components/tracking/PinCard');
 const { RequestRow } = require('@/components/tracking/RequestRow');
 const { QuoteSteps } = require('@/components/tracking/QuoteSteps');
-const { WorkTimeline } = require('@/components/tracking/WorkTimeline');
+const { Rail } = require('@/components/tracking/Rail');
 const { MoneyLine } = require('@/components/tracking/MoneyLine');
 
 const brief = {
@@ -81,8 +81,8 @@ describe('tracking blocks', () => {
     expect(r.getByText('tracking.quote_step_diag')).toBeTruthy();
     expect(r.getByText('tracking.quote_step_72h')).toBeTruthy();
   });
-  it('WorkTimeline : la fin prévue est précédée d’un tilde', () => {
-    const r = render(<WorkTimeline rows={[{ key: 'a', time: '14:32', label: 'Démarrée' }, { key: 'b', time: '15:30', label: 'Fin prévue', next: true }]} />);
+  it('Rail : faits passés et prévu', () => {
+    const r = render(<Rail rows={[{ key: 'a', label: 'Démarrée', when: '14:32', done: true }, { key: 'b', label: 'Fin prévue', when: '~15:30' }]} />);
     expect(r.getByText('14:32')).toBeTruthy();
     expect(r.getByText('~15:30')).toBeTruthy();
   });
