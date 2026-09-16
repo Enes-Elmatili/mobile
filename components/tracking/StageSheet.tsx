@@ -1,9 +1,12 @@
 // components/tracking/StageSheet.tsx — la feuille du suivi, qu'on tient au doigt.
-// Feuille gorhom à paliers (aperçu / moitié / plein), configurée sur le moteur
-// de mouvement (ressort critique, élastique, haptique au palier, velocity
-// handoff fournis par gorhom). Le stade impose un palier cible ; l'utilisateur
-// reste libre de tirer. Le pied (CTA) reste collé en bas quel que soit le palier.
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+// Feuille gorhom sur le moteur de mouvement (ressort critique, élastique,
+// haptique au palier, velocity handoff fournis par gorhom). Sa hauteur est
+// celle de son contenu (enableDynamicSizing), plafonnée à l'écran moins la
+// barre de statut : rien n'est coupé, et tirer vers le haut ne « remonte »
+// la feuille que si le contenu dépasse. Un palier « aperçu » optionnel laisse
+// voir la carte ; « page » prend tout l'écran. Le pied (CTA) reste collé en
+// bas et le contenu défile au-dessus, jamais dessous.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView, type BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +18,7 @@ export type SheetLevel = 'peek' | 'half' | 'full' | 'page';
 export const SHEET_RATIOS: Record<Exclude<SheetLevel, 'page'>, number> = { peek: 0.24, half: 0.54, full: 0.9 };
 
 type Props = {
-  /** Paliers proposés, dans l'ordre croissant. `page` = toute la hauteur, sans poignée. */
+  /** `peek` ajoute un palier bas (la carte respire) ; `page` = tout l'écran. Les autres = hauteur du contenu. */
   levels: SheetLevel[];
   /** Palier imposé par le stade ; l'utilisateur peut ensuite tirer. */
   level: SheetLevel;
@@ -33,20 +36,31 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   const { height: windowHeight } = useLayoutClass();
   const motion = useSheetMotion();
   const ref = useRef<BottomSheet>(null);
+  const [footerH, setFooterH] = useState(0);
 
-  const snapPoints = useMemo(() => levels.map((l) => (l === 'page' ? windowHeight : Math.round(windowHeight * SHEET_RATIOS[l]))), [levels, windowHeight]);
-  const targetIndex = Math.max(0, levels.indexOf(level));
+  const isPage = level === 'page' || levels.includes('page');
+  const hasPeek = !isPage && levels.includes('peek');
+  // Plafond : l'écran moins la barre de statut et la rangée des boutons
+  // flottants (retour · FIXED #id · menu), qui restent visibles au-dessus.
+  const maxContent = windowHeight - insets.top - 64;
+  // Paliers fixes : la page entière, ou l'aperçu ; la hauteur du contenu est
+  // ajoutée par gorhom (enableDynamicSizing) en dernier.
+  const snapPoints = useMemo(() => (isPage ? [windowHeight] : hasPeek ? [Math.round(windowHeight * SHEET_RATIOS.peek)] : undefined), [isPage, hasPeek, windowHeight]);
+  const targetIndex = isPage ? 0 : level === 'peek' && hasPeek ? 0 : hasPeek ? 1 : 0;
 
-  useEffect(() => { ref.current?.snapToIndex(targetIndex); }, [targetIndex, snapPoints]);
+  useEffect(() => { ref.current?.snapToIndex(targetIndex); }, [targetIndex, level]);
 
-  const onChange = useCallback((index: number) => {
-    if (index >= 0) onHeightChange?.(snapPoints[index] ?? 0);
-  }, [onHeightChange, snapPoints]);
-  useEffect(() => { onHeightChange?.(snapPoints[targetIndex] ?? 0); }, [snapPoints, targetIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onChange = useCallback((_index: number, position: number) => {
+    // `position` = distance du bord haut de la feuille au haut de l'écran.
+    onHeightChange?.(Math.max(0, Math.round(windowHeight - position)));
+  }, [onHeightChange, windowHeight]);
 
-  const isPage = level === 'page';
   const renderFooter = useCallback((props: BottomSheetFooterProps) => (
-    footer ? <BottomSheetFooter {...props} bottomInset={insets.bottom}><View style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight }]}>{footer}</View></BottomSheetFooter> : null
+    footer ? (
+      <BottomSheetFooter {...props} bottomInset={insets.bottom}>
+        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight }]}>{footer}</View>
+      </BottomSheetFooter>
+    ) : null
   ), [footer, insets.bottom, theme.cardBg, theme.borderLight]);
 
   return (
@@ -54,6 +68,8 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       ref={ref}
       index={targetIndex}
       snapPoints={snapPoints}
+      enableDynamicSizing={!isPage}
+      maxDynamicContentSize={maxContent}
       enablePanDownToClose={false}
       enableOverDrag
       overDragResistanceFactor={motion.overDragResistanceFactor}
@@ -63,7 +79,7 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       handleComponent={isPage ? null : undefined}
       handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }}
       backgroundStyle={{ backgroundColor: theme.cardBg, borderTopLeftRadius: isPage ? 0 : 28, borderTopRightRadius: isPage ? 0 : 28 }}
-      topInset={isPage ? 0 : insets.top + 8}
+      topInset={isPage ? 0 : insets.top + 64}
       keyboardBehavior={keyboard ? 'extend' : 'interactive'}
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
@@ -72,7 +88,7 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       <BottomSheetScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.content, { paddingTop: isPage ? insets.top + 12 : 4, paddingBottom: (footer ? 132 : 24) + insets.bottom }]}
+        contentContainerStyle={[s.content, { paddingTop: isPage ? insets.top + 12 : 4, paddingBottom: (footer ? footerH + insets.bottom + 8 : 20 + insets.bottom) }]}
       >
         {children}
       </BottomSheetScrollView>
