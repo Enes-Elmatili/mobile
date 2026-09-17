@@ -35,7 +35,7 @@ import { useMapCamera } from '@/lib/mission/useMapCamera';
 import { fetchRoute, type LatLng } from '@/lib/mission/route';
 import { cockpitStageOf, cockpitCameraMode, goShape } from '@/lib/cockpit/stage';
 import { remindersOf, nextMissionOf, type MissionLite, type Reminder, type NextMission } from '@/lib/cockpit/day';
-import { GoButton, DOCK_HEIGHT } from '@/components/cockpit/GoButton';
+import { GoButton, DOCK_HEIGHT, GO_SIZE } from '@/components/cockpit/GoButton';
 import { Dock } from '@/components/cockpit/Dock';
 import { TopRow } from '@/components/cockpit/TopRow';
 import { DayStrip, type DayStats } from '@/components/cockpit/DayStrip';
@@ -203,6 +203,10 @@ export default function ProviderDashboard() {
   const [loading,       setLoading]        = useState(true);
   const [isOnline,      setIsOnline]       = useState(false);
   const isOnlineRef = useRef(false);
+  // C'est le prestataire qui choisit : tant qu'il n'a pas appuyé sur GO dans
+  // cette session, un statut READY hérité d'une session précédente (renvoyé par
+  // le serveur au register) est ramené à OFFLINE au lieu d'être affiché.
+  const userChoseRef = useRef(false);
   const declinedIdsRef = useRef<Set<string>>(new Set());
   // Depuis quand on est en ligne (chrono du dock) — posé au passage à « en ligne ».
   const [onlineSince, setOnlineSince] = useState<number | null>(null);
@@ -470,12 +474,20 @@ export default function ProviderDashboard() {
     // Client a annulé → retirer la carte (payload objet { id, ... })
     const handleCancelled = (data: any) => removeRequest(data?.id ?? data);
 
-    const handleStatusUpdate = (data: { providerId: string; status: string }) => {
-      if (data.providerId === user.id) {
-        const online = isOnlineStatus(data.status);
-        isOnlineRef.current = online;
-        setIsOnline(online);
+    // Un « en ligne » que le prestataire n'a pas choisi dans cette session
+    // (statut hérité, ou remise en READY après une mission) est refusé.
+    const applyServerOnline = (online: boolean) => {
+      if (online && !userChoseRef.current) {
+        socket.emit('provider:set_status', { status: 'OFFLINE' });
+        online = false;
       }
+      isOnlineRef.current = online;
+      setIsOnline(online);
+      if (!online) setIncomingRequests([]);
+    };
+
+    const handleStatusUpdate = (data: { providerId: string; status: string }) => {
+      if (data.providerId === user.id) applyServerOnline(isOnlineStatus(data.status));
     };
 
     // Réponse du serveur à provider:register — porte le statut réel du compte.
@@ -484,10 +496,7 @@ export default function ProviderDashboard() {
     const handleRegistered = (data: any) => {
       // server.js émet { providerId, status, blocked? } ; on accepte aussi la
       // forme imbriquée au cas où un ancien serveur répondrait { provider }.
-      const online = isOnlineStatus(data?.status ?? data?.provider?.status);
-      isOnlineRef.current = online;
-      setIsOnline(online);
-      if (!online) setIncomingRequests([]);
+      applyServerOnline(isOnlineStatus(data?.status ?? data?.provider?.status));
     };
 
     // Le serveur refuse le passage en ligne (dossier incomplet ou Stripe non
@@ -536,6 +545,7 @@ export default function ProviderDashboard() {
   const handleToggleOnline = useCallback(() => {
     if (!user?.id) return;
     const next = !isOnline;
+    userChoseRef.current = true;
     isOnlineRef.current = next;
     setIsOnline(next);
     // providerId retiré du payload : le serveur prend l'identité sur le socket
@@ -597,7 +607,8 @@ export default function ProviderDashboard() {
 
   // ─── Géométrie : onglets · dock · journée ────────────────────────────────
   const tabBottom = insets.bottom + TAB_BAR_HEIGHT;
-  const stripBottom = tabBottom + DOCK_HEIGHT + 12;
+  // La journée s'arrête au-dessus du GO (qui dépasse du dock de GO_SIZE/2 + 6), pas du dock.
+  const stripBottom = tabBottom + DOCK_HEIGHT + GO_SIZE / 2 + 6 + 10;
   const topRowTop = insets.top + 8;
 
   // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
@@ -740,8 +751,6 @@ export default function ProviderDashboard() {
         onlineSince={onlineSince}
         missionId={currentMission?.id ?? null}
         bottom={tabBottom}
-        onList={() => router.push('/(tabs)/missions')}
-        onSettings={() => router.push('/(tabs)/profile')}
       />
       <GoButton
         shape={goShape(stage)}
