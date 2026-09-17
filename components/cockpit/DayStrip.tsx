@@ -1,0 +1,106 @@
+// components/cockpit/DayStrip.tsx — la journée, lisible en bas, hors ligne
+// comme en ligne : rappels (virements, devis), prochaine mission avec son
+// heure (ambre à moins de 30 min), puis trois tuiles qui gardent tout ce que
+// l'ancien îlot montrait — mois + en attente, note + missions, rang + taux.
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
+import { CascadeItem } from '@/lib/motion/useCascade';
+import { feedback } from '@/lib/feedback/feedback';
+import { formatClock, formatEURCents } from '@/lib/format';
+import { placeShort } from '@/components/mission/blocks';
+import { inLabel, type NextMission, type Reminder } from '@/lib/cockpit/day';
+
+export type DayStats = {
+  monthCents: number;
+  pendingCents: number;
+  avgRating: number;
+  totalRatings: number;
+  jobsCompleted: number;
+  rank: number | null;
+  acceptanceRate: number | null;
+};
+
+type Props = {
+  visible: boolean;
+  bottom: number;
+  reminders: Reminder[];
+  next: NextMission | null;
+  stats: DayStats;
+  loading: boolean;
+  onReminder: (r: Reminder) => void;
+  onNext: (m: NextMission) => void;
+  onStats: () => void;
+};
+
+function Tile({ k, big, sub, onPress, label }: { k: string; big: string; sub: string | null; onPress: () => void; label: string }) {
+  const theme = useAppTheme();
+  return (
+    <Pressable onPress={onPress} style={[s.tile, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={label}>
+      <Text style={[s.k, { color: theme.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1}>{k.toUpperCase()}</Text>
+      <Text style={[s.big, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{big}</Text>
+      {sub ? <Text style={[s.sub, { color: theme.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{sub}</Text> : null}
+    </Pressable>
+  );
+}
+
+export function DayStrip({ visible, bottom, reminders, next, stats, loading, onReminder, onNext, onStats }: Props) {
+  const theme = useAppTheme();
+  const { t } = useTranslation();
+  const dash = loading ? '—' : null;
+  const rating = stats.totalRatings > 0 ? stats.avgRating.toFixed(1).replace('.', ',') : '—';
+  return (
+    <View style={[s.strip, { bottom }]} pointerEvents={visible ? 'box-none' : 'none'}>
+      {reminders.length > 0 ? (
+        <CascadeItem index={0} visible={visible} from="bottom" style={s.chips}>
+          {reminders.map((r, i) => (
+            <Pressable key={`${r.kind}-${r.requestId ?? i}`} onPress={() => { feedback.haptic('light'); onReminder(r); }} style={[s.chip, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button">
+              <View style={[s.dot, { backgroundColor: COLORS.amber }]} />
+              <Text style={[s.chipText, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
+                {r.kind === 'payouts' ? t('cockpit.reminder_payouts') : t('cockpit.reminder_quote', { id: r.requestId })}
+              </Text>
+            </Pressable>
+          ))}
+        </CascadeItem>
+      ) : null}
+      {next ? (
+        <CascadeItem index={1} visible={visible} from="bottom">
+          <Pressable onPress={() => { feedback.haptic('light'); onNext(next); }} style={[s.card, { backgroundColor: theme.cardBg, borderColor: next.soon ? theme.accent : theme.border }]} accessibilityRole="button" accessibilityLabel={t('cockpit.next_a11y')}>
+            <Text style={[s.time, { color: next.soon ? COLORS.amber : theme.text }]} maxFontSizeMultiplier={1}>{formatClock(new Date(next.startAt))}</Text>
+            <View style={s.cardBody}>
+              <Text style={[s.k, { color: theme.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1}>{`${t('cockpit.next_mission')} · ${inLabel(next.inMin, t)}`.toUpperCase()}</Text>
+              <Text style={[s.cardTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
+                {[next.serviceType, placeShort(next.address), next.clientName].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={theme.textMuted} />
+          </Pressable>
+        </CascadeItem>
+      ) : null}
+      <CascadeItem index={2} visible={visible} from="bottom" style={s.tiles}>
+        <Tile k={t('cockpit.month')} big={dash ?? formatEURCents(stats.monthCents)} sub={stats.pendingCents > 0 ? `+${formatEURCents(stats.pendingCents)} ${t('provider.pending')}` : null} onPress={onStats} label={t('provider.net_earnings_month')} />
+        <Tile k={t('cockpit.rating')} big={dash ?? rating} sub={t('cockpit.missions_done', { count: stats.jobsCompleted })} onPress={onStats} label={t('cockpit.rating')} />
+        <Tile k={t('cockpit.rank')} big={dash ?? (stats.rank != null ? `#${stats.rank}` : '—')} sub={stats.acceptanceRate != null ? t('cockpit.accepted_rate', { rate: stats.acceptanceRate }) : null} onPress={onStats} label={t('cockpit.rank')} />
+      </CascadeItem>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  strip: { position: 'absolute', left: 16, right: 16, zIndex: 5, gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  chipText: { fontFamily: FONTS.sansMedium, fontSize: 11.5 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1 },
+  cardBody: { flex: 1 },
+  time: { fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 1, minWidth: 52, includeFontPadding: false },
+  cardTitle: { fontFamily: FONTS.sansMedium, fontSize: 14, marginTop: 3 },
+  tiles: { flexDirection: 'row', gap: 8 },
+  tile: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
+  k: { fontFamily: FONTS.monoMedium, fontSize: 9.5, letterSpacing: 1.2 },
+  big: { fontFamily: FONTS.bebas, fontSize: 24, letterSpacing: 0.3, marginTop: 4, includeFontPadding: false, fontVariant: ['tabular-nums'] },
+  sub: { fontFamily: FONTS.sans, fontSize: 10.5, marginTop: 2 },
+});

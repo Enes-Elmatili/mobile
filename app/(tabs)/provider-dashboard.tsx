@@ -1,39 +1,21 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
-// app/(tabs)/provider-dashboard.tsx
+// app/(tabs)/provider-dashboard.tsx — l'accueil prestataire : le GO.
+// Un seul objet dit l'état : le disque vert au centre du dock = hors ligne ;
+// le stop à gauche + « Vous êtes en ligne » = en ligne ; disparu = une demande
+// ou une mission occupe l'écran. La carte s'allume en ligne, la caméra suit
+// les faits (moi, moi + la demande, moi + la porte), la journée reste lisible
+// en bas, le gain du jour au centre du haut (spec 2026-09-17-provider-cockpit-go).
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Pressable,
-  StatusBar,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
-import Reanimated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  withRepeat,
-  withSequence,
-  cancelAnimation,
-  LinearTransition,
-  Easing as REasing,
-  interpolateColor,
-  runOnJS,
-} from 'react-native-reanimated';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
+import { useLayoutClass } from '@/lib/layout';
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, cancelAnimation } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
-import { spring } from '@/lib/motion/springs';
-import { useBreathe } from '@/lib/motion/useBreathe';
-import { usePressScale } from '@/lib/motion/press';
+import { useRevealCount } from '@/lib/motion/useRevealCount';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
 import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
@@ -44,52 +26,38 @@ import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
-import { formatEURCents as formatEuros } from '@/lib/format';
+import { useAppTheme } from '@/hooks/use-app-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { devWarn, devLog } from '@/lib/logger';
-import { cleanName } from '@/lib/displayName';
-import { isOnlineStatus, gateCopyFor } from '@/lib/providerGate';
+import { devWarn } from '@/lib/logger';
+import { isOnlineStatus, gateCopyFor, GATE_CODES } from '@/lib/providerGate';
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
+import { useMapCamera } from '@/lib/mission/useMapCamera';
+import { fetchRoute, type LatLng } from '@/lib/mission/route';
+import { cockpitStageOf, cockpitCameraMode, goShape } from '@/lib/cockpit/stage';
+import { remindersOf, nextMissionOf, type MissionLite, type Reminder, type NextMission } from '@/lib/cockpit/day';
+import { GoButton, DOCK_HEIGHT } from '@/components/cockpit/GoButton';
+import { Dock } from '@/components/cockpit/Dock';
+import { TopRow } from '@/components/cockpit/TopRow';
+import { DayStrip, type DayStats } from '@/components/cockpit/DayStrip';
+import { MissionCard } from '@/components/cockpit/MissionCard';
+import { GpsCard } from '@/components/cockpit/GpsCard';
+import { Veil } from '@/components/cockpit/Veil';
+import { MeMarker, DemandDot, DoorMarker } from '@/components/cockpit/markers';
 
 const TIMER_DURATION = 60;
+const BRUSSELS: LatLng = { latitude: 50.8466, longitude: 4.3528 };
 
 // Entrée de la carte de mission entrante : spring critique (ζ = 1.0).
-// Remplace `tension: 55, friction: 11`, qui était sous-amorti — la carte
-// dépassait sa position et revenait. Une notification de mission doit se poser,
-// pas rebondir (CLAUDE.md § Interfaces fluides, règle 2).
+// Une notification de mission doit se poser, pas rebondir (règle 2).
 const CARD_ENTER_SPRING = {
   damping: dampingFor(1.0, 180, 1),
   stiffness: 180,
   mass: 1,
 };
 
-// -- Map style "Light Mono" --
-// -- Map styles (source unique) --
-import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
-
-// ============================================================================
-// UTILS
-// ============================================================================
-
 // ============================================================================
 // TYPES
 // ============================================================================
-
-interface WalletData {
-  balance: number;
-  pendingAmount: number;
-  totalEarnings: number;
-  monthEarnings: number;
-  escrowAmount: number;
-  stripeAvailable: number; // solde Stripe réel (cents) — cohérent avec l'onglet Gains
-}
-
-interface ProviderStats {
-  jobsCompleted: number;
-  avgRating: number;
-  totalRatings: number;
-  rank: number | null;
-}
 
 interface IncomingRequest {
   requestId: string;
@@ -110,38 +78,13 @@ interface IncomingRequest {
   brief: MissionBrief;
 }
 
-// ============================================================================
-// AVATAR MARKER
-// ============================================================================
-
-// Marker GPS provider — exactement le même style que le marker d'adresse dans
-// NewRequestStepper côté client : halo vert translucide + dot vert bordure blanche.
-// Statique, pas d'animation.
-function AvatarMarker(_props: { heading?: number }) {
-  return (
-    <View style={av.wrap}>
-      <View style={av.halo} />
-      <View style={av.dot} />
-    </View>
-  );
-}
-
-const av = StyleSheet.create({
-  wrap: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  halo: {
-    width: 20, height: 20, borderRadius: 10,
-    backgroundColor: 'rgba(52,199,89,0.2)',
-  },
-  dot: {
-    position: 'absolute',
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: COLORS.green,
-    borderWidth: 2, borderColor: darkTokens.bg,
-  },
-});
+type CurrentMission = {
+  id: number; serviceType: string | null; status: string; address: string | null;
+  clientName: string | null; lat: number | null; lng: number | null;
+};
 
 // ============================================================================
-// INCOMING JOB CARD
+// INCOMING JOB CARD — la fiche « elle est pour vous »
 // ============================================================================
 
 function IncomingJobCard({
@@ -153,7 +96,6 @@ function IncomingJobCard({
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const reduced    = useReduceMotion();
@@ -218,273 +160,17 @@ function IncomingJobCard({
 
 const jc = StyleSheet.create({
   wrap: {
-    position: 'absolute', left: 0, right: 0,
+    position: 'absolute', left: 0, right: 0, zIndex: 8,
     shadowColor: '#000', shadowRadius: 40, shadowOffset: { width: 0, height: -12 }, shadowOpacity: 0.3,
     elevation: 28,
   },
   topFade: { height: 56 },
   sheet: { paddingBottom: 56 },
   handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
-
-
-  // Title
-
-
-  // Divider
-
-  // Info
-
-
-
-  // CTA
-  passText: { fontFamily: FONTS.sans, fontSize: 13, letterSpacing: 0.3 },
 });
 
 // ============================================================================
-// COCKPIT ISLAND
-// ============================================================================
-
-const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
-
-function CockpitIsland({
-  isOnline,
-  wallet,
-  onToggle,
-  onWalletPress,
-}: {
-  isOnline: boolean;
-  wallet: WalletData | null;
-  onToggle: () => void;
-  onWalletPress: () => void;
-}) {
-  const { t } = useTranslation();
-  const theme = useAppTheme();
-  const reduced = useReduceMotion();
-  // Règle 4 : le retour part de l'appui, pas du relâchement.
-  const press = usePressScale();
-  // Règle 1 : shared values Reanimated (thread UI) — le pouls ne saccade plus
-  // quand le JS est occupé par un fetch ou une rafale d'événements socket.
-  const dotGlow      = useSharedValue(0.5);
-  const pulseScale   = useSharedValue(1);
-  const pulseOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    if (isOnline && !reduced) {
-      // Respiration du point : opacité 0.5 ↔ 1, aller-retour infini.
-      dotGlow.value = withRepeat(
-        withTiming(1, { duration: 1400, easing: REasing.inOut(REasing.ease) }),
-        -1,
-        true,
-      );
-      // Ping radar : anneau qui part du centre et s'efface, puis reset instantané.
-      pulseScale.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 0 }),
-          withTiming(3, { duration: 1200, easing: REasing.out(REasing.ease) }),
-        ),
-        -1,
-        false,
-      );
-      pulseOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.5, { duration: 0 }),
-          withTiming(0, { duration: 1200, easing: REasing.out(REasing.ease) }),
-        ),
-        -1,
-        false,
-      );
-    } else {
-      // Sortie douce : on coupe la boucle puis on ramène en fondu, au lieu du
-      // `setValue` sec de l'ancienne version qui faisait disparaître d'un coup.
-      cancelAnimation(dotGlow);
-      cancelAnimation(pulseScale);
-      cancelAnimation(pulseOpacity);
-      dotGlow.value      = withTiming(0.5, { duration: 180 });
-      pulseOpacity.value = withTiming(0, { duration: 180 });
-      pulseScale.value   = withTiming(1, { duration: 180 });
-    }
-  }, [isOnline, reduced, dotGlow, pulseScale, pulseOpacity]);
-
-  const dotGlowStyle = useAnimatedStyle(() => ({ opacity: dotGlow.value }));
-  const pulseStyle = useAnimatedStyle(() => ({
-    opacity: pulseOpacity.value,
-    transform: [{ scale: pulseScale.value }],
-  }));
-
-  // Moment 7 : le passage en ligne se réchauffe. Le fond et le texte
-  // glissent vers leur couleur « en ligne » (k 200), le point prend (1,25 → 1),
-  // et le libellé ne change que quand la couleur est arrivée. Hors ligne joue
-  // l'inverse, plus vite (k 600) : on ne fête pas une déconnexion.
-  const online01 = useSharedValue(isOnline ? 1 : 0);
-  const [labelOnline, setLabelOnline] = useState(isOnline);
-  const dotTake = useBreathe(1.25);
-  useEffect(() => {
-    if (reduced) { online01.value = isOnline ? 1 : 0; setLabelOnline(isOnline); return; }
-    if (isOnline) dotTake.pulse();
-    online01.value = withSpring(isOnline ? 1 : 0, spring(isOnline ? 200 : 600, 1.0), (finished) => {
-      if (finished) runOnJS(setLabelOnline)(isOnline);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dotTake est stable
-  }, [isOnline, reduced, online01]);
-  const offBg = theme.isDark ? 'rgba(255,255,255,0.08)' : (theme.surface as string);
-  const sectionStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(online01.value, [0, 1], [offBg, theme.cardBg as string]),
-  }));
-  const onlineTextStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(online01.value, [0, 1], [theme.textMuted as string, theme.text as string]),
-  }));
-  const dotColorStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(online01.value, [0, 1], [theme.textMuted as string, theme.text as string]),
-  }));
-
-  const handlePress = () => {
-    // L'haptique est déjà émise par handleToggleOnline, sur la même frame que
-    // le changement d'état — on ne double pas le retour (règle 6).
-    onToggle();
-  };
-
-  return (
-    <Reanimated.View
-      layout={reduced ? undefined : LinearTransition.springify().damping(28).stiffness(200)}
-      style={[ci.island, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, press.style]}
-    >
-
-      {/* Statut */}
-      <AnimatedPressable
-        onPress={handlePress}
-        {...press.handlers}
-        style={[ci.statusSection, sectionStyle]}
-        accessibilityLabel={isOnline ? t('provider.online') : t('provider.offline')}
-        accessibilityRole="switch"
-        accessibilityState={{ checked: isOnline }}
-        hitSlop={{ top: 6, bottom: 6 }}
-      >
-        <View style={ci.dotWrap}>
-          {isOnline && (
-            <Reanimated.View style={[ci.dotGlow, dotGlowStyle, { backgroundColor: theme.text }]} />
-          )}
-          <Reanimated.View style={[ci.pulseRing, pulseStyle, { backgroundColor: isOnline ? theme.text : theme.textMuted }]} />
-          <Reanimated.View style={[ci.dot, dotColorStyle, dotTake.style]} />
-        </View>
-        <Reanimated.Text style={[ci.statusText, onlineTextStyle]}>
-          {labelOnline ? t('provider.online') : t('provider.offline')}
-        </Reanimated.Text>
-      </AnimatedPressable>
-
-      {/* Separateur */}
-      <View style={[ci.sep, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />
-
-      {/* Wallet */}
-      <TouchableOpacity onPress={onWalletPress} activeOpacity={0.75} style={ci.walletBtn} accessibilityLabel={t('provider.balance_label')} accessibilityRole="button" hitSlop={{ top: 6, bottom: 6 }}>
-        <Feather name="credit-card" size={16} color={theme.text} />
-        <Text style={[ci.walletAmount, { color: theme.text }]} numberOfLines={1}>{formatEuros((wallet?.stripeAvailable ?? 0) / 100, 0)}</Text>
-      </TouchableOpacity>
-
-    </Reanimated.View>
-  );
-}
-
-const ci = StyleSheet.create({
-  island: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 36,
-    height: 40,
-    paddingHorizontal: 4,
-    borderWidth: 1,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 16, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 6 },
-    }),
-  },
-  statusSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 114,
-    height: 30,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    gap: 5,
-    justifyContent: 'center',
-  },
-  dotWrap:   { width: 7, height: 7, alignItems: 'center', justifyContent: 'center' },
-  dotGlow:   { position: 'absolute', width: 15, height: 15, borderRadius: 7.5 },
-  pulseRing: { position: 'absolute', width: 7, height: 7, borderRadius: 3.5 },
-  dot:       { width: 7, height: 7, borderRadius: 3.5 },
-  statusText:  { fontSize: 10.5, fontFamily: FONTS.sansMedium, letterSpacing: 0.3 },
-  sep: { width: 1, height: 11, marginHorizontal: 2 },
-  walletBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    height: 30,
-    paddingHorizontal: 12,
-    marginRight: 3,
-  },
-  walletAmount: { fontSize: 13, fontFamily: FONTS.monoMedium, letterSpacing: -0.3 },
-});
-
-// ============================================================================
-// STATS KPI
-// ============================================================================
-
-function StatsSection({ loading, stats }: { loading: boolean; stats: ProviderStats }) {
-  const t = useAppTheme();
-  if (loading) {
-    return (
-      <View style={[ss.loadingRow, { backgroundColor: t.surface }]}>
-        {[0,1,2].map(i => (
-          <View key={i} style={[ss.shimmer, { backgroundColor: t.border }]} />
-        ))}
-      </View>
-    );
-  }
-  return (
-    <View style={[ss.kpiRow, { backgroundColor: t.cardBg, borderColor: t.borderLight }]}>
-      <View style={ss.kpiItem}>
-        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.jobsCompleted}</Text>
-        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>MISSIONS</Text>
-      </View>
-      <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
-      <View style={ss.kpiItem}>
-        <Text style={[ss.kpiNum, ss.kpiGold]}>
-          {stats.totalRatings > 0
-            ? <>{stats.avgRating.toFixed(1)} <Feather name="star" size={12} color={COLORS.amber} /></>
-            : <Text style={{ color: t.textMuted }}>—</Text>}
-        </Text>
-        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>NOTE</Text>
-      </View>
-      <View style={[ss.kpiSep, { backgroundColor: t.border }]} />
-      <View style={ss.kpiItem}>
-        <Text style={[ss.kpiNum, { color: t.text }]}>{stats.rank != null ? `#${stats.rank}` : '—'}</Text>
-        <Text style={[ss.kpiLabel, { color: t.textMuted }]}>RANG</Text>
-      </View>
-    </View>
-  );
-}
-
-const ss = StyleSheet.create({
-  loadingRow: {
-    flexDirection: 'row', gap: 8,
-    borderRadius: 18, padding: 16,
-  },
-  shimmer: {
-    flex: 1, height: 28, borderRadius: 6,
-  },
-  kpiRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 18, padding: 14,
-    borderWidth: 1,
-  },
-  kpiItem:  { flex: 1, alignItems: 'center', gap: 4 },
-  kpiSep:   { width: 1, height: 32 },
-  kpiNum:   { fontSize: 16, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: -0.3 },
-  kpiGold:  { color: COLORS.amber },
-  kpiLabel: { fontSize: 10, fontFamily: FONTS.mono, letterSpacing: 0.4 },
-});
-
-// ============================================================================
-// MAIN COMPONENT
+// DASHBOARD
 // ============================================================================
 
 export default function ProviderDashboard() {
@@ -495,99 +181,95 @@ export default function ProviderDashboard() {
   const { isOnline: networkOnline } = useNetwork();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const reduced = useReduceMotion();
+  const { height: windowHeight } = useLayoutClass();
 
   const mapRef   = useRef<MapView>(null);
-  const fadeAnim = useSharedValue(0);
   const [mapReady, setMapReady] = useState(false);
 
-
-  const [location,      setLocation]      = useState<{ latitude: number; longitude: number } | null>(null);
+  const [location,      setLocation]      = useState<LatLng | null>(null);
   const [heading,       setHeading]        = useState(0);
-  const [, setLocationError] = useState(false);
-  const [wallet,        setWallet]         = useState<WalletData | null>(null);
-  const [stats, setStats]     = useState<ProviderStats>({ jobsCompleted: 0, avgRating: 0, totalRatings: 0, rank: null });
+  const [gpsDenied,     setGpsDenied]      = useState(false);
+  const [today,         setToday]          = useState(0);
+  const [stats, setStats] = useState<DayStats>({ monthCents: 0, pendingCents: 0, avgRating: 0, totalRatings: 0, jobsCompleted: 0, rank: null, acceptanceRate: null });
   const [statsLoading,  setStatsLoading]  = useState(true);
+  const [missions,      setMissions]       = useState<MissionLite[]>([]);
+  const [connect,       setConnect]        = useState<{ needsOnboarding?: boolean; payoutsEnabled?: boolean } | null>(null);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
 
   // Mission active actuelle (acceptée et en cours, non planifiée future) →
   // permet au provider qui revient sur le dashboard de re-rentrer dans la mission.
-  const [currentMission, setCurrentMission] = useState<{
-    id: number; serviceType: string | null; status: string; address: string | null;
-  } | null>(null);
+  const [currentMission, setCurrentMission] = useState<CurrentMission | null>(null);
   const [loading,       setLoading]        = useState(true);
   const [isOnline,      setIsOnline]       = useState(false);
   const isOnlineRef = useRef(false);
   const declinedIdsRef = useRef<Set<string>>(new Set());
+  // Depuis quand on est en ligne (chrono du dock) — posé au passage à « en ligne ».
+  const [onlineSince, setOnlineSince] = useState<number | null>(null);
+  useEffect(() => { setOnlineSince((prev) => (isOnline ? prev ?? Date.now() : null)); }, [isOnline]);
 
-  useEffect(() => {
-    fadeAnim.value = withTiming(1, { duration: 700, easing: REasing.out(REasing.ease) });
-  }, [fadeAnim]);
-
-  const fadeStyle = useAnimatedStyle(() => ({ opacity: fadeAnim.value }));
-
-  // Geolocalisation
+  // Geolocalisation — démarrée au montage ; si la permission a été refusée,
+  // on la redemande au retour sur l'écran (l'utilisateur revient des réglages).
   const dashLocSubRef = useRef<Location.LocationSubscription | null>(null);
   const dashLastEmitRef = useRef(0);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted' || cancelled) { if (!cancelled) setLocationError(true); return; }
+  const geoGenRef = useRef(0);
+  const startGeo = useCallback(async () => {
+    const gen = ++geoGenRef.current;
+    const stale = () => gen !== geoGenRef.current;
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (stale()) return;
+    if (status !== 'granted') { setGpsDenied(true); return; }
+    setGpsDenied(false);
 
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      if (cancelled) return;
-      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      setLocation(coords);
-      if (loc.coords.heading != null) setHeading(loc.coords.heading);
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    if (stale()) return;
+    const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+    setLocation(coords);
+    if (loc.coords.heading != null) setHeading(loc.coords.heading);
 
-      // Sync initial position to backend so matching can find this provider
-      if (socket && user?.id) {
-        socket.emit('provider:location_update', { providerId: user.id, ...coords });
-      }
+    // Sync initial position to backend so matching can find this provider
+    if (socket && user?.id) {
+      socket.emit('provider:location_update', { providerId: user.id, ...coords });
+    }
 
-      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 900);
+    if (dashLocSubRef.current) { dashLocSubRef.current.remove(); dashLocSubRef.current = null; }
+    const sub = await Location.watchPositionAsync(
+      // distanceInterval réduit (10 m) + timeInterval court (3 s) pour que
+      // la caméra suive bien les mouvements. Le throttle du socket emit
+      // reste à 15s pour ne pas spammer le backend.
+      { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
+      (l) => {
+        const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
+        setLocation(c);
+        if (l.coords.heading != null) setHeading(l.coords.heading);
 
-      const sub = await Location.watchPositionAsync(
-        // distanceInterval réduit (10 m) + timeInterval court (3 s) pour que
-        // l'auto-recenter de la map suive bien les mouvements. Le throttle du
-        // socket emit reste à 15s pour ne pas spammer le backend.
-        { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
-        (l) => {
-          const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
-          setLocation(c);
-          if (l.coords.heading != null) setHeading(l.coords.heading);
-
-          const now = Date.now();
-          if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnline && user?.id) {
-            dashLastEmitRef.current = now;
-            socket.emit('provider:location_update', { providerId: user.id, ...c });
-          }
+        const now = Date.now();
+        if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnline && user?.id) {
+          dashLastEmitRef.current = now;
+          socket.emit('provider:location_update', { providerId: user.id, ...c });
         }
-      );
-      if (cancelled) { sub.remove(); return; }
-      dashLocSubRef.current = sub;
-    })();
-    return () => {
-      cancelled = true;
-      if (dashLocSubRef.current) { dashLocSubRef.current.remove(); dashLocSubRef.current = null; }
-    };
+      }
+    );
+    if (stale()) { sub.remove(); return; }
+    dashLocSubRef.current = sub;
   }, []);
 
-  // Auto-recenter la map à chaque mise à jour de position.
-  // Bloqué par mapReady : react-native-maps 1.20+ avec PROVIDER_GOOGLE ignore
-  // silencieusement animateToRegion tant que onMapReady n'a pas été émis,
-  // c'est pourquoi le premier auto-center sautait sans erreur.
   useEffect(() => {
-    if (!location || !mapReady) return;
-    mapRef.current?.animateToRegion(
-      { ...location, latitudeDelta: 0.02, longitudeDelta: 0.02 },
-      700,
-    );
-  }, [location, mapReady]);
+    startGeo();
+    return () => {
+      geoGenRef.current++;
+      if (dashLocSubRef.current) { dashLocSubRef.current.remove(); dashLocSubRef.current = null; }
+    };
+  }, [startGeo]);
+
+  useFocusEffect(useCallback(() => {
+    if (!gpsDenied) return;
+    Location.getForegroundPermissionsAsync().then((p) => { if (p.status === 'granted') startGeo(); }).catch(() => {});
+  }, [gpsDenied, startGeo]));
 
   // Fallback : si onMapReady ne fire pas dans les 3 secondes (Google Maps SDK
   // qui silencie parfois l'event sur iOS / simulateur), on force mapReady=true
-  // pour débloquer l'auto-recenter. animateToRegion no-op si réellement pas prêt.
+  // pour débloquer la caméra. animateToRegion no-op si réellement pas prêt.
   useEffect(() => {
     if (mapReady) return;
     const t = setTimeout(() => setMapReady(true), 3000);
@@ -606,41 +288,36 @@ export default function ProviderDashboard() {
 
     const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
     const monthEarnings = dashData?.stats?.monthEarnings?.total || 0;
-    // Vrai solde Stripe (cents) — même source que l'onglet Gains
-    const stripeAvailable = results[4].status === 'fulfilled' ? ((results[4].value as any)?.available ?? 0) : 0;
+    setToday(dashData?.stats?.todayEarnings?.total || 0);
 
-    if (results[0].status === 'fulfilled') {
-      const w = results[0].value as any;
-      setWallet({
-        balance:         w.balance        || 0,
-        pendingAmount:   w.pendingAmount  || 0,
-        totalEarnings:   w.totalEarnings  || 0,
-        monthEarnings,
-        escrowAmount:    w.escrowAmount   || 0,
-        stripeAvailable,
-      });
-    } else {
-      devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
-    }
+    const w = results[0].status === 'fulfilled' ? (results[0].value as any) : null;
+    if (!w) devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
+    const pendingCents = (w?.pendingAmount || 0) + (w?.escrowAmount || 0);
 
     // KPI stats depuis /provider/dashboard (results[2]) : /auth/me ne renvoie PAS
     // ces champs (jobsCompleted/avgRating/totalRatings/rankScore) → d'où les zéros.
-    if (dashData?.provider) {
-      const pv = dashData.provider;
-      setStats({
-        jobsCompleted: pv.jobsCompleted ?? 0,
-        avgRating:     pv.avgRating     ?? 0,
-        totalRatings:  pv.totalRatings  ?? 0,
-        rank:          pv.rank          ?? null,
-      });
-    } else if (results[2].status === 'rejected') {
-      devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
+    const pv = dashData?.provider;
+    if (!pv && results[2].status === 'rejected') devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
+    setStats({
+      monthCents: monthEarnings,
+      pendingCents,
+      jobsCompleted: pv?.jobsCompleted ?? 0,
+      avgRating:     pv?.avgRating     ?? 0,
+      totalRatings:  pv?.totalRatings  ?? 0,
+      rank:          pv?.rank          ?? null,
+      acceptanceRate: pv?.acceptanceRate ?? null,
+    });
+
+    if (results[4].status === 'fulfilled') {
+      const c = results[4].value as any;
+      setConnect({ needsOnboarding: c?.needsOnboarding, payoutsEnabled: c?.payoutsEnabled });
     }
 
     // Mission active : ACCEPTED/ONGOING/QUOTE_SENT/QUOTE_ACCEPTED, non planifiée future.
     // On ouvre le re-entry dans la mission pour le provider qui revient sur le dashboard.
     if (results[3].status === 'fulfilled') {
       const m = (results[3].value as any)?.items || [];
+      setMissions(m);
       const ACTIVE = ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
       const found = m.find((r: any) => {
         if (!ACTIVE.includes(r.status)) return false;
@@ -652,6 +329,7 @@ export default function ProviderDashboard() {
       });
       setCurrentMission(found ? {
         id: found.id, serviceType: found.serviceType, status: found.status, address: found.address,
+        clientName: found.client?.name ?? null, lat: found.lat ?? null, lng: found.lng ?? null,
       } : null);
     }
 
@@ -661,7 +339,7 @@ export default function ProviderDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
   // Refetch quand le provider revient sur le dashboard (après /ongoing par ex.)
-  // pour rafraîchir la bannière "mission en cours".
+  // pour rafraîchir la carte mission et le gain du jour.
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   // Load current incoming queue via REST — hydrates the card list on dashboard open
@@ -782,13 +460,8 @@ export default function ProviderDashboard() {
         calloutFee:  data.calloutFee ?? undefined,
         brief:       briefOf(data),
       };
+      // La caméra cadre moi + la demande via useMapCamera (stade « incoming »).
       setIncomingRequests(prev => prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]);
-      if (lat && lng) {
-        mapRef.current?.animateToRegion({
-          latitude: lat, longitude: lng,
-          latitudeDelta: 0.02, longitudeDelta: 0.02,
-        }, 600);
-      }
     };
 
     const removeRequest = (id: string | number) =>
@@ -818,7 +491,7 @@ export default function ProviderDashboard() {
     };
 
     // Le serveur refuse le passage en ligne (dossier incomplet ou Stripe non
-    // finalisé). On remet le switch sur la vérité serveur et on propose
+    // finalisé). On remet le GO sur la vérité serveur et on propose
     // d'aller finir l'étape manquante — volet coulissant, pas d'alerte système.
     const handleStatusRejected = async (data: { code?: string; message?: string; status?: string }) => {
       const online = isOnlineStatus(data?.status);
@@ -858,21 +531,18 @@ export default function ProviderDashboard() {
     };
   }, [socket, user?.id, fetchIncomingQueue]);
 
-  // Toggle online
+  // Le GO : passer en ligne / hors ligne. L'haptique est partie à l'appui
+  // (GoButton), sur la même frame que le départ du disque.
   const handleToggleOnline = useCallback(() => {
     if (!user?.id) return;
     const next = !isOnline;
     isOnlineRef.current = next;
     setIsOnline(next);
-    feedback.haptic(next ? 'medium' : 'light');
     // providerId retiré du payload : le serveur prend l'identité sur le socket
     // authentifié (il l'ignore désormais côté backend).
     if (socket) socket.emit('provider:set_status', { status: next ? 'READY' : 'OFFLINE' });
     if (!next) setIncomingRequests([]);
-    if (next && location) {
-      mapRef.current?.animateToRegion({ ...location, latitudeDelta: 0.035, longitudeDelta: 0.035 }, 700);
-    }
-  }, [isOnline, socket, user?.id, location]);
+  }, [isOnline, socket, user?.id]);
 
   // Accept — REST call (reliable) + socket notification (real-time bonus)
   const handleAccept = useCallback(async (request: IncomingRequest) => {
@@ -892,6 +562,7 @@ export default function ProviderDashboard() {
 
         if (isFutureScheduled) {
           feedback.info('provider.mission_accepted_scheduled_msg');
+          loadData();
         } else {
           router.replace(`/request/${request.requestId}/ongoing`);
         }
@@ -909,7 +580,7 @@ export default function ProviderDashboard() {
         feedback.error(msg);
       }
     }
-  }, [user?.id, router]);
+  }, [user?.id, router, loadData]);
 
   // Explicit decline ("Passer") — refuse backend + never show again
   const handleDecline = useCallback(async (requestId: string) => {
@@ -918,7 +589,52 @@ export default function ProviderDashboard() {
     setIncomingRequests(prev => prev.filter(r => r.requestId !== requestId));
   }, []);
 
+  // ─── Le stade ────────────────────────────────────────────────────────────
   const activeJob = incomingRequests[0] || null;
+  const stage = cockpitStageOf({ online: isOnline, gpsDenied, hasIncoming: !!activeJob, hasMission: !!currentMission });
+  const reminders = useMemo<Reminder[]>(() => remindersOf(missions, connect), [missions, connect]);
+  const next = useMemo<NextMission | null>(() => nextMissionOf(missions), [missions]);
+
+  // ─── Géométrie : onglets · dock · journée ────────────────────────────────
+  const tabBottom = insets.bottom + TAB_BAR_HEIGHT;
+  const stripBottom = tabBottom + DOCK_HEIGHT + 12;
+  const topRowTop = insets.top + 8;
+
+  // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
+  const jobCoord = useMemo<LatLng | null>(() => (activeJob?.latitude && activeJob?.longitude ? { latitude: activeJob.latitude, longitude: activeJob.longitude } : null), [activeJob?.latitude, activeJob?.longitude]);
+  const doorCoord = useMemo<LatLng | null>(() => (currentMission?.lat != null && currentMission?.lng != null ? { latitude: currentMission.lat, longitude: currentMission.lng } : null), [currentMission?.lat, currentMission?.lng]);
+  const other = stage === 'incoming' ? jobCoord : stage === 'busy' ? doorCoord : null;
+  // Ce que la caméra doit laisser libre en bas : la fiche (incoming), la carte
+  // mission ou la journée (~3 rangées), toujours au-dessus du dock et des onglets.
+  const coveredBottom = stage === 'incoming' ? Math.round(windowHeight * 0.55) : stripBottom + (stage === 'busy' ? 90 : 200);
+  // Le rembourrage est posé sur la carte elle-même (mapPadding) : la caméra
+  // centre dans la zone libre, et useMapCamera ne le compte pas deux fois.
+  const mapPadding = useMemo(() => ({ top: topRowTop + 44, right: 0, bottom: coveredBottom, left: 0 }), [topRowTop, coveredBottom]);
+  useMapCamera({ mapRef, ready: mapReady && !!location, mode: cockpitCameraMode(stage), door: location ?? BRUSSELS, other, sheetHeight: 0, topInset: 0, reduced });
+
+  // ─── Itinéraire vers la demande ou la porte, dessiné point par point ─────
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
+  const routeTarget = other;
+  const routeKey = routeTarget ? `${routeTarget.latitude.toFixed(4)},${routeTarget.longitude.toFixed(4)}` : '';
+  const lastRouteFetch = useRef(0);
+  useEffect(() => {
+    if (!location || !routeTarget) { setRouteCoords([]); return; }
+    const t0 = Date.now();
+    if (routeCoords.length && t0 - lastRouteFetch.current < 30_000) return;
+    lastRouteFetch.current = t0;
+    let cancelled = false;
+    fetchRoute(location, routeTarget).then((r) => { if (!cancelled && r.coords.length) setRouteCoords(r.coords); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [routeKey, location?.latitude, location?.longitude]);
+  const visibleCount = useRevealCount(routeCoords.length, routeCoords.length > 0);
+  const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
+
+  // ─── Navigation ──────────────────────────────────────────────────────────
+  const onReminder = useCallback((r: Reminder) => {
+    if (r.kind === 'payouts') router.push(gateCopyFor(GATE_CODES.STRIPE_NOT_READY).route as any);
+    else if (r.requestId != null) router.push(`/request/${r.requestId}/ongoing`);
+  }, [router]);
+  const onNext = useCallback((m: NextMission) => router.push(`/request/${m.id}/ongoing`), [router]);
 
   // -- Loading screen --
   if (loading) {
@@ -931,16 +647,19 @@ export default function ProviderDashboard() {
     );
   }
 
+  const meTone = stage === 'gps' ? 'gps' : stage === 'off' ? 'off' : 'on';
+  const routeColor = theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)';
+
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* -- Carte plein ecran -- */}
+      {/* -- Carte plein écran : l'écran, c'est elle ; l'interface flotte dessus -- */}
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
-        customMapStyle={(theme.isDark || activeJob) ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+        customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -948,163 +667,91 @@ export default function ProviderDashboard() {
         pitchEnabled={false}
         toolbarEnabled={false}
         onMapReady={() => setMapReady(true)}
-        initialRegion={{
-          latitude:      location?.latitude  ?? 50.8466,
-          longitude:     location?.longitude ?? 4.3528,
-          latitudeDelta:  0.035,
-          longitudeDelta: 0.035,
-        }}
+        mapPadding={mapPadding}
+        initialRegion={{ ...(location ?? BRUSSELS), latitudeDelta: 0.035, longitudeDelta: 0.035 }}
       >
-        {location && (
-          <Marker
-            coordinate={location}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat={false}
-            tracksViewChanges={true}
-          >
-            <AvatarMarker heading={heading} />
-          </Marker>
-        )}
+        {visibleRoute.length > 1 ? <Polyline coordinates={visibleRoute} strokeColor={routeColor} strokeWidth={3} /> : null}
 
-        {incomingRequests.map(req =>
+        {incomingRequests.map((req, i) =>
           req.latitude && req.longitude ? (
-            <Marker
-              key={req.requestId}
-              coordinate={{ latitude: req.latitude, longitude: req.longitude }}
-              title={req.title}
-              description={req.address}
-              anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
-            >
-              <View style={[s.missionMarker, { backgroundColor: COLORS.red, shadowColor: COLORS.red, borderColor: theme.cardBg }]}>
-                <Feather name="zap" size={14} color={darkTokens.heroText} />
-              </View>
+            <Marker key={req.requestId} coordinate={{ latitude: req.latitude, longitude: req.longitude }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges>
+              <DemandDot index={i} big={stage === 'incoming' && i === 0} />
             </Marker>
           ) : null
         )}
+
+        {stage === 'busy' && doorCoord ? (
+          <Marker coordinate={doorCoord} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges>
+            <DoorMarker visible />
+          </Marker>
+        ) : null}
+
+        {location && (
+          <Marker coordinate={location} anchor={{ x: 0.5, y: 0.5 }} flat={false} tracksViewChanges={true}>
+            <MeMarker tone={meTone} heading={heading} arrow={stage === 'busy'} />
+          </Marker>
+        )}
       </MapView>
 
-      {/* -- Vignette top -- */}
-      <LinearGradient
-        colors={theme.isDark ? ['rgba(10,10,10,0.95)', 'rgba(10,10,10,0.6)', 'transparent'] : ['rgba(248,249,251,0.95)', 'rgba(248,249,251,0.6)', 'transparent']}
-        style={s.vignetteTop}
-        pointerEvents="none"
+      {/* -- Le voile : la carte s'éteint hors ligne -- */}
+      <Veil dimmed={stage === 'off' || stage === 'gps'} label={stage === 'gps' ? t('cockpit.gps_veil') : stage === 'off' ? t('cockpit.invisible') : null} />
+
+      {/* -- Haut : profil · aujourd'hui · messages · cloche -- */}
+      <TopRow
+        visible={stage !== 'incoming'}
+        top={topRowTop}
+        todayCents={today}
+        unreadMessages={unreadMessages}
+        unreadNotifs={unreadCount}
+        onProfile={() => router.push('/(tabs)/profile')}
+        onToday={() => router.push('/(tabs)/wallet')}
+        onMessages={() => router.push('/messages')}
+        onNotifs={() => router.push('/notifications')}
       />
 
-      {/* == TOP ISLAND == */}
-      {!activeJob && (
-        <Reanimated.View
-          layout={LinearTransition.springify().damping(28).stiffness(200)}
-          style={[s.topIsland, { top: insets.top + 8, backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.1 }, fadeStyle]}
-        >
+      {/* -- La journée, lisible en bas -- */}
+      <DayStrip
+        visible={stage === 'off' || stage === 'on'}
+        bottom={stripBottom}
+        reminders={reminders}
+        next={next}
+        stats={stats}
+        loading={statsLoading}
+        onReminder={onReminder}
+        onNext={onNext}
+        onStats={() => router.push('/(tabs)/wallet')}
+      />
 
-          {/* Ligne 1 -- CockpitIsland + Recenter + Notifs */}
-          <View style={s.tiRow}>
-            <CockpitIsland
-              isOnline={isOnline}
-              wallet={wallet}
-              onToggle={handleToggleOnline}
-              onWalletPress={() => router.push('/wallet')}
-            />
-            <View style={s.tiActions}>
-            <TouchableOpacity
-              style={[s.recenterBtn, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)' }]}
-              onPress={() => router.push('/messages')}
-              activeOpacity={0.8}
-              accessibilityLabel="Messages"
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Feather name="message-square" size={20} color={theme.text} />
-              {unreadMessages > 0 && (
-                <View style={[s.notifBadge, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
-                  <Text style={[s.notifBadgeText, { color: theme.accentText }]}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+      {/* -- La mission acceptée -- */}
+      <MissionCard
+        visible={stage === 'busy'}
+        bottom={stripBottom}
+        mission={currentMission ? { id: currentMission.id, status: currentMission.status, serviceType: currentMission.serviceType, address: currentMission.address, clientName: currentMission.clientName } : null}
+        onPress={() => currentMission && router.push(`/request/${currentMission.id}/ongoing`)}
+      />
 
-            <TouchableOpacity
-              style={[s.recenterBtn, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)' }]}
-              onPress={() => router.push('/notifications')}
-              activeOpacity={0.8}
-              accessibilityLabel={t('common.notifications')}
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Feather name="bell" size={20} color={theme.text} />
-              {unreadCount > 0 && (
-                <View style={[s.notifBadge, { backgroundColor: theme.accent, borderColor: theme.cardBg }]}>
-                  <Text style={[s.notifBadgeText, { color: theme.accentText }]}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            </View>
-          </View>
+      {/* -- Sans position, rien n'arrive -- */}
+      <GpsCard visible={stage === 'gps'} bottom={stripBottom} />
 
-          {/* Separateur */}
-          <View style={[s.tiSep, { backgroundColor: theme.border }]} />
+      {/* -- Le dock et le GO -- */}
+      <Dock
+        stage={stage}
+        count={incomingRequests.length}
+        onlineSince={onlineSince}
+        missionId={currentMission?.id ?? null}
+        bottom={tabBottom}
+        onList={() => router.push('/(tabs)/missions')}
+        onSettings={() => router.push('/(tabs)/profile')}
+      />
+      <GoButton
+        shape={goShape(stage)}
+        dockBottom={tabBottom}
+        onPress={handleToggleOnline}
+        accessibilityLabel={isOnline ? t('cockpit.stop_a11y') : t('cockpit.go_a11y')}
+      />
 
-          {/* Ligne 2 -- Gains hero */}
-          <View style={s.earningsLeft}>
-            <View style={s.earningsCaptionRow}>
-              <Text style={[s.earningsCaption, { color: theme.textMuted }]}>{t('provider.net_earnings_month')}</Text>
-            </View>
-            <Text style={[s.earningsHero, { color: theme.text }]}>
-              {statsLoading ? '—' : formatEuros(wallet?.monthEarnings || 0)}
-            </Text>
-            {!statsLoading && (wallet?.pendingAmount || 0) + (wallet?.escrowAmount || 0) > 0 && (
-              <Text style={[s.pendingSubtext, { color: theme.textMuted }]}>
-                +{formatEuros((wallet?.pendingAmount || 0) + (wallet?.escrowAmount || 0))} {t('provider.pending')}
-              </Text>
-            )}
-          </View>
-
-          {/* Ligne 3 -- KPIs */}
-          <StatsSection loading={statsLoading} stats={stats} />
-
-        </Reanimated.View>
-      )}
-
-      {/* == Pill discrète "mission en cours" — re-entry depuis le dashboard ==
-            Floutante en bas (au-dessus de la tab bar). Centrée horizontalement,
-            largeur auto. Volontairement minimaliste pour ne pas masquer la map. */}
-      {!activeJob && currentMission && (
-        <Reanimated.View
-          style={[
-            s.cmbWrap,
-            { bottom: insets.bottom + TAB_BAR_HEIGHT + 12 },
-            fadeStyle,
-          ]}
-          pointerEvents="box-none"
-        >
-          <TouchableOpacity
-            style={[
-              s.cmbPill,
-              {
-                backgroundColor: theme.cardBg,
-                borderColor: theme.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
-                shadowOpacity: theme.shadowOpacity > 0.06 ? theme.shadowOpacity : 0.08,
-              },
-            ]}
-            onPress={() => router.push(`/request/${currentMission.id}/ongoing`)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={t('provider.resume_mission')}
-          >
-            <View style={[s.cmbDot, { backgroundColor: COLORS.greenBrand }]} />
-            <Text style={[s.cmbLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
-              {t('provider.mission_ongoing').toUpperCase()} · #{currentMission.id}
-            </Text>
-            <Text style={[s.cmbService, { color: theme.text, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
-              {currentMission.serviceType || t('missions.mission')}
-            </Text>
-            <Feather name="chevron-right" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
-        </Reanimated.View>
-      )}
-
-      {/* -- Pop-up mission entrante -- */}
-      {activeJob && (
+      {/* -- Elle est pour vous -- */}
+      {activeJob && stage === 'incoming' && (
         <IncomingJobCard
           // Une nouvelle carte = un nouveau compte à rebours et un curseur
           // vierge : sans clé, l'instance (et son état « confirmé ») survit
@@ -1119,135 +766,7 @@ export default function ProviderDashboard() {
   );
 }
 
-// ============================================================================
-// STYLES PRINCIPAUX
-// ============================================================================
-
 const s = StyleSheet.create({
   root:          { flex: 1 },
-  loadingScreen: {
-    flex: 1,
-    justifyContent: 'center', alignItems: 'center',
-  },
-
-  vignetteTop: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    height: 310,
-    zIndex: 9000,
-  },
-
-  // -- TOP ISLAND --
-  topIsland: {
-    position: 'absolute',
-    left: 14, right: 14,
-    zIndex: 9999,
-    borderRadius: 28,
-    paddingTop: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    gap: 0,
-    borderWidth: 1,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 20, shadowOffset: { width: 0, height: 6 } },
-      android: { elevation: 12 },
-    }),
-  },
-
-  tiRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  tiActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  tiSep: {
-    height: 1,
-    marginVertical: 8,
-  },
-
-  recenterBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5,
-    position: 'relative',
-  },
-  notifBadge: {
-    position: 'absolute', top: -3, right: -3,
-    minWidth: 16, height: 16, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  notifBadgeText: { fontSize: 9, fontFamily: FONTS.sansMedium },
-
-  // Earnings
-  earningsLeft: { alignItems: 'center', paddingVertical: 4 },
-  earningsCaptionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
-  },
-  earningsCaption: {
-    fontSize: 10, fontFamily: FONTS.sansMedium,
-    letterSpacing: 1.2, textTransform: 'uppercase',
-  },
-  earningsHero: {
-    fontSize: 34, fontFamily: FONTS.bebas, includeFontPadding: false,
-    letterSpacing: -1.5, lineHeight: 40,
-    textAlign: 'center',
-  },
-  pendingSubtext: { fontSize: 12, fontFamily: FONTS.mono, marginTop: 4, textAlign: 'center' },
-  invoicedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
-  invoicedText: { fontSize: 11, fontFamily: FONTS.mono, fontVariant: ['tabular-nums'] as any },
-
-  // Active mission banner (inside island)
-  activeBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: 10, borderWidth: 1,
-    marginTop: 10,
-  },
-  activeBannerTitle: { fontSize: 14, fontFamily: FONTS.sansMedium },
-  activeBannerSub: { fontSize: 11, fontFamily: FONTS.sans, marginTop: 1 },
-
-  // Pill "mission en cours" — minimaliste, centrée bas, ne masque pas la map
-  cmbWrap: {
-    position: 'absolute',
-    left: 0, right: 0,
-    // `bottom` calcule dynamiquement (insets.bottom + TAB_BAR_HEIGHT) a l'usage.
-    alignItems: 'center',
-  },
-  cmbPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 999, borderWidth: 1,
-    maxWidth: '88%',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
-      android: { elevation: 4 },
-    }),
-  },
-  cmbDot: { width: 6, height: 6, borderRadius: 3 },
-  cmbLabel: { fontSize: 10, letterSpacing: 1.2 },
-  cmbService: { fontSize: 13, flexShrink: 1 },
-  activePulseWrap: {
-    width: 18, height: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  activePulseRing: {
-    position: 'absolute',
-    width: 8, height: 8, borderRadius: 4,
-  },
-
-  // Mission marker
-  missionMarker: {
-    width: 34, height: 34, borderRadius: 17,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2.5,
-    shadowOpacity: 0.5, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
-  },
+  loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
