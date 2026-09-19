@@ -24,6 +24,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
+import { DotPin } from '@/components/map/pins';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useTranslation } from 'react-i18next';
@@ -1339,7 +1340,7 @@ export default function NewRequestStepper() {
             >
               {location && (
                 <MapPin coordinate={{ latitude: location.lat, longitude: location.lng }}>
-                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.greenBrand, borderWidth: 2, borderColor: '#FFFFFF' }} />
+                  <DotPin size={16} color={COLORS.greenBrand} />
                 </MapPin>
               )}
             </MapView>

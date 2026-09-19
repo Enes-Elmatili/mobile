@@ -12,7 +12,8 @@ import { ActivityIndicator, Linking, Pressable, StatusBar, StyleSheet, Text, Vie
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { MapPin, pinShadow } from '@/components/map/MapPin';
+import { MapPin } from '@/components/map/MapPin';
+import { PersonPin, EtaBubble } from '@/components/map/pins';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -34,7 +35,6 @@ import { distanceKm, fetchRoute, type LatLng } from '@/lib/mission/route';
 import { SearchingOverlay } from '@/components/searching/SearchingOverlay';
 import { SearchingSheet } from '@/components/searching/SearchingSheet';
 import { useSearching } from '@/lib/mission/useSearching';
-import Avatar from '@/components/ui/Avatar';
 import { PhotoViewer } from '@/components/mission/photos';
 import { DoneContent, EtaHero, MoneyLine, PhotoCard, PinCard, ProviderRow, QuoteSteps, Rail, RequestRow, StageHeader, StageSheet, TimerHero, providerFirstName, providerName, type RailRow, type SheetLevel } from '@/components/tracking';
 import { useMapCamera, type CameraMode } from '@/lib/mission/useMapCamera';
@@ -44,30 +44,23 @@ const ACCEPTED_MOMENT_MS = 2400;
 
 
 // ─── Marqueurs ───────────────────────────────────────────────────────────────
-function ClientMarker() {
-  const theme = useAppTheme();
-  return <View style={[m.client, { backgroundColor: theme.greenText, borderColor: theme.cardBg }]} />;
+// Le client, c'est moi : ma photo, anneau vert.
+function ClientMarker({ name, avatarUrl }: { name?: string | null; avatarUrl?: string | null }) {
+  return <PersonPin name={name} avatarUrl={avatarUrl} size={34} tone="green" />;
 }
-// Le prestataire sur la carte : avatar 44 pt et bulle de minutes, atterrit
-// sur MOTION.land à sa première apparition.
+// Le prestataire sur la carte : sa photo (48 pt) et la bulle des minutes
+// attachée au-dessus, atterrit sur MOTION.land à sa première apparition.
 function ProviderMarker({ name, avatarUrl, etaMin }: { name: string; avatarUrl?: string | null; etaMin: number | null }) {
-  const theme = useAppTheme();
   const land = useEntrance(10, MOTION.land);
   return (
     <Animated.View style={[m.providerWrap, land.style]}>
-      <View style={[m.provider, { borderColor: theme.cardBg }, pinShadow(theme.shadowOpacity + 0.2)]}>
-        <Avatar name={name} size={40} avatarUrl={avatarUrl} />
-      </View>
-      {etaMin != null ? <View style={[m.bubble, { backgroundColor: theme.accent }]}><Text style={[m.bubbleText, { color: theme.accentText }]}>{etaMin} MIN</Text></View> : null}
+      {etaMin != null ? <EtaBubble minutes={etaMin} /> : null}
+      <PersonPin name={name} avatarUrl={avatarUrl} size={48} tone="white" />
     </Animated.View>
   );
 }
 const m = StyleSheet.create({
-  client: { width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
   providerWrap: { alignItems: 'center' },
-  provider: { borderRadius: 24, borderWidth: 3, overflow: 'hidden' },
-  bubble: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  bubbleText: { fontFamily: FONTS.bebas, fontSize: 14, letterSpacing: 1, includeFontPadding: false },
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -543,7 +536,7 @@ export default function MissionView() {
               showsCompass={false}
               toolbarEnabled={false}
             >
-              {tracking ? <MapPin coordinate={clientCoord}><ClientMarker /></MapPin> : null}
+              {tracking ? <MapPin coordinate={clientCoord} trackKey={(authUser as any)?.avatarUrl ?? ''}><ClientMarker name={(authUser as any)?.name} avatarUrl={(authUser as any)?.avatarUrl} /></MapPin> : null}
               {tracking && visibleRoute.length > 1 && !bandMode ? (
                 <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
               ) : null}

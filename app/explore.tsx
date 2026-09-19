@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Circle } from 'react-native-maps';
-import { MapPin, pinShadow } from '@/components/map/MapPin';
+import { MapPin } from '@/components/map/MapPin';
+import { DropPin } from '@/components/map/pins';
+import Avatar from '@/components/ui/Avatar';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -26,6 +28,7 @@ import { cleanName } from '@/lib/displayName';
 interface Provider {
   id: string;
   name?: string;
+  avatarUrl?: string | null;
   city?: string;
   avgRating?: number;
   jobsCompleted?: number;
@@ -252,13 +255,12 @@ export default function ExploreScreen() {
                   key={p.id}
                   coordinate={{ latitude: p.lat, longitude: p.lng }}
                   onPress={() => setSelected(p.id)}
-                  trackKey={isSelected}
+                  anchor={{ x: 0.5, y: 1 }}
+                  trackKey={`${isSelected}-${p.avatarUrl ?? ''}`}
                 >
-                  <View style={[pin.wrap, { backgroundColor: theme.heroBg, borderColor: theme.cardBg }, pinShadow(theme.shadowOpacity), isSelected && { backgroundColor: theme.accent, transform: [{ scale: 1.2 }] }]}>
-                    <Text style={[pin.text, { color: theme.heroText, fontFamily: FONTS.sansMedium }]}>
-                      {initials(cleanName(p.name, { fallback: 'Prestataire' }))}
-                    </Text>
-                  </View>
+                  <DropPin size={isSelected ? 50 : 42} color={isSelected ? (theme.accent as string) : '#1A1A1A'}>
+                    <Avatar name={cleanName(p.name, { fallback: 'Prestataire' })} size={isSelected ? 40 : 32} avatarUrl={p.avatarUrl} />
+                  </DropPin>
                 </MapPin>
               );
             })}
@@ -356,14 +358,6 @@ export default function ExploreScreen() {
 
 // ── Pin styles ────────────────────────────────────────────────────────────────
 
-const pin = StyleSheet.create({
-  wrap: {
-    width: 34, height: 34, borderRadius: 17,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2,
-  },
-  text: { fontSize: 11 },
-});
 
 // ── Screen styles ─────────────────────────────────────────────────────────────
 

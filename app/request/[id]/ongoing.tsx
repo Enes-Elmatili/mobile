@@ -12,13 +12,15 @@ import { ActivityIndicator, BackHandler, Linking, Platform, Pressable, StatusBar
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
+import { DropPin, DropGlyph } from '@/components/map/pins';
+import Avatar from '@/components/ui/Avatar';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
-import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
 import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
 import { feedback } from '@/lib/feedback/feedback';
@@ -66,18 +68,18 @@ async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', i
 }
 
 // ─── Marqueurs ───────────────────────────────────────────────────────────────
+// La porte du client : une goutte verte avec la maison, ancrée sur sa pointe.
 function DoorMarker() {
-  const theme = useAppTheme();
-  return <View style={[m.door, { backgroundColor: theme.greenText, borderColor: theme.cardBg }]}><Feather name="home" size={14} color={theme.bg as string} /></View>;
+  return <DropPin size={40} color={COLORS.greenBrand}><DropGlyph name="home" /></DropPin>;
 }
-function MeMarker() {
-  const theme = useAppTheme();
-  return <View style={[m.me, { backgroundColor: theme.accent, borderColor: theme.cardBg }]} />;
+// Moi, en route : ma photo dans une goutte qui pointe le cap.
+function MeMarker({ name, avatarUrl, heading }: { name?: string | null; avatarUrl?: string | null; heading: number | null }) {
+  return (
+    <DropPin size={44} color="#1A1A1A" heading={heading}>
+      <Avatar name={name || '?'} size={34} avatarUrl={avatarUrl} />
+    </DropPin>
+  );
 }
-const m = StyleSheet.create({
-  door: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  me: { width: 22, height: 22, borderRadius: 11, borderWidth: 4 },
-});
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function MissionOngoing() {
@@ -96,6 +98,7 @@ export default function MissionOngoing() {
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
+  const [myHeading, setMyHeading] = useState<number | null>(null);
   const [gpsAt, setGpsAt] = useState<number | null>(null);
   const [gpsDenied, setGpsDenied] = useState(false);
   const [etaMin, setEtaMin] = useState<number | null>(null);
@@ -260,12 +263,14 @@ export default function MissionOngoing() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setMyLocation(coords); setGpsAt(Date.now());
+      if (loc.coords.heading != null && loc.coords.heading >= 0) setMyHeading(Math.round(loc.coords.heading / 10) * 10);
       await updateRoute(coords);
       locationSub.current = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 10000, distanceInterval: 30 },
         async (newLoc) => {
           const c = { latitude: newLoc.coords.latitude, longitude: newLoc.coords.longitude };
           setMyLocation(c); setGpsAt(Date.now());
+          if (newLoc.coords.heading != null && newLoc.coords.heading >= 0) setMyHeading(Math.round(newLoc.coords.heading / 10) * 10);
           const t0 = Date.now();
           let eta: number | null = null;
           if (t0 - lastRouteRef.current >= 30_000) { lastRouteRef.current = t0; eta = (await updateRoute(c))?.etaMin ?? null; }
@@ -559,8 +564,8 @@ export default function MissionOngoing() {
             scrollEnabled={stage === 'en_route'}
             zoomEnabled={stage === 'en_route'}
           >
-            <MapPin coordinate={door}><DoorMarker /></MapPin>
-            {myLocation && stage === 'en_route' ? <MapPin coordinate={myLocation}><MeMarker /></MapPin> : null}
+            <MapPin coordinate={door} anchor={{ x: 0.5, y: 1 }}><DoorMarker /></MapPin>
+            {myLocation && stage === 'en_route' ? <MapPin coordinate={myLocation} anchor={{ x: 0.5, y: 1 }} trackKey={`${myHeading ?? 'x'}-${(authUser as any)?.avatarUrl ?? ''}`} trackMs={1600}><MeMarker name={(authUser as any)?.name} avatarUrl={(authUser as any)?.avatarUrl} heading={myHeading} /></MapPin> : null}
             {stage === 'en_route' && visibleRoute.length > 1 ? <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} /> : null}
           </MapView>
           {near && stage === 'on_site' ? (

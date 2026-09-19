@@ -644,6 +644,9 @@ export default function ProviderDashboard() {
   const goMessages = useCallback(() => router.push('/messages'), [router]);
   const goNotifs = useCallback(() => router.push('/notifications'), [router]);
   const goMission = useCallback(() => { if (currentMission) router.push(`/request/${currentMission.id}/ongoing`); }, [router, currentMission?.id]);
+  // Ma photo sur ma carte : on se reconnaît. Stable tant que le profil ne change pas.
+  const meName = (user as any)?.name ?? null, meAvatar = (user as any)?.avatarUrl ?? null;
+  const me = useMemo(() => ({ name: meName, avatarUrl: meAvatar }), [meName, meAvatar]);
   const missionLite = useMemo<MissionCardLite | null>(() => (currentMission ? { id: currentMission.id, status: currentMission.status, serviceType: currentMission.serviceType, address: currentMission.address, clientName: currentMission.clientName } : null), [currentMission]);
 
   // -- Loading screen --
@@ -690,7 +693,7 @@ export default function ProviderDashboard() {
 
         {stage === 'busy' && doorCoord ? <DoorPin coordinate={doorCoord} /> : null}
 
-        {location ? <MePin coordinate={location} tone={meTone} heading={heading} arrow={stage === 'busy'} /> : null}
+        {location ? <MePin coordinate={location} tone={meTone} heading={heading} arrow={stage === 'busy'} me={me} /> : null}
       </MapView>
 
       {/* -- Le voile : la carte s'éteint hors ligne -- */}

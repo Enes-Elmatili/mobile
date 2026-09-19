@@ -16,6 +16,7 @@ import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom
 import { devLog, devWarn, devError } from '@/lib/logger';
 import MapView, { PROVIDER_DEFAULT } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
+import { DotPin } from '@/components/map/pins';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
@@ -573,7 +574,7 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = f
             showsPointsOfInterest={false} showsBuildings={false}
           >
             <MapPin coordinate={{ latitude: lat!, longitude: lng! }}>
-              <View style={[sd.markerOuter, { backgroundColor: t.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,26,26,0.12)' }]}><View style={[sd.markerInner, { backgroundColor: t.accent, borderColor: t.cardBg }]} /></View>
+              <DotPin size={16} color={t.accent as string} />
             </MapPin>
           </MapView>
           <View style={sd.mapOverlay}>
@@ -739,7 +740,7 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane
             showsPointsOfInterest={false} showsBuildings={false}
           >
             <MapPin coordinate={{ latitude: lat, longitude: lng }}>
-              <View style={[sd.markerOuter, { backgroundColor: t.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,26,26,0.12)' }]}><View style={[sd.markerInner, { backgroundColor: t.accent, borderColor: t.cardBg }]} /></View>
+              <DotPin size={16} color={t.accent as string} />
             </MapPin>
           </MapView>
           <View style={sd.mapOverlay}>
@@ -812,8 +813,6 @@ const sd = StyleSheet.create({
   scroll: { paddingBottom: 80 },
   mapContainer: { height: 150, marginTop: 8, overflow: 'hidden', position: 'relative' },
   map:          { ...StyleSheet.absoluteFillObject },
-  markerOuter:  { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  markerInner:  { width: 12, height: 12, borderRadius: 6, borderWidth: 2.5 },
   mapOverlay:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 12, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0.15)' },
   mapAddrBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
   mapAddrText:  { fontSize: 12, fontFamily: FONTS.sansMedium, maxWidth: 260 },
