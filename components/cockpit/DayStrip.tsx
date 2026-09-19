@@ -2,7 +2,7 @@
 // comme en ligne : rappels (virements, devis), prochaine mission avec son
 // heure (ambre à moins de 30 min), puis trois tuiles qui gardent tout ce que
 // l'ancien îlot montrait — mois + en attente, note + missions, rang + taux.
-import React from 'react';
+import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +46,7 @@ function Tile({ k, big, sub, onPress, label }: { k: string; big: string; sub: st
   );
 }
 
-export function DayStrip({ visible, bottom, reminders, next, stats, loading, onReminder, onNext, onStats }: Props) {
+function DayStripBase({ visible, bottom, reminders, next, stats, loading, onReminder, onNext, onStats }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const dash = loading ? '—' : null;
@@ -87,6 +87,8 @@ export function DayStrip({ visible, bottom, reminders, next, stats, loading, onR
     </View>
   );
 }
+
+export const DayStrip = memo(DayStripBase);
 
 const s = StyleSheet.create({
   strip: { position: 'absolute', left: 16, right: 16, zIndex: 5, gap: 8 },

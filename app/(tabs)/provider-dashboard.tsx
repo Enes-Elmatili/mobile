@@ -11,11 +11,10 @@ import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { useLayoutClass } from '@/lib/layout';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, cancelAnimation } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
-import { useRevealCount } from '@/lib/motion/useRevealCount';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
 import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
@@ -39,10 +38,11 @@ import { GoButton, DOCK_HEIGHT, GO_SIZE } from '@/components/cockpit/GoButton';
 import { Dock } from '@/components/cockpit/Dock';
 import { TopRow } from '@/components/cockpit/TopRow';
 import { DayStrip, type DayStats } from '@/components/cockpit/DayStrip';
-import { MissionCard } from '@/components/cockpit/MissionCard';
+import { MissionCard, type MissionLite as MissionCardLite } from '@/components/cockpit/MissionCard';
 import { GpsCard } from '@/components/cockpit/GpsCard';
 import { Veil } from '@/components/cockpit/Veil';
-import { MeMarker, DemandDot, DoorMarker } from '@/components/cockpit/markers';
+import { MePin, DemandPin, DoorPin, RouteTrace } from '@/components/cockpit/markers';
+import { metersBetween } from '@/lib/mission/stage';
 
 const TIMER_DURATION = 60;
 const BRUSSELS: LatLng = { latitude: 50.8466, longitude: 4.3528 };
@@ -615,13 +615,20 @@ export default function ProviderDashboard() {
   const jobCoord = useMemo<LatLng | null>(() => (activeJob?.latitude && activeJob?.longitude ? { latitude: activeJob.latitude, longitude: activeJob.longitude } : null), [activeJob?.latitude, activeJob?.longitude]);
   const doorCoord = useMemo<LatLng | null>(() => (currentMission?.lat != null && currentMission?.lng != null ? { latitude: currentMission.lat, longitude: currentMission.lng } : null), [currentMission?.lat, currentMission?.lng]);
   const other = stage === 'incoming' ? jobCoord : stage === 'busy' ? doorCoord : null;
-  // Ce que la caméra doit laisser libre en bas : la fiche (incoming), la carte
-  // mission ou la journée (~3 rangées), toujours au-dessus du dock et des onglets.
-  const coveredBottom = stage === 'incoming' ? Math.round(windowHeight * 0.55) : stripBottom + (stage === 'busy' ? 90 : 200);
-  // Le rembourrage est posé sur la carte elle-même (mapPadding) : la caméra
-  // centre dans la zone libre, et useMapCamera ne le compte pas deux fois.
-  const mapPadding = useMemo(() => ({ top: topRowTop + 44, right: 0, bottom: coveredBottom, left: 0 }), [topRowTop, coveredBottom]);
-  useMapCamera({ mapRef, ready: mapReady && !!location, mode: cockpitCameraMode(stage), door: location ?? BRUSSELS, other, sheetHeight: 0, topInset: 0, reduced });
+  // La caméra ne suit « moi » que par pas de 25 m : une position qui tremble
+  // sur place ne relance pas un recadrage toutes les 3 s.
+  const [camDoor, setCamDoor] = useState<LatLng | null>(null);
+  useEffect(() => {
+    if (!location) return;
+    setCamDoor((prev) => (!prev || metersBetween(prev.latitude, prev.longitude, location.latitude, location.longitude) > 25 ? location : prev));
+  }, [location?.latitude, location?.longitude]);
+  // Le rembourrage est posé sur la carte (mapPadding) et ne change pas avec le
+  // stade — un padding qui saute fait sauter la carte. La fiche « elle est
+  // pour vous », plus haute que la journée, s'ajoute en marge du cadrage.
+  const stripCover = stripBottom + 200;
+  const mapPadding = useMemo(() => ({ top: topRowTop + 44, right: 0, bottom: stripCover, left: 0 }), [topRowTop, stripCover]);
+  const extraCover = stage === 'incoming' ? Math.max(0, Math.round(windowHeight * 0.55) - stripCover) : 0;
+  useMapCamera({ mapRef, ready: mapReady && !!camDoor, mode: cockpitCameraMode(stage), door: camDoor ?? BRUSSELS, other, sheetHeight: extraCover, topInset: 0, reduced });
 
   // ─── Itinéraire vers la demande ou la porte, dessiné point par point ─────
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
@@ -629,16 +636,14 @@ export default function ProviderDashboard() {
   const routeKey = routeTarget ? `${routeTarget.latitude.toFixed(4)},${routeTarget.longitude.toFixed(4)}` : '';
   const lastRouteFetch = useRef(0);
   useEffect(() => {
-    if (!location || !routeTarget) { setRouteCoords([]); return; }
+    if (!camDoor || !routeTarget) { setRouteCoords([]); return; }
     const t0 = Date.now();
     if (routeCoords.length && t0 - lastRouteFetch.current < 30_000) return;
     lastRouteFetch.current = t0;
     let cancelled = false;
-    fetchRoute(location, routeTarget).then((r) => { if (!cancelled && r.coords.length) setRouteCoords(r.coords); }).catch(() => {});
+    fetchRoute(camDoor, routeTarget).then((r) => { if (!cancelled && r.coords.length) setRouteCoords(r.coords); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [routeKey, location?.latitude, location?.longitude]);
-  const visibleCount = useRevealCount(routeCoords.length, routeCoords.length > 0);
-  const visibleRoute = useMemo(() => routeCoords.slice(0, visibleCount), [routeCoords, visibleCount]);
+  }, [routeKey, camDoor?.latitude, camDoor?.longitude]);
 
   // ─── Navigation ──────────────────────────────────────────────────────────
   const onReminder = useCallback((r: Reminder) => {
@@ -646,6 +651,12 @@ export default function ProviderDashboard() {
     else if (r.requestId != null) router.push(`/request/${r.requestId}/ongoing`);
   }, [router]);
   const onNext = useCallback((m: NextMission) => router.push(`/request/${m.id}/ongoing`), [router]);
+  const goProfile = useCallback(() => router.push('/(tabs)/profile'), [router]);
+  const goWallet = useCallback(() => router.push('/(tabs)/wallet'), [router]);
+  const goMessages = useCallback(() => router.push('/messages'), [router]);
+  const goNotifs = useCallback(() => router.push('/notifications'), [router]);
+  const goMission = useCallback(() => { if (currentMission) router.push(`/request/${currentMission.id}/ongoing`); }, [router, currentMission?.id]);
+  const missionLite = useMemo<MissionCardLite | null>(() => (currentMission ? { id: currentMission.id, status: currentMission.status, serviceType: currentMission.serviceType, address: currentMission.address, clientName: currentMission.clientName } : null), [currentMission]);
 
   // -- Loading screen --
   if (loading) {
@@ -681,27 +692,17 @@ export default function ProviderDashboard() {
         mapPadding={mapPadding}
         initialRegion={{ ...(location ?? BRUSSELS), latitudeDelta: 0.035, longitudeDelta: 0.035 }}
       >
-        {visibleRoute.length > 1 ? <Polyline coordinates={visibleRoute} strokeColor={routeColor} strokeWidth={3} /> : null}
+        <RouteTrace coords={routeCoords} color={routeColor} />
 
         {incomingRequests.map((req, i) =>
           req.latitude && req.longitude ? (
-            <Marker key={req.requestId} coordinate={{ latitude: req.latitude, longitude: req.longitude }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges>
-              <DemandDot index={i} big={stage === 'incoming' && i === 0} />
-            </Marker>
+            <DemandPin key={req.requestId} id={req.requestId} coordinate={{ latitude: req.latitude, longitude: req.longitude }} index={i} big={stage === 'incoming' && i === 0} />
           ) : null
         )}
 
-        {stage === 'busy' && doorCoord ? (
-          <Marker coordinate={doorCoord} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges>
-            <DoorMarker visible />
-          </Marker>
-        ) : null}
+        {stage === 'busy' && doorCoord ? <DoorPin coordinate={doorCoord} /> : null}
 
-        {location && (
-          <Marker coordinate={location} anchor={{ x: 0.5, y: 0.5 }} flat={false} tracksViewChanges={true}>
-            <MeMarker tone={meTone} heading={heading} arrow={stage === 'busy'} />
-          </Marker>
-        )}
+        {location ? <MePin coordinate={location} tone={meTone} heading={heading} arrow={stage === 'busy'} /> : null}
       </MapView>
 
       {/* -- Le voile : la carte s'éteint hors ligne -- */}
@@ -714,10 +715,10 @@ export default function ProviderDashboard() {
         todayCents={today}
         unreadMessages={unreadMessages}
         unreadNotifs={unreadCount}
-        onProfile={() => router.push('/(tabs)/profile')}
-        onToday={() => router.push('/(tabs)/wallet')}
-        onMessages={() => router.push('/messages')}
-        onNotifs={() => router.push('/notifications')}
+        onProfile={goProfile}
+        onToday={goWallet}
+        onMessages={goMessages}
+        onNotifs={goNotifs}
       />
 
       {/* -- La journée, lisible en bas -- */}
@@ -730,15 +731,15 @@ export default function ProviderDashboard() {
         loading={statsLoading}
         onReminder={onReminder}
         onNext={onNext}
-        onStats={() => router.push('/(tabs)/wallet')}
+        onStats={goWallet}
       />
 
       {/* -- La mission acceptée -- */}
       <MissionCard
         visible={stage === 'busy'}
         bottom={stripBottom}
-        mission={currentMission ? { id: currentMission.id, status: currentMission.status, serviceType: currentMission.serviceType, address: currentMission.address, clientName: currentMission.clientName } : null}
-        onPress={() => currentMission && router.push(`/request/${currentMission.id}/ongoing`)}
+        mission={missionLite}
+        onPress={goMission}
       />
 
       {/* -- Sans position, rien n'arrive -- */}

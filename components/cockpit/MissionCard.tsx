@@ -1,7 +1,7 @@
 // components/cockpit/MissionCard.tsx — la mission acceptée, en carte blanche
 // au-dessus du dock : on la tape pour reprendre l'intervention. Remplace la
 // pastille « mission en cours » : la journée s'efface, la mission prend la place.
-import React from 'react';
+import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
@@ -17,7 +17,7 @@ export type MissionLite = { id: number | string; status?: string | null; service
 
 type Props = { visible: boolean; bottom: number; mission: MissionLite | null; onPress: () => void };
 
-export function MissionCard({ visible, bottom, mission, onPress }: Props) {
+function MissionCardBase({ visible, bottom, mission, onPress }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { style: presence } = usePresence(visible && !!mission, { from: 'bottom', preset: MOTION.land });
@@ -46,6 +46,8 @@ export function MissionCard({ visible, bottom, mission, onPress }: Props) {
     </Animated.View>
   );
 }
+
+export const MissionCard = memo(MissionCardBase);
 
 const s = StyleSheet.create({
   wrap: { position: 'absolute', left: 16, right: 16, zIndex: 5 },

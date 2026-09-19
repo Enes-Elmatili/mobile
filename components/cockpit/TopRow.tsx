@@ -2,7 +2,7 @@
 // · messages · cloche. Le gain du jour reste au centre, toujours visible, et
 // roule (DigitReel) quand une mission se clôture, avec un éclat vert court.
 // La rangée s'efface vers le haut quand une demande monte.
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
@@ -40,7 +40,7 @@ function RoundButton({ icon, badge, onPress, label }: { icon: React.ComponentPro
   );
 }
 
-export function TopRow({ visible, top, todayCents, unreadMessages, unreadNotifs, onProfile, onToday, onMessages, onNotifs }: Props) {
+function TopRowBase({ visible, top, todayCents, unreadMessages, unreadNotifs, onProfile, onToday, onMessages, onNotifs }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const reduced = useReduceMotion();
@@ -82,6 +82,8 @@ export function TopRow({ visible, top, todayCents, unreadMessages, unreadNotifs,
     </Animated.View>
   );
 }
+
+export const TopRow = memo(TopRowBase);
 
 const s = StyleSheet.create({
   row: { position: 'absolute', left: 16, right: 16, zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

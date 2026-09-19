@@ -1,7 +1,7 @@
 // components/cockpit/GpsCard.tsx — localisation refusée : sans position, rien
 // n'arrive. Une carte à la place de la journée, un seul bouton : Autoriser
 // (ouvre les réglages du système).
-import React from 'react';
+import React, { memo } from 'react';
 import { Linking, Pressable, StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import { feedback } from '@/lib/feedback/feedback';
 
 type Props = { visible: boolean; bottom: number };
 
-export function GpsCard({ visible, bottom }: Props) {
+function GpsCardBase({ visible, bottom }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { style: presence } = usePresence(visible, { from: 'bottom' });
@@ -29,6 +29,8 @@ export function GpsCard({ visible, bottom }: Props) {
     </Animated.View>
   );
 }
+
+export const GpsCard = memo(GpsCardBase);
 
 const s = StyleSheet.create({
   wrap: { position: 'absolute', left: 16, right: 16, zIndex: 5 },

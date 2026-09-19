@@ -2,7 +2,7 @@
 // de filtre : un voile sombre à l'opacité animée fait le même travail, et une
 // étiquette au centre dit pourquoi (« vous êtes invisible » / « sans position,
 // rien n'arrive »). En ligne, le voile se lève et la carte s'allume.
-import React, { useEffect } from 'react';
+import React, { memo, useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -10,7 +10,7 @@ import { useReduceMotion } from '@/lib/motion/sheet';
 
 type Props = { dimmed: boolean; label: string | null };
 
-export function Veil({ dimmed, label }: Props) {
+function VeilBase({ dimmed, label }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
   const p = useSharedValue(dimmed ? 1 : 0);
@@ -28,6 +28,8 @@ export function Veil({ dimmed, label }: Props) {
     </View>
   );
 }
+
+export const Veil = memo(VeilBase);
 
 const s = StyleSheet.create({
   tagWrap: { position: 'absolute', left: 0, right: 0, top: '34%', alignItems: 'center' },

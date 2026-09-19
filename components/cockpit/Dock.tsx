@@ -2,9 +2,9 @@
 // Hors ligne elle ne dit rien (le GO parle) ; en ligne elle écrit « Vous êtes
 // en ligne » avec le nombre de demandes et un chrono qui tourne — ce qui bouge
 // est une information, pas un symbole. Ambre en mission, rouge sans GPS.
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
 import { usePresence } from '@/lib/motion/usePresence';
@@ -27,7 +27,7 @@ export function clockOf(sinceMs: number, now: number): string {
   return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 }
 
-export function Dock({ stage, count, onlineSince, missionId, bottom }: Props) {
+function DockBase({ stage, count, onlineSince, missionId, bottom }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const visible = stage !== 'incoming';
@@ -55,10 +55,13 @@ export function Dock({ stage, count, onlineSince, missionId, bottom }: Props) {
   const talk = useSharedValue(talking ? 1 : 0);
   useEffect(() => { talk.value = withTiming(talking ? 1 : 0, { duration: 260 }); }, [talking, talk]);
   const textStyle = useAnimatedStyle(() => ({ opacity: talk.value, transform: [{ translateY: (1 - talk.value) * 6 }] }));
+  const quietBg = theme.bg as string;
+  const talkBg = theme.cardBg as string;
+  const bgStyle = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(talk.value, [0, 1], [quietBg, talkBg]) }));
 
   return (
     <Animated.View
-      style={[s.dock, { bottom, height: DOCK_HEIGHT, backgroundColor: talking ? theme.cardBg : theme.bg, borderTopColor: theme.borderLight }, presence]}
+      style={[s.dock, { bottom, height: DOCK_HEIGHT, borderTopColor: theme.borderLight }, bgStyle, presence]}
       pointerEvents="none"
     >
       <Animated.View style={[s.st, textStyle]} pointerEvents="none" accessible={talking} accessibilityLiveRegion="polite">
@@ -68,6 +71,8 @@ export function Dock({ stage, count, onlineSince, missionId, bottom }: Props) {
     </Animated.View>
   );
 }
+
+export const Dock = memo(DockBase);
 
 const s = StyleSheet.create({
   dock: { position: 'absolute', left: 0, right: 0, zIndex: 6, borderTopWidth: 1 },
