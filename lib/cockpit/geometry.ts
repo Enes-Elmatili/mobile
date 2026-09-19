@@ -3,7 +3,7 @@
 // insets et de la classe de layout : testable pour un SE, un Pro Max, un
 // Android 360×640 à trois boutons, un Fold ouvert, un Duo à encoche latérale.
 //
-//   - écran bas (< 700 pt utiles) : GO 72, dock 60, tuiles sans sous-ligne
+//   - écran bas (< 700 pt utiles) : GO 72, dock 60, puces serrées
 //   - écran large (regular) : les surfaces gardent une largeur de lecture
 //     (520 pt) centrée ; la barre d'onglets est latérale, plus rien en bas
 //   - insets gauche/droite ajoutés aux marges (encoche latérale du Duo)
@@ -23,7 +23,7 @@ export type CockpitGeometry = {
   marginLeft: number;
   marginRight: number;
   contentWidth: number;
-  /** Écran bas : tuiles compactes (sans sous-ligne), puces plus basses. */
+  /** Écran bas : puces plus serrées. */
   denseHeight: boolean;
   /** Ce que la carte doit laisser libre en bas (padding de la MapView). */
   mapPaddingBottom: number;
@@ -34,8 +34,8 @@ export type CockpitGeometry = {
 
 export const CONTENT_MAX_WIDTH = 520;
 export const DENSE_HEIGHT = 700;
-/** Hauteur approximative de la journée (puces + prochaine mission + tuiles), pour le cadrage de la carte. */
-const STRIP_ESTIMATE = { normal: 200, dense: 160 };
+/** Hauteur approximative de la journée (puces + prochaine mission), pour le cadrage de la carte. */
+const STRIP_ESTIMATE = { normal: 120, dense: 100 };
 
 export function cockpitGeometry(a: {
   width: number;

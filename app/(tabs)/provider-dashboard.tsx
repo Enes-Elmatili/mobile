@@ -37,7 +37,7 @@ import { GoButton } from '@/components/cockpit/GoButton';
 import { cockpitGeometry } from '@/lib/cockpit/geometry';
 import { Dock } from '@/components/cockpit/Dock';
 import { TopRow } from '@/components/cockpit/TopRow';
-import { DayStrip, type DayStats } from '@/components/cockpit/DayStrip';
+import { DayStrip } from '@/components/cockpit/DayStrip';
 import { MissionCard, type MissionLite as MissionCardLite } from '@/components/cockpit/MissionCard';
 import { GpsCard } from '@/components/cockpit/GpsCard';
 import { Veil } from '@/components/cockpit/Veil';
@@ -198,7 +198,6 @@ export default function ProviderDashboard() {
   const [heading,       setHeading]        = useState(0);
   const [gpsDenied,     setGpsDenied]      = useState(false);
   const [today,         setToday]          = useState(0);
-  const [stats, setStats] = useState<DayStats>({ monthCents: 0, pendingCents: 0, avgRating: 0, totalRatings: 0, jobsCompleted: 0, rank: null, acceptanceRate: null });
   const [statsLoading,  setStatsLoading]  = useState(true);
   const [missions,      setMissions]       = useState<MissionLite[]>([]);
   const [connect,       setConnect]        = useState<{ needsOnboarding?: boolean; payoutsEnabled?: boolean } | null>(null);
@@ -298,26 +297,10 @@ export default function ProviderDashboard() {
     ]);
 
     const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
-    const monthEarnings = dashData?.stats?.monthEarnings?.total || 0;
     setToday(dashData?.stats?.todayEarnings?.total || 0);
 
-    const w = results[0].status === 'fulfilled' ? (results[0].value as any) : null;
-    if (!w) devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
-    const pendingCents = (w?.pendingAmount || 0) + (w?.escrowAmount || 0);
-
-    // KPI stats depuis /provider/dashboard (results[2]) : /auth/me ne renvoie PAS
-    // ces champs (jobsCompleted/avgRating/totalRatings/rankScore) → d'où les zéros.
-    const pv = dashData?.provider;
-    if (!pv && results[2].status === 'rejected') devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
-    setStats({
-      monthCents: monthEarnings,
-      pendingCents,
-      jobsCompleted: pv?.jobsCompleted ?? 0,
-      avgRating:     pv?.avgRating     ?? 0,
-      totalRatings:  pv?.totalRatings  ?? 0,
-      rank:          pv?.rank          ?? null,
-      acceptanceRate: pv?.acceptanceRate ?? null,
-    });
+    if (results[0].status === 'rejected') devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
+    if (results[2].status === 'rejected') devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
 
     if (results[4].status === 'fulfilled') {
       const c = results[4].value as any;
@@ -738,11 +721,8 @@ export default function ProviderDashboard() {
         dense={g.denseHeight}
         reminders={reminders}
         next={next}
-        stats={stats}
-        loading={statsLoading}
         onReminder={onReminder}
         onNext={onNext}
-        onStats={goWallet}
       />
 
       {/* -- La mission acceptée -- */}
