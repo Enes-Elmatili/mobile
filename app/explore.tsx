@@ -11,7 +11,8 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Circle } from 'react-native-maps';
+import MapView, { Circle } from 'react-native-maps';
+import { MapPin, pinShadow } from '@/components/map/MapPin';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -247,17 +248,18 @@ export default function ExploreScreen() {
               if (!p.lat || !p.lng) return null;
               const isSelected = p.id === selected;
               return (
-                <Marker
+                <MapPin
                   key={p.id}
                   coordinate={{ latitude: p.lat, longitude: p.lng }}
                   onPress={() => setSelected(p.id)}
+                  trackKey={isSelected}
                 >
-                  <View style={[pin.wrap, { backgroundColor: theme.heroBg, borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, isSelected && { backgroundColor: theme.accent, transform: [{ scale: 1.2 }] }]}>
+                  <View style={[pin.wrap, { backgroundColor: theme.heroBg, borderColor: theme.cardBg }, pinShadow(theme.shadowOpacity), isSelected && { backgroundColor: theme.accent, transform: [{ scale: 1.2 }] }]}>
                     <Text style={[pin.text, { color: theme.heroText, fontFamily: FONTS.sansMedium }]}>
                       {initials(cleanName(p.name, { fallback: 'Prestataire' }))}
                     </Text>
                   </View>
-                </Marker>
+                </MapPin>
               );
             })}
           </MapView>
@@ -359,10 +361,6 @@ const pin = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowRadius: 4 },
-      android: { elevation: 3 },
-    }),
   },
   text: { fontSize: 11 },
 });

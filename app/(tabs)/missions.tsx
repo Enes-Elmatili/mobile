@@ -14,7 +14,8 @@ import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { devLog, devWarn, devError } from '@/lib/logger';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { PROVIDER_DEFAULT } from 'react-native-maps';
+import { MapPin } from '@/components/map/MapPin';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
@@ -571,9 +572,9 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = f
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
             showsPointsOfInterest={false} showsBuildings={false}
           >
-            <Marker coordinate={{ latitude: lat!, longitude: lng! }} anchor={{ x: 0.5, y: 0.5 }}>
+            <MapPin coordinate={{ latitude: lat!, longitude: lng! }}>
               <View style={[sd.markerOuter, { backgroundColor: t.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,26,26,0.12)' }]}><View style={[sd.markerInner, { backgroundColor: t.accent, borderColor: t.cardBg }]} /></View>
-            </Marker>
+            </MapPin>
           </MapView>
           <View style={sd.mapOverlay}>
             <View style={[sd.mapAddrBadge, { backgroundColor: t.isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.94)' }]}>
@@ -737,9 +738,9 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
             showsPointsOfInterest={false} showsBuildings={false}
           >
-            <Marker coordinate={{ latitude: lat, longitude: lng }} anchor={{ x: 0.5, y: 0.5 }}>
+            <MapPin coordinate={{ latitude: lat, longitude: lng }}>
               <View style={[sd.markerOuter, { backgroundColor: t.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,26,26,0.12)' }]}><View style={[sd.markerInner, { backgroundColor: t.accent, borderColor: t.cardBg }]} /></View>
-            </Marker>
+            </MapPin>
           </MapView>
           <View style={sd.mapOverlay}>
             <View style={[sd.mapAddrBadge, { backgroundColor: t.isDark ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.94)' }]}>

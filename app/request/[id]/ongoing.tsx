@@ -10,7 +10,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Linking, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { MapPin } from '@/components/map/MapPin';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -558,8 +559,8 @@ export default function MissionOngoing() {
             scrollEnabled={stage === 'en_route'}
             zoomEnabled={stage === 'en_route'}
           >
-            <Marker coordinate={door} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><DoorMarker /></Marker>
-            {myLocation && stage === 'en_route' ? <Marker coordinate={myLocation} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><MeMarker /></Marker> : null}
+            <MapPin coordinate={door}><DoorMarker /></MapPin>
+            {myLocation && stage === 'en_route' ? <MapPin coordinate={myLocation}><MeMarker /></MapPin> : null}
             {stage === 'en_route' && visibleRoute.length > 1 ? <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} /> : null}
           </MapView>
           {near && stage === 'on_site' ? (

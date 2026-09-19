@@ -11,7 +11,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { MapPin, pinShadow } from '@/components/map/MapPin';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -54,7 +55,7 @@ function ProviderMarker({ name, avatarUrl, etaMin }: { name: string; avatarUrl?:
   const land = useEntrance(10, MOTION.land);
   return (
     <Animated.View style={[m.providerWrap, land.style]}>
-      <View style={[m.provider, { borderColor: theme.cardBg, shadowOpacity: theme.shadowOpacity + 0.2 }]}>
+      <View style={[m.provider, { borderColor: theme.cardBg }, pinShadow(theme.shadowOpacity + 0.2)]}>
         <Avatar name={name} size={40} avatarUrl={avatarUrl} />
       </View>
       {etaMin != null ? <View style={[m.bubble, { backgroundColor: theme.accent }]}><Text style={[m.bubbleText, { color: theme.accentText }]}>{etaMin} MIN</Text></View> : null}
@@ -64,7 +65,7 @@ function ProviderMarker({ name, avatarUrl, etaMin }: { name: string; avatarUrl?:
 const m = StyleSheet.create({
   client: { width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
   providerWrap: { alignItems: 'center' },
-  provider: { borderRadius: 24, borderWidth: 3, shadowColor: '#000', shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  provider: { borderRadius: 24, borderWidth: 3, overflow: 'hidden' },
   bubble: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   bubbleText: { fontFamily: FONTS.bebas, fontSize: 14, letterSpacing: 1, includeFontPadding: false },
 });
@@ -542,12 +543,12 @@ export default function MissionView() {
               showsCompass={false}
               toolbarEnabled={false}
             >
-              {tracking ? <Marker coordinate={clientCoord} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}><ClientMarker /></Marker> : null}
+              {tracking ? <MapPin coordinate={clientCoord}><ClientMarker /></MapPin> : null}
               {tracking && visibleRoute.length > 1 && !bandMode ? (
                 <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
               ) : null}
               {tracking && providerLocation && !bandMode ? (
-                <Marker coordinate={providerLocation} anchor={{ x: 0.5, y: 1 }}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} etaMin={hasLiveGps ? etaMin : null} /></Marker>
+                <MapPin coordinate={providerLocation} anchor={{ x: 0.5, y: 1 }} trackKey={`${provider?.avatarUrl ?? ''}-${hasLiveGps ? etaMin : 'x'}`} trackMs={1600}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} etaMin={hasLiveGps ? etaMin : null} /></MapPin>
               ) : null}
             </MapView>
 

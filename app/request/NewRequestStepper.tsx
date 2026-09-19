@@ -22,7 +22,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import { MapPin } from '@/components/map/MapPin';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useTranslation } from 'react-i18next';
@@ -1337,12 +1338,9 @@ export default function NewRequestStepper() {
               showsBuildings={false}
             >
               {location && (
-                <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} anchor={{ x: 0.5, y: 0.5 }}>
-                  <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
-                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(52,199,89,0.2)' }} />
-                    <View style={{ position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.green, borderWidth: 2, borderColor: '#FFFFFF' }} />
-                  </View>
-                </Marker>
+                <MapPin coordinate={{ latitude: location.lat, longitude: location.lng }}>
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.greenBrand, borderWidth: 2, borderColor: '#FFFFFF' }} />
+                </MapPin>
               )}
             </MapView>
 

@@ -7,13 +7,13 @@
 //   RouteTrace  : l'itinéraire, révélé point par point — dans son propre
 //                 composant pour que la révélation ne re-rende que lui.
 //
-// react-native-maps rasterise chaque marqueur : `tracksViewChanges` à vrai en
-// permanence coûte une capture par frame. `useTracksViewChanges` ne le laisse
-// vrai que le temps d'une animation (≈ 900 ms) après un changement.
-import React, { memo, useEffect, useMemo, useState } from 'react';
+// Les épingles passent par MapPin (components/map) : photographiées le temps
+// de leur animation, puis figées — jamais carrées, jamais une capture par frame.
+import React, { memo, useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
-import { Marker, Polyline } from 'react-native-maps';
+import { Polyline } from 'react-native-maps';
+import { MapPin } from '@/components/map/MapPin';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
 import { MOTION } from '@/lib/motion/springs';
@@ -22,17 +22,6 @@ import { useRevealCount } from '@/lib/motion/useRevealCount';
 import type { LatLng } from '@/lib/mission/route';
 
 export type MeTone = 'off' | 'on' | 'gps';
-
-/** Vrai pendant `ms` après chaque changement de `key` : le temps de l'animation du marqueur. */
-export function useTracksViewChanges(key: string | number | boolean, ms = 900): boolean {
-  const [tracking, setTracking] = useState(true);
-  useEffect(() => {
-    setTracking(true);
-    const t = setTimeout(() => setTracking(false), ms);
-    return () => clearTimeout(t);
-  }, [key, ms]);
-  return tracking;
-}
 
 function MeMarkerBase({ tone, heading, arrow }: { tone: MeTone; heading: number; arrow: boolean }) {
   const theme = useAppTheme();
@@ -104,31 +93,28 @@ export const RouteTrace = memo(RouteTraceBase);
 function MePinBase({ coordinate, tone, heading, arrow }: { coordinate: LatLng; tone: MeTone; heading: number; arrow: boolean }) {
   // Le cap n'est suivi qu'en mission, et arrondi à 10° : pas une capture par degré.
   const h = arrow ? Math.round(heading / 10) * 10 : 0;
-  const tracks = useTracksViewChanges(`${tone}-${arrow}-${h}`);
   return (
-    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }} flat={false} tracksViewChanges={tracks}>
+    <MapPin coordinate={coordinate} flat={false} trackKey={`${tone}-${arrow}-${h}`}>
       <MeMarker tone={tone} heading={h} arrow={arrow} />
-    </Marker>
+    </MapPin>
   );
 }
 export const MePin = memo(MePinBase);
 
 function DemandPinBase({ id, coordinate, index, big }: { id: string; coordinate: LatLng; index: number; big: boolean }) {
-  const tracks = useTracksViewChanges(`${id}-${big}`, 900 + 120 * Math.min(index, 6));
   return (
-    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={tracks}>
+    <MapPin coordinate={coordinate} trackKey={`${id}-${big}`} trackMs={1200 + 120 * Math.min(index, 6)}>
       <DemandDot index={index} big={big} />
-    </Marker>
+    </MapPin>
   );
 }
 export const DemandPin = memo(DemandPinBase);
 
 function DoorPinBase({ coordinate }: { coordinate: LatLng }) {
-  const tracks = useTracksViewChanges('door');
   return (
-    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={tracks}>
+    <MapPin coordinate={coordinate}>
       <DoorMarker visible />
-    </Marker>
+    </MapPin>
   );
 }
 export const DoorPin = memo(DoorPinBase);
