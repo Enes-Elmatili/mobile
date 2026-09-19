@@ -18,6 +18,10 @@ import { api } from './api';
 import { isCompletionHandled, markCompletionHandled } from './navDedup';
 import { useSoundManager } from '../hooks/useSoundManager';
 import { feedback } from '@/lib/feedback/feedback';
+import i18n from './i18n';
+import { setSocketUp } from './socketStatus';
+import { familyOf, wantsToast } from './notifications/model';
+import { handleNotificationNavigation } from './usePushNotifications';
 import {
   MissionRequestSheet,
   type MissionRequest,
@@ -272,7 +276,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketRef.current = null;
         setSocket(null);
       }
-      setIsConnected(false);
+      setIsConnected(false); setSocketUp(false);
       setConnectionStatus('connecting'); // reset : pas de bannière "connexion perdue" sur logout/401
       return;
     }
@@ -307,7 +311,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // ── CONNEXION ─────────────────────────────────────────────────────────────
     newSocket.on('connect', async () => {
       devLog('✅ Socket connected:', newSocket.id);
-      setIsConnected(true);
+      setIsConnected(true); setSocketUp(true);
       setConnectionStatus('connected');
       // Clear joined rooms on reconnect so components can re-join
       joinedRoomsRef.current.clear();
@@ -343,7 +347,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on('disconnect', () => {
       devLog('🔌 Socket disconnected');
-      setIsConnected(false);
+      setIsConnected(false); setSocketUp(false);
       setConnectionStatus('disconnected');
     });
 
@@ -365,7 +369,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
       setConnectionStatus('disconnected');
-      setIsConnected(false);
+      setIsConnected(false); setSocketUp(false);
     });
 
     newSocket.on('reconnect_attempt', (attempt) => {
@@ -375,7 +379,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on('reconnect', () => {
       devLog('✅ Socket reconnected');
-      setIsConnected(true);
+      setIsConnected(true); setSocketUp(true);
       setConnectionStatus('connected');
     });
 
@@ -578,8 +582,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     // ── NOTIFICATIONS IN-APP ──────────────────────────────────────────────────
-    newSocket.on('notification:received', () => {
+    // Le badge monte ; et si l'événement ne se voit pas déjà à l'écran
+    // (data.toast !== false, décidé par le catalogue serveur), un toast descend
+    // de l'île avec son action — pas de bannière système par-dessus la carte.
+    newSocket.on('notification:received', (n: any) => {
       setUnreadCount(prev => prev + 1);
+      if (!n?.title || !wantsToast(n)) return;
+      const family = familyOf(n);
+      const data = n.data || {};
+      feedback.notif({
+        title: String(n.title),
+        message: String(n.message || ''),
+        tone: family === 'money' ? 'green' : 'accent',
+        action: data && (data.screen || data.requestId)
+          ? { label: family === 'message' ? i18n.t('notifications.toast_reply') : i18n.t('notifications.toast_view'), onPress: () => { handleNotificationNavigation(data); } }
+          : undefined,
+      });
     });
 
     // ── INVOICE GENERATED ───────────────────────────────────────────────────

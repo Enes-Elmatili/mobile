@@ -56,6 +56,14 @@ export const feedback = {
     useFeedbackStore.getState().pushToast({ type, message: resolved });
   },
 
+  /**
+   * Le toast d'une notification au premier plan : titre + message, fond plein
+   * (vert = argent, accent = le reste), une action à droite. Pas d'haptique
+   * ici : l'appelant sait si l'événement en mérite une.
+   */
+  notif(opts: { title: string; message: string; tone?: 'green' | 'accent'; action?: { label: string; onPress: () => void }; durationMs?: number }) {
+    useFeedbackStore.getState().pushToast({ type: 'info', message: opts.message, title: opts.title, tone: opts.tone ?? 'accent', action: opts.action, durationMs: opts.durationMs ?? 4500 });
+  },
   success(messageKey: string) { this.haptic('success'); this.toast(messageKey, 'success'); },
   info(messageKey: string)    { this.toast(messageKey, 'info'); },
   error(messageKey: string)   { this.haptic('error'); this.toast(messageKey, 'error'); },

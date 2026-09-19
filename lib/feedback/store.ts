@@ -1,7 +1,18 @@
 import { create } from 'zustand';
 import type { ToastType, CelebrationKind } from './events';
 
-export interface ToastItem { id: number; type: ToastType; message: string }
+export type ToastTone = 'green' | 'accent';
+export interface ToastAction { label: string; onPress: () => void }
+export interface ToastItem {
+  id: number;
+  type: ToastType;
+  message: string;
+  /** Toast « depuis l'île » d'une notification : titre, fond plein, action à droite. */
+  title?: string;
+  tone?: ToastTone;
+  action?: ToastAction;
+  durationMs?: number;
+}
 export interface CelebrationItem { kind: CelebrationKind; title: string }
 export interface ConfirmItem {
   title: string;

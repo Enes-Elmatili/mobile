@@ -8,16 +8,24 @@ import { api } from './api';
 import { tokenStorage } from './storage';
 import { devLog, devWarn } from './logger';
 import { classifyNotification, navigateToRequestById, navigateToDestination, refundDestination } from './requestDestination';
+import { isSocketUp } from './socketStatus';
 
-// Afficher les notifications même quand l'app est au premier plan
+// Au premier plan : un événement du catalogue (data.event) arrive aussi par le
+// socket, qui l'affiche depuis l'île avec son action — la bannière système se
+// tait pour ne pas doubler. Sans socket, ou pour une notification hors
+// catalogue (diffusion admin), la bannière s'affiche : rien ne se perd.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data: any = notification?.request?.content?.data || {};
+    const quiet = typeof data.event === 'string' && isSocketUp();
+    return {
+      shouldShowAlert: !quiet,
+      shouldPlaySound: !quiet,
+      shouldSetBadge: true,
+      shouldShowBanner: !quiet,
+      shouldShowList: true,
+    };
+  },
 });
 
 /**
@@ -166,6 +174,11 @@ export async function handleNotificationNavigation(data: any) {
         return;
       case 'Documents': router.push('/(tabs)/documents'); return;
       case 'Dashboard': router.replace('/(tabs)/dashboard'); return;
+      case 'Wallet':    router.push('/(tabs)/wallet'); return;
+      case 'Missions':  router.replace('/(tabs)/missions'); return;
+      case 'Profile':   router.push('/(tabs)/profile'); return;
+      case 'Formules':  router.push('/formules'); return;
+      case 'Support':   router.push('/support'); return;
     }
 
     // Fallback : écran d'info sûr, jamais l'écran opérationnel.

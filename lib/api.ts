@@ -476,6 +476,8 @@ class ApiClient {
     list: () => this.request('/notifications'),
     markAsRead: (id: string) => this.patch(`/notifications/${id}/read`),
     markAllAsRead: () => this.patch('/notifications/read-all'),
+    prefs: () => this.request('/notifications/prefs'),
+    updatePrefs: (patch: Record<string, unknown>) => this.patch('/notifications/prefs', patch),
   };
 
   // ==================== MESSAGES ====================

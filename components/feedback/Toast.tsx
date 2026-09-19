@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, Platform } from 'react-native';
+import { StyleSheet, Text, Platform, Pressable, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -26,13 +26,14 @@ export function Toast({ item }: { item: ToastItem }) {
   // Moment 16 : le toast s'ÉTEND depuis l'île (largeur puis opacité, ressort
   // ζ 0,9) et se rétracte au même endroit (ζ 1, plus raide). Il ne tombe pas
   // du ciel : on sait d'où il vient et où il est parti.
+  const retract = () => {
+    progress.value = withSpring(0, RETRACT_SPRING, (finished) => {
+      if (finished) runOnJS(dismiss)(item.id);
+    });
+  };
   useEffect(() => {
     progress.value = withSpring(1, MOTION.island);
-    const t = setTimeout(() => {
-      progress.value = withSpring(0, RETRACT_SPRING, (finished) => {
-        if (finished) runOnJS(dismiss)(item.id);
-      });
-    }, VISIBLE_MS);
+    const t = setTimeout(retract, item.durationMs ?? VISIBLE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cycle de vie d'un toast
   }, []);
@@ -43,6 +44,30 @@ export function Toast({ item }: { item: ToastItem }) {
       ? []
       : [{ translateY: -8 * (1 - progress.value) }, { scaleX: 0.6 + 0.4 * progress.value }],
   }));
+
+  // Toast de notification : fond plein, titre, action — depuis l'île, comme les autres.
+  if (item.title) {
+    const green = item.tone === 'green';
+    const bg = green ? COLORS.greenBrand : (theme.accent as string);
+    const fg = green ? '#0A0A0A' : (theme.accentText as string);
+    const onAction = () => { const a = item.action; retract(); a?.onPress(); };
+    return (
+      <Animated.View style={[s.card, { backgroundColor: bg }, style]} accessible accessibilityRole="alert" accessibilityLabel={`${item.title}. ${item.message}`}>
+        <View style={[s.cardIcon, { backgroundColor: green ? 'rgba(10,10,10,0.1)' : theme.isDark ? 'rgba(10,10,10,0.1)' : 'rgba(255,255,255,0.14)' }]}>
+          <Feather name={green ? 'credit-card' : 'bell'} size={17} color={fg} />
+        </View>
+        <View style={s.cardBody}>
+          <Text style={[s.cardTitle, { color: fg }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.title}</Text>
+          <Text style={[s.cardMsg, { color: fg }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.message}</Text>
+        </View>
+        {item.action ? (
+          <Pressable onPress={onAction} style={({ pressed }) => [s.cardAction, { backgroundColor: green ? 'rgba(10,10,10,0.12)' : theme.isDark ? 'rgba(10,10,10,0.12)' : 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel={item.action.label} hitSlop={6}>
+            <Text style={[s.cardActionText, { color: fg }]} maxFontSizeMultiplier={1.1}>{item.action.label.toUpperCase()}</Text>
+          </Pressable>
+        ) : null}
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, borderLeftColor: ACCENT[item.type] }, style]}>
@@ -63,4 +88,17 @@ const s = StyleSheet.create({
     }),
   },
   text: { flex: 1, fontFamily: FONTS.sansMedium, fontSize: 14 },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 12,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
+      android: { elevation: 14 },
+    }),
+  },
+  cardIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  cardBody: { flex: 1, minWidth: 0 },
+  cardTitle: { fontFamily: FONTS.sansBold, fontSize: 14, lineHeight: 18 },
+  cardMsg: { fontFamily: FONTS.sans, fontSize: 12.5, lineHeight: 17, opacity: 0.85, marginTop: 1 },
+  cardAction: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 999 },
+  cardActionText: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 1, includeFontPadding: false },
 });

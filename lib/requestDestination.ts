@@ -162,13 +162,27 @@ export type NotifIntent =
   | { kind: 'screen' }
   | { kind: 'space' };
 
+// Écrans du catalogue serveur (lib/notify.js) qui portent une mission : on
+// re-résout contre l'état courant, avec le rôle que l'événement déclare.
+const CATALOGUE_REQUEST_SCREENS = new Set(['MissionView', 'QuoteReview', 'Rating', 'Ongoing', 'Earnings']);
+
 export function classifyNotification(data: any): NotifIntent {
   if (!data) return { kind: 'space' };
-  const { category, type, screen, requestId } = data;
+  const { category, type, screen, requestId, event, audience } = data;
   const rid = requestId != null ? String(requestId) : undefined;
 
-  if (category === 'support' || type === 'support_escalation') return { kind: 'support' };
+  if (category === 'support' || type === 'support_escalation' || screen === 'Support') return { kind: 'support' };
   if (type === 'kyc_status') return { kind: 'kyc' };
+  // ── Catalogue (data.event) : la destination est déclarée, le rôle aussi ──
+  if (typeof event === 'string') {
+    if (event.startsWith('request.')) return { kind: 'opportunity' };
+    if (event === 'refund.issued' || event.startsWith('quote.expired')) return { kind: 'refund', requestId: rid };
+    if (rid && CATALOGUE_REQUEST_SCREENS.has(screen)) {
+      return audience === 'provider' ? { kind: 'provider-request', requestId: rid } : { kind: 'client-request', requestId: rid };
+    }
+    if (rid && audience === 'provider' && screen === 'Dashboard') return { kind: 'provider-request', requestId: rid };
+    return screen ? { kind: 'screen' } : { kind: 'space' };
+  }
   if (PROVIDER_OPPORTUNITY_TYPES.has(type)) return { kind: 'opportunity' };
   if (PROVIDER_QUOTE_TYPES.has(type) && rid) return { kind: 'provider-request', requestId: rid };
   if (category === 'refund' || type === 'refund') return { kind: 'refund', requestId: rid };
