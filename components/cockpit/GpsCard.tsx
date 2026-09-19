@@ -9,14 +9,14 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { usePresence } from '@/lib/motion/usePresence';
 import { feedback } from '@/lib/feedback/feedback';
 
-type Props = { visible: boolean; bottom: number };
+type Props = { visible: boolean; bottom: number; left: number; width: number };
 
-function GpsCardBase({ visible, bottom }: Props) {
+function GpsCardBase({ visible, bottom, left, width }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { style: presence } = usePresence(visible, { from: 'bottom' });
   return (
-    <Animated.View style={[s.wrap, { bottom }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
+    <Animated.View style={[s.wrap, { bottom, left, width }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
       <Pressable
         onPress={() => { feedback.haptic('light'); Linking.openSettings(); }}
         style={({ pressed }) => [s.card, { backgroundColor: theme.cardBg, borderColor: theme.danger, opacity: pressed ? 0.7 : 1 }]}
@@ -33,7 +33,7 @@ function GpsCardBase({ visible, bottom }: Props) {
 export const GpsCard = memo(GpsCardBase);
 
 const s = StyleSheet.create({
-  wrap: { position: 'absolute', left: 16, right: 16, zIndex: 5 },
+  wrap: { position: 'absolute', zIndex: 5 },
   card: { borderRadius: 16, borderWidth: 1, minHeight: 56, padding: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   text: { flex: 1, fontFamily: FONTS.sans, fontSize: 13 },
   cta: { fontFamily: FONTS.bebas, fontSize: 15, letterSpacing: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, overflow: 'hidden', includeFontPadding: false },

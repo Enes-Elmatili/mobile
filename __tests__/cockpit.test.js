@@ -80,3 +80,46 @@ describe('journée', () => {
     expect(inLabel(125, t)).toBe('cockpit.next_in_h:2');
   });
 });
+
+describe('géométrie par appareil (lib/cockpit/geometry.ts)', () => {
+  const { cockpitGeometry, CONTENT_MAX_WIDTH } = require('@/lib/cockpit/geometry');
+  const tab = (bottomInset, pb) => 56 + Math.max(bottomInset, pb);
+  it('iPhone SE (375×667, inset bas 0) : dense, dock posé sur la barre réelle (56 + 20)', () => {
+    const g = cockpitGeometry({ width: 375, height: 667, insets: { top: 20, bottom: 0, left: 0, right: 0 }, cls: 'compact', tabBarHeight: tab(0, 20) });
+    expect(g.denseHeight).toBe(true);
+    expect(g.goSize).toBe(72);
+    expect(g.dockBottom).toBe(76);
+    expect(g.stripBottom).toBeGreaterThan(g.dockBottom + g.dockHeight + g.goSize / 2);
+    // Il reste une carte visible entre la rangée du haut et la journée.
+    expect(667 - g.mapPaddingTop - g.mapPaddingBottom).toBeGreaterThan(200);
+    expect(g.contentWidth).toBe(375 - 32);
+  });
+  it('iPhone 15 Pro (393×852, inset bas 34) : taille normale', () => {
+    const g = cockpitGeometry({ width: 393, height: 852, insets: { top: 59, bottom: 34, left: 0, right: 0 }, cls: 'compact', tabBarHeight: tab(34, 20) });
+    expect(g.denseHeight).toBe(false);
+    expect(g.goSize).toBe(84);
+    expect(g.dockBottom).toBe(90);
+    expect(g.marginLeft).toBe(16);
+    expect(g.veilLabelTop).toBeGreaterThan(0.2);
+    expect(g.veilLabelTop).toBeLessThan(0.5);
+  });
+  it('Android 360×640 à trois boutons (inset bas 48) : dense, et il reste de la carte', () => {
+    const g = cockpitGeometry({ width: 360, height: 640, insets: { top: 24, bottom: 48, left: 0, right: 0 }, cls: 'compact', tabBarHeight: tab(48, 8) });
+    expect(g.denseHeight).toBe(true);
+    expect(g.dockBottom).toBe(104);
+    expect(640 - g.mapPaddingTop - g.mapPaddingBottom).toBeGreaterThan(150);
+  });
+  it('Fold ouvert (673×841, regular, barre latérale) : largeur de lecture centrée, rien en bas', () => {
+    const g = cockpitGeometry({ width: 673, height: 841, insets: { top: 24, bottom: 24, left: 0, right: 0 }, cls: 'regular', tabBarHeight: 24 });
+    expect(g.contentWidth).toBe(CONTENT_MAX_WIDTH);
+    expect(g.marginLeft).toBe((673 - CONTENT_MAX_WIDTH) / 2);
+    expect(g.marginLeft).toBe(g.marginRight);
+    expect(g.dockBottom).toBe(24);
+  });
+  it('encoche latérale (insets gauche 24 / droite 0) : marges asymétriques', () => {
+    const g = cockpitGeometry({ width: 540, height: 720, insets: { top: 0, bottom: 0, left: 24, right: 0 }, cls: 'compact', tabBarHeight: 64 });
+    expect(g.marginLeft).toBe(24 + 16);
+    expect(g.marginRight).toBe(16);
+    expect(g.contentWidth).toBe(540 - 24 - 32);
+  });
+});

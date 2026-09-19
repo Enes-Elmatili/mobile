@@ -18,7 +18,7 @@ import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { TAB_BAR_HEIGHT } from './_layout';
+import { useTabBarPadding } from './_layout';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
@@ -26,7 +26,6 @@ import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { devWarn } from '@/lib/logger';
 import { isOnlineStatus, gateCopyFor, GATE_CODES } from '@/lib/providerGate';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
@@ -34,7 +33,8 @@ import { useMapCamera } from '@/lib/mission/useMapCamera';
 import { fetchRoute, type LatLng } from '@/lib/mission/route';
 import { cockpitStageOf, cockpitCameraMode, goShape } from '@/lib/cockpit/stage';
 import { remindersOf, nextMissionOf, type MissionLite, type Reminder, type NextMission } from '@/lib/cockpit/day';
-import { GoButton, DOCK_HEIGHT, GO_SIZE } from '@/components/cockpit/GoButton';
+import { GoButton } from '@/components/cockpit/GoButton';
+import { cockpitGeometry } from '@/lib/cockpit/geometry';
 import { Dock } from '@/components/cockpit/Dock';
 import { TopRow } from '@/components/cockpit/TopRow';
 import { DayStrip, type DayStats } from '@/components/cockpit/DayStrip';
@@ -91,13 +91,18 @@ function IncomingJobCard({
   request,
   onAccept,
   onDecline,
+  bottom,
+  maxWidth,
 }: {
   request: IncomingRequest;
   onAccept: () => void;
   onDecline: () => void;
+  /** Inset bas : le pied de la fiche (56 pt) passe sous la barre d'onglets absolue. */
+  bottom: number;
+  /** Largeur de lecture sur écran large ; toute la largeur sinon. */
+  maxWidth: number | null;
 }) {
   const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
   const reduced    = useReduceMotion();
   const slideUp    = useSharedValue(400);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
@@ -134,7 +139,7 @@ function IncomingJobCard({
   const sheetBg = theme.bg;
 
   return (
-    <Reanimated.View style={[jc.wrap, { bottom: insets.bottom }, cardStyle]}>
+    <Reanimated.View style={[jc.wrap, { bottom }, maxWidth != null && { maxWidth, alignSelf: 'center', left: undefined, right: undefined, width: '100%' }, cardStyle]}>
       {/* Gradient map → sheet */}
       <LinearGradient
         colors={['transparent', `${sheetBg}99`, sheetBg]}
@@ -180,9 +185,11 @@ export default function ProviderDashboard() {
   const { socket, unreadCount, unreadMessages } = useSocket();
   const { isOnline: networkOnline } = useNetwork();
   const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
   const reduced = useReduceMotion();
-  const { height: windowHeight } = useLayoutClass();
+  const layout = useLayoutClass();
+  const windowHeight = layout.height;
+  // Hauteur réelle de la barre d'onglets (0 sur regular : elle est latérale).
+  const tabBarHeight = useTabBarPadding(0);
 
   const mapRef   = useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -605,11 +612,9 @@ export default function ProviderDashboard() {
   const reminders = useMemo<Reminder[]>(() => remindersOf(missions, connect), [missions, connect]);
   const next = useMemo<NextMission | null>(() => nextMissionOf(missions), [missions]);
 
-  // ─── Géométrie : onglets · dock · journée ────────────────────────────────
-  const tabBottom = insets.bottom + TAB_BAR_HEIGHT;
-  // La journée s'arrête au-dessus du GO (qui dépasse du dock de GO_SIZE/2 + 6), pas du dock.
-  const stripBottom = tabBottom + DOCK_HEIGHT + GO_SIZE / 2 + 6 + 10;
-  const topRowTop = insets.top + 8;
+  // ─── Géométrie : décidée par l'écran (SE, Pro Max, Android 3 boutons, Fold) ──
+  const g = useMemo(() => cockpitGeometry({ width: layout.width, height: layout.height, insets: layout.insets, cls: layout.cls, tabBarHeight }), [layout, tabBarHeight]);
+  const { dockBottom: tabBottom, stripBottom, topRowTop, marginLeft, contentWidth } = g;
 
   // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
   const jobCoord = useMemo<LatLng | null>(() => (activeJob?.latitude && activeJob?.longitude ? { latitude: activeJob.latitude, longitude: activeJob.longitude } : null), [activeJob?.latitude, activeJob?.longitude]);
@@ -625,8 +630,8 @@ export default function ProviderDashboard() {
   // Le rembourrage est posé sur la carte (mapPadding) et ne change pas avec le
   // stade — un padding qui saute fait sauter la carte. La fiche « elle est
   // pour vous », plus haute que la journée, s'ajoute en marge du cadrage.
-  const stripCover = stripBottom + 200;
-  const mapPadding = useMemo(() => ({ top: topRowTop + 44, right: 0, bottom: stripCover, left: 0 }), [topRowTop, stripCover]);
+  const stripCover = g.mapPaddingBottom;
+  const mapPadding = useMemo(() => ({ top: g.mapPaddingTop, right: layout.insets.right, bottom: stripCover, left: layout.insets.left }), [g.mapPaddingTop, stripCover, layout.insets.left, layout.insets.right]);
   const extraCover = stage === 'incoming' ? Math.max(0, Math.round(windowHeight * 0.55) - stripCover) : 0;
   useMapCamera({ mapRef, ready: mapReady && !!camDoor, mode: cockpitCameraMode(stage), door: camDoor ?? BRUSSELS, other, sheetHeight: extraCover, topInset: 0, reduced });
 
@@ -706,12 +711,14 @@ export default function ProviderDashboard() {
       </MapView>
 
       {/* -- Le voile : la carte s'éteint hors ligne -- */}
-      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={stage === 'gps' ? t('cockpit.gps_veil') : stage === 'net' ? t('cockpit.net_veil') : stage === 'off' ? t('cockpit.invisible') : null} />
+      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={stage === 'gps' ? t('cockpit.gps_veil') : stage === 'net' ? t('cockpit.net_veil') : stage === 'off' ? t('cockpit.invisible') : null} labelTop={g.veilLabelTop} />
 
       {/* -- Haut : profil · aujourd'hui · messages · cloche -- */}
       <TopRow
         visible={stage !== 'incoming'}
         top={topRowTop}
+        left={marginLeft}
+        width={contentWidth}
         todayCents={today}
         settled={!statsLoading}
         unreadMessages={unreadMessages}
@@ -726,6 +733,9 @@ export default function ProviderDashboard() {
       <DayStrip
         visible={stage === 'off' || stage === 'on'}
         bottom={stripBottom}
+        left={marginLeft}
+        width={contentWidth}
+        dense={g.denseHeight}
         reminders={reminders}
         next={next}
         stats={stats}
@@ -739,12 +749,14 @@ export default function ProviderDashboard() {
       <MissionCard
         visible={stage === 'busy'}
         bottom={stripBottom}
+        left={marginLeft}
+        width={contentWidth}
         mission={missionLite}
         onPress={goMission}
       />
 
       {/* -- Sans position, rien n'arrive -- */}
-      <GpsCard visible={stage === 'gps'} bottom={stripBottom} />
+      <GpsCard visible={stage === 'gps'} bottom={stripBottom} left={marginLeft} width={contentWidth} />
 
       {/* -- Le dock et le GO -- */}
       <Dock
@@ -753,10 +765,17 @@ export default function ProviderDashboard() {
         onlineSince={onlineSince}
         missionId={currentMission?.id ?? null}
         bottom={tabBottom}
+        height={g.dockHeight}
+        contentLeft={marginLeft}
+        contentWidth={contentWidth}
       />
       <GoButton
         shape={goShape(stage)}
+        size={g.goSize}
+        dockHeight={g.dockHeight}
         dockBottom={tabBottom}
+        contentLeft={marginLeft}
+        contentWidth={contentWidth}
         onPress={handleToggleOnline}
         accessibilityLabel={isOnline ? t('cockpit.stop_a11y') : t('cockpit.go_a11y')}
         accessibilityHint={isOnline ? t('cockpit.stop_hint') : t('cockpit.go_hint')}
@@ -772,6 +791,8 @@ export default function ProviderDashboard() {
           request={activeJob}
           onAccept={() => handleAccept(activeJob)}
           onDecline={() => handleDecline(activeJob.requestId)}
+          bottom={layout.insets.bottom}
+          maxWidth={layout.isRegular ? 560 : null}
         />
       )}
     </View>

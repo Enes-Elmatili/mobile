@@ -16,6 +16,8 @@ import { feedback } from '@/lib/feedback/feedback';
 type Props = {
   visible: boolean;
   top: number;
+  left: number;
+  width: number;
   /** Gains nets du jour (cents). */
   todayCents: number;
   /** Faux tant que le premier chargement n'est pas arrivé : on ne fête pas une valeur initiale. */
@@ -44,7 +46,7 @@ function RoundButton({ icon, badge, onPress, label }: { icon: React.ComponentPro
   );
 }
 
-function TopRowBase({ visible, top, todayCents, settled, unreadMessages, unreadNotifs, onProfile, onToday, onMessages, onNotifs }: Props) {
+function TopRowBase({ visible, top, left, width, todayCents, settled, unreadMessages, unreadNotifs, onProfile, onToday, onMessages, onNotifs }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const reduced = useReduceMotion();
@@ -68,7 +70,7 @@ function TopRowBase({ visible, top, todayCents, settled, unreadMessages, unreadN
   const burst = useAnimatedStyle(() => ({ opacity: glow.value * 0.45 }));
 
   return (
-    <Animated.View style={[s.row, { top }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
+    <Animated.View style={[s.row, { top, left, width }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
       <RoundButton icon="user" onPress={onProfile} label={t('cockpit.profile')} />
       <Pressable onPress={() => { feedback.haptic('light'); onToday(); }} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })} accessibilityRole="button" accessibilityLabel={t('cockpit.today_a11y', { amount: euros })}>
         <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, shadowOpacity: theme.isDark ? 0.35 : 0.12 }, pillStyle]}>
@@ -91,7 +93,7 @@ function TopRowBase({ visible, top, todayCents, settled, unreadMessages, unreadN
 export const TopRow = memo(TopRowBase);
 
 const s = StyleSheet.create({
-  row: { position: 'absolute', left: 16, right: 16, zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  row: { position: 'absolute', zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rb: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontFamily: FONTS.sansBold, fontSize: 10, lineHeight: 12 },

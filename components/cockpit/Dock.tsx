@@ -10,7 +10,6 @@ import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
 import { usePresence } from '@/lib/motion/usePresence';
 import type { CockpitStage } from '@/lib/cockpit/stage';
 import { clockOf } from '@/lib/cockpit/day';
-import { DOCK_HEIGHT } from './GoButton';
 
 type Props = {
   stage: CockpitStage;
@@ -20,9 +19,13 @@ type Props = {
   onlineSince: number | null;
   missionId?: number | string | null;
   bottom: number;
+  height: number;
+  /** Zone de contenu : le texte s'y centre, à droite du stop. */
+  contentLeft: number;
+  contentWidth: number;
 };
 
-function DockBase({ stage, count, onlineSince, missionId, bottom }: Props) {
+function DockBase({ stage, count, onlineSince, missionId, bottom, height, contentLeft, contentWidth }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const visible = stage !== 'incoming';
@@ -58,10 +61,10 @@ function DockBase({ stage, count, onlineSince, missionId, bottom }: Props) {
 
   return (
     <Animated.View
-      style={[s.dock, { bottom, height: DOCK_HEIGHT, borderTopColor: theme.borderLight }, bgStyle, presence]}
+      style={[s.dock, { bottom, height, borderTopColor: theme.borderLight }, bgStyle, presence]}
       pointerEvents="none"
     >
-      <Animated.View style={[s.st, textStyle]} pointerEvents="none" accessibilityElementsHidden={!talking} importantForAccessibility={talking ? 'yes' : 'no-hide-descendants'}>
+      <Animated.View style={[s.st, { left: contentLeft + 56, width: contentWidth - 112 }, textStyle]} pointerEvents="none" accessibilityElementsHidden={!talking} importantForAccessibility={talking ? 'yes' : 'no-hide-descendants'}>
         <Text style={[s.title, { color: tone }]} numberOfLines={1} maxFontSizeMultiplier={1.2} accessibilityRole="header" accessibilityLiveRegion="polite">{title.toUpperCase()}</Text>
         <Text style={[s.sub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text>
       </Animated.View>
@@ -73,7 +76,7 @@ export const Dock = memo(DockBase);
 
 const s = StyleSheet.create({
   dock: { position: 'absolute', left: 0, right: 0, zIndex: 6, borderTopWidth: 1 },
-  st: { position: 'absolute', left: 72, right: 72, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  st: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: FONTS.bebas, fontSize: 21, letterSpacing: 1, includeFontPadding: false },
   sub: { fontFamily: FONTS.sans, fontSize: 12.5, marginTop: 3, fontVariant: ['tabular-nums'] },
 });

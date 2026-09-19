@@ -26,6 +26,10 @@ export type DayStats = {
 type Props = {
   visible: boolean;
   bottom: number;
+  left: number;
+  width: number;
+  /** Écran bas : tuiles sans sous-ligne. */
+  dense: boolean;
   reminders: Reminder[];
   next: NextMission | null;
   stats: DayStats;
@@ -40,30 +44,30 @@ function euros(cents: number): string {
   return formatEURCents(cents, cents % 100 === 0 ? 0 : 2);
 }
 
-function Tile({ k, big, sub, onPress }: { k: string; big: string; sub: string | null; onPress: () => void }) {
+function Tile({ k, big, sub, dense, onPress }: { k: string; big: string; sub: string | null; dense: boolean; onPress: () => void }) {
   const theme = useAppTheme();
   return (
     <Pressable
       onPress={() => { feedback.haptic('light'); onPress(); }}
-      style={({ pressed }) => [s.tile, { backgroundColor: theme.cardBg, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [s.tile, dense && s.tileDense, { backgroundColor: theme.cardBg, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]}
       accessibilityRole="button"
       accessibilityLabel={[k, big, sub].filter(Boolean).join(', ')}
     >
       <Text style={[s.k, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{k.toUpperCase()}</Text>
       <Text style={[s.big, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.2}>{big}</Text>
-      {sub ? <Text style={[s.sub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text> : null}
+      {sub && !dense ? <Text style={[s.sub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text> : null}
     </Pressable>
   );
 }
 
-function DayStripBase({ visible, bottom, reminders, next, stats, loading, onReminder, onNext, onStats }: Props) {
+function DayStripBase({ visible, bottom, left, width, dense, reminders, next, stats, loading, onReminder, onNext, onStats }: Props) {
   const theme = useAppTheme();
   const { t, i18n } = useTranslation();
   const dash = loading ? '—' : null;
   const decimal = (i18n.language || 'fr').startsWith('en') ? '.' : ',';
   const rating = stats.totalRatings > 0 ? stats.avgRating.toFixed(1).replace('.', decimal) : '—';
   return (
-    <View style={[s.strip, { bottom }]} pointerEvents={visible ? 'box-none' : 'none'}>
+    <View style={[s.strip, { bottom, left, width }]} pointerEvents={visible ? 'box-none' : 'none'}>
       {reminders.length > 0 ? (
         <CascadeItem index={0} visible={visible} from="bottom" style={s.chips}>
           {reminders.map((r, i) => (
@@ -96,9 +100,9 @@ function DayStripBase({ visible, bottom, reminders, next, stats, loading, onRemi
         </CascadeItem>
       ) : null}
       <CascadeItem index={2} visible={visible} from="bottom" style={s.tiles}>
-        <Tile k={t('cockpit.month')} big={dash ?? euros(stats.monthCents)} sub={stats.pendingCents > 0 ? `+${formatEURCents(stats.pendingCents, 0)} ${t('provider.pending')}` : null} onPress={onStats} />
-        <Tile k={t('cockpit.rating')} big={dash ?? rating} sub={t('cockpit.missions_done', { count: stats.jobsCompleted })} onPress={onStats} />
-        <Tile k={t('cockpit.rank')} big={dash ?? (stats.rank != null ? `#${stats.rank}` : '—')} sub={stats.acceptanceRate != null ? t('cockpit.accepted_rate', { rate: stats.acceptanceRate }) : null} onPress={onStats} />
+        <Tile k={t('cockpit.month')} big={dash ?? euros(stats.monthCents)} sub={stats.pendingCents > 0 ? `+${formatEURCents(stats.pendingCents, 0)} ${t('provider.pending')}` : null} dense={dense} onPress={onStats} />
+        <Tile k={t('cockpit.rating')} big={dash ?? rating} sub={t('cockpit.missions_done', { count: stats.jobsCompleted })} dense={dense} onPress={onStats} />
+        <Tile k={t('cockpit.rank')} big={dash ?? (stats.rank != null ? `#${stats.rank}` : '—')} sub={stats.acceptanceRate != null ? t('cockpit.accepted_rate', { rate: stats.acceptanceRate }) : null} dense={dense} onPress={onStats} />
       </CascadeItem>
     </View>
   );
@@ -107,7 +111,7 @@ function DayStripBase({ visible, bottom, reminders, next, stats, loading, onRemi
 export const DayStrip = memo(DayStripBase);
 
 const s = StyleSheet.create({
-  strip: { position: 'absolute', left: 16, right: 16, zIndex: 5, gap: 8 },
+  strip: { position: 'absolute', zIndex: 5, gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
   dot: { width: 7, height: 7, borderRadius: 4 },
@@ -118,6 +122,7 @@ const s = StyleSheet.create({
   cardTitle: { fontFamily: FONTS.sansMedium, fontSize: 14, marginTop: 3 },
   tiles: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
+  tileDense: { paddingVertical: 9 },
   k: { fontFamily: FONTS.monoMedium, fontSize: 10.5, letterSpacing: 1.2 },
   big: { fontFamily: FONTS.bebas, fontSize: 24, letterSpacing: 0.3, marginTop: 4, includeFontPadding: false, fontVariant: ['tabular-nums'] },
   sub: { fontFamily: FONTS.sans, fontSize: 11.5, marginTop: 2 },

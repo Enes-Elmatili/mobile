@@ -15,9 +15,9 @@ import { placeShort } from '@/components/mission/blocks';
 
 export type MissionLite = { id: number | string; status?: string | null; serviceType?: string | null; address?: string | null; clientName?: string | null; netCents?: number | null };
 
-type Props = { visible: boolean; bottom: number; mission: MissionLite | null; onPress: () => void };
+type Props = { visible: boolean; bottom: number; left: number; width: number; mission: MissionLite | null; onPress: () => void };
 
-function MissionCardBase({ visible, bottom, mission, onPress }: Props) {
+function MissionCardBase({ visible, bottom, left, width, mission, onPress }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { style: presence } = usePresence(visible && !!mission, { from: 'bottom', preset: MOTION.land });
@@ -31,7 +31,7 @@ function MissionCardBase({ visible, bottom, mission, onPress }: Props) {
   const kicker = st === 'ONGOING' ? t('cockpit.mission_ongoing') : st === 'QUOTE_SENT' ? t('cockpit.mission_quote_sent') : st === 'QUOTE_ACCEPTED' ? t('cockpit.mission_quote_accepted') : t('cockpit.mission_accepted');
   const title = [shown.serviceType || t('missions.mission'), placeShort(shown.address ?? null)].filter(Boolean).join(' · ');
   return (
-    <Animated.View style={[s.wrap, { bottom }, presence]} pointerEvents={visible && mission ? 'box-none' : 'none'}>
+    <Animated.View style={[s.wrap, { bottom, left, width }, presence]} pointerEvents={visible && mission ? 'box-none' : 'none'}>
       <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityLabel={`${t('provider.resume_mission')}, ${kicker} #${shown.id}, ${title}`}>
         <Animated.View style={[s.card, { backgroundColor: theme.accent }, press.style]}>
           <View style={s.body}>
@@ -53,7 +53,7 @@ function MissionCardBase({ visible, bottom, mission, onPress }: Props) {
 export const MissionCard = memo(MissionCardBase);
 
 const s = StyleSheet.create({
-  wrap: { position: 'absolute', left: 16, right: 16, zIndex: 5 },
+  wrap: { position: 'absolute', zIndex: 5 },
   card: { borderRadius: 20, padding: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   body: { flex: 1 },
   k: { fontFamily: FONTS.monoMedium, fontSize: 10, letterSpacing: 1.5, opacity: 0.7 },
