@@ -15,14 +15,14 @@ function VeilBase({ dimmed, label }: Props) {
   const reduced = useReduceMotion();
   const p = useSharedValue(dimmed ? 1 : 0);
   useEffect(() => { p.value = withTiming(dimmed ? 1 : 0, { duration: reduced ? 200 : 700 }); }, [dimmed, reduced, p]);
-  const veil = useAnimatedStyle(() => ({ opacity: p.value * 0.62 }));
+  const veil = useAnimatedStyle(() => ({ opacity: p.value * 0.55 }));
   const tag = useAnimatedStyle(() => ({ opacity: p.value, transform: [{ translateY: (1 - p.value) * -8 }] }));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.isDark ? '#000' : '#F4F4F2' }, veil]} />
       {label ? (
         <Animated.View style={[s.tagWrap, tag]}>
-          <Text style={[s.tag, { color: theme.textMuted, backgroundColor: theme.isDark ? 'rgba(10,10,10,0.7)' : 'rgba(255,255,255,0.8)' }]} maxFontSizeMultiplier={1.1}>{label.toUpperCase()}</Text>
+          <Text style={[s.tag, { color: theme.text, backgroundColor: theme.isDark ? 'rgba(10,10,10,0.72)' : 'rgba(255,255,255,0.86)' }]} maxFontSizeMultiplier={1.2} accessibilityRole="text">{label.toUpperCase()}</Text>
         </Animated.View>
       ) : null}
     </View>

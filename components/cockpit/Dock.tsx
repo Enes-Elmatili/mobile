@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
 import { usePresence } from '@/lib/motion/usePresence';
 import type { CockpitStage } from '@/lib/cockpit/stage';
+import { clockOf } from '@/lib/cockpit/day';
 import { DOCK_HEIGHT } from './GoButton';
 
 type Props = {
@@ -21,12 +22,6 @@ type Props = {
   bottom: number;
 };
 
-function pad(n: number) { return (n < 10 ? '0' : '') + n; }
-export function clockOf(sinceMs: number, now: number): string {
-  const s = Math.max(0, Math.floor((now - sinceMs) / 1000));
-  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-}
-
 function DockBase({ stage, count, onlineSince, missionId, bottom }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
@@ -36,20 +31,22 @@ function DockBase({ stage, count, onlineSince, missionId, bottom }: Props) {
 
   // Le chrono n'existe qu'en ligne : rien ne boucle hors ligne.
   useEffect(() => {
-    if (!onlineSince || stage === 'off' || stage === 'gps') { setClock(''); return; }
+    if (!onlineSince || stage === 'off' || stage === 'gps' || stage === 'net') { setClock(''); return; }
     setClock(clockOf(onlineSince, Date.now()));
     const iv = setInterval(() => setClock(clockOf(onlineSince, Date.now())), 1000);
     return () => clearInterval(iv);
   }, [onlineSince, stage]);
 
   const talking = stage !== 'off';
-  const tone = stage === 'busy' ? COLORS.amber : stage === 'gps' ? COLORS.red : theme.text;
-  const title = stage === 'busy' ? t('cockpit.busy') : stage === 'gps' ? t('cockpit.gps_title') : t('cockpit.online');
+  const tone = stage === 'busy' ? COLORS.amber : stage === 'gps' || stage === 'net' ? theme.danger : theme.text;
+  const title = stage === 'busy' ? t('cockpit.busy') : stage === 'gps' ? t('cockpit.gps_title') : stage === 'net' ? t('cockpit.net_title') : t('cockpit.online');
   const sub = stage === 'busy'
     ? [missionId != null ? t('cockpit.mission_n', { id: missionId }) : null, clock].filter(Boolean).join(' · ')
     : stage === 'gps'
       ? t('cockpit.gps_sub')
-      : [t('cockpit.demand_count', { count }), clock].filter(Boolean).join(' · ');
+      : stage === 'net'
+        ? t('cockpit.net_sub')
+        : [count > 0 ? t('cockpit.demand_count', { count }) : t('cockpit.demand_none'), clock].filter(Boolean).join(' · ');
 
   // Le texte apparaît quand le GO est parti, le fond se teinte en carte.
   const talk = useSharedValue(talking ? 1 : 0);
@@ -64,9 +61,9 @@ function DockBase({ stage, count, onlineSince, missionId, bottom }: Props) {
       style={[s.dock, { bottom, height: DOCK_HEIGHT, borderTopColor: theme.borderLight }, bgStyle, presence]}
       pointerEvents="none"
     >
-      <Animated.View style={[s.st, textStyle]} pointerEvents="none" accessible={talking} accessibilityLiveRegion="polite">
-        <Text style={[s.title, { color: tone }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{title.toUpperCase()}</Text>
-        <Text style={[s.sub, { color: theme.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{sub}</Text>
+      <Animated.View style={[s.st, textStyle]} pointerEvents="none" accessibilityElementsHidden={!talking} importantForAccessibility={talking ? 'yes' : 'no-hide-descendants'}>
+        <Text style={[s.title, { color: tone }]} numberOfLines={1} maxFontSizeMultiplier={1.2} accessibilityRole="header" accessibilityLiveRegion="polite">{title.toUpperCase()}</Text>
+        <Text style={[s.sub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -78,5 +75,5 @@ const s = StyleSheet.create({
   dock: { position: 'absolute', left: 0, right: 0, zIndex: 6, borderTopWidth: 1 },
   st: { position: 'absolute', left: 72, right: 72, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: FONTS.bebas, fontSize: 21, letterSpacing: 1, includeFontPadding: false },
-  sub: { fontFamily: FONTS.sans, fontSize: 11.5, marginTop: 3, fontVariant: ['tabular-nums'] },
+  sub: { fontFamily: FONTS.sans, fontSize: 12.5, marginTop: 3, fontVariant: ['tabular-nums'] },
 });

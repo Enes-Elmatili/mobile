@@ -2459,6 +2459,14 @@
     "invisible": "You're invisible",
     "gps_veil": "No position, nothing comes in",
     "go_a11y": "Go online",
-    "stop_a11y": "Go offline"
+    "stop_a11y": "Go offline",
+    "net_title": "No connection",
+    "net_sub": "Waiting for network",
+    "net_veil": "No network, nothing comes in",
+    "demand_none": "No requests yet",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "go_hint": "You'll receive requests near you",
+    "stop_hint": "You'll stop receiving requests"
   }
 }

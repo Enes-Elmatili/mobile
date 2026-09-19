@@ -28,9 +28,10 @@ type Props = {
   dockBottom: number;
   onPress: () => void;
   accessibilityLabel: string;
+  accessibilityHint?: string;
 };
 
-function GoButtonBase({ shape, dockBottom, onPress, accessibilityLabel }: Props) {
+function GoButtonBase({ shape, dockBottom, onPress, accessibilityLabel, accessibilityHint }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
   const { width } = useLayoutClass();
@@ -77,11 +78,14 @@ function GoButtonBase({ shape, dockBottom, onPress, accessibilityLabel }: Props)
     <Animated.View style={[s.wrap, { left: goLeft, bottom: goBottom, shadowOpacity: theme.isDark ? 0.45 : 0.18 }, shell]} pointerEvents={shape === 'hidden' ? 'none' : 'auto'}>
       <Pressable
         style={StyleSheet.absoluteFill}
-        onPressIn={() => { press.onPressIn(); if (shape === 'go') feedback.haptic('medium'); }}
+        onPressIn={() => { press.onPressIn(); feedback.haptic(shape === 'go' ? 'medium' : 'light'); }}
         onPressOut={press.onPressOut}
         onPress={onPress}
+        disabled={shape === 'hidden'}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={{ selected: shape === 'stop' }}
         hitSlop={8}
       >
         <Animated.View style={[s.inner, press.style]}>

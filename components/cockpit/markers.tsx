@@ -37,7 +37,7 @@ export function useTracksViewChanges(key: string | number | boolean, ms = 900): 
 function MeMarkerBase({ tone, heading, arrow }: { tone: MeTone; heading: number; arrow: boolean }) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
-  const bg = tone === 'gps' ? COLORS.red : tone === 'on' ? (theme.accent as string) : (theme.textMuted as string);
+  const bg = tone === 'gps' ? theme.danger : tone === 'on' ? (theme.accent as string) : (theme.textMuted as string);
   // Le disque grandit un peu en mission (22 → 28) : une échelle, pas une taille.
   const grow = useSharedValue(arrow ? 1 : 0);
   useEffect(() => { grow.value = reduced ? withTiming(arrow ? 1 : 0, { duration: 150 }) : withSpring(arrow ? 1 : 0, MOTION.take); }, [arrow, reduced, grow]);

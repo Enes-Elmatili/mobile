@@ -6,13 +6,16 @@
 //   incoming : une demande est pour vous — la fiche monte, le reste s'efface
 //   busy     : mission acceptée en cours — carte mission, pas de stop
 //   gps      : localisation refusée — rien n'arrive, carte « Autoriser »
+//   net      : pas de réseau — le serveur ne nous entend pas, on le dit
 import type { CameraMode } from '@/lib/mission/useMapCamera';
 
-export type CockpitStage = 'off' | 'on' | 'incoming' | 'busy' | 'gps';
+export type CockpitStage = 'off' | 'on' | 'incoming' | 'busy' | 'gps' | 'net';
 
 export type CockpitFacts = {
   online: boolean;
   gpsDenied?: boolean;
+  /** Pas de connexion réseau : rien ne part, rien n'arrive. */
+  noNetwork?: boolean;
   /** Une demande attend une réponse (première de la file). */
   hasIncoming?: boolean;
   /** Une mission acceptée est active (non planifiée à plus de 30 min). */
@@ -23,6 +26,7 @@ export function cockpitStageOf(f: CockpitFacts): CockpitStage {
   // La mission en cours prime : on ne se déconnecte pas chez un client, et
   // une nouvelle demande n'a pas à interrompre l'intervention.
   if (f.hasMission) return 'busy';
+  if (f.noNetwork) return 'net';
   if (f.gpsDenied) return 'gps';
   if (!f.online) return 'off';
   if (f.hasIncoming) return 'incoming';
@@ -35,10 +39,10 @@ export function cockpitStageOf(f: CockpitFacts): CockpitStage {
  * cadre (`other`). Hors ligne ou sans GPS, la carte ne bouge pas.
  */
 export function cockpitCameraMode(stage: CockpitStage): CameraMode {
-  return stage === 'off' || stage === 'gps' ? 'none' : 'me';
+  return stage === 'off' || stage === 'gps' || stage === 'net' ? 'none' : 'me';
 }
 
-/** Le GO est au centre (hors ligne), devient le stop (en ligne), ou disparaît. */
+/** Le GO est au centre (hors ligne), devient le stop (en ligne), ou disparaît (sans réseau aussi : rien ne partirait). */
 export function goShape(stage: CockpitStage): 'go' | 'stop' | 'hidden' {
   if (stage === 'off') return 'go';
   if (stage === 'on') return 'stop';

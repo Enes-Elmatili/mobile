@@ -64,3 +64,12 @@ export function inLabel(inMin: number, t: (k: string, o?: Record<string, unknown
   if (inMin < 60) return t('cockpit.next_in_min', { n: inMin });
   return t('cockpit.next_in_h', { n: Math.round(inMin / 60) });
 }
+
+function pad(n: number): string { return (n < 10 ? '0' : '') + n; }
+
+/** Chrono « depuis » : « 0:12 », « 42:17 », « 1:02:05 » — comme un chronomètre, sans zéro inutile. */
+export function clockOf(sinceMs: number, now: number): string {
+  const total = Math.max(0, Math.floor((now - sinceMs) / 1000));
+  const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), sec = total % 60;
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}

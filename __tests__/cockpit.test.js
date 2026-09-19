@@ -1,7 +1,7 @@
 // L'accueil prestataire : table de vérité du stade (lib/cockpit/stage.ts) et
 // de la journée (lib/cockpit/day.ts).
 const { cockpitStageOf, cockpitCameraMode, goShape } = require('@/lib/cockpit/stage');
-const { remindersOf, nextMissionOf, inLabel } = require('@/lib/cockpit/day');
+const { remindersOf, nextMissionOf, inLabel, clockOf } = require('@/lib/cockpit/day');
 
 describe('cockpitStageOf', () => {
   it('hors ligne / en ligne / demande pour vous', () => {
@@ -14,6 +14,13 @@ describe('cockpitStageOf', () => {
   it('la mission en cours prime sur tout, même sans GPS', () => {
     expect(cockpitStageOf({ online: true, hasMission: true, hasIncoming: true })).toBe('busy');
     expect(cockpitStageOf({ online: false, hasMission: true, gpsDenied: true })).toBe('busy');
+  });
+  it('sans réseau : on le dit, sauf en mission ; passe avant le GPS', () => {
+    expect(cockpitStageOf({ online: true, noNetwork: true })).toBe('net');
+    expect(cockpitStageOf({ online: false, noNetwork: true, gpsDenied: true })).toBe('net');
+    expect(cockpitStageOf({ online: true, noNetwork: true, hasMission: true })).toBe('busy');
+    expect(cockpitCameraMode('net')).toBe('none');
+    expect(goShape('net')).toBe('hidden');
   });
   it('GPS refusé : rien n’arrive, en ligne ou non', () => {
     expect(cockpitStageOf({ online: true, gpsDenied: true })).toBe('gps');
@@ -58,6 +65,13 @@ describe('journée', () => {
     // Un créneau commencé depuis moins de 15 min compte encore comme « maintenant ».
     expect(nextMissionOf([{ id: 9, status: 'ACCEPTED', preferredTimeStart: iso(-10) }], now)).toMatchObject({ id: 9, soon: true });
     expect(nextMissionOf([m[3], m[4]], now)).toBeNull();
+  });
+  it('chrono « depuis » sans zéro inutile', () => {
+    const t0 = 1_000_000;
+    expect(clockOf(t0, t0 + 12_000)).toBe('0:12');
+    expect(clockOf(t0, t0 + (42 * 60 + 17) * 1000)).toBe('42:17');
+    expect(clockOf(t0, t0 + (3600 + 125) * 1000)).toBe('1:02:05');
+    expect(clockOf(t0 + 5000, t0)).toBe('0:00');
   });
   it('kicker « dans … »', () => {
     const t = (k, o) => (o ? `${k}:${o.n}` : k);

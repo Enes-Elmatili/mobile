@@ -18,6 +18,8 @@ type Props = {
   top: number;
   /** Gains nets du jour (cents). */
   todayCents: number;
+  /** Faux tant que le premier chargement n'est pas arrivé : on ne fête pas une valeur initiale. */
+  settled: boolean;
   unreadMessages: number;
   unreadNotifs: number;
   onProfile: () => void;
@@ -28,8 +30,10 @@ type Props = {
 
 function RoundButton({ icon, badge, onPress, label }: { icon: React.ComponentProps<typeof Feather>['name']; badge?: number; onPress: () => void; label: string }) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
+  const a11y = badge && badge > 0 ? `${label}, ${t('cockpit.unread', { count: badge })}` : label;
   return (
-    <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} style={[s.rb, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.isDark ? 0.35 : 0.12 }]} accessibilityRole="button" accessibilityLabel={label} hitSlop={6}>
+    <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} style={({ pressed }) => [s.rb, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.isDark ? 0.35 : 0.12, opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel={a11y} hitSlop={6}>
       <Feather name={icon} size={18} color={theme.text} />
       {badge && badge > 0 ? (
         <View style={[s.badge, { backgroundColor: theme.accent }]}>
@@ -40,7 +44,7 @@ function RoundButton({ icon, badge, onPress, label }: { icon: React.ComponentPro
   );
 }
 
-function TopRowBase({ visible, top, todayCents, unreadMessages, unreadNotifs, onProfile, onToday, onMessages, onNotifs }: Props) {
+function TopRowBase({ visible, top, todayCents, settled, unreadMessages, unreadNotifs, onProfile, onToday, onMessages, onNotifs }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const reduced = useReduceMotion();
@@ -49,14 +53,15 @@ function TopRowBase({ visible, top, todayCents, unreadMessages, unreadNotifs, on
 
   // Éclat vert quand le jour monte (clôture d'une mission) — une fois, court.
   const glow = useSharedValue(0);
-  const prev = useRef(euros);
+  const prev = useRef<number | null>(null);
   useEffect(() => {
-    if (euros > prev.current) {
+    if (!settled) return;
+    if (prev.current != null && euros > prev.current) {
       if (!reduced) glow.value = withSequence(withTiming(1, { duration: 250 }), withTiming(0, { duration: 900 }));
       feedback.haptic('success');
     }
     prev.current = euros;
-  }, [euros, reduced, glow]);
+  }, [euros, settled, reduced, glow]);
   const green = COLORS.greenBrand;
   const border = theme.border as string;
   const pillStyle = useAnimatedStyle(() => ({ borderColor: glow.value > 0.5 ? green : border }));
@@ -65,14 +70,14 @@ function TopRowBase({ visible, top, todayCents, unreadMessages, unreadNotifs, on
   return (
     <Animated.View style={[s.row, { top }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
       <RoundButton icon="user" onPress={onProfile} label={t('cockpit.profile')} />
-      <Pressable onPress={() => { feedback.haptic('light'); onToday(); }} accessibilityRole="button" accessibilityLabel={t('cockpit.today_a11y', { amount: euros })}>
+      <Pressable onPress={() => { feedback.haptic('light'); onToday(); }} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })} accessibilityRole="button" accessibilityLabel={t('cockpit.today_a11y', { amount: euros })}>
         <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, shadowOpacity: theme.isDark ? 0.35 : 0.12 }, pillStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: green }, burst]} pointerEvents="none" />
           <View style={s.amount}>
             <DigitReel value={euros} lineHeight={22} textStyle={{ fontFamily: FONTS.bebas, fontSize: 22, lineHeight: 22, color: theme.text as string, letterSpacing: 0.3 }} />
             <Text style={[s.euro, { color: theme.text }]} maxFontSizeMultiplier={1}> €</Text>
           </View>
-          <Text style={[s.k, { color: theme.textMuted }]} maxFontSizeMultiplier={1}>{t('cockpit.today').toUpperCase()}</Text>
+          <Text style={[s.k, { color: theme.textSub }]} maxFontSizeMultiplier={1}>{t('cockpit.today').toUpperCase()}</Text>
         </Animated.View>
       </Pressable>
       <View style={s.side}>
@@ -93,6 +98,6 @@ const s = StyleSheet.create({
   pill: { height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10, overflow: 'hidden', shadowColor: '#000', shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
   amount: { flexDirection: 'row', alignItems: 'flex-end' },
   euro: { fontFamily: FONTS.bebas, fontSize: 22, lineHeight: 22, letterSpacing: 0.3, includeFontPadding: false },
-  k: { fontFamily: FONTS.monoMedium, fontSize: 9.5, letterSpacing: 1.5 },
+  k: { fontFamily: FONTS.monoMedium, fontSize: 10.5, letterSpacing: 1.5 },
   side: { flexDirection: 'row', gap: 8 },
 });

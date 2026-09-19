@@ -2341,6 +2341,14 @@
     "invisible": "Vous êtes invisible",
     "gps_veil": "Sans position, rien n'arrive",
     "go_a11y": "Passer en ligne",
-    "stop_a11y": "Passer hors ligne"
+    "stop_a11y": "Passer hors ligne",
+    "net_title": "Pas de connexion",
+    "net_sub": "En attente du réseau",
+    "net_veil": "Sans réseau, rien n'arrive",
+    "demand_none": "Aucune demande pour l'instant",
+    "unread_one": "{{count}} non lu",
+    "unread_other": "{{count}} non lus",
+    "go_hint": "Vous recevrez les demandes autour de vous",
+    "stop_hint": "Vous ne recevrez plus de demandes"
   }
 }

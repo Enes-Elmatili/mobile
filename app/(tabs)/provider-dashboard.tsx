@@ -601,7 +601,7 @@ export default function ProviderDashboard() {
 
   // ─── Le stade ────────────────────────────────────────────────────────────
   const activeJob = incomingRequests[0] || null;
-  const stage = cockpitStageOf({ online: isOnline, gpsDenied, hasIncoming: !!activeJob, hasMission: !!currentMission });
+  const stage = cockpitStageOf({ online: isOnline, gpsDenied, noNetwork: !networkOnline, hasIncoming: !!activeJob, hasMission: !!currentMission });
   const reminders = useMemo<Reminder[]>(() => remindersOf(missions, connect), [missions, connect]);
   const next = useMemo<NextMission | null>(() => nextMissionOf(missions), [missions]);
 
@@ -706,13 +706,14 @@ export default function ProviderDashboard() {
       </MapView>
 
       {/* -- Le voile : la carte s'éteint hors ligne -- */}
-      <Veil dimmed={stage === 'off' || stage === 'gps'} label={stage === 'gps' ? t('cockpit.gps_veil') : stage === 'off' ? t('cockpit.invisible') : null} />
+      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={stage === 'gps' ? t('cockpit.gps_veil') : stage === 'net' ? t('cockpit.net_veil') : stage === 'off' ? t('cockpit.invisible') : null} />
 
       {/* -- Haut : profil · aujourd'hui · messages · cloche -- */}
       <TopRow
         visible={stage !== 'incoming'}
         top={topRowTop}
         todayCents={today}
+        settled={!statsLoading}
         unreadMessages={unreadMessages}
         unreadNotifs={unreadCount}
         onProfile={goProfile}
@@ -758,6 +759,7 @@ export default function ProviderDashboard() {
         dockBottom={tabBottom}
         onPress={handleToggleOnline}
         accessibilityLabel={isOnline ? t('cockpit.stop_a11y') : t('cockpit.go_a11y')}
+        accessibilityHint={isOnline ? t('cockpit.stop_hint') : t('cockpit.go_hint')}
       />
 
       {/* -- Elle est pour vous -- */}

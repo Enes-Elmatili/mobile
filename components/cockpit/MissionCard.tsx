@@ -1,7 +1,7 @@
 // components/cockpit/MissionCard.tsx — la mission acceptée, en carte blanche
 // au-dessus du dock : on la tape pour reprendre l'intervention. Remplace la
 // pastille « mission en cours » : la journée s'efface, la mission prend la place.
-import React, { memo } from 'react';
+import React, { memo, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
@@ -22,20 +22,23 @@ function MissionCardBase({ visible, bottom, mission, onPress }: Props) {
   const { t } = useTranslation();
   const { style: presence } = usePresence(visible && !!mission, { from: 'bottom', preset: MOTION.land });
   const press = usePressScale();
-  if (!mission) return null;
-  const st = (mission.status || '').toUpperCase();
+  // La carte garde sa dernière mission le temps de sortir : pas de disparition sèche.
+  const last = useRef<MissionLite | null>(null);
+  if (mission) last.current = mission;
+  const shown = mission ?? last.current;
+  if (!shown) return null;
+  const st = (shown.status || '').toUpperCase();
   const kicker = st === 'ONGOING' ? t('cockpit.mission_ongoing') : st === 'QUOTE_SENT' ? t('cockpit.mission_quote_sent') : st === 'QUOTE_ACCEPTED' ? t('cockpit.mission_quote_accepted') : t('cockpit.mission_accepted');
+  const title = [shown.serviceType || t('missions.mission'), placeShort(shown.address ?? null)].filter(Boolean).join(' · ');
   return (
-    <Animated.View style={[s.wrap, { bottom }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
-      <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityLabel={t('provider.resume_mission')}>
+    <Animated.View style={[s.wrap, { bottom }, presence]} pointerEvents={visible && mission ? 'box-none' : 'none'}>
+      <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityLabel={`${t('provider.resume_mission')}, ${kicker} #${shown.id}, ${title}`}>
         <Animated.View style={[s.card, { backgroundColor: theme.accent }, press.style]}>
           <View style={s.body}>
-            <Text style={[s.k, { color: theme.accentText }]} numberOfLines={1} maxFontSizeMultiplier={1}>{`${kicker} · #${mission.id}`.toUpperCase()}</Text>
-            <Text style={[s.title, { color: theme.accentText }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
-              {[mission.serviceType || t('missions.mission'), placeShort(mission.address ?? null)].filter(Boolean).join(' · ')}
-            </Text>
+            <Text style={[s.k, { color: theme.accentText }]} numberOfLines={1} maxFontSizeMultiplier={1}>{`${kicker} · #${shown.id}`.toUpperCase()}</Text>
+            <Text style={[s.title, { color: theme.accentText }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
             <Text style={[s.sub, { color: theme.accentText }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
-              {[mission.clientName, mission.address].filter(Boolean).join(' · ')}
+              {[shown.clientName, shown.address].filter(Boolean).join(' · ')}
             </Text>
           </View>
           <View style={[s.go, { backgroundColor: theme.isDark ? 'rgba(10,10,10,0.12)' : 'rgba(255,255,255,0.14)' }]}>
