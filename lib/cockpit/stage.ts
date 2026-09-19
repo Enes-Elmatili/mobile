@@ -1,10 +1,11 @@
-// lib/cockpit/stage.ts — l'accueil prestataire est une machine à cinq stades.
-// Un seul objet dit l'état (le GO) ; le stade décide ce que la carte, le dock
-// et la journée racontent (spec 2026-09-17-provider-cockpit-go).
-//   off      : hors ligne — carte éteinte, GO au centre, journée lisible en bas
-//   on       : en ligne — carte allumée, stop à gauche, barre « vous êtes en ligne »
+// lib/cockpit/stage.ts — l'accueil prestataire est une machine à six stades.
+// Un seul objet dit l'état (le disque détaché de la barre : GO · stop · flèche,
+// stores/nav.providerDisc) ; le stade décide ce que la carte, l'étiquette
+// d'état et la journée racontent (spec 2026-09-17-provider-cockpit-go).
+//   off      : hors ligne — carte éteinte, GO dans le disque, journée lisible en bas
+//   on       : en ligne — carte allumée, stop dans le disque, « vous êtes en ligne » en haut
 //   incoming : une demande est pour vous — la fiche monte, le reste s'efface
-//   busy     : mission acceptée en cours — carte mission, pas de stop
+//   busy     : mission acceptée en cours — flèche ambre dans le disque
 //   gps      : localisation refusée — rien n'arrive, carte « Autoriser »
 //   net      : pas de réseau — le serveur ne nous entend pas, on le dit
 import type { CameraMode } from '@/lib/mission/useMapCamera';
@@ -40,11 +41,4 @@ export function cockpitStageOf(f: CockpitFacts): CockpitStage {
  */
 export function cockpitCameraMode(stage: CockpitStage): CameraMode {
   return stage === 'off' || stage === 'gps' || stage === 'net' ? 'none' : 'me';
-}
-
-/** Le GO est au centre (hors ligne), devient le stop (en ligne), ou disparaît (sans réseau aussi : rien ne partirait). */
-export function goShape(stage: CockpitStage): 'go' | 'stop' | 'hidden' {
-  if (stage === 'off') return 'go';
-  if (stage === 'on') return 'stop';
-  return 'hidden';
 }

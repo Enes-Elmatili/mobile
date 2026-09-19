@@ -31,14 +31,13 @@ import { isOnlineStatus, gateCopyFor, GATE_CODES } from '@/lib/providerGate';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
 import { useMapCamera } from '@/lib/mission/useMapCamera';
 import { fetchRoute, type LatLng } from '@/lib/mission/route';
-import { cockpitStageOf, cockpitCameraMode, goShape } from '@/lib/cockpit/stage';
+import { cockpitStageOf, cockpitCameraMode } from '@/lib/cockpit/stage';
+import { useNavStore, providerDisc } from '@/stores/nav';
 import { remindersOf, nextMissionOf, type MissionLite, type Reminder, type NextMission } from '@/lib/cockpit/day';
-import { GoButton } from '@/components/cockpit/GoButton';
 import { cockpitGeometry } from '@/lib/cockpit/geometry';
-import { Dock } from '@/components/cockpit/Dock';
 import { TopRow } from '@/components/cockpit/TopRow';
 import { DayStrip } from '@/components/cockpit/DayStrip';
-import { MissionCard, type MissionLite as MissionCardLite } from '@/components/cockpit/MissionCard';
+import { StateLabel } from '@/components/cockpit/StateLabel';
 import { GpsCard } from '@/components/cockpit/GpsCard';
 import { Veil } from '@/components/cockpit/Veil';
 import { MePin, DemandPin, DoorPin, RouteTrace } from '@/components/cockpit/markers';
@@ -188,7 +187,7 @@ export default function ProviderDashboard() {
   const reduced = useReduceMotion();
   const layout = useLayoutClass();
   const windowHeight = layout.height;
-  // Hauteur réelle de la barre d'onglets (0 sur regular : elle est latérale).
+  // Dessus de la barre flottante (et du disque d'action) depuis le bas de l'écran.
   const tabBarHeight = useTabBarPadding(0);
 
   const mapRef   = useRef<MapView>(null);
@@ -531,7 +530,7 @@ export default function ProviderDashboard() {
   }, [socket, user?.id, fetchIncomingQueue]);
 
   // Le GO : passer en ligne / hors ligne. L'haptique est partie à l'appui
-  // (GoButton), sur la même frame que le départ du disque.
+  // (ActionDisc), sur la même frame que le départ du disque.
   const handleToggleOnline = useCallback(() => {
     if (!user?.id) return;
     const next = !isOnline;
@@ -597,7 +596,7 @@ export default function ProviderDashboard() {
 
   // ─── Géométrie : décidée par l'écran (SE, Pro Max, Android 3 boutons, Fold) ──
   const g = useMemo(() => cockpitGeometry({ width: layout.width, height: layout.height, insets: layout.insets, cls: layout.cls, tabBarHeight }), [layout, tabBarHeight]);
-  const { dockBottom: tabBottom, stripBottom, topRowTop, marginLeft, contentWidth } = g;
+  const { stripBottom, topRowTop, marginLeft, contentWidth } = g;
 
   // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
   const jobCoord = useMemo<LatLng | null>(() => (activeJob?.latitude && activeJob?.longitude ? { latitude: activeJob.latitude, longitude: activeJob.longitude } : null), [activeJob?.latitude, activeJob?.longitude]);
@@ -647,7 +646,24 @@ export default function ProviderDashboard() {
   // Ma photo sur ma carte : on se reconnaît. Stable tant que le profil ne change pas.
   const meName = (user as any)?.name ?? null, meAvatar = (user as any)?.avatarUrl ?? null;
   const me = useMemo(() => ({ name: meName, avatarUrl: meAvatar }), [meName, meAvatar]);
-  const missionLite = useMemo<MissionCardLite | null>(() => (currentMission ? { id: currentMission.id, status: currentMission.status, serviceType: currentMission.serviceType, address: currentMission.address, clientName: currentMission.clientName } : null), [currentMission]);
+
+  // ─── Le disque de la barre flottante : GO · stop · flèche vers la mission ──
+  // L'écran règle le disque ; la barre le rend ; il suit sur tous les onglets.
+  const setDisc = useNavStore((st) => st.setDisc);
+  const discKind = providerDisc(stage);
+  const discLabel = discKind === 'go' ? t('cockpit.go_a11y') : discKind === 'stop' ? t('cockpit.stop_a11y') : discKind === 'busy' ? t('cockpit.mission_open_a11y') : undefined;
+  useEffect(() => {
+    if (loading) return;
+    setDisc({ kind: discKind, onPress: discKind === 'busy' ? goMission : discKind === 'hidden' ? undefined : handleToggleOnline, label: discLabel });
+  }, [loading, discKind, discLabel, goMission, handleToggleOnline, setDisc]);
+  // Quitter l'accueil prestataire (déconnexion, changement de rôle) : le disque s'efface.
+  useEffect(() => () => setDisc({ kind: 'hidden' }), [setDisc]);
+  // Les badges de la barre : devis à rédiger sur Missions, virements à configurer sur Profil.
+  const setBadge = useNavStore((st) => st.setBadge);
+  const quotesToWrite = useMemo(() => reminders.filter((r) => r.kind === 'quote').length, [reminders]);
+  const payoutsTodo = useMemo(() => reminders.some((r) => r.kind === 'payouts'), [reminders]);
+  useEffect(() => { setBadge('missions', quotesToWrite || null); }, [quotesToWrite, setBadge]);
+  useEffect(() => { setBadge('profile', payoutsTodo ? '!' : null); }, [payoutsTodo, setBadge]);
 
   // -- Loading screen --
   if (loading) {
@@ -696,8 +712,8 @@ export default function ProviderDashboard() {
         {location ? <MePin coordinate={location} tone={meTone} heading={heading} arrow={stage === 'busy'} me={me} /> : null}
       </MapView>
 
-      {/* -- Le voile : la carte s'éteint hors ligne -- */}
-      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={stage === 'gps' ? t('cockpit.gps_veil') : stage === 'net' ? t('cockpit.net_veil') : stage === 'off' ? t('cockpit.invisible') : null} labelTop={g.veilLabelTop} />
+      {/* -- Le voile : la carte s'éteint hors ligne (l'étiquette d'état, en haut, dit pourquoi) -- */}
+      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={null} labelTop={g.veilLabelTop} />
 
       {/* -- Haut : profil · aujourd'hui · messages · cloche -- */}
       <TopRow
@@ -715,9 +731,12 @@ export default function ProviderDashboard() {
         onNotifs={goNotifs}
       />
 
+      {/* -- L'état, écrit sous la rangée du haut -- */}
+      <StateLabel stage={stage} count={incomingRequests.length} onlineSince={onlineSince} missionId={currentMission?.id ?? null} top={g.stateTop} />
+
       {/* -- La journée, lisible en bas -- */}
       <DayStrip
-        visible={stage === 'off' || stage === 'on'}
+        visible={stage === 'off' || stage === 'on' || stage === 'busy'}
         bottom={stripBottom}
         left={marginLeft}
         width={contentWidth}
@@ -728,41 +747,8 @@ export default function ProviderDashboard() {
         onNext={onNext}
       />
 
-      {/* -- La mission acceptée -- */}
-      <MissionCard
-        visible={stage === 'busy'}
-        bottom={stripBottom}
-        left={marginLeft}
-        width={contentWidth}
-        mission={missionLite}
-        onPress={goMission}
-      />
-
       {/* -- Sans position, rien n'arrive -- */}
       <GpsCard visible={stage === 'gps'} bottom={stripBottom} left={marginLeft} width={contentWidth} />
-
-      {/* -- Le dock et le GO -- */}
-      <Dock
-        stage={stage}
-        count={incomingRequests.length}
-        onlineSince={onlineSince}
-        missionId={currentMission?.id ?? null}
-        bottom={tabBottom}
-        height={g.dockHeight}
-        contentLeft={marginLeft}
-        contentWidth={contentWidth}
-      />
-      <GoButton
-        shape={goShape(stage)}
-        size={g.goSize}
-        dockHeight={g.dockHeight}
-        dockBottom={tabBottom}
-        contentLeft={marginLeft}
-        contentWidth={contentWidth}
-        onPress={handleToggleOnline}
-        accessibilityLabel={isOnline ? t('cockpit.stop_a11y') : t('cockpit.go_a11y')}
-        accessibilityHint={isOnline ? t('cockpit.stop_hint') : t('cockpit.go_hint')}
-      />
 
       {/* -- Elle est pour vous -- */}
       {activeJob && stage === 'incoming' && (

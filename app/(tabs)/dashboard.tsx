@@ -41,6 +41,7 @@ import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
 import { useTabBarPadding } from './_layout';
+import { useNavStore, clientDisc } from '@/stores/nav';
 import { formatEUR } from '@/lib/format';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import type { AppTheme } from '@/hooks/use-app-theme';
@@ -1280,8 +1281,27 @@ export default function Dashboard() {
   const totalCount = activityRequests.length;
   const hasMore = totalCount > PREVIEW_COUNT;
 
+  // ── Le disque de la barre flottante : « + » au repos, la flèche quand une demande vit ──
+  // Réglé ici, rendu par la barre, il suit sur Documents et Profil. Le
+  // prestataire règle le sien depuis ProviderDashboard : on ne l'écrase pas.
+  const isProviderUser = !!user?.roles?.includes('PROVIDER');
+  const setDisc = useNavStore((st) => st.setDisc);
+  const liveMission = activeMission || searchingMission;
+  const liveMissionId = liveMission?.id ?? null;
+  useEffect(() => {
+    if (isProviderUser) return;
+    const kind = clientDisc(!!liveMission);
+    setDisc({
+      kind,
+      label: kind === 'track' ? t('dashboard.track_mission') : t('dashboard.new_request'),
+      onPress: kind === 'track' ? () => { if (liveMission) navigateToMissionView(liveMission); } : () => router.push('/request/NewRequestStepper'),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- la mission suivie ne change que par son id
+  }, [isProviderUser, liveMissionId, liveMission?.status, t, setDisc, navigateToMissionView, router]);
+  useEffect(() => () => { if (!isProviderUser) setDisc({ kind: 'hidden' }); }, [isProviderUser, setDisc]);
+
   // ── Guards ──
-  if (user?.roles?.includes('PROVIDER')) return <ProviderDashboard />;
+  if (isProviderUser) return <ProviderDashboard />;
 
   // Skeleton shell during cold load — prevents layout reflow when data lands
   if (loading && !refreshing && !data) {

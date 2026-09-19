@@ -1,6 +1,16 @@
 // Reanimated mock (ships with the library)
 require('react-native-reanimated').setUpTests?.();
 
+jest.mock('expo-glass-effect', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    GlassView: (props) => React.createElement(View, props),
+    GlassContainer: (props) => React.createElement(View, props),
+    isLiquidGlassAvailable: () => false,
+    isGlassEffectAPIAvailable: () => false,
+  };
+});
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
   notificationAsync: jest.fn(() => Promise.resolve()),

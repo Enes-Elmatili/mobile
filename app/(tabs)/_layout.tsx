@@ -1,71 +1,43 @@
 // app/(tabs)/_layout.tsx
-// TabBar "Frosted Glass" — BlurView translucide, rôle-aware, dark mode system-adaptive
+// Tab bar flottante (pilule de verre + disque d'action détaché — components/ui/FixedTabBar),
+// rôle-aware, dark mode system-adaptive
 //
 // CLIENT  : Accueil · Documents · Profil
 // PROVIDER: Accueil · Missions (avec onglet Opportunités interne) · Gains · Profil
-//
-// Prérequis : npx expo install expo-blur
 
 import { Redirect, Tabs } from 'expo-router';
-import { Platform, StyleSheet, Text, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Text } from 'react-native';
 import { useCallback, useMemo } from 'react';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme, FONTS, alpha } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
 import { TabIcon } from '@/components/ui/TabIcon';
-import { FixedTabBar, SIDEBAR_WIDTH, TAB_BAR_HEIGHT as BAR_HEIGHT } from '@/components/ui/FixedTabBar';
+import { FixedTabBar, SIDEBAR_WIDTH, TAB_BAR_HEIGHT as BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
 import { useLayoutClass } from '@/lib/layout';
 
-// Hauteur du CONTENU de la tab bar (icône + label), hors inset bas du device.
-// La hauteur réelle rendue = TAB_BAR_HEIGHT + max(insets.bottom, TAB_PB).
-// Les écrans enfants compensent leur paddingBottom via useTabBarPadding().
+// Hauteur de la pilule flottante. Elle flotte à tabBarBottom(insets.bottom) du
+// bas de l'écran : le haut de la pilule (et du disque) est donc à
+// TAB_BAR_HEIGHT + tabBarBottom(...). Les écrans enfants compensent leur
+// paddingBottom via useTabBarPadding().
 export const TAB_BAR_HEIGHT = BAR_HEIGHT;
-const TAB_PB = Platform.OS === 'ios' ? 20 : 8;
 
-/** Padding bas à appliquer au contenu scrollable d'un écran sous la tab bar absolue.
- *  Sur un écran « regular », la barre est une sidebar à gauche : plus rien en bas. */
+/** Padding bas à appliquer au contenu scrollable d'un écran sous la barre flottante.
+ *  Sur un écran « regular », la barre est une sidebar à gauche : seul le disque
+ *  flotte encore en bas à droite, on garde sa hauteur. */
 export function useTabBarPadding(extra: number = 24): number {
   const insets = useSafeAreaInsets();
-  const { isRegular } = useLayoutClass();
-  if (isRegular) return Math.max(insets.bottom, TAB_PB) + extra;
-  return TAB_BAR_HEIGHT + Math.max(insets.bottom, TAB_PB) + extra;
-}
-
-// ─── Background BlurView — frosted glass natif ────────────────────────────────
-function TabBarBackground() {
-  const theme = useAppTheme();
-
-  // Android : expo-blur ne produit pas de vrai flou (simple teinte translucide) —
-  // le contenu resterait lisible à travers la tab bar. Fond quasi opaque à la place.
-  if (Platform.OS === 'android') {
-    return (
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(theme.bg, 0.98) }]} />
-    );
-  }
-
-  return (
-    <BlurView
-      intensity={55}
-      tint={theme.isDark ? 'dark' : 'light'}
-      style={StyleSheet.absoluteFill}
-    />
-  );
+  return TAB_BAR_HEIGHT + tabBarBottom(insets.bottom) + extra;
 }
 
 export default function TabLayout() {
   const { user } = useAuth();
   const theme    = useAppTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const { isRegular } = useLayoutClass();
-  // Android gesture bar / iPhone home indicator : la tab bar absolue doit
-  // intégrer l'inset bas réel du device, pas une valeur hardcodée.
-  const tabBottomPad = Math.max(insets.bottom, TAB_PB);
-  // Tab bar custom : indicateur qui glisse (moment 15), sidebar sur regular.
+  // Tab bar custom : pilule flottante + disque (moment 15), sidebar sur regular.
   const renderTabBar = useCallback((props: BottomTabBarProps) => <FixedTabBar {...props} />, []);
 
   // ── Stable boolean — ne change que si les rôles changent réellement ───────
@@ -74,11 +46,6 @@ export default function TabLayout() {
   const rolesKey   = user?.roles?.join(',') ?? '';
   const isProvider = useMemo(() => rolesKey.includes('PROVIDER'), [rolesKey]);
   const providerStatus = user?.providerStatus;
-
-  // ── tabBarBackground stable — évite une nouvelle référence à chaque render ─
-  // Sans useCallback, React Navigation détecte un changement d'options à chaque
-  // render et peut déclencher des mises à jour imbriquées (→ update depth exceeded)
-  const renderTabBarBackground = useCallback(() => <TabBarBackground />, []);
 
   // ── Label custom : plafonne le Dynamic Type à 1.3× (le Label natif de React
   // Navigation n'expose que allowFontScaling booléen, pas de plafond). Rendu
@@ -110,20 +77,11 @@ export default function TabLayout() {
       letterSpacing: 0.2,
       marginTop:     -2,
     },
-    tabBarStyle: {
-      position:        'absolute' as const,
-      backgroundColor: 'transparent',
-      borderTopWidth:  1,
-      borderTopColor:  theme.border,
-      height:          TAB_BAR_HEIGHT + tabBottomPad,
-      paddingTop:      10,
-      paddingBottom:   tabBottomPad,
-      elevation:       0,
-      shadowOpacity:   0,
-    },
-    tabBarBackground: renderTabBarBackground,
+    // La barre est custom (tabBar={renderTabBar}) et flotte au-dessus du
+    // contenu : rien à réserver ici, chaque écran compense via useTabBarPadding().
+    tabBarStyle: { position: 'absolute' as const, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0, shadowOpacity: 0 },
     tabBarLabel: renderTabLabel,
-  }), [theme.bg, theme.accent, theme.textMuted, theme.border, renderTabBarBackground, renderTabLabel, tabBottomPad, isRegular]);
+  }), [theme.bg, theme.accent, theme.textMuted, renderTabLabel, isRegular]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect
