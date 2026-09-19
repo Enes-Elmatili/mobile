@@ -108,7 +108,7 @@ export default function VerifyEmail() {
   }, []);
 
   // Focus APRÈS la transition de navigation. NE PAS revenir à
-  // InteractionManager.runAfterInteractions : toutes nos anims tournent en
+  // InteractionManager (retiré de RN 0.88) : toutes nos anims tournent en
   // useNativeDriver → RN ne pose aucun interaction handle
   // (Animation.js: `__isInteraction = config.isInteraction ?? !useNativeDriver`),
   // donc le callback partait au tick suivant, pendant la transition native-stack :

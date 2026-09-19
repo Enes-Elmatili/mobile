@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Image,
   StatusBar,
-    InteractionManager,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -24,6 +23,7 @@ import { showSocketToast } from '../../lib/SocketContext';
 import { api } from '../../lib/api';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { devLog, devWarn } from '@/lib/logger';
+import { runWhenIdle } from '@/lib/idle';
 import { useTabBarPadding } from './_layout';
 import { useTranslation } from 'react-i18next';
 import { translateCategory } from '@/lib/categoryLabel';
@@ -358,7 +358,7 @@ export default function Profile() {
     const now = Date.now();
     if (now - lastFetchRef.current > 60_000) { // cache court — évite le spam réseau
       lastFetchRef.current = now;
-      const task = InteractionManager.runAfterInteractions(() => loadProfileData());
+      const task = runWhenIdle(() => loadProfileData());
       return () => task.cancel();
     }
   }, [user?.id, loadProfileData]));

@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 // app/(tabs)/dashboard.tsx
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
-import { InteractionManager } from 'react-native';
 import {
   View,
   Text,
@@ -23,6 +22,7 @@ import Reanimated, {
   Easing as REasing,
 } from 'react-native-reanimated';
 import { useReduceMotion } from '@/lib/motion/sheet';
+import { runWhenIdle } from '@/lib/idle';
 import { usePressScale } from '@/lib/motion/press';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -1063,7 +1063,8 @@ export default function Dashboard() {
     const now = Date.now();
     if (now - lastFetchRef.current > 60_000) { // 60s cache — socket handles real-time updates
       lastFetchRef.current = now;
-      InteractionManager.runAfterInteractions(() => loadDashboard());
+      const task = runWhenIdle(() => loadDashboard());
+      return () => task.cancel();
     }
   }, [loadDashboard]));
   const onRefresh = () => { setRefreshing(true); loadDashboard(); };

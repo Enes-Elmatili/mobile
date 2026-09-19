@@ -1,6 +1,5 @@
 // app/(tabs)/documents.tsx — Client Documents (Glow Up v2)
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { InteractionManager } from 'react-native';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, StatusBar,
@@ -11,6 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import { runWhenIdle } from '@/lib/idle';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import Animated from 'react-native-reanimated';
@@ -241,7 +241,8 @@ export default function Documents() {
     const now = Date.now();
     if (now - lastFetchRef.current > 60_000) { // 60s — invoices rarely change
       lastFetchRef.current = now;
-      InteractionManager.runAfterInteractions(() => load());
+      const task = runWhenIdle(() => load());
+      return () => task.cancel();
     }
   }, [load]));
   const onRefresh = () => { lastFetchRef.current = 0; setRefreshing(true); load(); };
