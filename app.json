@@ -23,9 +23,6 @@
       "requireFullScreen": true,
       "bundleIdentifier": "app.thefixed.client",
       "buildNumber": "2",
-      "config": {
-        "googleMapsApiKey": "AIzaSyCX2pt7Wi5RckO9ur-i4PwSH7XRKdhDe5s"
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Votre position permet de trouver les prestataires autour de vous et d'assurer un suivi précis de l'intervention.",

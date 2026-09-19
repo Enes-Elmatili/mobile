@@ -12,25 +12,16 @@ import { useCall } from '@/lib/webrtc/CallContext';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { TAB_BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
 import { useLayoutClass } from '@/lib/layout';
-
-// ─── Grayscale map style (cohérent avec MissionView) ─────────────────────────
-const MAP_STYLE = [
-  { elementType: 'geometry',           stylers: [{ color: '#f0f0f0' }] },
-  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'poi',     elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
-  { featureType: 'road',    elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d6d6d6' }] },
-  { featureType: 'water',   elementType: 'geometry', stylers: [{ color: '#d0d0d0' }] },
-];
 
 // ============================================================================
 // TYPES
@@ -131,7 +122,8 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
   const insets = useSafeAreaInsets();
   useAndroidBackClose(isVisible, onClose);
   const { initiateCall } = useCall();
-  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
+  // Dessus de la barre flottante : sa hauteur + sa distance au bord.
+  const tabBarClear = TAB_BAR_HEIGHT + tabBarBottom(insets.bottom);
   const [pendingRating, setPendingRating] = useState(0);
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
@@ -383,7 +375,7 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
       maxDynamicContentSize={windowHeight * 0.9}
     >
       <BottomSheetScrollView
-        contentContainerStyle={[sd.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
+        contentContainerStyle={[sd.scroll, { paddingBottom: tabBarClear + 24 }]}
         showsVerticalScrollIndicator={false}
       >
 
@@ -420,13 +412,10 @@ export default function TicketDetailSheet({ ticket, isVisible, onClose, onNaviga
         {/* ── Mini-carte Silver (statique) ────────────────────────────────── */}
         {hasCoords ? (
           <View style={sd.mapContainer}>
-            {/* PROVIDER_GOOGLE (clé configurée dans app.json, cohérent avec les autres
-                cartes du projet) — indispensable pour que customMapStyle soit appliqué
-                sur iOS, Apple Maps ignorant les styles Google. */}
             <MapView
-              provider={PROVIDER_GOOGLE}
+              provider={MAP_PROVIDER}
+              {...mapAppearance(theme.isDark)}
               style={sd.map}
-              customMapStyle={MAP_STYLE}
               initialRegion={{
                 latitude:      ticket.lat,
                 longitude:     ticket.lng,

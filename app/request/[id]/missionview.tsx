@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Polyline } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
 import { PersonPin, EtaBubble } from '@/components/map/pins';
 import { Feather } from '@expo/vector-icons';
@@ -19,7 +19,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
-import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -520,8 +520,8 @@ export default function MissionView() {
             <MapView
               ref={mapRef}
               style={StyleSheet.absoluteFillObject}
-              provider={PROVIDER_GOOGLE}
-              customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+              provider={MAP_PROVIDER}
+              {...mapAppearance(theme.isDark)}
               initialRegion={{ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
               onMapReady={() => setMapReady(true)}
               onRegionChangeComplete={() => setRegionKey((k) => k + 1)}

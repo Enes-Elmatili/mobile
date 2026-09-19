@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { TAB_BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -37,7 +38,8 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   useAndroidBackClose(isVisible, onClose);
-  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
+  // Dessus de la barre flottante : sa hauteur + sa distance au bord.
+  const tabBarClear = TAB_BAR_HEIGHT + tabBarBottom(insets.bottom);
 
   const [quote, setQuote] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -103,7 +105,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
       {...sheetMotion}
     >
       <BottomSheetScrollView
-        contentContainerStyle={[qs.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
+        contentContainerStyle={[qs.scroll, { paddingBottom: tabBarClear + 24 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}

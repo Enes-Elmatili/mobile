@@ -22,7 +22,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
 import { DotPin } from '@/components/map/pins';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
@@ -72,7 +72,7 @@ const DEFAULT_REGION = {
 
 // ─── Carte Grayscale (light) ───────────────────────────────────────────────────
 // ─── Cartes Google Maps (source unique light + dark) ────────────────────────────
-import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 
 // Local Ionicons→Feather icon name bridge. Used to translate legacy category
 // icon names returned by toIoniconName() into Feather glyphs without touching
@@ -1329,10 +1329,10 @@ export default function NewRequestStepper() {
           <View style={s.flex}>
             <MapView
               ref={mapRef}
-              provider={PROVIDER_GOOGLE}
+              provider={MAP_PROVIDER}
               style={StyleSheet.absoluteFillObject}
               initialRegion={DEFAULT_REGION}
-              customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+              {...mapAppearance(theme.isDark)}
               showsUserLocation
               showsMyLocationButton={false}
               showsPointsOfInterest={false}

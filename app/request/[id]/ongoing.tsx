@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Linking, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Polyline } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
 import { DropPin, DropGlyph } from '@/components/map/pins';
 import Avatar from '@/components/ui/Avatar';
@@ -22,7 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/motion';
-import { MAP_STYLE_DARK, MAP_STYLE_LIGHT } from '@/constants/mapStyles';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
 import { tokenStorage } from '@/lib/storage';
@@ -549,8 +549,8 @@ export default function MissionOngoing() {
           <MapView
             ref={mapRef}
             style={StyleSheet.absoluteFillObject}
-            provider={PROVIDER_GOOGLE}
-            customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+            provider={MAP_PROVIDER}
+            {...mapAppearance(theme.isDark)}
             initialRegion={{ ...door, latitudeDelta: 0.03, longitudeDelta: 0.03 }}
             onMapReady={() => setMapReady(true)}
             showsUserLocation={false}

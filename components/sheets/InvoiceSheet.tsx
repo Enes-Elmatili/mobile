@@ -159,7 +159,6 @@ export default function InvoiceSheet({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   useAndroidBackClose(isVisible, onClose);
-  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 70 : 54;
   const isProvider = userRole === 'provider';
   const dark = theme.isDark;
 

@@ -44,8 +44,10 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   // flottants (retour · FIXED #id · menu), qui restent visibles au-dessus.
   const maxContent = windowHeight - insets.top - 64;
   // Paliers fixes : la page entière, ou l'aperçu ; la hauteur du contenu est
-  // ajoutée par gorhom (enableDynamicSizing) en dernier.
-  const snapPoints = useMemo(() => (isPage ? [windowHeight] : hasPeek ? [Math.round(windowHeight * SHEET_RATIOS.peek)] : undefined), [isPage, hasPeek, windowHeight]);
+  // ajoutée par gorhom (enableDynamicSizing) en dernier. L'aperçu ne descend
+  // jamais sous la poignée + le pied : les CTA restent entiers, jamais coupés.
+  const peekMin = 28 + footerH + 8;
+  const snapPoints = useMemo(() => (isPage ? [windowHeight] : hasPeek ? [Math.max(Math.round(windowHeight * SHEET_RATIOS.peek), peekMin)] : undefined), [isPage, hasPeek, windowHeight, peekMin]);
   const targetIndex = isPage ? 0 : level === 'peek' && hasPeek ? 0 : hasPeek ? 1 : 0;
 
   useEffect(() => { ref.current?.snapToIndex(targetIndex); }, [targetIndex, level]);
@@ -55,10 +57,12 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
     onHeightChange?.(Math.max(0, Math.round(windowHeight - position)));
   }, [onHeightChange, windowHeight]);
 
+  // Le pied descend jusqu'au bord de l'écran (l'inset bas est DANS le pied) :
+  // rien du contenu ne transparaît sous les CTA dans la zone de l'indicateur.
   const renderFooter = useCallback((props: BottomSheetFooterProps) => (
     footer ? (
-      <BottomSheetFooter {...props} bottomInset={insets.bottom}>
-        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight }]}>{footer}</View>
+      <BottomSheetFooter {...props} bottomInset={0}>
+        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: theme.cardBg, borderTopColor: theme.borderLight }]}>{footer}</View>
       </BottomSheetFooter>
     ) : null
   ), [footer, insets.bottom, theme.cardBg, theme.borderLight]);
@@ -88,7 +92,7 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       <BottomSheetScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.content, { paddingTop: isPage ? insets.top + 12 : 4, paddingBottom: (footer ? footerH + insets.bottom + 8 : 20 + insets.bottom) }]}
+        contentContainerStyle={[s.content, { paddingTop: isPage ? insets.top + 12 : 4, paddingBottom: (footer ? footerH + 8 : 20 + insets.bottom) }]}
       >
         {children}
       </BottomSheetScrollView>
@@ -98,5 +102,5 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 20 },
-  footer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1 },
+  footer: { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1 },
 });

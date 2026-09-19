@@ -14,7 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { devLog, devWarn, devError } from '@/lib/logger';
-import MapView, { PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
 import { DotPin } from '@/components/map/pins';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
@@ -44,7 +44,7 @@ const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
 
 
 // --- Grayscale map style (source unique) ---
-import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import { useLayoutClass } from '@/lib/layout';
 
 // ============================================================================
@@ -566,8 +566,8 @@ function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inPane = f
       {hasCoords ? (
         <View style={sd.mapContainer}>
           <MapView
-            provider={PROVIDER_DEFAULT}
-            customMapStyle={t.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+            provider={MAP_PROVIDER}
+            {...mapAppearance(t.isDark)}
             style={sd.map}
             initialRegion={{ latitude: lat!, longitude: lng!, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
@@ -732,8 +732,8 @@ function OpportunityDetail({ opportunity, onAccept, onDecline, accepting, inPane
       {hasCoords ? (
         <View style={sd.mapContainer}>
           <MapView
-            provider={PROVIDER_DEFAULT}
-            customMapStyle={t.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+            provider={MAP_PROVIDER}
+            {...mapAppearance(t.isDark)}
             style={sd.map}
             initialRegion={{ latitude: lat, longitude: lng, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}

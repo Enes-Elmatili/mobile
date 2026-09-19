@@ -14,7 +14,7 @@ import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
 import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
-import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
@@ -28,7 +28,7 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { devWarn } from '@/lib/logger';
 import { isOnlineStatus, gateCopyFor, GATE_CODES } from '@/lib/providerGate';
-import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '@/constants/mapStyles';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import { useMapCamera } from '@/lib/mission/useMapCamera';
 import { fetchRoute, type LatLng } from '@/lib/mission/route';
 import { cockpitStageOf, cockpitCameraMode } from '@/lib/cockpit/stage';
@@ -690,9 +690,9 @@ export default function ProviderDashboard() {
       {/* -- Carte plein écran : l'écran, c'est elle ; l'interface flotte dessus -- */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={MAP_PROVIDER}
+        {...mapAppearance(theme.isDark)}
         style={StyleSheet.absoluteFill}
-        customMapStyle={theme.isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
