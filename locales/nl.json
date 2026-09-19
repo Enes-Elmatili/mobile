@@ -2510,6 +2510,16 @@
     "go_hint": "Je ontvangt aanvragen bij jou in de buurt",
     "stop_hint": "Je ontvangt geen aanvragen meer",
     "mission_open_a11y": "Lopende opdracht openen",
-    "off_hint": "Druk op GO om aanvragen te ontvangen"
+    "off_hint": "Druk op GO om aanvragen te ontvangen",
+    "m_en_route": "Onderweg",
+    "m_on_site": "Ter plaatse",
+    "m_code": "De code",
+    "m_quote": "Offerte",
+    "m_working": "Interventie",
+    "m_done": "Afgerond",
+    "mission_done": "Opdracht afgerond",
+    "done_net": "netto · uitbetaald binnen {{n}} dagen · factuur verzonden",
+    "done_next": "Volgende opdracht",
+    "done_duration": "{{n}} min"
   }
 }

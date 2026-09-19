@@ -1,8 +1,8 @@
 // stores/nav.ts — ce que la barre flottante porte, décidé par les écrans.
 //
 // Le disque détaché à droite de la barre porte l'action du moment, et suit sur
-// tous les onglets : GO (hors ligne) · stop (en ligne) · flèche ambre (en
-// mission) côté prestataire ; « + » (demander) · flèche ambre (suivre) côté
+// tous les onglets : GO (hors ligne) · stop (en ligne) côté prestataire (en
+// mission, la feuille porte l'action) ; « + » (demander) · flèche ambre (suivre) côté
 // client. Les écrans le règlent (`setDisc`) ; la barre le rend ; l'appui
 // remonte au réglage courant. Les badges suivent la même voie.
 import { create } from 'zustand';
@@ -46,8 +46,7 @@ export function providerDisc(stage: 'off' | 'on' | 'incoming' | 'busy' | 'gps' |
   switch (stage) {
     case 'off': return 'go';
     case 'on': return 'stop';
-    case 'busy': return 'busy';
-    default: return 'hidden'; // incoming : la fiche prend l'écran ; gps / net : rien ne partirait
+    default: return 'hidden'; // incoming / busy : la fiche ou la feuille de mission porte l'action ; gps / net : rien ne partirait
   }
 }
 

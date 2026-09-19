@@ -22,7 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { useTabBarPadding } from '@/app/(tabs)/_layout';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
@@ -41,6 +41,7 @@ import { cockpitGeometry } from '@/lib/cockpit/geometry';
 import { TopRow } from '@/components/cockpit/TopRow';
 import { DayStrip } from '@/components/cockpit/DayStrip';
 import { StateLabel } from '@/components/cockpit/StateLabel';
+import { MissionFlow, type MissionFacts } from '@/components/provider/MissionFlow';
 import { GpsCard } from '@/components/cockpit/GpsCard';
 import { Veil } from '@/components/cockpit/Veil';
 import { MePin, DemandPin, DoorPin, RouteTrace } from '@/components/cockpit/markers';
@@ -286,6 +287,18 @@ export default function ProviderDashboard() {
   // Mission active actuelle (acceptée et en cours, non planifiée future) →
   // permet au provider qui revient sur le dashboard de re-rentrer dans la mission.
   const [currentMission, setCurrentMission] = useState<CurrentMission | null>(null);
+  // Lien profond hérité (/request/:id/ongoing → accueil ?mission=) : cette
+  // mission passe devant la dérivation, même planifiée un peu plus tôt.
+  const { mission: wantedMissionParam } = useLocalSearchParams<{ mission?: string }>();
+  const wantedMissionRef = useRef<string | null>(null);
+  if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
+  // Ce que la feuille de mission dit à l'accueil (stade, caméra, porte, hauteur).
+  const [missionFacts, setMissionFacts] = useState<MissionFacts | null>(null);
+  const [etaMin, setEtaMin] = useState<number | null>(null);
+  const currentMissionRef = useRef<CurrentMission | null>(null);
+  useEffect(() => { currentMissionRef.current = currentMission; }, [currentMission]);
+  const etaRef = useRef<number | null>(null);
+  useEffect(() => { etaRef.current = etaMin; }, [etaMin]);
   const [loading,       setLoading]        = useState(true);
   const [isOnline,      setIsOnline]       = useState(false);
   const isOnlineRef = useRef(false);
@@ -302,6 +315,7 @@ export default function ProviderDashboard() {
   // on la redemande au retour sur l'écran (l'utilisateur revient des réglages).
   const dashLocSubRef = useRef<Location.LocationSubscription | null>(null);
   const dashLastEmitRef = useRef(0);
+  const missionEmitRef = useRef(0);
   const geoGenRef = useRef(0);
   const startGeo = useCallback(async () => {
     const gen = ++geoGenRef.current;
@@ -334,6 +348,13 @@ export default function ProviderDashboard() {
         if (l.coords.heading != null) setHeading(l.coords.heading);
 
         const now = Date.now();
+        // En mission : la position (et l'ETA) partent vers le suivi du client toutes les 10 s.
+        const cm = currentMissionRef.current;
+        if (cm && now - missionEmitRef.current >= 10_000 && socket?.connected) {
+          missionEmitRef.current = now;
+          const eta = etaRef.current;
+          socket.emit('provider:location_update', { requestId: Number(cm.id), lat: c.latitude, lng: c.longitude, eta: eta != null ? `${eta} min` : undefined });
+        }
         if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnline && user?.id) {
           dashLastEmitRef.current = now;
           socket.emit('provider:location_update', { providerId: user.id, ...c });
@@ -393,7 +414,8 @@ export default function ProviderDashboard() {
       const m = (results[3].value as any)?.items || [];
       setMissions(m);
       const ACTIVE = ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
-      const found = m.find((r: any) => {
+      const wanted = wantedMissionRef.current;
+      const found = (wanted ? m.find((r: any) => String(r.id) === wanted && ACTIVE.includes(r.status)) : null) || m.find((r: any) => {
         if (!ACTIVE.includes(r.status)) return false;
         if (r.preferredTimeStart) {
           const startTs = new Date(r.preferredTimeStart).getTime();
@@ -410,6 +432,8 @@ export default function ProviderDashboard() {
     setStatsLoading(false);
     setLoading(false);
   }, []);
+  // Un lien profond vers une mission précise (ancienne route /ongoing) : on recharge pour la mettre devant.
+  useEffect(() => { if (wantedMissionParam) loadData(); }, [wantedMissionParam, loadData]);
 
   useEffect(() => { loadData(); }, [loadData]);
   // Refetch quand le provider revient sur le dashboard (après /ongoing par ex.)
@@ -713,8 +737,15 @@ export default function ProviderDashboard() {
   // pour vous », plus haute que la journée, s'ajoute en marge du cadrage.
   const stripCover = g.mapPaddingBottom;
   const mapPadding = useMemo(() => ({ top: g.mapPaddingTop, right: layout.insets.right, bottom: stripCover, left: layout.insets.left }), [g.mapPaddingTop, stripCover, layout.insets.left, layout.insets.right]);
-  const extraCover = stage === 'incoming' ? Math.max(0, Math.round(windowHeight * 0.55) - stripCover) : 0;
-  useMapCamera({ mapRef, ready: mapReady && !!camDoor, mode: cockpitCameraMode(stage), door: camDoor ?? BRUSSELS, other, sheetHeight: extraCover, topInset: 0, reduced });
+  const extraCover = stage === 'incoming'
+    ? Math.max(0, Math.round(windowHeight * 0.55) - stripCover)
+    : stage === 'busy' && missionFacts ? Math.max(0, missionFacts.sheetHeight - stripCover) : 0;
+  // En mission, la feuille décide : moi + la porte en route, la bande serrée sur place, rien pendant l'intervention.
+  const missionCam = stage === 'busy' && missionFacts ? missionFacts.mapMode : null;
+  const camMode = missionCam ?? cockpitCameraMode(stage);
+  const camAnchor = missionCam === 'band' && doorCoord ? doorCoord : (camDoor ?? BRUSSELS);
+  const camOther = missionCam === 'band' ? camDoor : other;
+  useMapCamera({ mapRef, ready: mapReady && !!camDoor, mode: camMode, door: camAnchor, other: camOther, sheetHeight: extraCover, topInset: 0, reduced });
 
   // ─── Itinéraire vers la demande ou la porte, dessiné point par point ─────
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
@@ -727,7 +758,7 @@ export default function ProviderDashboard() {
     if (routeCoords.length && t0 - lastRouteFetch.current < 30_000) return;
     lastRouteFetch.current = t0;
     let cancelled = false;
-    fetchRoute(camDoor, routeTarget).then((r) => { if (!cancelled && r.coords.length) setRouteCoords(r.coords); }).catch(() => {});
+    fetchRoute(camDoor, routeTarget).then((r) => { if (cancelled) return; setEtaMin(r.etaMin); if (r.coords.length) setRouteCoords(r.coords); }).catch(() => {});
     return () => { cancelled = true; };
   }, [routeKey, camDoor?.latitude, camDoor?.longitude]);
 
@@ -741,7 +772,6 @@ export default function ProviderDashboard() {
   const goWallet = useCallback(() => router.push('/(tabs)/wallet'), [router]);
   const goMessages = useCallback(() => router.push('/messages'), [router]);
   const goNotifs = useCallback(() => router.push('/notifications'), [router]);
-  const goMission = useCallback(() => { if (currentMission) router.push(`/request/${currentMission.id}/ongoing`); }, [router, currentMission?.id]);
   // Ma photo sur ma carte : on se reconnaît. Stable tant que le profil ne change pas.
   const meName = (user as any)?.name ?? null, meAvatar = (user as any)?.avatarUrl ?? null;
   const me = useMemo(() => ({ name: meName, avatarUrl: meAvatar }), [meName, meAvatar]);
@@ -750,16 +780,23 @@ export default function ProviderDashboard() {
   // L'écran règle le disque ; la barre le rend ; il suit sur tous les onglets.
   const setDisc = useNavStore((st) => st.setDisc);
   const discKind = providerDisc(stage);
-  const discLabel = discKind === 'go' ? t('cockpit.go_a11y') : discKind === 'stop' ? t('cockpit.stop_a11y') : discKind === 'busy' ? t('cockpit.mission_open_a11y') : undefined;
+  const discLabel = discKind === 'go' ? t('cockpit.go_a11y') : discKind === 'stop' ? t('cockpit.stop_a11y') : undefined;
   useEffect(() => {
     if (loading) return;
-    setDisc({ kind: discKind, onPress: discKind === 'busy' ? goMission : discKind === 'hidden' ? undefined : handleToggleOnline, label: discLabel });
-  }, [loading, discKind, discLabel, goMission, handleToggleOnline, setDisc]);
+    setDisc({ kind: discKind, onPress: discKind === 'hidden' ? undefined : handleToggleOnline, label: discLabel });
+  }, [loading, discKind, discLabel, handleToggleOnline, setDisc]);
   // Quitter l'accueil prestataire (déconnexion, changement de rôle) : le disque s'efface.
   useEffect(() => () => setDisc({ kind: 'hidden' }), [setDisc]);
   // La fiche « elle est pour vous » prend l'écran : la barre s'efface avec le reste.
   const setBarHidden = useNavStore((st) => st.setBarHidden);
-  useEffect(() => { setBarHidden(!loading && stage === 'incoming'); }, [loading, stage, setBarHidden]);
+  useEffect(() => { setBarHidden(!loading && (stage === 'incoming' || stage === 'busy')); }, [loading, stage, setBarHidden]);
+  // La feuille de mission rend la main : la mission est finie (ou retirée).
+  const onMissionExit = useCallback((_reason: 'done' | 'gone') => {
+    wantedMissionRef.current = null;
+    setMissionFacts(null);
+    setCurrentMission(null);
+    loadData();
+  }, [loadData]);
   useEffect(() => () => setBarHidden(false), [setBarHidden]);
   // Les badges de la barre : devis à rédiger sur Missions, virements à configurer sur Profil.
   const setBadge = useNavStore((st) => st.setBadge);
@@ -812,7 +849,7 @@ export default function ProviderDashboard() {
 
         {stage === 'busy' && doorCoord ? <DoorPin coordinate={doorCoord} /> : null}
 
-        {location ? <MePin coordinate={location} tone={meTone} heading={heading} arrow={stage === 'busy'} me={me} /> : null}
+        {location ? <MePin coordinate={location} tone={meTone} heading={heading} arrow={stage === 'busy' && (missionFacts?.stage ?? 'en_route') === 'en_route'} me={me} /> : null}
       </MapView>
 
       {/* -- Le voile : la carte s'éteint hors ligne (l'étiquette d'état, en haut, dit pourquoi) -- */}
@@ -835,11 +872,11 @@ export default function ProviderDashboard() {
       />
 
       {/* -- L'état, écrit sous la rangée du haut -- */}
-      <StateLabel stage={stage} count={incomingRequests.length} onlineSince={onlineSince} missionId={currentMission?.id ?? null} top={g.stateTop} />
+      <StateLabel stage={stage} count={incomingRequests.length} onlineSince={onlineSince} missionId={currentMission?.id ?? null} missionStage={stage === 'busy' ? missionFacts?.stage ?? null : null} missionSince={missionFacts?.startedAt ? new Date(missionFacts.startedAt).getTime() : null} top={g.stateTop} />
 
       {/* -- La journée, lisible en bas -- */}
       <DayStrip
-        visible={stage === 'off' || stage === 'on' || stage === 'busy'}
+        visible={stage === 'off' || stage === 'on'}
         bottom={stripBottom}
         left={marginLeft}
         width={contentWidth}
@@ -852,6 +889,19 @@ export default function ProviderDashboard() {
 
       {/* -- Sans position, rien n'arrive -- */}
       <GpsCard visible={stage === 'gps'} bottom={stripBottom} left={marginLeft} width={contentWidth} />
+
+      {/* -- La mission, sur l'accueil : une feuille par étape, la carte reste -- */}
+      {stage === 'busy' && currentMission ? (
+        <MissionFlow
+          key={String(currentMission.id)}
+          requestId={String(currentMission.id)}
+          myLocation={location}
+          gpsDenied={gpsDenied}
+          etaMin={etaMin}
+          onFacts={setMissionFacts}
+          onExit={onMissionExit}
+        />
+      ) : null}
 
       {/* -- Elle est pour vous -- */}
       {/* La fiche reste montée le temps de se replier (leaving) : l'accueil est déjà en mission dessous. */}

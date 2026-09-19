@@ -2510,6 +2510,16 @@
     "go_hint": "You'll receive requests near you",
     "stop_hint": "You'll stop receiving requests",
     "mission_open_a11y": "Open the current job",
-    "off_hint": "Press GO to receive requests"
+    "off_hint": "Press GO to receive requests",
+    "m_en_route": "On the way",
+    "m_on_site": "On site",
+    "m_code": "The code",
+    "m_quote": "Quote",
+    "m_working": "Job in progress",
+    "m_done": "Completed",
+    "mission_done": "Job completed",
+    "done_net": "net · paid within {{n}} days · invoice sent",
+    "done_next": "Next job",
+    "done_duration": "{{n}} min"
   }
 }

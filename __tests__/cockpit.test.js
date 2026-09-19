@@ -34,7 +34,7 @@ describe('cockpitStageOf', () => {
     expect(cockpitCameraMode('incoming')).toBe('me');
     expect(providerDisc('off')).toBe('go');
     expect(providerDisc('on')).toBe('stop');
-    expect(providerDisc('busy')).toBe('busy');
+    expect(providerDisc('busy')).toBe('hidden'); // la feuille de mission porte l'action
     expect(providerDisc('incoming')).toBe('hidden');
     expect(providerDisc('gps')).toBe('hidden');
   });

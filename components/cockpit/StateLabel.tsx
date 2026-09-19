@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
 import { usePresence } from '@/lib/motion/usePresence';
 import type { CockpitStage } from '@/lib/cockpit/stage';
+import type { ProviderStage } from '@/lib/mission/providerStage';
 import { clockOf } from '@/lib/cockpit/day';
 
 type Props = {
@@ -20,26 +21,40 @@ type Props = {
   /** Depuis quand on est en ligne (ms), pour le chrono. */
   onlineSince: number | null;
   missionId?: number | string | null;
+  /** En mission : l'étape de la feuille (en route · sur place · code · intervention · terminée). */
+  missionStage?: ProviderStage | null;
+  /** Début de l'intervention (ms) : le chrono de l'étiquette en mission. */
+  missionSince?: number | null;
   top: number;
 };
 
-function StateLabelBase({ stage, count, onlineSince, missionId, top }: Props) {
+function StateLabelBase({ stage, count, onlineSince, missionId, missionStage, missionSince, top }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const visible = stage !== 'incoming';
   const { style: presence } = usePresence(visible, { from: 'island' });
-  const [clock, setClock] = useState(() => (onlineSince ? clockOf(onlineSince, Date.now()) : ''));
+  // En mission : le chrono part du début de l'intervention (pas de la mise en ligne).
+  const since = stage === 'busy' ? (missionStage === 'working' || missionStage === 'closing' ? missionSince ?? null : null) : onlineSince;
+  const [clock, setClock] = useState(() => (since ? clockOf(since, Date.now()) : ''));
 
   // Le chrono n'existe qu'en ligne : rien ne boucle hors ligne.
   useEffect(() => {
-    if (!onlineSince || stage === 'off' || stage === 'gps' || stage === 'net') { setClock(''); return; }
-    setClock(clockOf(onlineSince, Date.now()));
-    const iv = setInterval(() => setClock(clockOf(onlineSince, Date.now())), 1000);
+    if (!since || stage === 'off' || stage === 'gps' || stage === 'net') { setClock(''); return; }
+    setClock(clockOf(since, Date.now()));
+    const iv = setInterval(() => setClock(clockOf(since, Date.now())), 1000);
     return () => clearInterval(iv);
-  }, [onlineSince, stage]);
+  }, [since, stage]);
 
-  const tone = stage === 'busy' ? COLORS.amber : stage === 'gps' || stage === 'net' ? theme.danger : stage === 'off' ? theme.textMuted : COLORS.greenBrand;
-  const title = stage === 'busy' ? t('cockpit.busy') : stage === 'gps' ? t('cockpit.gps_title') : stage === 'net' ? t('cockpit.net_title') : stage === 'off' ? t('cockpit.invisible') : t('cockpit.online');
+  const done = stage === 'busy' && missionStage === 'done';
+  const tone = done ? COLORS.greenBrand : stage === 'busy' ? COLORS.amber : stage === 'gps' || stage === 'net' ? theme.danger : stage === 'off' ? theme.textMuted : COLORS.greenBrand;
+  const missionTitle = missionStage === 'en_route' ? t('cockpit.m_en_route')
+    : missionStage === 'on_site' ? t('cockpit.m_on_site')
+      : missionStage === 'code' ? t('cockpit.m_code')
+        : missionStage === 'quote_write' || missionStage === 'quote_wait' ? t('cockpit.m_quote')
+          : missionStage === 'working' || missionStage === 'closing' ? t('cockpit.m_working')
+            : missionStage === 'done' ? t('cockpit.m_done')
+              : t('cockpit.busy');
+  const title = stage === 'busy' ? missionTitle : stage === 'gps' ? t('cockpit.gps_title') : stage === 'net' ? t('cockpit.net_title') : stage === 'off' ? t('cockpit.invisible') : t('cockpit.online');
   const sub = stage === 'busy'
     ? [missionId != null ? t('cockpit.mission_n', { id: missionId }) : null, clock].filter(Boolean).join(' · ')
     : stage === 'gps'

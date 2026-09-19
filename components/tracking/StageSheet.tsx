@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView, type BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { useLayoutClass } from '@/lib/layout';
 
@@ -28,9 +28,11 @@ type Props = {
   children: React.ReactNode;
   /** La feuille pousse le contenu au-dessus du clavier (saisie du code). */
   keyboard?: boolean;
+  /** `green` : la feuille vire au vert de la marque (mission terminée). */
+  tone?: 'default' | 'green';
 };
 
-export function StageSheet({ levels, level, onHeightChange, footer, children, keyboard = false }: Props) {
+export function StageSheet({ levels, level, onHeightChange, footer, children, keyboard = false, tone = 'default' }: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useLayoutClass();
@@ -59,13 +61,16 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
 
   // Le pied descend jusqu'au bord de l'écran (l'inset bas est DANS le pied) :
   // rien du contenu ne transparaît sous les CTA dans la zone de l'indicateur.
+  const green = tone === 'green';
+  const bg = green ? COLORS.greenBrand : (theme.cardBg as string);
+  const hairline = green ? 'rgba(10,10,10,0.15)' : (theme.borderLight as string);
   const renderFooter = useCallback((props: BottomSheetFooterProps) => (
     footer ? (
       <BottomSheetFooter {...props} bottomInset={0}>
-        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: theme.cardBg, borderTopColor: theme.borderLight }]}>{footer}</View>
+        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: bg, borderTopColor: hairline }]}>{footer}</View>
       </BottomSheetFooter>
     ) : null
-  ), [footer, insets.bottom, theme.cardBg, theme.borderLight]);
+  ), [footer, insets.bottom, bg, hairline]);
 
   return (
     <BottomSheet
@@ -81,8 +86,8 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       onAnimate={motion.onAnimate}
       onChange={onChange}
       handleComponent={isPage ? null : undefined}
-      handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }}
-      backgroundStyle={{ backgroundColor: theme.cardBg, borderTopLeftRadius: isPage ? 0 : 28, borderTopRightRadius: isPage ? 0 : 28 }}
+      handleIndicatorStyle={{ backgroundColor: green ? 'rgba(10,10,10,0.25)' : theme.textDisabled, width: 36, height: 4 }}
+      backgroundStyle={{ backgroundColor: bg, borderTopLeftRadius: isPage ? 0 : 28, borderTopRightRadius: isPage ? 0 : 28 }}
       topInset={isPage ? 0 : insets.top + 64}
       keyboardBehavior={keyboard ? 'extend' : 'interactive'}
       keyboardBlurBehavior="restore"

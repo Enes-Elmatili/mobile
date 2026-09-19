@@ -2392,6 +2392,16 @@
     "go_hint": "Vous recevrez les demandes autour de vous",
     "stop_hint": "Vous ne recevrez plus de demandes",
     "mission_open_a11y": "Ouvrir la mission en cours",
-    "off_hint": "Appuyez sur GO pour recevoir les demandes"
+    "off_hint": "Appuyez sur GO pour recevoir les demandes",
+    "m_en_route": "En route",
+    "m_on_site": "Sur place",
+    "m_code": "Le code",
+    "m_quote": "Devis",
+    "m_working": "Intervention",
+    "m_done": "Terminée",
+    "mission_done": "Mission terminée",
+    "done_net": "net · versé sous {{n}} jours · facture envoyée",
+    "done_next": "Mission suivante",
+    "done_duration": "{{n}} min"
   }
 }
