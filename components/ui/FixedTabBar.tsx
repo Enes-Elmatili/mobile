@@ -100,6 +100,7 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
   const reduced = useReduceMotion();
   const disc = useNavStore((st) => st.disc);
   const badges = useNavStore((st) => st.badges);
+  const barHidden = useNavStore((st) => st.barHidden);
 
   // Onglets visibles. Expo Router ne transmet PAS `href` aux descripteurs :
   // il le retire des options et marque la route cachée (`href: null`) avec
@@ -140,6 +141,17 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
 
   const bottom = tabBarBottom(insets.bottom);
   const discNode = <ActionDisc kind={disc.kind} onPress={disc.onPress} label={disc.label} />;
+
+  // La barre glisse sous l'écran quand une fiche prend tout l'écran (demande
+  // entrante) ; elle repart de sa position courante si l'état change en route.
+  const away = useSharedValue(barHidden ? 1 : 0);
+  useEffect(() => {
+    away.value = reduced ? withTiming(barHidden ? 1 : 0, { duration: 150 }) : withSpring(barHidden ? 1 : 0, MOTION.tab);
+  }, [barHidden, reduced, away]);
+  const awayStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: away.value * (TAB_BAR_HEIGHT + bottom + 24) }],
+    opacity: 1 - away.value * 0.4,
+  }));
 
   const items = routes.map((route) => {
     const { options } = descriptors[route.key];
@@ -185,13 +197,13 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
             {items}
           </View>
         </View>
-        <View style={[s.discSlot, { right: TAB_BAR_MARGIN + 8 + insets.right, bottom }]} pointerEvents="box-none">{discNode}</View>
+        <Animated.View style={[s.discSlot, { right: TAB_BAR_MARGIN + 8 + insets.right, bottom }, awayStyle]} pointerEvents={barHidden ? 'none' : 'box-none'}>{discNode}</Animated.View>
       </>
     );
   }
 
   return (
-    <View style={[s.float, { bottom, left: TAB_BAR_MARGIN + insets.left, right: TAB_BAR_MARGIN + insets.right }]} pointerEvents="box-none">
+    <Animated.View style={[s.float, { bottom, left: TAB_BAR_MARGIN + insets.left, right: TAB_BAR_MARGIN + insets.right }, awayStyle]} pointerEvents={barHidden ? 'none' : 'box-none'}>
       <View style={s.pill}>
         <GlassSurface style={s.pillShape} interactive />
         <View style={s.track} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -201,7 +213,7 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
       </View>
       <View style={s.discGap} pointerEvents="none" />
       {discNode}
-    </View>
+    </Animated.View>
   );
 }
 

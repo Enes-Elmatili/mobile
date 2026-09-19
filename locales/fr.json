@@ -2391,6 +2391,7 @@
     "unread_other": "{{count}} non lus",
     "go_hint": "Vous recevrez les demandes autour de vous",
     "stop_hint": "Vous ne recevrez plus de demandes",
-    "mission_open_a11y": "Ouvrir la mission en cours"
+    "mission_open_a11y": "Ouvrir la mission en cours",
+    "off_hint": "Appuyez sur GO pour recevoir les demandes"
   }
 }

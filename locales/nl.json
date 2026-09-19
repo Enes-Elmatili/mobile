@@ -2509,6 +2509,7 @@
     "unread_other": "{{count}} ongelezen",
     "go_hint": "Je ontvangt aanvragen bij jou in de buurt",
     "stop_hint": "Je ontvangt geen aanvragen meer",
-    "mission_open_a11y": "Lopende opdracht openen"
+    "mission_open_a11y": "Lopende opdracht openen",
+    "off_hint": "Druk op GO om aanvragen te ontvangen"
   }
 }

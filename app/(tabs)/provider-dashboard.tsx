@@ -658,6 +658,10 @@ export default function ProviderDashboard() {
   }, [loading, discKind, discLabel, goMission, handleToggleOnline, setDisc]);
   // Quitter l'accueil prestataire (déconnexion, changement de rôle) : le disque s'efface.
   useEffect(() => () => setDisc({ kind: 'hidden' }), [setDisc]);
+  // La fiche « elle est pour vous » prend l'écran : la barre s'efface avec le reste.
+  const setBarHidden = useNavStore((st) => st.setBarHidden);
+  useEffect(() => { setBarHidden(!loading && stage === 'incoming'); }, [loading, stage, setBarHidden]);
+  useEffect(() => () => setBarHidden(false), [setBarHidden]);
   // Les badges de la barre : devis à rédiger sur Missions, virements à configurer sur Profil.
   const setBadge = useNavStore((st) => st.setBadge);
   const quotesToWrite = useMemo(() => reminders.filter((r) => r.kind === 'quote').length, [reminders]);

@@ -2509,6 +2509,7 @@
     "unread_other": "{{count}} unread",
     "go_hint": "You'll receive requests near you",
     "stop_hint": "You'll stop receiving requests",
-    "mission_open_a11y": "Open the current job"
+    "mission_open_a11y": "Open the current job",
+    "off_hint": "Press GO to receive requests"
   }
 }

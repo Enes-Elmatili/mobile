@@ -47,7 +47,7 @@ function StateLabelBase({ stage, count, onlineSince, missionId, top }: Props) {
       : stage === 'net'
         ? t('cockpit.net_veil')
         : stage === 'off'
-          ? t('cockpit.go_hint')
+          ? t('cockpit.off_hint')
           : [count > 0 ? t('cockpit.demand_count', { count }) : t('cockpit.demand_none'), clock].filter(Boolean).join(' · ');
 
   return (

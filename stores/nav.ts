@@ -25,6 +25,9 @@ export type Badges = {
 type NavState = {
   disc: Disc;
   setDisc: (d: Disc) => void;
+  /** La barre s'efface (glisse sous l'écran) quand une fiche prend tout l'écran. */
+  barHidden: boolean;
+  setBarHidden: (hidden: boolean) => void;
   badges: Badges;
   setBadge: (tab: keyof Badges, value: number | string | null) => void;
 };
@@ -32,6 +35,8 @@ type NavState = {
 export const useNavStore = create<NavState>((set) => ({
   disc: { kind: 'hidden' },
   setDisc: (disc) => set({ disc }),
+  barHidden: false,
+  setBarHidden: (barHidden) => set((s) => (s.barHidden === barHidden ? s : { barHidden })),
   badges: {},
   setBadge: (tab, value) => set((s) => (s.badges[tab] === value ? s : { badges: { ...s.badges, [tab]: value } })),
 }));
