@@ -9,10 +9,11 @@
 // en bas, le gain du jour au centre du haut (spec 2026-09-17-provider-cockpit-go).
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { useLayoutClass } from '@/lib/layout';
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
+import Reanimated, { Easing, useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
+import { MOTION } from '@/lib/motion/springs';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
 import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
@@ -92,6 +93,7 @@ function IncomingJobCard({
   request,
   onAccept,
   onDecline,
+  leaving,
   bottom,
   insetBottom,
   maxWidth,
@@ -99,6 +101,8 @@ function IncomingJobCard({
   request: IncomingRequest;
   onAccept: () => void;
   onDecline: () => void;
+  /** Le serveur a confirmé : la fiche se replie vers le bas, l'accueil passe en mission. */
+  leaving: boolean;
   /** Bord bas de la fiche (0 : elle descend jusqu'au bord ; la barre s'est effacée). */
   bottom: number;
   /** Inset bas du device, DANS la fiche : rien de la carte ne transparaît dessous. */
@@ -110,20 +114,60 @@ function IncomingJobCard({
   const { t } = useTranslation();
   const reduced    = useReduceMotion();
   const slideUp    = useSharedValue(400);
+  const fade       = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
   const [expired, setExpired] = useState(false);
-  // Le moment de l'acceptation : la fiche vire au vert, une fois, pendant que
-  // le serveur confirme et que la mission s'ouvre. L'haptique est déjà partie
-  // sur la frame du glissé (useSlideToConfirm).
+  // Le moment de l'acceptation, en UN mouvement, sur le même écran : le vert
+  // part du bout du curseur et gagne toute la fiche (un disque qui s'ouvre),
+  // le contenu s'efface dessous, la coche prend, les lignes montent l'une
+  // après l'autre ; puis, quand le serveur a confirmé, la fiche se replie
+  // vers le bas et l'accueil est déjà en mission (carte recadrée sur la porte,
+  // tracé, étiquette ambre, flèche dans le disque). L'haptique est partie sur
+  // la frame du glissé.
   const [accepted, setAccepted] = useState(false);
-  const green = useSharedValue(0);
-  const greenStyle = useAnimatedStyle(() => ({ opacity: green.value }));
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const reveal = useSharedValue(0);
+  const check = useSharedValue(0);
+  const line1 = useSharedValue(0);
+  const line2 = useSharedValue(0);
+  const line3 = useSharedValue(0);
   const accept = useCallback(() => {
     if (accepted) return;
     setAccepted(true);
-    green.value = withTiming(1, { duration: reduced ? 120 : 260 });
+    if (reduced) {
+      // Règle 8 : fondu, sans course.
+      reveal.value = withTiming(1, { duration: 180 });
+      check.value = withTiming(1, { duration: 180 });
+      line1.value = withTiming(1, { duration: 180 });
+      line2.value = withTiming(1, { duration: 180 });
+      line3.value = withTiming(1, { duration: 180 });
+    } else {
+      reveal.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
+      check.value = withDelay(220, withSpring(1, MOTION.take));
+      line1.value = withDelay(320, withSpring(1, MOTION.pane));
+      line2.value = withDelay(400, withSpring(1, MOTION.pane));
+      line3.value = withDelay(470, withSpring(1, MOTION.pane));
+    }
     onAccept();
-  }, [accepted, green, onAccept, reduced]);
+  }, [accepted, reduced, reveal, check, line1, line2, line3, onAccept]);
+  useEffect(() => {
+    if (!leaving) return;
+    // Repli : la fiche descend et s'efface, en partant de sa position courante.
+    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withTiming(Math.max(size.h, 400) + 80, { duration: 360, easing: Easing.in(Easing.cubic) });
+    fade.value = withTiming(0, { duration: reduced ? 200 : 300 });
+  }, [leaving, reduced, slideUp, fade, size.h]);
+
+  // Le disque vert : centré sur le bout du curseur, assez grand pour couvrir la fiche.
+  const D = Math.ceil(2 * Math.hypot(size.w, size.h)) || 1;
+  const cx = size.w - 20 - 30;
+  const cy = size.h - Math.max(insetBottom, 12) - 12 - 44 - 29;
+  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: reduced ? 1 : reveal.value }], opacity: reduced ? reveal.value : 1 }));
+  const contentStyle = useAnimatedStyle(() => ({ opacity: 1 - Math.min(1, reveal.value * 1.8) }));
+  const checkStyle = useAnimatedStyle(() => ({ opacity: check.value, transform: [{ scale: 0.4 + 0.6 * check.value }, { rotate: `${(1 - check.value) * -24}deg` }] }));
+  // Pas d'aide partagée ici : un worklet n'appelle jamais une fonction de sa fermeture.
+  const line1Style = useAnimatedStyle(() => ({ opacity: line1.value, transform: [{ translateY: (1 - line1.value) * 12 }] }));
+  const line2Style = useAnimatedStyle(() => ({ opacity: line2.value, transform: [{ translateY: (1 - line2.value) * 12 }] }));
+  const line3Style = useAnimatedStyle(() => ({ opacity: line3.value, transform: [{ translateY: (1 - line3.value) * 12 }] }));
 
   useEffect(() => {
     if (reduced) {
@@ -136,7 +180,7 @@ function IncomingJobCard({
     return () => { cancelAnimation(slideUp); };
   }, [reduced, slideUp]);
 
-  const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }] }));
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideUp.value }], opacity: fade.value }));
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -164,23 +208,27 @@ function IncomingJobCard({
         style={jc.topFade}
         pointerEvents="none"
       />
-      <View style={[jc.sheet, { backgroundColor: sheetBg, paddingBottom: Math.max(insetBottom, 12) + 12 }]}>
-        <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
-        {/* Fiche mission (planche 2A) : quoi, photos, faits, gain, glissé. */}
-        <IncomingMissionCard
-          brief={request.brief}
-          timeLeft={timeLeft}
-          total={TIMER_DURATION}
-          expired={expired}
-          onAccept={accept}
-          onDecline={onDecline}
-        />
-        {/* La fiche en vert : « Mission acceptée », le titre, l'adresse. */}
-        <Reanimated.View style={[StyleSheet.absoluteFill, jc.accepted, { paddingBottom: Math.max(insetBottom, 12) + 12 }, greenStyle]} pointerEvents={accepted ? 'auto' : 'none'} accessibilityLiveRegion="polite">
-          <View style={jc.acceptedCheck}><Feather name="check" size={30} color={COLORS.greenBrand} /></View>
-          <Text style={jc.acceptedTitle} maxFontSizeMultiplier={1.2}>{t('cockpit.mission_accepted').toUpperCase()}</Text>
-          {request.brief.service.name ? <Text style={jc.acceptedSub} numberOfLines={1} maxFontSizeMultiplier={1.2}>{request.brief.service.name}</Text> : null}
-          {request.brief.place.address ? <Text style={jc.acceptedAddr} numberOfLines={2} maxFontSizeMultiplier={1.2}>{request.brief.place.address}</Text> : null}
+      <View style={[jc.sheet, { backgroundColor: sheetBg, paddingBottom: Math.max(insetBottom, 12) + 12 }]} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+        <Reanimated.View style={contentStyle} pointerEvents={accepted ? 'none' : 'auto'}>
+          <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
+          {/* Fiche mission (planche 2A) : quoi, photos, faits, gain, glissé. */}
+          <IncomingMissionCard
+            brief={request.brief}
+            timeLeft={timeLeft}
+            total={TIMER_DURATION}
+            expired={expired}
+            onAccept={accept}
+            onDecline={onDecline}
+          />
+        </Reanimated.View>
+        {/* Le disque vert qui s'ouvre depuis le bout du curseur. */}
+        <Reanimated.View style={[jc.disc, { width: D, height: D, borderRadius: D / 2, left: cx - D / 2, top: cy - D / 2 }, discStyle]} pointerEvents="none" />
+        {/* « Mission acceptée », la prestation, l'adresse. */}
+        <Reanimated.View style={[StyleSheet.absoluteFill, jc.accepted, { paddingBottom: Math.max(insetBottom, 12) + 12 }]} pointerEvents="none" accessibilityLiveRegion="polite" accessibilityElementsHidden={!accepted}>
+          <Reanimated.View style={[jc.acceptedCheck, checkStyle]}><Feather name="check" size={30} color={COLORS.greenBrand} /></Reanimated.View>
+          <Reanimated.Text style={[jc.acceptedTitle, line1Style]} maxFontSizeMultiplier={1.2}>{t('cockpit.mission_accepted').toUpperCase()}</Reanimated.Text>
+          {request.brief.service.name ? <Reanimated.Text style={[jc.acceptedSub, line2Style]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{request.brief.service.name}</Reanimated.Text> : null}
+          {request.brief.place.address ? <Reanimated.Text style={[jc.acceptedAddr, line3Style]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{request.brief.place.address}</Reanimated.Text> : null}
         </Reanimated.View>
       </View>
     </Reanimated.View>
@@ -194,9 +242,10 @@ const jc = StyleSheet.create({
     elevation: 28,
   },
   topFade: { height: 56 },
-  sheet: {},
+  sheet: { overflow: 'hidden' },
   handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
-  accepted: { backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 6 },
+  disc: { position: 'absolute', backgroundColor: COLORS.greenBrand },
+  accepted: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 6 },
   acceptedCheck: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   acceptedTitle: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1.5, color: '#0A0A0A', includeFontPadding: false },
   acceptedSub: { fontFamily: FONTS.sansMedium, fontSize: 15, color: 'rgba(10,10,10,0.85)' },
@@ -231,6 +280,8 @@ export default function ProviderDashboard() {
   const [missions,      setMissions]       = useState<MissionLite[]>([]);
   const [connect,       setConnect]        = useState<{ needsOnboarding?: boolean; payoutsEnabled?: boolean } | null>(null);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
+  // La demande acceptée dont la mission s'ouvre : la fiche fait monter son vert sur l'écran.
+  const [leavingId, setLeavingId] = useState<string | null>(null);
 
   // Mission active actuelle (acceptée et en cours, non planifiée future) →
   // permet au provider qui revient sur le dashboard de re-rentrer dans la mission.
@@ -578,14 +629,15 @@ export default function ProviderDashboard() {
     if (!user?.id) return;
 
     // La fiche est déjà verte (IncomingJobCard) ; on la laisse se lire ~0,9 s
-    // avant d'ouvrir la mission, même si le serveur répond plus vite.
+    // avant de continuer, même si le serveur répond plus vite. Puis elle se
+    // replie (leaving) et l'accueil est déjà en mission : pas d'autre page.
     const t0 = Date.now();
-    const dwell = () => new Promise<void>((r) => setTimeout(r, Math.max(0, 900 - (Date.now() - t0))));
+    const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    const dwell = () => wait(Math.max(0, 900 - (Date.now() - t0)));
     try {
       const res: any = await api.post(`/requests/${request.requestId}/accept`);
       if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
         await dwell();
-        setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
 
         // Mission planifiée pour plus tard ? Pas de redirection vers /ongoing — la mission
         // n'est pas encore active (pas sur place, pas de PIN à vérifier). Elle ira dans
@@ -594,10 +646,23 @@ export default function ProviderDashboard() {
         const isFutureScheduled = startTs != null && startTs > Date.now() + 30 * 60 * 1000;
 
         if (isFutureScheduled) {
+          setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
           feedback.info('provider.mission_accepted_scheduled_msg');
           loadData();
         } else {
-          router.replace(`/request/${request.requestId}/ongoing`);
+          // L'accueil passe en mission tout de suite (stade busy : caméra sur la
+          // porte, tracé, étiquette ambre, flèche) pendant que la fiche se replie.
+          const d = res?.data ?? {};
+          setCurrentMission({
+            id: Number(request.requestId), serviceType: d.serviceType ?? request.title ?? null, status: d.status ?? 'ACCEPTED',
+            address: d.address ?? request.address ?? null, clientName: d.client?.name ?? request.client?.name ?? null,
+            lat: d.lat ?? request.latitude ?? null, lng: d.lng ?? request.longitude ?? null,
+          });
+          setLeavingId(request.requestId);
+          await wait(reduced ? 220 : 380);
+          setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
+          setLeavingId(null);
+          loadData();
         }
       } else {
         throw new Error(res?.message || t('common.error'));
@@ -613,7 +678,7 @@ export default function ProviderDashboard() {
         feedback.error(msg);
       }
     }
-  }, [user?.id, router, loadData]);
+  }, [user?.id, router, loadData, reduced]);
 
   // Explicit decline ("Passer") — refuse backend + never show again
   const handleDecline = useCallback(async (requestId: string) => {
@@ -789,7 +854,8 @@ export default function ProviderDashboard() {
       <GpsCard visible={stage === 'gps'} bottom={stripBottom} left={marginLeft} width={contentWidth} />
 
       {/* -- Elle est pour vous -- */}
-      {activeJob && stage === 'incoming' && (
+      {/* La fiche reste montée le temps de se replier (leaving) : l'accueil est déjà en mission dessous. */}
+      {activeJob && (stage === 'incoming' || leavingId === activeJob.requestId) && (
         <IncomingJobCard
           // Une nouvelle carte = un nouveau compte à rebours et un curseur
           // vierge : sans clé, l'instance (et son état « confirmé ») survit
@@ -798,6 +864,7 @@ export default function ProviderDashboard() {
           request={activeJob}
           onAccept={() => handleAccept(activeJob)}
           onDecline={() => handleDecline(activeJob.requestId)}
+          leaving={leavingId === activeJob.requestId}
           bottom={0}
           insetBottom={layout.insets.bottom}
           maxWidth={layout.isRegular ? 560 : null}
