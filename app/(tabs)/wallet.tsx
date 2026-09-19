@@ -169,7 +169,7 @@ export default function WalletTab() {
         if (lastPaid) out.push({ key: 'last', kind: 'bank', icon: 'check', title: t('gains.paid_out', { amount: formatEURCents(lastPaid.amount, 0), date: formatDay(lastPaid.arrivalDate ?? lastPaid.createdAt, lang) }), sub: bankLabel });
       }
       if (months.length === 0) {
-        out.push({ key: 'empty', kind: 'empty', title: t('gains.empty_title'), sub: t('gains.empty_sub'), cta: ready ? { label: t('gains.go_online'), onPress: () => router.push('/(tabs)/provider-dashboard') } : undefined });
+        out.push({ key: 'empty', kind: 'empty', title: t('gains.empty_title'), sub: t('gains.empty_sub'), cta: ready ? { label: t('gains.go_online'), onPress: () => router.push('/(tabs)/dashboard') } : undefined });
       }
       months.forEach((g, i) => {
         out.push({ key: `m-${g.key}`, kind: 'month', group: g, index: i });

@@ -76,7 +76,7 @@ export type LoginRoute =
   | { pathname: '/(auth)/role-select' }
   | { pathname: '/(auth)/complete-profile'; params: { missingFields: string } }
   | { pathname: '/onboarding/provider/pending' }
-  | { pathname: '/(tabs)/provider-dashboard' }
+  | { pathname: '/(tabs)/dashboard' }
   | { pathname: '/(tabs)/dashboard' };
 
 /**
@@ -105,7 +105,7 @@ export function routeAfterLogin(outcome: LoginOutcome): LoginRoute {
 
   if (roles.includes('PROVIDER')) {
     return outcome.providerStatus === 'ACTIVE'
-      ? { pathname: '/(tabs)/provider-dashboard' }
+      ? { pathname: '/(tabs)/dashboard' }
       : { pathname: '/onboarding/provider/pending' };
   }
 

@@ -187,7 +187,7 @@ export default function PendingValidation() {
       for (let attempt = 0; attempt < 5; attempt++) {
         const me = await refreshMe().catch(() => null);
         if (me?.providerStatus === "ACTIVE") {
-          router.replace("/(tabs)/provider-dashboard");
+          router.replace("/(tabs)/dashboard");
           return;
         }
         await new Promise((r) => setTimeout(r, 1500));

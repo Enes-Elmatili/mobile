@@ -39,7 +39,7 @@ import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ProviderDashboard from '../../app/(tabs)/provider-dashboard';
+import ProviderDashboard from '@/components/provider/ProviderDashboard';
 import { useTabBarPadding } from './_layout';
 import { useNavStore, clientDisc } from '@/stores/nav';
 import { formatEUR } from '@/lib/format';
@@ -998,7 +998,16 @@ function DashboardSkeleton({ theme }: { theme: AppTheme }) {
 const PREVIEW_COUNT = 3;
 const EXPANDED_COUNT = 6;
 
+// L'onglet Accueil : l'accueil prestataire pour un prestataire (une seule
+// instance dans toute l'app), l'accueil client sinon — sans monter les hooks
+// de l'un pour l'autre.
 export default function Dashboard() {
+  const { user } = useAuth();
+  const isProvider = !!user?.roles?.includes('PROVIDER');
+  return isProvider ? <ProviderDashboard /> : <ClientDashboard />;
+}
+
+function ClientDashboard() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
@@ -1282,14 +1291,11 @@ export default function Dashboard() {
   const hasMore = totalCount > PREVIEW_COUNT;
 
   // ── Le disque de la barre flottante : « + » au repos, la flèche quand une demande vit ──
-  // Réglé ici, rendu par la barre, il suit sur Documents et Profil. Le
-  // prestataire règle le sien depuis ProviderDashboard : on ne l'écrase pas.
-  const isProviderUser = !!user?.roles?.includes('PROVIDER');
+  // Réglé ici, rendu par la barre, il suit sur Documents et Profil.
   const setDisc = useNavStore((st) => st.setDisc);
   const liveMission = activeMission || searchingMission;
   const liveMissionId = liveMission?.id ?? null;
   useEffect(() => {
-    if (isProviderUser) return;
     const kind = clientDisc(!!liveMission);
     setDisc({
       kind,
@@ -1297,11 +1303,8 @@ export default function Dashboard() {
       onPress: kind === 'track' ? () => { if (liveMission) navigateToMissionView(liveMission); } : () => router.push('/request/NewRequestStepper'),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- la mission suivie ne change que par son id
-  }, [isProviderUser, liveMissionId, liveMission?.status, t, setDisc, navigateToMissionView, router]);
-  useEffect(() => () => { if (!isProviderUser) setDisc({ kind: 'hidden' }); }, [isProviderUser, setDisc]);
-
-  // ── Guards ──
-  if (isProviderUser) return <ProviderDashboard />;
+  }, [liveMissionId, liveMission?.status, t, setDisc, navigateToMissionView, router]);
+  useEffect(() => () => setDisc({ kind: 'hidden' }), [setDisc]);
 
   // Skeleton shell during cold load — prevents layout reflow when data lands
   if (loading && !refreshing && !data) {

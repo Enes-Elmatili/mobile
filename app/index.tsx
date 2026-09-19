@@ -33,7 +33,7 @@ export default function Index() {
   const isProvider = user.roles?.includes('PROVIDER');
   if (isProvider) {
     if (user.providerStatus === 'ACTIVE') {
-      return <Redirect href="/(tabs)/provider-dashboard" />;
+      return <Redirect href="/(tabs)/dashboard" />;
     }
     return <Redirect href="/onboarding/provider/pending" />;
   }

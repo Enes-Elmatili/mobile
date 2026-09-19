@@ -322,7 +322,7 @@ export default function FormulesScreen() {
         <View style={[s.header, { borderBottomColor: G.border }]}>
           <TouchableOpacity
             style={[s.backBtn, { backgroundColor: G.scrim }]}
-            onPress={() => { feedback.haptic('light'); router.canGoBack() ? router.back() : router.replace('/(tabs)/provider-dashboard' as any); }}
+            onPress={() => { feedback.haptic('light'); router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard' as any); }}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}

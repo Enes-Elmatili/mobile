@@ -167,7 +167,7 @@ function RootLayoutNav() {
         if (isProvider) {
           const ps = user?.providerStatus;
           if (ps === 'ACTIVE') {
-            router.replace('/(tabs)/provider-dashboard');
+            router.replace('/(tabs)/dashboard');
           } else {
             router.replace('/onboarding/provider/pending');
           }

@@ -143,12 +143,12 @@ export default function MissionOngoing() {
       if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
         if (attempt < RETRY_MAX) { setLoading(true); await sleep(RETRY_DELAY); return loadRequest(attempt + 1); }
         feedback.error('missions.load_error');
-        router.replace('/(tabs)/provider-dashboard');
+        router.replace('/(tabs)/dashboard');
         return;
       }
       if (!['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(st)) {
         if (st === 'DONE') router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id) } });
-        else router.replace('/(tabs)/provider-dashboard');
+        else router.replace('/(tabs)/dashboard');
         return;
       }
       // Mission planifiée hors fenêtre (> 30 min avant) → écran d'attente dédié.
@@ -169,7 +169,7 @@ export default function MissionOngoing() {
       }
     } catch {
       feedback.error('missions.load_error');
-      if (router.canGoBack()) router.back(); else router.replace('/(tabs)/provider-dashboard');
+      if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard');
     } finally {
       setLoading(false);
     }
@@ -189,7 +189,7 @@ export default function MissionOngoing() {
   const handleLeave = useCallback(async () => {
     const ok = await feedback.confirm({ title: t('ext.ongoing_leave_title'), message: t('ext.ongoing_leave_msg'), confirm: t('ext.leave'), cancel: t('ext.stay') });
     if (!ok) return;
-    if (router.canGoBack()) router.back(); else router.replace('/(tabs)/provider-dashboard');
+    if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard');
   }, [router, t]);
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleLeave(); return true; });
@@ -300,9 +300,9 @@ export default function MissionOngoing() {
     joinRoom('request', String(id));
     const same = (d: any) => String(d?.requestId ?? d?.id) === String(id);
     const stop = () => { if (locationSub.current) { locationSub.current.remove(); locationSub.current = null; } };
-    const onCancelled = (d: any) => { if (d?.reason === 'admin_reassign' || !same(d)) return; stop(); router.replace('/(tabs)/provider-dashboard'); };
+    const onCancelled = (d: any) => { if (d?.reason === 'admin_reassign' || !same(d)) return; stop(); router.replace('/(tabs)/dashboard'); };
     const onStatusUpdated = (d: any) => { if (same(d)) loadRequest(); };
-    const onUnassigned = (d: any) => { if (!same(d)) return; stop(); feedback.info('ext.ongoing_unassigned_msg'); router.replace('/(tabs)/provider-dashboard'); };
+    const onUnassigned = (d: any) => { if (!same(d)) return; stop(); feedback.info('ext.ongoing_unassigned_msg'); router.replace('/(tabs)/dashboard'); };
     socket.on('request:cancelled', onCancelled);
     socket.on('request:unassigned', onUnassigned);
     socket.on('request:statusUpdated', onStatusUpdated);
@@ -351,7 +351,7 @@ export default function MissionOngoing() {
         try {
           await api.post(`/requests/${id}/cancel`, { reason: 'provider_abandon' });
           feedback.haptic('warning');
-          router.replace('/(tabs)/provider-dashboard');
+          router.replace('/(tabs)/dashboard');
         } catch (err: any) {
           devError('[abandon]', err?.message);
           feedback.error('ext.ongoing_abandon_failed');

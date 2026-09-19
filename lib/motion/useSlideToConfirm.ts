@@ -57,7 +57,10 @@ export function useSlideToConfirm(opts: { trackWidth: number; knobSize: number; 
   );
 
   const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  const fillStyle = useAnimatedStyle(() => ({ width: x.value + knobSize }));
+  // Le remplissage n'existe qu'une fois le curseur parti : au repos, rien ne
+  // dépasse derrière lui ; en route, une pilule ronde qui l'enveloppe (3 pt
+  // de marge de chaque côté, comme sa position dans la piste).
+  const fillStyle = useAnimatedStyle(() => ({ width: x.value > 1 ? x.value + knobSize + 6 : 0 }));
   const labelStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, 1 - (x.value / Math.max(1, track)) * 1.4) }));
 
   const reset = useCallback(() => {

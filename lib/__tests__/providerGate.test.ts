@@ -122,7 +122,7 @@ describe('routeAfterLogin — où envoyer un compte qui vient de se connecter', 
 
   it('prestataire ACTIVE → dashboard prestataire', () => {
     expect(routeAfterLogin({ roles: ['PROVIDER'], profileIncomplete: false, missingFields: [], providerStatus: 'ACTIVE' }))
-      .toEqual({ pathname: '/(tabs)/provider-dashboard' });
+      .toEqual({ pathname: '/(tabs)/dashboard' });
   });
 
   it('client → dashboard client', () => {

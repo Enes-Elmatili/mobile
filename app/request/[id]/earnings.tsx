@@ -69,7 +69,7 @@ export default function EarningsScreen() {
     return (
       <View style={[s.center, { backgroundColor: theme.bg }]}>
         <Text style={[s.err, { color: theme.textMuted }]}>{t('ext.earnings_cant_load')}</Text>
-        <Pressable onPress={() => router.replace('/(tabs)/provider-dashboard')} accessibilityRole="button" style={s.link}><Text style={[s.linkText, { color: theme.text }]}>{t('gains.earn_next')}</Text></Pressable>
+        <Pressable onPress={() => router.replace('/(tabs)/dashboard')} accessibilityRole="button" style={s.link}><Text style={[s.linkText, { color: theme.text }]}>{t('gains.earn_next')}</Text></Pressable>
       </View>
     );
   }
@@ -109,7 +109,7 @@ export default function EarningsScreen() {
             {rating ? <View style={[s.fact, { backgroundColor: theme.surface }]}><Text style={[s.factValue, { color: theme.text }]}>{rating}</Text><Text style={[s.factLabel, { color: theme.textMuted }]}>{t('gains.earn_rating').toUpperCase()}</Text></View> : null}
           </View>
 
-          <Pressable style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); router.replace('/(tabs)/provider-dashboard'); }} accessibilityRole="button" accessibilityLabel={t('gains.earn_next')}>
+          <Pressable style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); router.replace('/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('gains.earn_next')}>
             <Text style={[s.ctaText, { color: theme.accentText }]}>{t('gains.earn_next').toUpperCase()}</Text>
           </Pressable>
           {invoice ? (

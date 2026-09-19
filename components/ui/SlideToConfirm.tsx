@@ -55,7 +55,9 @@ export function SlideToConfirm({ label, doneLabel, onConfirm, disabled = false, 
 
 const s = StyleSheet.create({
   track: { height: HEIGHT, borderRadius: HEIGHT / 2, borderWidth: 1, overflow: 'hidden', justifyContent: 'center' },
-  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 0 },
+  // Rond par lui-même : iOS ne découpe pas toujours un enfant carré dans un
+  // parent arrondi à bordure (le coin vert qui dépassait de la piste).
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 0, borderRadius: HEIGHT / 2 },
   labelWrap: { position: 'absolute', left: KNOB + 6, right: 16, alignItems: 'center' },
   label: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 16, letterSpacing: 1.2 },
   knob: { position: 'absolute', left: 3, top: 3, width: KNOB, height: KNOB, borderRadius: KNOB / 2, alignItems: 'center', justifyContent: 'center' },

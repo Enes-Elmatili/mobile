@@ -4,7 +4,7 @@
 // à rebours), les photos du client, les faits (quand, où, accès, client, sa
 // phrase), le gain, puis le geste : glisser pour accepter, Refuser.
 // L'enveloppe (glissé depuis le bas, poignée, fondu sur la carte) reste dans
-// provider-dashboard.tsx.
+// components/provider/ProviderDashboard.tsx.
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
