@@ -9,9 +9,9 @@
 // en bas, le gain du jour au centre du haut (spec 2026-09-17-provider-cockpit-go).
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { useLayoutClass } from '@/lib/layout';
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, cancelAnimation } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
@@ -27,7 +27,7 @@ import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
 import { devWarn } from '@/lib/logger';
 import { isOnlineStatus, gateCopyFor, GATE_CODES } from '@/lib/providerGate';
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
@@ -107,10 +107,23 @@ function IncomingJobCard({
   maxWidth: number | null;
 }) {
   const theme = useAppTheme();
+  const { t } = useTranslation();
   const reduced    = useReduceMotion();
   const slideUp    = useSharedValue(400);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
   const [expired, setExpired] = useState(false);
+  // Le moment de l'acceptation : la fiche vire au vert, une fois, pendant que
+  // le serveur confirme et que la mission s'ouvre. L'haptique est déjà partie
+  // sur la frame du glissé (useSlideToConfirm).
+  const [accepted, setAccepted] = useState(false);
+  const green = useSharedValue(0);
+  const greenStyle = useAnimatedStyle(() => ({ opacity: green.value }));
+  const accept = useCallback(() => {
+    if (accepted) return;
+    setAccepted(true);
+    green.value = withTiming(1, { duration: reduced ? 120 : 260 });
+    onAccept();
+  }, [accepted, green, onAccept, reduced]);
 
   useEffect(() => {
     if (reduced) {
@@ -159,9 +172,16 @@ function IncomingJobCard({
           timeLeft={timeLeft}
           total={TIMER_DURATION}
           expired={expired}
-          onAccept={onAccept}
+          onAccept={accept}
           onDecline={onDecline}
         />
+        {/* La fiche en vert : « Mission acceptée », le titre, l'adresse. */}
+        <Reanimated.View style={[StyleSheet.absoluteFill, jc.accepted, { paddingBottom: Math.max(insetBottom, 12) + 12 }, greenStyle]} pointerEvents={accepted ? 'auto' : 'none'} accessibilityLiveRegion="polite">
+          <View style={jc.acceptedCheck}><Feather name="check" size={30} color={COLORS.greenBrand} /></View>
+          <Text style={jc.acceptedTitle} maxFontSizeMultiplier={1.2}>{t('cockpit.mission_accepted').toUpperCase()}</Text>
+          {request.brief.service.name ? <Text style={jc.acceptedSub} numberOfLines={1} maxFontSizeMultiplier={1.2}>{request.brief.service.name}</Text> : null}
+          {request.brief.place.address ? <Text style={jc.acceptedAddr} numberOfLines={2} maxFontSizeMultiplier={1.2}>{request.brief.place.address}</Text> : null}
+        </Reanimated.View>
       </View>
     </Reanimated.View>
   );
@@ -176,6 +196,11 @@ const jc = StyleSheet.create({
   topFade: { height: 56 },
   sheet: {},
   handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
+  accepted: { backgroundColor: COLORS.greenBrand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 6 },
+  acceptedCheck: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  acceptedTitle: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1.5, color: '#0A0A0A', includeFontPadding: false },
+  acceptedSub: { fontFamily: FONTS.sansMedium, fontSize: 15, color: 'rgba(10,10,10,0.85)' },
+  acceptedAddr: { fontFamily: FONTS.sans, fontSize: 13, color: 'rgba(10,10,10,0.7)', textAlign: 'center' },
 });
 
 // ============================================================================
@@ -552,10 +577,14 @@ export default function ProviderDashboard() {
   const handleAccept = useCallback(async (request: IncomingRequest) => {
     if (!user?.id) return;
 
+    // La fiche est déjà verte (IncomingJobCard) ; on la laisse se lire ~0,9 s
+    // avant d'ouvrir la mission, même si le serveur répond plus vite.
+    const t0 = Date.now();
+    const dwell = () => new Promise<void>((r) => setTimeout(r, Math.max(0, 900 - (Date.now() - t0))));
     try {
       const res: any = await api.post(`/requests/${request.requestId}/accept`);
       if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
-        feedback.haptic('success');
+        await dwell();
         setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
 
         // Mission planifiée pour plus tard ? Pas de redirection vers /ongoing — la mission
