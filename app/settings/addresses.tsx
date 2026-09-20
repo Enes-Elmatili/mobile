@@ -10,6 +10,8 @@ import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { CascadeItem } from '@/lib/motion/useCascade';
 
 export default function AddressesSettings() {
   const router = useRouter();
@@ -35,14 +37,20 @@ export default function AddressesSettings() {
         <View style={{ width: 40 }} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
+        <CascadeItem index={0}>
         <SectionHead title={t('addresses.title')} aside={addresses.length ? String(addresses.length) : null} />
+        <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
         <Group>
           {addresses.length ? addresses.map((a, i) => (
-            <Row key={a.id} first={i === 0} icon={/maison|home|huis/i.test(a.label || '') ? 'home' : 'map-pin'} title={a.label || t('addresses.address')} sub={a.address} chevron={false} right={
-              <Pressable onPress={() => remove(a.id)} accessibilityRole="button" accessibilityLabel={t('common.delete')} hitSlop={10}><Feather name="trash-2" size={16} color={theme.textMuted as string} /></Pressable>
-            } />
+            <Animated.View key={a.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+              <Row first={i === 0} icon={/maison|home|huis/i.test(a.label || '') ? 'home' : 'map-pin'} title={a.label || t('addresses.address')} sub={a.address} chevron={false} right={
+                <Pressable onPress={() => remove(a.id)} accessibilityRole="button" accessibilityLabel={t('common.delete')} hitSlop={10}><Feather name="trash-2" size={16} color={theme.textMuted as string} /></Pressable>
+              } />
+            </Animated.View>
           )) : <Row first icon="map-pin" title={t('addresses.empty')} sub={t('addresses.empty_sub')} chevron={false} />}
         </Group>
+        </Animated.View>
+        </CascadeItem>
         <Text style={[s.note, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('addresses.note')}</Text>
       </ScrollView>
     </SafeAreaView>

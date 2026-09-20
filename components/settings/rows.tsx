@@ -4,7 +4,10 @@
 // chips. Aucune carte sombre, aucune modale : des listes, comme l'agenda.
 import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { MOTION } from '@/lib/motion/springs';
+import { useCountingValue } from '@/lib/motion/useCountingValue';
+import { ReText } from '@/components/ui/ReText';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { usePressScale } from '@/lib/motion/press';
@@ -78,26 +81,31 @@ export function SwitchRow({ icon, title, sub, value, onChange, first = false, di
   );
 }
 
-/** Une chip (métier, adresse rapide) ; `add` = la chip en pointillés « + Ajouter ». */
+/** Une chip (métier, adresse rapide) ; `add` = la chip en pointillés « + Ajouter ». Entre en fondu, sort en fondu, ses voisines suivent. */
 export function Chip({ label, icon, add = false, onPress }: { label: string; icon?: FeatherName; add?: boolean; onPress?: () => void }) {
   const theme = useAppTheme();
   const press = usePressScale(0.96);
   return (
+    <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
     <Pressable onPress={onPress ? () => { feedback.haptic('light'); onPress(); } : undefined} onPressIn={press.onPressIn} onPressOut={press.onPressOut} disabled={!onPress} accessibilityRole="button" accessibilityLabel={label}>
       <Animated.View style={[s.chip, { backgroundColor: add ? 'transparent' : theme.cardBg, borderColor: theme.border, borderStyle: add ? 'dashed' : 'solid' }, press.style]}>
         {icon ? <Feather name={icon} size={13} color={theme.textSub as string} /> : null}
         <Text style={[s.chipText, { color: add ? theme.textSub : theme.text }]} maxFontSizeMultiplier={1.2}>{label}</Text>
       </Animated.View>
     </Pressable>
+    </Animated.View>
   );
 }
 
-/** Un chiffre sobre (note · missions · acceptées). */
-export function Figure({ value, label }: { value: string; label: string }) {
+/** Un chiffre sobre (note · missions · acceptées) ; un nombre compte jusqu'à sa valeur. */
+export function Figure({ value, label, number, suffix = '', decimals = 0 }: { value?: string; label: string; number?: number | null; suffix?: string; decimals?: number }) {
   const theme = useAppTheme();
+  const counter = useCountingValue(number ?? 0, { suffix, decimals, preset: MOTION.count });
   return (
     <View style={[s.fig, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-      <Text style={[s.figValue, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{value}</Text>
+      {number != null
+        ? <ReText animatedProps={counter.animatedProps} style={[s.figValue, { color: theme.text }]} accessibilityLabel={`${number}${suffix}`} />
+        : <Text style={[s.figValue, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{value ?? '—'}</Text>}
       <Text style={[s.figLabel, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
     </View>
   );

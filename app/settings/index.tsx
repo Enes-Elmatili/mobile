@@ -19,6 +19,8 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { usePrefs, currentLanguage, type LanguagePref, type ThemePref } from '@/stores/prefs';
 import { Group, Row, SectionHead, SwitchRow } from '@/components/settings/rows';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { CascadeItem } from '@/lib/motion/useCascade';
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
 const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true, quiet: { enabled: false, from: '22:00', to: '07:00' } };
@@ -90,6 +92,7 @@ export default function Settings() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
         {/* -- Apparence -- */}
+        <CascadeItem index={0}>
         <SectionHead title={t('settings.appearance')} />
         <Group>
           <Row first glyph="◐" title={t('settings.theme')} chevron={false} right={
@@ -99,8 +102,10 @@ export default function Settings() {
             <View style={s.segWrap}><SegmentedControl<LanguagePref> options={[{ value: 'fr', label: 'FR' }, { value: 'nl', label: 'NL' }, { value: 'en', label: 'EN' }]} value={language} onChange={(v) => { feedback.haptic('selection'); setLanguage(v); }} /></View>
           } />
         </Group>
+        </CascadeItem>
 
         {/* -- Notifications -- */}
+        <CascadeItem index={1}>
         <SectionHead title={t('notifications.prefs_title')} />
         <Group>
           <SwitchRow first icon="bell" title={t('notifications.prefs_missions')} sub={t('notifications.prefs_missions_sub')} value disabled onChange={() => {}} />
@@ -109,32 +114,42 @@ export default function Settings() {
           <SwitchRow icon="star" title={t('notifications.prefs_account')} value={prefs?.account ?? true} onChange={(v) => patch({ account: v })} />
           <SwitchRow icon="clock" title={t('notifications.prefs_quiet')} sub={`${q.from} – ${q.to}`} value={q.enabled} onChange={(v) => patch({ quiet: { ...q, enabled: v } })} />
         </Group>
+        </CascadeItem>
 
         {/* -- Confidentialité & données -- */}
+        <CascadeItem index={2}>
         <SectionHead title={t('settings.privacy_data')} />
         <Group>
           <Row first icon="file-text" title={t('settings.your_data')} sub={t('settings.your_data_sub')} onPress={() => router.push('/settings/privacy')} />
           <Row icon="map-pin" title={t('settings.location')} sub={isProvider ? t('settings.location_sub_provider') : t('settings.location_sub_client')} onPress={() => router.push('/settings/privacy')} />
         </Group>
+        </CascadeItem>
 
         {/* -- Aide & support -- */}
+        <CascadeItem index={3}>
         <SectionHead title={t('settings.help_support')} aside={tickets.length ? t('profile.tickets_open_count', { count: tickets.length }) : null} />
         <Group>
           {tickets.slice(0, 2).map((tk, i) => (
-            <Row key={tk.id} first={i === 0} icon="message-square" title={tk.title} sub={tk.status === 'OPEN' ? t('profile.ticket_open') : t('profile.ticket_in_progress')} onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: String(tk.id) } })} />
+            <Animated.View key={tk.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+              <Row first={i === 0} icon="message-square" title={tk.title} sub={tk.status === 'OPEN' ? t('profile.ticket_open') : t('profile.ticket_in_progress')} onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: String(tk.id) } })} />
+            </Animated.View>
           ))}
           <Row first={tickets.length === 0} glyph="?" title={t('settings.faq')} sub={t('settings.faq_sub')} onPress={() => router.push('/settings/help')} />
           <Row glyph="+" title={t('settings.write_us')} sub={t('settings.write_us_sub')} onPress={() => router.push('/settings/help')} />
         </Group>
+        </CascadeItem>
 
         {/* -- À propos -- */}
+        <CascadeItem index={4}>
         <SectionHead title={t('settings.about')} />
         <Group>
           <Row first icon="file-text" title={t('profile.terms')} onPress={() => router.push('/settings/cgu')} />
           <Row icon="lock" title={t('profile.privacy')} onPress={() => router.push('/settings/privacy')} />
         </Group>
+        </CascadeItem>
 
         {/* -- Compte : la suppression, à part -- */}
+        <CascadeItem index={5}>
         <SectionHead title={t('profile.account')} />
         <Group>
           <Row first icon="x" danger title={t('ext.privacy_delete_account')} sub={t('settings.delete_sub')} onPress={deleteAccount} />
@@ -144,6 +159,7 @@ export default function Settings() {
           <Text style={[s.outText, { color: theme.textMuted }]} maxFontSizeMultiplier={1.3}>{t('auth.logout')}</Text>
         </Pressable>
         <Text style={[s.version, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{`FIXED ${version}${build ? ` · BUILD ${build}` : ''}`}</Text>
+        </CascadeItem>
       </ScrollView>
     </SafeAreaView>
   );

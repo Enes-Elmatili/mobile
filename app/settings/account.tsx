@@ -13,6 +13,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
+import { CascadeItem } from '@/lib/motion/useCascade';
 
 type Key = 'name' | 'phone' | 'city' | 'description' | 'vatNumber';
 
@@ -71,16 +72,20 @@ export default function AccountSettings() {
         <View style={{ width: 40 }} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
+        <CascadeItem index={0}>
         <SectionHead title={t('account.identity')} />
         <Group>
           {fields.map((f, i) => (
             <Row key={f.key} first={i === 0} title={f.title} value={values[f.key] || t('account.empty')} tone={values[f.key] ? 'default' : 'warn'} onPress={() => open(i)} />
           ))}
         </Group>
+        </CascadeItem>
+        <CascadeItem index={1}>
         <SectionHead title={t('account.email')} />
         <Group>
           <Row first icon="mail" title={u?.email || ''} sub={t('account.email_sub')} chevron={false} />
         </Group>
+        </CascadeItem>
       </ScrollView>
       <FieldSheet field={field} onClose={() => setField(null)} onSave={save} />
     </SafeAreaView>

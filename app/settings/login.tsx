@@ -13,6 +13,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
+import { CascadeItem } from '@/lib/motion/useCascade';
 
 export default function LoginSettings() {
   const router = useRouter();
@@ -59,17 +60,19 @@ export default function LoginSettings() {
         <View style={{ width: 40 }} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
+        <CascadeItem index={0}>
         <SectionHead title={t('account.login_method')} />
         <Group>
           <Row first icon={provider === 'apple' ? 'smartphone' : provider === 'google' ? 'globe' : 'mail'} title={provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : t('account.login_email')} sub={(user as any)?.email || ''} chevron={false} />
         </Group>
+        </CascadeItem>
         {isEmail ? (
-          <>
+          <CascadeItem index={1}>
             <SectionHead title={t('account.change_password')} />
             <Group>
               <Row first icon="key" title={t('account.change_password')} sub={t('account.change_password_sub')} onPress={() => openStep(0)} />
             </Group>
-          </>
+          </CascadeItem>
         ) : (
           <Text style={[s.note, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('account.social_note', { provider: provider === 'apple' ? 'Apple' : 'Google' })}</Text>
         )}

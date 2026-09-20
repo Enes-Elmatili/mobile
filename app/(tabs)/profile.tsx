@@ -11,7 +11,8 @@ import { Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import { CascadeItem } from '@/lib/motion/useCascade';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { api } from '@/lib/api';
@@ -145,6 +146,7 @@ export default function Profile() {
 
         {isProvider ? (
           <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+            <CascadeItem index={1}>
             {/* -- Métiers -- */}
             <SectionHead title={t('profile.trades')} aside={prov?.categories ? t('profile.trades_count', { n: prov.categories.length }) : null} />
             <View style={s.chips}>
@@ -153,12 +155,16 @@ export default function Profile() {
             </View>
 
             {/* -- Trois chiffres -- */}
+            </CascadeItem>
+            <CascadeItem index={2}>
             <View style={s.figs}>
               <Figure value={rating} label={prov?.totalRatings ? `${t('profile.stat_rating')} · ${prov.totalRatings}` : t('profile.stat_rating')} />
-              <Figure value={String(prov?.jobsCompleted ?? 0)} label={t('profile.stat_missions')} />
-              <Figure value={prov?.acceptanceRate != null ? `${prov.acceptanceRate} %` : '—'} label={t('profile.stat_accepted')} />
+              <Figure number={prov?.jobsCompleted ?? 0} label={t('profile.stat_missions')} />
+              <Figure number={prov?.acceptanceRate ?? null} value="—" suffix=" %" label={t('profile.stat_accepted')} />
             </View>
 
+            </CascadeItem>
+            <CascadeItem index={3}>
             {/* -- Votre activité -- */}
             <SectionHead title={t('profile.activity')} />
             <Group>
@@ -166,9 +172,11 @@ export default function Profile() {
               <Row icon="credit-card" title={t('profile.payouts')} sub={payoutsReady ? t('profile.payouts_ready_sub') : t('profile.payouts_todo_sub')} value={payoutsReady ? t('profile.ready') : t('profile.to_set_up')} tone={payoutsReady ? 'ok' : 'warn'} onPress={() => router.push('/(tabs)/wallet')} />
               <Row icon="file-text" title={t('profile.company')} sub={[prov?.companyNumber ? `BCE ${prov.companyNumber}` : null, prov?.vatNumber ? `${t('profile.vat_label')} ${prov.vatNumber}` : null, docsCount != null ? t('profile.docs_count', { n: docsCount }) : null].filter(Boolean).join(' · ') || t('profile.company_sub')} onPress={() => router.push('/onboarding/provider/pending')} />
             </Group>
+            </CascadeItem>
           </Animated.View>
         ) : (
           <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+            <CascadeItem index={1}>
             {/* -- Vos adresses -- */}
             <SectionHead title={t('addresses.title')} aside={addresses.length ? String(addresses.length) : null} />
             <Group>
@@ -179,22 +187,25 @@ export default function Profile() {
               )}
             </Group>
 
+            </CascadeItem>
+            <CascadeItem index={2}>
             {/* -- FIXED Pass -- */}
             <SectionHead title="FIXED Pass" />
             <Group>
               <Row first icon="zap" title={t('profile.pass_none')} sub={t('profile.pass_sub')} value={t('profile.pass_price')} tone="warn" onPress={() => router.push('/formules')} />
             </Group>
+            </CascadeItem>
           </Animated.View>
         )}
 
         {/* -- Compte -- */}
-        <Animated.View entering={FadeInDown.delay(80).duration(220)}>
+        <CascadeItem index={4}>
           <SectionHead title={t('profile.account')} />
           <Group>
             <Row first icon="user" title={t('profile.information')} sub={isProvider ? t('profile.information_sub_provider') : t('profile.information_sub')} onPress={() => router.push('/settings/account')} />
             <Row icon="key" title={t('profile.login')} sub={loginSub(user, t)} onPress={() => router.push('/settings/login')} />
           </Group>
-        </Animated.View>
+        </CascadeItem>
       </Animated.ScrollView>
 
       {isProvider && catsOpen ? <CategoriesSheet selectedIds={(prov?.categories ?? []).map((c) => c.id)} onClose={() => setCatsOpen(false)} onSave={saveCategories} /> : null}

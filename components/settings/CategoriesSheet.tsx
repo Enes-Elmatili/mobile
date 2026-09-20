@@ -16,6 +16,8 @@ import { toFeatherName } from '@/lib/iconMapper';
 import { Cta } from '@/components/tracking';
 import { BarLock } from '@/stores/nav';
 import { Chip, type FeatherName } from './rows';
+import Animated from 'react-native-reanimated';
+import { useTakeScale } from '@/lib/motion/useTakeScale';
 
 type Cat = { id: number; name: string; slug?: string | null; icon?: string | null };
 
@@ -71,11 +73,13 @@ export function CategoriesSheet({ selectedIds, onClose, onSave }: { selectedIds:
 
 function SelectableChip({ label, icon, on, onPress }: { label: string; icon?: React.ComponentProps<typeof Chip>['icon']; on: boolean; onPress: () => void }) {
   const theme = useAppTheme();
+  // La chip « prend » quand on la coche (règle 4 : le retour est immédiat, au ressort).
+  const take = useTakeScale(on, { on: 1.04, off: 1 });
   return (
-    <View style={on ? [s.on, { backgroundColor: theme.accent, borderColor: theme.accent }] : undefined}>
+    <Animated.View style={[take.style, on ? [s.on, { backgroundColor: theme.accent, borderColor: theme.accent }] : undefined]}>
       <Chip label={label} icon={icon} onPress={onPress} />
       {on ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.onCover, { backgroundColor: theme.accent }]}><Text style={[s.onText, { color: theme.accentText }]} maxFontSizeMultiplier={1.2}>{label}</Text></View> : null}
-    </View>
+    </Animated.View>
   );
 }
 
