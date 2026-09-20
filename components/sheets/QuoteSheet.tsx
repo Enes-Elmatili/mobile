@@ -1,6 +1,7 @@
 // components/sheets/QuoteSheet.tsx
 // Devis bottom sheet — même présentation que InvoiceSheet
 
+import { useHideBar } from '@/stores/nav';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
@@ -31,6 +32,7 @@ const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
 export default function QuoteSheet({ requestId, requestStatus, serviceName, isVisible, onClose }: QuoteSheetProps) {
+  useHideBar(); // la barre flottante s'efface sous la feuille
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();

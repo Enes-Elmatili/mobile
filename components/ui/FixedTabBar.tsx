@@ -100,7 +100,7 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
   const reduced = useReduceMotion();
   const disc = useNavStore((st) => st.disc);
   const badges = useNavStore((st) => st.badges);
-  const barHidden = useNavStore((st) => st.barHidden);
+  const barHidden = useNavStore((st) => st.barHidden || st.barLocks > 0);
 
   // Onglets visibles. Expo Router ne transmet PAS `href` aux descripteurs :
   // il le retire des options et marque la route cachée (`href: null`) avec

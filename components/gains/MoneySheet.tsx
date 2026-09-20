@@ -1,6 +1,7 @@
 // components/gains/MoneySheet.tsx — la fiche argent d'une mission : titre,
 // trois lignes, chronologie de l'argent (terminée, virement parti, arrive sur
 // le compte), facture. Feuille gorhom configurée sur le moteur de mouvement.
+import { useHideBar } from '@/stores/nav';
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
@@ -17,6 +18,7 @@ import { Ledger } from './Ledger';
 type Props = { line: GainLine | null; bankLabel: string | null; onClose: () => void; onInvoice?: (missionId: number) => void };
 
 export function MoneySheet({ line, bankLabel, onClose, onInvoice }: Props) {
+  useHideBar(); // la barre flottante s'efface sous la feuille
   const theme = useAppTheme();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();

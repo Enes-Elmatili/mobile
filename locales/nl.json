@@ -2520,6 +2520,7 @@
     "mission_done": "Opdracht afgerond",
     "done_net": "netto · uitbetaald binnen {{n}} dagen · factuur verzonden",
     "done_next": "Volgende opdracht",
-    "done_duration": "{{n}} min"
+    "done_duration": "{{n}} min",
+    "done_net_short": "netto"
   }
 }

@@ -41,7 +41,7 @@ import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProviderDashboard from '@/components/provider/ProviderDashboard';
 import { useTabBarPadding } from './_layout';
-import { useNavStore, clientDisc } from '@/stores/nav';
+import { useNavStore, clientDisc, BarLock } from '@/stores/nav';
 import { formatEUR } from '@/lib/format';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import type { AppTheme } from '@/hooks/use-app-theme';
@@ -1573,6 +1573,7 @@ function ClientDashboard() {
         handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}
         maxDynamicContentSize={windowHeight * 0.85}
       >
+        <BarLock />
         <BottomSheetScrollView contentContainerStyle={[s.sheet, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
           {loadingDetails ? (
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 50 }} />

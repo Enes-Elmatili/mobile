@@ -2520,6 +2520,7 @@
     "mission_done": "Job completed",
     "done_net": "net · paid within {{n}} days · invoice sent",
     "done_next": "Next job",
-    "done_duration": "{{n}} min"
+    "done_duration": "{{n}} min",
+    "done_net_short": "net"
   }
 }

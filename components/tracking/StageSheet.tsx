@@ -28,11 +28,13 @@ type Props = {
   children: React.ReactNode;
   /** La feuille pousse le contenu au-dessus du clavier (saisie du code). */
   keyboard?: boolean;
-  /** `green` : la feuille vire au vert de la marque (mission terminée). */
+  /** `green` : la feuille se teinte du vert pâle des pastilles (mission terminée). */
   tone?: 'default' | 'green';
+  /** Haut de la zone où la feuille peut monter (défaut : barre de statut + rangée des boutons). */
+  topInset?: number;
 };
 
-export function StageSheet({ levels, level, onHeightChange, footer, children, keyboard = false, tone = 'default' }: Props) {
+export function StageSheet({ levels, level, onHeightChange, footer, children, keyboard = false, tone = 'default', topInset: topInsetProp }: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useLayoutClass();
@@ -44,7 +46,8 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   const hasPeek = !isPage && levels.includes('peek');
   // Plafond : l'écran moins la barre de statut et la rangée des boutons
   // flottants (retour · FIXED #id · menu), qui restent visibles au-dessus.
-  const maxContent = windowHeight - insets.top - 64;
+  const top = topInsetProp ?? insets.top + 64;
+  const maxContent = windowHeight - top;
   // Paliers fixes : la page entière, ou l'aperçu ; la hauteur du contenu est
   // ajoutée par gorhom (enableDynamicSizing) en dernier. L'aperçu ne descend
   // jamais sous la poignée + le pied : les CTA restent entiers, jamais coupés.
@@ -61,9 +64,10 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
 
   // Le pied descend jusqu'au bord de l'écran (l'inset bas est DANS le pied) :
   // rien du contenu ne transparaît sous les CTA dans la zone de l'indicateur.
+  // Le vert pâle des pastilles, mélangé au fond de la carte (gorhom ne prend qu'une couleur).
   const green = tone === 'green';
-  const bg = green ? COLORS.greenBrand : (theme.cardBg as string);
-  const hairline = green ? 'rgba(10,10,10,0.15)' : (theme.borderLight as string);
+  const bg = green ? mix(theme.cardBg as string, COLORS.greenBrand, theme.isDark ? 0.16 : 0.13) : (theme.cardBg as string);
+  const hairline = theme.borderLight as string;
   const renderFooter = useCallback((props: BottomSheetFooterProps) => (
     footer ? (
       <BottomSheetFooter {...props} bottomInset={0}>
@@ -86,9 +90,9 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       onAnimate={motion.onAnimate}
       onChange={onChange}
       handleComponent={isPage ? null : undefined}
-      handleIndicatorStyle={{ backgroundColor: green ? 'rgba(10,10,10,0.25)' : theme.textDisabled, width: 36, height: 4 }}
+      handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }}
       backgroundStyle={{ backgroundColor: bg, borderTopLeftRadius: isPage ? 0 : 28, borderTopRightRadius: isPage ? 0 : 28 }}
-      topInset={isPage ? 0 : insets.top + 64}
+      topInset={isPage ? 0 : top}
       keyboardBehavior={keyboard ? 'extend' : 'interactive'}
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
@@ -103,6 +107,14 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       </BottomSheetScrollView>
     </BottomSheet>
   );
+}
+
+/** Mélange deux couleurs hex (#rrggbb) : `t` = part de la seconde. */
+function mix(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r1, g1, b1] = p(a); const [r2, g2, b2] = p(b);
+  const c = (x: number, y: number) => Math.round(x + (y - x) * t).toString(16).padStart(2, '0');
+  return `#${c(r1, r2)}${c(g1, g2)}${c(b1, b2)}`;
 }
 
 const s = StyleSheet.create({

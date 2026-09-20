@@ -20,26 +20,28 @@ type Props = {
   timeLeft: number;
   total: number;
   expired: boolean;
+  /** Acceptée : le titre passe au vert, l'anneau s'efface, le curseur garde sa coche, plus de « Refuser ». */
+  accepted?: boolean;
   onAccept: () => void;
   onDecline: () => void;
 };
 
-export function IncomingMissionCard({ brief, timeLeft, total, expired, onAccept, onDecline }: Props) {
+export function IncomingMissionCard({ brief, timeLeft, total, expired, accepted = false, onAccept, onDecline }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   return (
     <View style={s.wrap}>
-      <Text style={[s.kicker, { color: expired ? COLORS.red : COLORS.amber }]}>
-        {expired ? t('provider.last_chance') : t('mission_sheet.new_mission')}
+      <Text style={[s.kicker, { color: accepted ? COLORS.green : expired ? COLORS.red : COLORS.amber }]}>
+        {accepted ? t('cockpit.mission_accepted') : expired ? t('provider.last_chance') : t('mission_sheet.new_mission')}
       </Text>
-      <MissionTitle brief={brief} right={!expired ? <CountdownRing seconds={timeLeft} total={total} /> : null} />
+      <MissionTitle brief={brief} right={!expired && !accepted ? <CountdownRing seconds={timeLeft} total={total} /> : null} />
       {brief.photos.length ? <View style={s.photos}><PhotoThumbs photos={brief.photos} /></View> : null}
       <View style={s.facts}><MissionFacts brief={brief} /></View>
       <View style={s.earn}><EarnRow brief={brief} /></View>
       <View style={s.slide}>
-        <SlideToConfirm label={t('mission.slide_accept')} doneLabel={t('mission.accept')} onConfirm={onAccept} />
+        <SlideToConfirm label={t('mission.slide_accept')} onConfirm={onAccept} done={accepted} />
       </View>
-      <Pressable onPress={() => { feedback.haptic('light'); onDecline(); }} style={s.refuse} accessibilityRole="button" accessibilityLabel={expired ? t('missions.cancel') : t('provider.decline')}>
+      <Pressable onPress={() => { feedback.haptic('light'); onDecline(); }} disabled={accepted} style={[s.refuse, accepted && { opacity: 0 }]} accessibilityRole="button" accessibilityLabel={expired ? t('missions.cancel') : t('provider.decline')} accessibilityElementsHidden={accepted}>
         <Text style={[s.refuseText, { color: expired ? COLORS.red : theme.textMuted }]}>{expired ? t('missions.cancel') : t('mission.refuse')}</Text>
       </Pressable>
     </View>

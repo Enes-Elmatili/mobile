@@ -11,9 +11,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { useLayoutClass } from '@/lib/layout';
-import Reanimated, { Easing, useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
+import Reanimated, { Easing, useSharedValue, useAnimatedStyle, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
-import { MOTION } from '@/lib/motion/springs';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
 import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
@@ -28,7 +27,7 @@ import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme, COLORS, alpha } from '@/hooks/use-app-theme';
 import { devWarn } from '@/lib/logger';
 import { isOnlineStatus, gateCopyFor, GATE_CODES } from '@/lib/providerGate';
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
@@ -79,6 +78,8 @@ interface IncomingRequest {
   calloutFee?: number;
   /** Fiche mission (services/missionBrief) — celle du serveur, sinon le repli. */
   brief: MissionBrief;
+  /** La demande telle que reçue : sert d'amorce à la feuille de mission, sans attendre le serveur. */
+  raw: any;
 }
 
 type CurrentMission = {
@@ -112,63 +113,34 @@ function IncomingJobCard({
   maxWidth: number | null;
 }) {
   const theme = useAppTheme();
-  const { t } = useTranslation();
   const reduced    = useReduceMotion();
   const slideUp    = useSharedValue(400);
   const fade       = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
   const [expired, setExpired] = useState(false);
-  // Le moment de l'acceptation, en UN mouvement, sur le même écran : le vert
-  // part du bout du curseur et gagne toute la fiche (un disque qui s'ouvre),
-  // le contenu s'efface dessous, la coche prend, les lignes montent l'une
-  // après l'autre ; puis, quand le serveur a confirmé, la fiche se replie
-  // vers le bas et l'accueil est déjà en mission (carte recadrée sur la porte,
-  // tracé, étiquette ambre, flèche dans le disque). L'haptique est partie sur
-  // la frame du glissé.
+  // Le moment de l'acceptation, en UN mouvement, sur le même écran, et
+  // discret : la fiche se teinte du vert pâle des pastilles (rien ne se
+  // superpose, tout reste lisible), l'anneau du compte à rebours s'efface, le
+  // curseur prend sa coche verte, le titre passe à « Acceptée » ; on la
+  // laisse se lire, puis elle se replie vers le bas — et l'accueil est déjà en
+  // mission dessous (carte recadrée, tracé, étiquette ambre, feuille).
+  // L'haptique est partie sur la frame du glissé.
   const [accepted, setAccepted] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const reveal = useSharedValue(0);
-  const check = useSharedValue(0);
-  const line1 = useSharedValue(0);
-  const line2 = useSharedValue(0);
-  const line3 = useSharedValue(0);
+  const tint = useSharedValue(0);
   const accept = useCallback(() => {
     if (accepted) return;
     setAccepted(true);
-    if (reduced) {
-      // Règle 8 : fondu, sans course.
-      reveal.value = withTiming(1, { duration: 180 });
-      check.value = withTiming(1, { duration: 180 });
-      line1.value = withTiming(1, { duration: 180 });
-      line2.value = withTiming(1, { duration: 180 });
-      line3.value = withTiming(1, { duration: 180 });
-    } else {
-      reveal.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
-      check.value = withDelay(220, withSpring(1, MOTION.take));
-      line1.value = withDelay(320, withSpring(1, MOTION.pane));
-      line2.value = withDelay(400, withSpring(1, MOTION.pane));
-      line3.value = withDelay(470, withSpring(1, MOTION.pane));
-    }
+    tint.value = withTiming(1, { duration: reduced ? 200 : 520, easing: Easing.out(Easing.cubic) });
     onAccept();
-  }, [accepted, reduced, reveal, check, line1, line2, line3, onAccept]);
+  }, [accepted, reduced, tint, onAccept]);
   useEffect(() => {
     if (!leaving) return;
     // Repli : la fiche descend et s'efface, en partant de sa position courante.
-    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withTiming(Math.max(size.h, 400) + 80, { duration: 360, easing: Easing.in(Easing.cubic) });
-    fade.value = withTiming(0, { duration: reduced ? 200 : 300 });
+    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withTiming(Math.max(size.h, 400) + 80, { duration: 460, easing: Easing.in(Easing.cubic) });
+    fade.value = withTiming(0, { duration: reduced ? 200 : 380 });
   }, [leaving, reduced, slideUp, fade, size.h]);
-
-  // Le disque vert : centré sur le bout du curseur, assez grand pour couvrir la fiche.
-  const D = Math.ceil(2 * Math.hypot(size.w, size.h)) || 1;
-  const cx = size.w - 20 - 30;
-  const cy = size.h - Math.max(insetBottom, 12) - 12 - 44 - 29;
-  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: reduced ? 1 : reveal.value }], opacity: reduced ? reveal.value : 1 }));
-  const contentStyle = useAnimatedStyle(() => ({ opacity: 1 - Math.min(1, reveal.value * 1.8) }));
-  const checkStyle = useAnimatedStyle(() => ({ opacity: check.value, transform: [{ scale: 0.4 + 0.6 * check.value }, { rotate: `${(1 - check.value) * -24}deg` }] }));
-  // Pas d'aide partagée ici : un worklet n'appelle jamais une fonction de sa fermeture.
-  const line1Style = useAnimatedStyle(() => ({ opacity: line1.value, transform: [{ translateY: (1 - line1.value) * 12 }] }));
-  const line2Style = useAnimatedStyle(() => ({ opacity: line2.value, transform: [{ translateY: (1 - line2.value) * 12 }] }));
-  const line3Style = useAnimatedStyle(() => ({ opacity: line3.value, transform: [{ translateY: (1 - line3.value) * 12 }] }));
+  const tintStyle = useAnimatedStyle(() => ({ opacity: tint.value }));
 
   useEffect(() => {
     if (reduced) {
@@ -210,27 +182,19 @@ function IncomingJobCard({
         pointerEvents="none"
       />
       <View style={[jc.sheet, { backgroundColor: sheetBg, paddingBottom: Math.max(insetBottom, 12) + 12 }]} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-        <Reanimated.View style={contentStyle} pointerEvents={accepted ? 'none' : 'auto'}>
-          <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
-          {/* Fiche mission (planche 2A) : quoi, photos, faits, gain, glissé. */}
-          <IncomingMissionCard
-            brief={request.brief}
-            timeLeft={timeLeft}
-            total={TIMER_DURATION}
-            expired={expired}
-            onAccept={accept}
-            onDecline={onDecline}
-          />
-        </Reanimated.View>
-        {/* Le disque vert qui s'ouvre depuis le bout du curseur. */}
-        <Reanimated.View style={[jc.disc, { width: D, height: D, borderRadius: D / 2, left: cx - D / 2, top: cy - D / 2 }, discStyle]} pointerEvents="none" />
-        {/* « Mission acceptée », la prestation, l'adresse. */}
-        <Reanimated.View style={[StyleSheet.absoluteFill, jc.accepted, { paddingBottom: Math.max(insetBottom, 12) + 12 }]} pointerEvents="none" accessibilityLiveRegion="polite" accessibilityElementsHidden={!accepted}>
-          <Reanimated.View style={[jc.acceptedCheck, checkStyle]}><Feather name="check" size={30} color={COLORS.greenBrand} /></Reanimated.View>
-          <Reanimated.Text style={[jc.acceptedTitle, line1Style]} maxFontSizeMultiplier={1.2}>{t('cockpit.mission_accepted').toUpperCase()}</Reanimated.Text>
-          {request.brief.service.name ? <Reanimated.Text style={[jc.acceptedSub, line2Style]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{request.brief.service.name}</Reanimated.Text> : null}
-          {request.brief.place.address ? <Reanimated.Text style={[jc.acceptedAddr, line3Style]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{request.brief.place.address}</Reanimated.Text> : null}
-        </Reanimated.View>
+        {/* Le vert pâle des pastilles, en fondu sous le contenu. */}
+        <Reanimated.View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(COLORS.greenBrand, theme.isDark ? 0.16 : 0.13) }, tintStyle]} pointerEvents="none" />
+        <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
+        {/* Fiche mission (planche 2A) : quoi, photos, faits, gain, glissé. */}
+        <IncomingMissionCard
+          brief={request.brief}
+          timeLeft={timeLeft}
+          total={TIMER_DURATION}
+          expired={expired}
+          accepted={accepted}
+          onAccept={accept}
+          onDecline={onDecline}
+        />
       </View>
     </Reanimated.View>
   );
@@ -245,12 +209,6 @@ const jc = StyleSheet.create({
   topFade: { height: 56 },
   sheet: { overflow: 'hidden' },
   handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
-  disc: { position: 'absolute', backgroundColor: COLORS.greenBrand },
-  accepted: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 6 },
-  acceptedCheck: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  acceptedTitle: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 1.5, color: '#0A0A0A', includeFontPadding: false },
-  acceptedSub: { fontFamily: FONTS.sansMedium, fontSize: 15, color: 'rgba(10,10,10,0.85)' },
-  acceptedAddr: { fontFamily: FONTS.sans, fontSize: 13, color: 'rgba(10,10,10,0.7)', textAlign: 'center' },
 });
 
 // ============================================================================
@@ -294,6 +252,8 @@ export default function ProviderDashboard() {
   if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
   // Ce que la feuille de mission dit à l'accueil (stade, caméra, porte, hauteur).
   const [missionFacts, setMissionFacts] = useState<MissionFacts | null>(null);
+  // L'amorce de la feuille de mission à l'acceptation : la demande reçue + la réponse du serveur.
+  const [missionSeed, setMissionSeed] = useState<any>(null);
   const [etaMin, setEtaMin] = useState<number | null>(null);
   const currentMissionRef = useRef<CurrentMission | null>(null);
   useEffect(() => { currentMissionRef.current = currentMission; }, [currentMission]);
@@ -423,10 +383,13 @@ export default function ProviderDashboard() {
         }
         return true;
       });
-      setCurrentMission(found ? {
-        id: found.id, serviceType: found.serviceType, status: found.status, address: found.address,
-        clientName: found.client?.name ?? null, lat: found.lat ?? null, lng: found.lng ?? null,
-      } : null);
+      // Une mission posée à l'acceptation (optimiste) que la liste ne connaît
+      // pas encore reste en place : la retirer ferait clignoter la feuille.
+      setCurrentMission((prev) => {
+        if (found) return { id: found.id, serviceType: found.serviceType, status: found.status, address: found.address, clientName: found.client?.name ?? null, lat: found.lat ?? null, lng: found.lng ?? null };
+        if (prev && !m.some((r: any) => Number(r.id) === Number(prev.id))) return prev;
+        return null;
+      });
     }
 
     setStatsLoading(false);
@@ -474,6 +437,7 @@ export default function ProviderDashboard() {
           isQuote: r.status === 'QUOTE_PENDING',
           calloutFee: r.calloutFee ?? undefined,
           brief: briefOf(r),
+          raw: r,
           client: { name: r.client?.name || 'Client' },
         }));
         setIncomingRequests(prev => {
@@ -557,6 +521,7 @@ export default function ProviderDashboard() {
         pricingMode: data.pricingMode || null,
         calloutFee:  data.calloutFee ?? undefined,
         brief:       briefOf(data),
+        raw:         data,
       };
       // La caméra cadre moi + la demande via useMapCamera (stade « incoming »).
       setIncomingRequests(prev => prev.some(r => r.requestId === req.requestId) ? prev : [req, ...prev]);
@@ -657,7 +622,7 @@ export default function ProviderDashboard() {
     // replie (leaving) et l'accueil est déjà en mission : pas d'autre page.
     const t0 = Date.now();
     const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    const dwell = () => wait(Math.max(0, 900 - (Date.now() - t0)));
+    const dwell = () => wait(Math.max(0, 1500 - (Date.now() - t0)));
     try {
       const res: any = await api.post(`/requests/${request.requestId}/accept`);
       if (res?.code === 'REQUEST_ACCEPTED' || res?.data) {
@@ -677,13 +642,14 @@ export default function ProviderDashboard() {
           // L'accueil passe en mission tout de suite (stade busy : caméra sur la
           // porte, tracé, étiquette ambre, flèche) pendant que la fiche se replie.
           const d = res?.data ?? {};
+          setMissionSeed({ ...(request.raw ?? {}), ...d, id: Number(request.requestId), status: d.status ?? 'ACCEPTED' });
           setCurrentMission({
             id: Number(request.requestId), serviceType: d.serviceType ?? request.title ?? null, status: d.status ?? 'ACCEPTED',
             address: d.address ?? request.address ?? null, clientName: d.client?.name ?? request.client?.name ?? null,
             lat: d.lat ?? request.latitude ?? null, lng: d.lng ?? request.longitude ?? null,
           });
           setLeavingId(request.requestId);
-          await wait(reduced ? 220 : 380);
+          await wait(reduced ? 220 : 460);
           setIncomingRequests(prev => prev.filter(r => r.requestId !== request.requestId));
           setLeavingId(null);
           loadData();
@@ -732,11 +698,11 @@ export default function ProviderDashboard() {
     if (!location) return;
     setCamDoor((prev) => (!prev || metersBetween(prev.latitude, prev.longitude, location.latitude, location.longitude) > 25 ? location : prev));
   }, [location?.latitude, location?.longitude]);
-  // Le rembourrage est posé sur la carte (mapPadding) et ne change pas avec le
-  // stade — un padding qui saute fait sauter la carte. La fiche « elle est
-  // pour vous », plus haute que la journée, s'ajoute en marge du cadrage.
+  // Le rembourrage du cadrage est donné à la caméra (edgePadding), pas à la
+  // MapView : Apple Maps ignore `mapPadding` pour cadrer, et un padding qui
+  // saute fait sauter la carte. La journée en bas est toujours couverte ; la
+  // fiche « elle est pour vous » ou la feuille de mission s'ajoutent en marge.
   const stripCover = g.mapPaddingBottom;
-  const mapPadding = useMemo(() => ({ top: g.mapPaddingTop, right: layout.insets.right, bottom: stripCover, left: layout.insets.left }), [g.mapPaddingTop, stripCover, layout.insets.left, layout.insets.right]);
   const extraCover = stage === 'incoming'
     ? Math.max(0, Math.round(windowHeight * 0.55) - stripCover)
     : stage === 'busy' && missionFacts ? Math.max(0, missionFacts.sheetHeight - stripCover) : 0;
@@ -745,7 +711,7 @@ export default function ProviderDashboard() {
   const camMode = missionCam ?? cockpitCameraMode(stage);
   const camAnchor = missionCam === 'band' && doorCoord ? doorCoord : (camDoor ?? BRUSSELS);
   const camOther = missionCam === 'band' ? camDoor : other;
-  useMapCamera({ mapRef, ready: mapReady && !!camDoor, mode: camMode, door: camAnchor, other: camOther, sheetHeight: extraCover, topInset: 0, reduced });
+  useMapCamera({ mapRef, ready: mapReady && !!camDoor, mode: camMode, door: camAnchor, other: camOther, sheetHeight: stripCover + extraCover, topInset: g.mapPaddingTop, reduced, viewportHeight: layout.height });
 
   // ─── Itinéraire vers la demande ou la porte, dessiné point par point ─────
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
@@ -794,6 +760,7 @@ export default function ProviderDashboard() {
   const onMissionExit = useCallback((_reason: 'done' | 'gone') => {
     wantedMissionRef.current = null;
     setMissionFacts(null);
+    setMissionSeed(null);
     setCurrentMission(null);
     loadData();
   }, [loadData]);
@@ -836,7 +803,7 @@ export default function ProviderDashboard() {
         pitchEnabled={false}
         toolbarEnabled={false}
         onMapReady={() => setMapReady(true)}
-        mapPadding={mapPadding}
+        legalLabelInsets={{ top: 0, left: layout.insets.left, bottom: stripCover, right: 0 }}
         initialRegion={{ ...(location ?? BRUSSELS), latitudeDelta: 0.035, longitudeDelta: 0.035 }}
       >
         <RouteTrace coords={routeCoords} color={routeColor} />
@@ -895,6 +862,8 @@ export default function ProviderDashboard() {
         <MissionFlow
           key={String(currentMission.id)}
           requestId={String(currentMission.id)}
+          seed={missionSeed && Number(missionSeed.id) === Number(currentMission.id) ? missionSeed : null}
+          topInset={g.mapPaddingTop}
           myLocation={location}
           gpsDenied={gpsDenied}
           etaMin={etaMin}

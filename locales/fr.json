@@ -2402,6 +2402,7 @@
     "mission_done": "Mission terminée",
     "done_net": "net · versé sous {{n}} jours · facture envoyée",
     "done_next": "Mission suivante",
-    "done_duration": "{{n}} min"
+    "done_duration": "{{n}} min",
+    "done_net_short": "net"
   }
 }

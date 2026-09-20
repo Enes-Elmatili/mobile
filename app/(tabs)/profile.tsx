@@ -25,6 +25,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { devLog, devWarn } from '@/lib/logger';
 import { runWhenIdle } from '@/lib/idle';
 import { useTabBarPadding } from './_layout';
+import { BarLock } from '@/stores/nav';
 import { useTranslation } from 'react-i18next';
 import { translateCategory } from '@/lib/categoryLabel';
 import { feedback } from '@/lib/feedback/feedback';
@@ -1385,6 +1386,7 @@ export default function Profile() {
         handleIndicatorStyle={{ backgroundColor: theme.border }}
         maxDynamicContentSize={windowHeight * 0.7}
       >
+        <BarLock />
         <BottomSheetScrollView contentContainerStyle={[s.sheetContent, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
           <View style={[s.sheetHandle, { backgroundColor: theme.border }]} />
           <Text style={[s.sheetTitle, { color: theme.textAlt }]}>Paramètres</Text>

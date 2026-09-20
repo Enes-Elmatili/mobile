@@ -5,6 +5,7 @@
 // mission, la feuille porte l'action) ; « + » (demander) · flèche ambre (suivre) côté
 // client. Les écrans le règlent (`setDisc`) ; la barre le rend ; l'appui
 // remonte au réglage courant. Les badges suivent la même voie.
+import { useEffect } from 'react';
 import { create } from 'zustand';
 
 export type DiscKind = 'go' | 'stop' | 'busy' | 'plus' | 'track' | 'hidden';
@@ -28,6 +29,10 @@ type NavState = {
   /** La barre s'efface (glisse sous l'écran) quand une fiche prend tout l'écran. */
   barHidden: boolean;
   setBarHidden: (hidden: boolean) => void;
+  /** Verrous posés par les feuilles modales ouvertes dans un onglet : tant qu'il en reste un, la barre reste effacée. */
+  barLocks: number;
+  lockBar: () => void;
+  unlockBar: () => void;
   badges: Badges;
   setBadge: (tab: keyof Badges, value: number | string | null) => void;
 };
@@ -37,6 +42,9 @@ export const useNavStore = create<NavState>((set) => ({
   setDisc: (disc) => set({ disc }),
   barHidden: false,
   setBarHidden: (barHidden) => set((s) => (s.barHidden === barHidden ? s : { barHidden })),
+  barLocks: 0,
+  lockBar: () => set((s) => ({ barLocks: s.barLocks + 1 })),
+  unlockBar: () => set((s) => ({ barLocks: Math.max(0, s.barLocks - 1) })),
   badges: {},
   setBadge: (tab, value) => set((s) => (s.badges[tab] === value ? s : { badges: { ...s.badges, [tab]: value } })),
 }));
@@ -53,4 +61,17 @@ export function providerDisc(stage: 'off' | 'on' | 'incoming' | 'busy' | 'gps' |
 /** Le disque du client : « + » au repos, la flèche quand une demande vit. */
 export function clientDisc(hasLiveRequest: boolean): DiscKind {
   return hasLiveRequest ? 'track' : 'plus';
+}
+
+/** Une feuille modale ouverte dans un onglet efface la barre le temps de sa vie. */
+export function useHideBar(): void {
+  const lock = useNavStore((s) => s.lockBar);
+  const unlock = useNavStore((s) => s.unlockBar);
+  useEffect(() => { lock(); return unlock; }, [lock, unlock]);
+}
+
+/** Version composant, à poser dans le contenu d'une feuille rendue inline. */
+export function BarLock(): null {
+  useHideBar();
+  return null;
 }

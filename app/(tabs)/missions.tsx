@@ -31,6 +31,7 @@ import { PhotoGallery } from '@/components/mission/photos';
 import { SplitPane, useSplitPane } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useTabBarPadding } from './_layout';
+import { BarLock } from '@/stores/nav';
 import { useSocket } from '@/lib/SocketContext';
 import { useCall } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
@@ -1401,6 +1402,7 @@ export default function Missions() {
       />
       {detailSheetOpen && !isSplit && (
       <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailSheetOpen(false)} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: t.cardBg }} handleIndicatorStyle={{ backgroundColor: t.border }} maxDynamicContentSize={windowHeight * 0.85}>
+        <BarLock />
         {loadingDetails ? (
           <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 60 }} />
         ) : selectedMission ? (

@@ -3,6 +3,7 @@
 // Design : monochrome strict (blanc client / sombre provider)
 // TVA 21% belge, montants tabular-nums alignés à droite
 
+import { useHideBar } from '@/stores/nav';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -153,6 +154,7 @@ export default function InvoiceSheet({
   duration,
   onNavigateToWallet,
 }: InvoiceSheetProps) {
+  useHideBar(); // la barre flottante s'efface sous la feuille
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();

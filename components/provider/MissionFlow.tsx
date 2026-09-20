@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Feather } from '@expo/vector-icons';
-import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
 import { tokenStorage } from '@/lib/storage';
@@ -56,6 +56,10 @@ export type MissionFacts = {
 
 type Props = {
   requestId: string;
+  /** La demande déjà connue (fiche acceptée) : la feuille se pose sans attendre le serveur. */
+  seed?: any | null;
+  /** Haut de la zone libre sous la rangée du haut et l'étiquette : la feuille ne monte pas au-delà. */
+  topInset: number;
   myLocation: LatLng | null;
   gpsDenied: boolean;
   /** Minutes de route jusqu'à la porte, calculées par l'accueil. */
@@ -83,7 +87,7 @@ async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', i
   return data.photoUrl;
 }
 
-export function MissionFlow({ requestId: id, myLocation, gpsDenied, etaMin, onFacts, onExit }: Props) {
+export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, gpsDenied, etaMin, onFacts, onExit }: Props) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const theme = useAppTheme();
@@ -91,7 +95,7 @@ export function MissionFlow({ requestId: id, myLocation, gpsDenied, etaMin, onFa
   const { user: authUser } = useAuth();
 
   // ─── La demande et les faits du terrain ──────────────────────────────────
-  const [request, setRequest] = useState<any>(null);
+  const [request, setRequest] = useState<any>(seed);
   const [gpsAt, setGpsAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [beforeUri, setBeforeUri] = useState<string | null>(null);
@@ -333,9 +337,9 @@ export function MissionFlow({ requestId: id, myLocation, gpsDenied, etaMin, onFa
   }, [id, loadRequest]);
 
   // ─── Feuille : paliers ───────────────────────────────────────────────────
-  // Chaque feuille fait la taille de son contenu (enableDynamicSizing) ; en
-  // route, un palier « aperçu » laisse respirer la carte.
-  const levels: SheetLevel[] = stage === 'en_route' ? ['peek', 'half', 'full'] : ['half', 'full'];
+  // Chaque feuille fait la taille de son contenu (enableDynamicSizing), jamais
+  // plus, jamais moins : pas de palier qui ne montre que le pied.
+  const levels: SheetLevel[] = ['half', 'full'];
   const level: SheetLevel = 'half';
 
   // ─── Contenu par stade ───────────────────────────────────────────────────
@@ -461,7 +465,8 @@ export function MissionFlow({ requestId: id, myLocation, gpsDenied, etaMin, onFa
         break;
       }
       case 'done': {
-        // La feuille vire au vert : le bilan tient en une feuille à la taille de son contenu.
+        // Terminée, sans fanfare : le même vert pâle que les pastilles sur la
+        // feuille, le net qui roule, trois temps, deux photos, « mission suivante ».
         const netEur = netFor(brief);
         const startedAt = request.startedAt ? new Date(request.startedAt).getTime() : null;
         const durationMin = startedAt && doneAt ? Math.max(1, Math.round((doneAt - startedAt) / 60_000)) : null;
@@ -469,37 +474,26 @@ export function MissionFlow({ requestId: id, myLocation, gpsDenied, etaMin, onFa
           { key: 'arrived', label: t('pro.rail_arrived'), when: formatClock(request.beforePhotoAt ?? request.startedAt), done: true },
           { key: 'started', label: t('pro.rail_started'), when: formatClock(request.startedAt), done: true },
           { key: 'after', label: t('pro.rail_after'), when: formatClock(request.afterPhotoAt ?? doneAt), done: true },
+          { key: 'done', label: t('pro.rail_done'), when: doneAt ? formatClock(doneAt) : null, done: true },
         ];
         content = (
-          <View style={s.done}>
-            <Text style={[s.doneKicker]} maxFontSizeMultiplier={1.2}>
-              {[t('cockpit.m_done').toUpperCase(), doneAt ? formatClock(doneAt) : null, durationMin != null ? t('cockpit.done_duration', { n: durationMin }) : null].filter(Boolean).join(' · ')}
-            </Text>
-            <View style={s.doneRow}>
-              <Text style={s.doneTitle} maxFontSizeMultiplier={1.2}>{t('cockpit.mission_done')}</Text>
-              {netEur != null ? (
-                <View style={s.doneNet} accessible accessibilityLabel={`+${formatEUR(netEur, 0)}`}>
-                  <Text style={s.doneNetSign}>+</Text>
-                  <DigitReel value={Math.round(netEur)} lineHeight={44} textStyle={s.doneNetText} />
-                  <Text style={s.doneNetText}> €</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={s.doneSub} maxFontSizeMultiplier={1.2}>{t('cockpit.done_net', { n: PAYOUT_DELAY_DAYS })}</Text>
-            <View style={s.doneRail}>
-              {rows.map((r) => (
-                <View key={r.key} style={s.doneLine}>
-                  <View style={s.doneDot} />
-                  <Text style={s.doneLineText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{r.label}</Text>
-                  {r.when ? <Text style={s.doneWhen} maxFontSizeMultiplier={1.2}>{r.when}</Text> : null}
-                </View>
-              ))}
-            </View>
+          <>
+            <StageHeader stageKey="done" kicker={[t('cockpit.m_done').toUpperCase(), durationMin != null ? t('cockpit.done_duration', { n: durationMin }) : null].filter(Boolean).join(' · ')} />
+            {netEur != null ? (
+              <View style={s.doneNet} accessible accessibilityLabel={`+${formatEUR(netEur, 0)} ${t('gains.earn_net')}`}>
+                <Text style={[s.doneNetSign, { color: theme.greenText }]}>+</Text>
+                <DigitReel value={Math.round(netEur)} lineHeight={60} textStyle={{ ...s.doneNetText, color: theme.text as string }} />
+                <Text style={[s.doneNetText, { color: theme.text }]}> €</Text>
+                <Text style={[s.doneNetUnit, { color: theme.textSub }]}>{t('cockpit.done_net_short')}</Text>
+              </View>
+            ) : null}
+            <Text style={[s.sub, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('cockpit.done_net', { n: PAYOUT_DELAY_DAYS })}</Text>
+            <Rail rows={rows} />
             <View style={s.thumbRow}>
               <PhotoCard uri={beforeUri} label={t('pro.photo_before')} onPress={() => setViewer(0)} />
               <PhotoCard uri={afterUri} label={t('pro.photo_after')} onPress={() => setViewer(beforeUri ? 1 : 0)} />
             </View>
-          </View>
+          </>
         );
         footer = <Cta label={t('cockpit.done_next')} onPress={() => onExit('done')} />;
         break;
@@ -515,7 +509,7 @@ export function MissionFlow({ requestId: id, myLocation, gpsDenied, etaMin, onFa
 
   return (
     <>
-      <StageSheet levels={levels} level={level} onHeightChange={setSheetHeight} footer={footer} keyboard={stage === 'code'} tone={stage === 'done' ? 'green' : 'default'}>
+      <StageSheet levels={levels} level={level} onHeightChange={setSheetHeight} footer={footer} keyboard={stage === 'code'} tone={stage === 'done' ? 'green' : 'default'} topInset={topInset}>
         {content}
       </StageSheet>
       <PhotoViewer photos={gallery} index={viewer} onClose={() => setViewer(null)} />
@@ -531,20 +525,10 @@ const s = StyleSheet.create({
   thumbRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   options: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 6 },
   optionsText: { fontFamily: FONTS.sansMedium, fontSize: 12.5 },
-  // Terminée : sur le vert de la marque, encre sombre.
-  done: { paddingTop: 2 },
-  doneKicker: { fontFamily: FONTS.monoMedium, fontSize: 10.5, letterSpacing: 2, color: 'rgba(10,10,10,0.7)' },
-  doneRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 8 },
-  doneTitle: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, color: '#0A0A0A', includeFontPadding: false, flexShrink: 1 },
-  doneNet: { flexDirection: 'row', alignItems: 'flex-end' },
-  doneNetSign: { fontFamily: FONTS.bebas, fontSize: 40, color: '#0A0A0A', includeFontPadding: false, lineHeight: 44 },
-  doneNetText: { fontFamily: FONTS.bebas, fontSize: 40, color: '#0A0A0A', includeFontPadding: false, letterSpacing: 0.5 },
-  doneSub: { fontFamily: FONTS.sans, fontSize: 13, color: 'rgba(10,10,10,0.7)', marginTop: 2 },
-  doneRail: { marginTop: 12, gap: 8 },
-  doneLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  doneDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0A0A0A' },
-  doneLineText: { flex: 1, fontFamily: FONTS.sans, fontSize: 13, color: '#0A0A0A' },
-  doneWhen: { fontFamily: FONTS.monoMedium, fontSize: 11, letterSpacing: 1, color: 'rgba(10,10,10,0.75)' },
+  // Terminée : le net en grand, le reste comme d'habitude.
+  doneNet: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 10 },
+  doneNetSign: { fontFamily: FONTS.bebas, fontSize: 40, includeFontPadding: false, lineHeight: 60 },
+  doneNetText: { fontFamily: FONTS.bebas, fontSize: 56, includeFontPadding: false, letterSpacing: 0.5 },
+  doneNetUnit: { fontFamily: FONTS.bebas, fontSize: 20, letterSpacing: 1, includeFontPadding: false, marginLeft: 8, lineHeight: 44 },
 });
 
-export const MISSION_DONE_GREEN = COLORS.greenBrand;

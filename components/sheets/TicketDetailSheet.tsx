@@ -2,6 +2,7 @@
 // ─── Fiche Mission Premium — Dark mode support via useAppTheme ─────────────
 // Design : "Facture élégante" — hiérarchie Statut → Prestataire → Prix → Actions
 
+import { useHideBar } from '@/stores/nav';
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Linking, TouchableOpacity,
@@ -115,6 +116,7 @@ const sr = StyleSheet.create({
 // ============================================================================
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose, onNavigateToOngoing }: TicketDetailSheetProps) {
+  useHideBar(); // la barre flottante s'efface sous la feuille
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const { t } = useTranslation();
