@@ -1,14 +1,14 @@
 // L'onglet Missions comme agenda : semaine, maintenant, fil du jour, mois (lib/agenda/model.ts).
-const { weeksAround, currentOf, dayTimeline, tripPairs, monthGroups, badgeCount, dayKey, startOfWeek } = require('@/lib/agenda/model');
+const { weeksAround, currentOf, dayTimeline, tripPairs, monthGroups, badgeCount, dayKey, startOfWeek, quoteStateOf } = require('@/lib/agenda/model');
 
-const brief = (net) => ({ money: { gross: net / 0.8, net, calloutFee: null, pricingMode: 'fixed' }, service: { pricingMode: 'fixed' }, photos: [], place: {}, client: null });
+const brief = (net, mode = 'fixed') => ({ money: { gross: net / 0.8, net, calloutFee: null, pricingMode: mode }, service: { pricingMode: mode }, photos: [], place: {}, client: null });
 const T = (h, m = 0, dayOffset = 0) => { const d = new Date(2026, 8, 16, h, m, 0, 0); d.setDate(d.getDate() + dayOffset); return d.getTime(); };
-const item = (id, status, at, net = 100, extra = {}) => ({ id: String(id), status, at, durationMin: 60, lat: 50.8, lng: 4.35, brief: brief(net), ...extra });
+const item = (id, status, at, net = 100, extra = {}) => ({ id: String(id), status, at, durationMin: 60, lat: 50.8, lng: 4.35, brief: brief(net, extra.mode), ...extra });
 const now = T(14, 32);
 
 describe('la semaine', () => {
   it('commence le lundi, marque aujourd’hui, compte les missions et signale un devis', () => {
-    const items = [item(1, 'DONE', T(9)), item(2, 'ACCEPTED', T(14)), item(3, 'PUBLISHED', T(17)), item(4, 'QUOTE_PENDING', T(10, 30, 1))];
+    const items = [item(1, 'DONE', T(9)), item(2, 'ACCEPTED', T(14)), item(3, 'PUBLISHED', T(17)), item(4, 'ACCEPTED', T(10, 30, 1), 0, { mode: 'diagnostic' })];
     const weeks = weeksAround(now, items, 1, 1);
     expect(weeks).toHaveLength(3);
     const week = weeks[1];
@@ -72,8 +72,26 @@ describe('passées, par mois', () => {
   });
 });
 
+describe('le devis, côté prestataire', () => {
+  it('à rédiger = mode devis + acceptée ou démarrée ; envoyé = QUOTE_SENT ; accepté = QUOTE_ACCEPTED ; jamais QUOTE_PENDING', () => {
+    expect(quoteStateOf(item(1, 'ACCEPTED', T(10), 0, { mode: 'estimate' }))).toBe('todo');
+    expect(quoteStateOf(item(1, 'ONGOING', T(10), 0, { mode: 'diagnostic' }))).toBe('todo');
+    expect(quoteStateOf(item(1, 'QUOTE_SENT', T(10), 0, { mode: 'estimate' }))).toBe('sent');
+    expect(quoteStateOf(item(1, 'QUOTE_ACCEPTED', T(10), 120, { mode: 'estimate' }))).toBe('accepted');
+    expect(quoteStateOf(item(1, 'ACCEPTED', T(10), 120))).toBe('none');
+    expect(quoteStateOf(item(1, 'DONE', T(10), 0, { mode: 'estimate' }))).toBe('none');
+  });
+  it('le fil marque le devis, les refusés/expirés vont dans les passées', () => {
+    const items = [item(1, 'ONGOING', T(10), 0, { mode: 'estimate' }), item(2, 'QUOTE_REFUSED', T(9, 0, -1), 80, { mode: 'estimate' }), item(3, 'QUOTE_EXPIRED', T(9, 0, -2), 0, { mode: 'estimate' })];
+    const { rows } = dayTimeline(items, dayKey(now), {}, items[0]);
+    expect(rows[0]).toMatchObject({ kind: 'mission', quote: 'todo' });
+    const g = monthGroups(items);
+    expect(g[0]).toMatchObject({ count: 2, net: 0 });
+  });
+});
+
 describe('le badge', () => {
   it('compte ce qui attend une action : à prendre + devis à rédiger', () => {
-    expect(badgeCount([item(1, 'QUOTE_PENDING', T(10)), item(2, 'ACCEPTED', T(11))], 2)).toBe(3);
+    expect(badgeCount([item(1, 'ONGOING', T(10), 0, { mode: 'estimate' }), item(2, 'ACCEPTED', T(11))], 2)).toBe(3);
   });
 });

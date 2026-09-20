@@ -47,11 +47,11 @@ describe('cockpitStageOf', () => {
 describe('journée', () => {
   const now = Date.parse('2026-09-17T10:00:00Z');
   const iso = (min) => new Date(now + min * 60000).toISOString();
-  it('rappels : virements si Stripe non finalisé, un devis par mission QUOTE_PENDING', () => {
+  it('rappels : virements si Stripe non finalisé, un devis par mission en mode devis démarrée (jamais QUOTE_PENDING : le serveur ne le donne pas à une mission assignée)', () => {
     expect(remindersOf([], null)).toEqual([]);
     expect(remindersOf([], { needsOnboarding: true })).toEqual([{ kind: 'payouts' }]);
     expect(remindersOf([], { payoutsEnabled: false })).toEqual([{ kind: 'payouts' }]);
-    expect(remindersOf([{ id: 51, status: 'QUOTE_PENDING' }, { id: 52, status: 'DONE' }], { payoutsEnabled: true }))
+    expect(remindersOf([{ id: 51, status: 'ONGOING', pricingMode: 'diagnostic' }, { id: 52, status: 'DONE', pricingMode: 'estimate' }, { id: 53, status: 'ACCEPTED', pricingMode: 'estimate' }, { id: 54, status: 'ONGOING', pricingMode: 'fixed' }, { id: 55, status: 'QUOTE_SENT', pricingMode: 'estimate' }], { payoutsEnabled: true }))
       .toEqual([{ kind: 'quote', requestId: 51 }]);
   });
   it('prochaine mission : la plus proche acceptée à venir, ambre à moins de 30 min', () => {

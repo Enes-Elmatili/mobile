@@ -2542,6 +2542,9 @@
     "free_day_sub": "Aanvragen komen op het startscherm binnen wanneer u online bent. Geplande opdrachten verschijnen hier.",
     "cancelled": "geannuleerd",
     "quote_todo": "offerte op te stellen",
-    "net": "netto"
+    "net": "netto",
+    "quote_sent": "offerte verzonden",
+    "quote_refused": "offerte geweigerd",
+    "expired": "verlopen"
   }
 }

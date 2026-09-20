@@ -156,7 +156,8 @@ function MissionLine({ row, onPress }: { row: Extract<TimelineRow, { kind: 'miss
   const press = usePressScale(0.98);
   const { item, done, quote, net, isCurrent } = row;
   const client = item.brief.client?.name ? cleanName(item.brief.client.name) : null;
-  const sub = [client, placeShort(item.brief.place.address), quote ? t('agenda.quote_todo') : item.brief.service.durationMinutes ? t('mission.minutes', { n: item.brief.service.durationMinutes }) : null].filter(Boolean).join(' · ');
+  const quoteLabel = quote === 'todo' ? t('agenda.quote_todo') : quote === 'sent' ? t('agenda.quote_sent') : null;
+  const sub = [client, placeShort(item.brief.place.address), quoteLabel ?? (item.brief.service.durationMinutes ? t('mission.minutes', { n: item.brief.service.durationMinutes }) : null)].filter(Boolean).join(' · ');
   return (
     <View style={s.line}>
       <Text style={[s.hour, { color: done ? theme.textMuted : theme.textSub }]} maxFontSizeMultiplier={1.2}>{clock(item.at)}</Text>
@@ -166,8 +167,8 @@ function MissionLine({ row, onPress }: { row: Extract<TimelineRow, { kind: 'miss
             <Text style={[s.rowTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{serviceName(item.brief)}</Text>
             <Text style={[s.rowSub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text>
           </View>
-          {quote ? (
-            <Text style={[s.net, { color: COLORS.amber }]} maxFontSizeMultiplier={1.2}>{t('mission.quote').toUpperCase()}</Text>
+          {quote === 'todo' || quote === 'sent' || (quote === 'accepted' && net == null) ? (
+            <Text style={[s.net, { color: quote === 'todo' ? COLORS.amber : theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('mission.quote').toUpperCase()}</Text>
           ) : net != null ? (
             <Text style={[s.net, { color: done ? theme.greenText : theme.text }]} maxFontSizeMultiplier={1.2}>{done ? `+${formatEUR(net, 0)}` : formatEUR(net, 0)}</Text>
           ) : null}
@@ -232,13 +233,14 @@ export function PastMonth({ group, label, open, onToggle, onPress, dayLabel }: {
       </Pressable>
       {open ? group.items.map((it) => {
         const cancelled = it.status !== 'DONE';
+        const endLabel = it.status === 'QUOTE_REFUSED' ? t('agenda.quote_refused') : it.status === 'QUOTE_EXPIRED' || it.status === 'EXPIRED' ? t('agenda.expired') : cancelled ? t('agenda.cancelled') : null;
         const net = netFor(it.brief);
         return (
           <Pressable key={it.id} onPress={() => { feedback.haptic('light'); onPress(it); }} style={s.past} accessibilityRole="button" accessibilityLabel={`${dayLabel(it.at)} ${serviceName(it.brief)}`}>
             <Text style={[s.pastDay, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{dayLabel(it.at).toUpperCase()}</Text>
             <Text style={{ flex: 1 }} numberOfLines={1} maxFontSizeMultiplier={1.2}>
               <Text style={[s.pastTitle, { color: theme.text }]}>{serviceName(it.brief)}</Text>
-              <Text style={[s.rowSub, { color: theme.textSub }]}>{[placeShort(it.brief.place.address), cancelled ? t('agenda.cancelled') : null].filter(Boolean).map((x) => ` · ${x}`).join('')}</Text>
+              <Text style={[s.rowSub, { color: theme.textSub }]}>{[placeShort(it.brief.place.address), endLabel].filter(Boolean).map((x) => ` · ${x}`).join('')}</Text>
             </Text>
             {net != null ? <Text style={[s.pastAmt, cancelled ? { color: theme.textMuted, textDecorationLine: 'line-through' } : { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{cancelled ? formatEUR(net, 0) : `+${formatEUR(net, 0)}`}</Text> : null}
           </Pressable>

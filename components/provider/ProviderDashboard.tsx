@@ -729,11 +729,14 @@ export default function ProviderDashboard() {
   }, [routeKey, camDoor?.latitude, camDoor?.longitude]);
 
   // ─── Navigation ──────────────────────────────────────────────────────────
+  // Ouvrir une mission depuis la journée : elle vit ici, sur l'accueil — on la
+  // met devant (wantedMission) et on recharge ; pas d'autre page.
+  const showMission = useCallback((id: number | string) => { wantedMissionRef.current = String(id); loadData(); }, [loadData]);
   const onReminder = useCallback((r: Reminder) => {
     if (r.kind === 'payouts') router.push(gateCopyFor(GATE_CODES.STRIPE_NOT_READY).route as any);
-    else if (r.requestId != null) router.push(`/request/${r.requestId}/ongoing`);
-  }, [router]);
-  const onNext = useCallback((m: NextMission) => router.push(`/request/${m.id}/ongoing`), [router]);
+    else if (r.requestId != null) showMission(r.requestId);
+  }, [router, showMission]);
+  const onNext = useCallback((m: NextMission) => showMission(m.id), [showMission]);
   const goProfile = useCallback(() => router.push('/(tabs)/profile'), [router]);
   const goWallet = useCallback(() => router.push('/(tabs)/wallet'), [router]);
   const goMessages = useCallback(() => router.push('/messages'), [router]);

@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -174,6 +174,12 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   }, [id, router, onExit]);
 
   useEffect(() => { loadRequest(); }, [loadRequest]);
+  // Retour sur l'accueil (rédaction du devis, messages…) : on relit la mission.
+  const focusedOnceRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!focusedOnceRef.current) { focusedOnceRef.current = true; return; }
+    loadRequest();
+  }, [loadRequest]));
 
   // Horloge : le kicker « GPS perdu » et les heures affichées.
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(iv); }, []);

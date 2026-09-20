@@ -2542,6 +2542,9 @@
     "free_day_sub": "Requests arrive on Home when you're online. Scheduled ones will show up here.",
     "cancelled": "cancelled",
     "quote_todo": "quote to write",
-    "net": "net"
+    "net": "net",
+    "quote_sent": "quote sent",
+    "quote_refused": "quote declined",
+    "expired": "expired"
   }
 }

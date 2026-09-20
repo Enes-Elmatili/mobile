@@ -2424,6 +2424,9 @@
     "free_day_sub": "Les demandes arrivent sur l'accueil quand vous êtes en ligne. Celles qui sont planifiées se poseront ici.",
     "cancelled": "annulée",
     "quote_todo": "devis à rédiger",
-    "net": "net"
+    "net": "net",
+    "quote_sent": "devis envoyé",
+    "quote_refused": "devis refusé",
+    "expired": "expirée"
   }
 }

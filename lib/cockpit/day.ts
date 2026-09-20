@@ -8,6 +8,7 @@ export type MissionLite = {
   serviceType?: string | null;
   address?: string | null;
   preferredTimeStart?: string | null;
+  pricingMode?: string | null;
   client?: { name?: string | null } | null;
 };
 
@@ -27,12 +28,18 @@ export type NextMission = {
 
 export const SOON_MIN = 30;
 
-/** Rappels : virements à configurer (Stripe non finalisé), devis à rédiger (diagnostic fait, devis attendu). */
+/**
+ * Rappels : virements à configurer (Stripe non finalisé), devis à rédiger.
+ * Un devis est « à rédiger » quand la mission est en mode devis (estimate /
+ * diagnostic), démarrée (code vérifié : ONGOING) et sans devis envoyé (sinon
+ * QUOTE_SENT). Le serveur ne donne jamais QUOTE_PENDING à une mission assignée.
+ */
 export function remindersOf(missions: MissionLite[], connect: { needsOnboarding?: boolean; payoutsEnabled?: boolean } | null | undefined): Reminder[] {
   const out: Reminder[] = [];
   if (connect && (connect.needsOnboarding || connect.payoutsEnabled === false)) out.push({ kind: 'payouts' });
   for (const m of missions) {
-    if ((m.status || '').toUpperCase() === 'QUOTE_PENDING') out.push({ kind: 'quote', requestId: m.id });
+    const st = (m.status || '').toUpperCase();
+    if (st === 'ONGOING' && (m.pricingMode === 'estimate' || m.pricingMode === 'diagnostic')) out.push({ kind: 'quote', requestId: m.id });
   }
   return out;
 }

@@ -6,7 +6,7 @@
 //   - le fil du jour : missions à l'heure, trajets entre deux, creux écrits
 //   - « passées » : par mois, compte et net
 import type { MissionBrief } from '@/lib/mission/brief';
-import { netFor } from '@/lib/mission/brief';
+import { isQuoteMode, netFor } from '@/lib/mission/brief';
 
 export type AgendaStatus = 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT' | 'EXPIRED' | 'QUOTE_PENDING' | 'QUOTE_SENT' | 'QUOTE_ACCEPTED' | string;
 
@@ -24,7 +24,23 @@ export type AgendaItem = {
 
 export const ACTIVE_STATUSES = ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
 export const PLANNED_STATUSES = ['PUBLISHED', 'ACCEPTED', 'ONGOING', 'PENDING_PAYMENT', 'QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
-export const PAST_STATUSES = ['DONE', 'CANCELLED', 'EXPIRED'];
+export const PAST_STATUSES = ['DONE', 'CANCELLED', 'EXPIRED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'REFUNDED'];
+
+/**
+ * Le devis, côté prestataire. Le serveur ne donne jamais QUOTE_PENDING à une
+ * mission assignée (accepter la passe en ACCEPTED) : « devis à rédiger » =
+ * mode devis (estimate / diagnostic) et mission acceptée ou démarrée, sans
+ * devis envoyé ; QUOTE_SENT = envoyé, le client décide ; QUOTE_ACCEPTED = accepté.
+ */
+export type QuoteState = 'none' | 'todo' | 'sent' | 'accepted';
+export function quoteStateOf(item: { status: string; brief: MissionBrief }): QuoteState {
+  const st = item.status;
+  if (st === 'QUOTE_SENT') return 'sent';
+  if (st === 'QUOTE_ACCEPTED') return 'accepted';
+  const mode = item.brief.money.pricingMode ?? item.brief.service.pricingMode;
+  if (isQuoteMode(mode) && (st === 'ACCEPTED' || st === 'ONGOING')) return 'todo';
+  return 'none';
+}
 /** Une mission acceptée qui commence dans plus de 30 min n'est pas « maintenant ». */
 export const NOW_WINDOW_MIN = 30;
 /** En dessous, pas de « creux » écrit entre deux missions. */
@@ -69,7 +85,7 @@ export function weeksAround(now: number, items: AgendaItem[], before = 4, after 
     const k = dayKey(it.at);
     const cur = perDay.get(k) ?? { count: 0, quote: false };
     cur.count += 1;
-    if (it.status === 'QUOTE_PENDING') cur.quote = true;
+    if (quoteStateOf(it) === 'todo') cur.quote = true;
     perDay.set(k, cur);
   }
   const todayKey = dayKey(now);
@@ -95,7 +111,7 @@ export function currentOf(items: AgendaItem[], now: number): AgendaItem | null {
 }
 
 export type TimelineRow =
-  | { kind: 'mission'; item: AgendaItem; done: boolean; quote: boolean; net: number | null; isCurrent: boolean }
+  | { kind: 'mission'; item: AgendaItem; done: boolean; quote: QuoteState; net: number | null; isCurrent: boolean }
   | { kind: 'trip'; minutes: number }
   | { kind: 'gap'; untilMs: number }
   | { kind: 'free' };
@@ -109,7 +125,7 @@ export function tripKey(a: AgendaItem, b: AgendaItem): string { return `${a.id}>
 export function dayTimeline(items: AgendaItem[], day: string, trips: Trips = {}, current: AgendaItem | null = null): { rows: TimelineRow[]; net: number; count: number } {
   const ofDay = items
     .filter((it) => dayKey(it.at) === day && (PLANNED_STATUSES.includes(it.status) || PAST_STATUSES.includes(it.status)))
-    .filter((it) => it.status !== 'EXPIRED' && it.status !== 'CANCELLED')
+    .filter((it) => it.status === 'DONE' || PLANNED_STATUSES.includes(it.status))
     .sort((a, b) => a.at - b.at);
   const rows: TimelineRow[] = [];
   let net = 0;
@@ -117,7 +133,7 @@ export function dayTimeline(items: AgendaItem[], day: string, trips: Trips = {},
     const n = netFor(it.brief);
     const done = it.status === 'DONE';
     if (n != null) net += n;
-    rows.push({ kind: 'mission', item: it, done, quote: it.status === 'QUOTE_PENDING', net: n, isCurrent: current?.id === it.id });
+    rows.push({ kind: 'mission', item: it, done, quote: quoteStateOf(it), net: n, isCurrent: current?.id === it.id });
     const next = ofDay[i + 1];
     if (!next) return;
     const trip = trips[tripKey(it, next)];
@@ -164,5 +180,5 @@ export function monthGroups(items: AgendaItem[]): MonthGroup[] {
 
 /** Le badge de l'onglet : ce qui attend une action — à prendre, devis à rédiger. */
 export function badgeCount(items: AgendaItem[], toTake: number): number {
-  return toTake + items.filter((it) => it.status === 'QUOTE_PENDING').length;
+  return toTake + items.filter((it) => quoteStateOf(it) === 'todo').length;
 }
