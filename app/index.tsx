@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useAuth } from '../lib/auth/AuthContext';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function Index() {
@@ -10,7 +10,7 @@ export default function Index() {
   if (isBooting) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg }}>
-        <ActivityIndicator size="large" color={theme.accent} />
+        {/* Sous le splash animé : la même surface, sans roue — un spinner ferait une roue sous le fondu si l'on passe le splash. */}
       </View>
     );
   }

@@ -129,6 +129,15 @@
           "dark": {
             "backgroundColor": "#0A0A0A",
             "image": "./assets/logo-variants/logo-transparent-white.png"
+          },
+          "android": {
+            "backgroundColor": "#F4F4F2",
+            "image": "./assets/splash-screens/splash-icon-android-light.png",
+            "imageWidth": 160,
+            "dark": {
+              "backgroundColor": "#0A0A0A",
+              "image": "./assets/splash-screens/splash-icon-android-dark.png"
+            }
           }
         }
       ],

@@ -10,13 +10,14 @@
 // de charger l'app pendant ce temps. Aucun module natif supplémentaire.
 import React, { useEffect, useRef } from 'react';
 import {
-  View, Image, Pressable, StyleSheet,
+  View, Image, Pressable, StyleSheet, Appearance,
   useWindowDimensions, AccessibilityInfo,
   type ImageSourcePropType,
 } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
+  interpolateColor,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -98,6 +99,12 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   const tagOp = useSharedValue(0);
   const tagY = useSharedValue(12);
   const rootOp = useSharedValue(1);
+  // Le splash natif suit le téléphone ; l'app peut préférer l'autre thème
+  // (Réglages → Apparence). Le fond part de la couleur native et glisse vers
+  // celle de l'app en 320 ms : pas de flash au passage de témoin.
+  const nativeBg = Appearance.getColorScheme() === 'dark' ? '#0A0A0A' : '#F4F4F2';
+  const bgMix = useSharedValue(0);
+  useEffect(() => { bgMix.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) }); }, [bgMix]);
 
   const finishedRef = useRef(false);
   const onDoneRef = useRef(onDone);
@@ -168,7 +175,8 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   };
 
   // ── Styles ───────────────────────────────────────────────────────────────
-  const rootStyle = useAnimatedStyle(() => ({ opacity: rootOp.value }));
+  const themeBg = theme.bg as string;
+  const rootStyle = useAnimatedStyle(() => ({ opacity: rootOp.value, backgroundColor: interpolateColor(bgMix.value, [0, 1], [nativeBg, themeBg]) }));
   const hairlineStyle = useAnimatedStyle(() => ({
     opacity: hairlineOp.value,
     transform: [{ scaleX: hairline.value }],
@@ -186,7 +194,7 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg }, rootStyle]}>
+    <Animated.View style={[StyleSheet.absoluteFill, rootStyle]}>
       {/* Hairline (scène 1) */}
       <Animated.View pointerEvents="none" style={[{
         position: 'absolute', left: centerX - SW * 0.15, top: dotCY - 0.75, width: SW * 0.3, height: 1.5,
