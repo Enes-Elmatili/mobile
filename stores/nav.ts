@@ -68,11 +68,16 @@ export function clientDisc(hasLiveRequest: boolean): DiscKind {
   return hasLiveRequest ? 'track' : 'plus';
 }
 
-/** Une feuille modale ouverte dans un onglet efface la barre le temps de sa vie. */
-export function useHideBar(): void {
+/**
+ * Une feuille modale ouverte dans un onglet efface la barre tant qu'elle est
+ * OUVERTE (`active`). Certaines feuilles restent montées fermées (elles
+ * rendent null) : verrouiller au montage effaçait la barre — et le GO — dès
+ * qu'on avait visité l'onglet une fois.
+ */
+export function useHideBar(active: boolean = true): void {
   const lock = useNavStore((s) => s.lockBar);
   const unlock = useNavStore((s) => s.unlockBar);
-  useEffect(() => { lock(); return unlock; }, [lock, unlock]);
+  useEffect(() => { if (!active) return; lock(); return unlock; }, [active, lock, unlock]);
 }
 
 /** Version composant, à poser dans le contenu d'une feuille rendue inline. */

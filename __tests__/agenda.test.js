@@ -95,3 +95,14 @@ describe('le badge', () => {
     expect(badgeCount([item(1, 'ONGOING', T(10), 0, { mode: 'estimate' }), item(2, 'ACCEPTED', T(11))], 2)).toBe(3);
   });
 });
+
+describe('stores/nav — la barre ne se verrouille que sous une feuille OUVERTE', () => {
+  const { useNavStore } = require('@/stores/nav');
+  it('lock / unlock comptent, jamais en dessous de zéro', () => {
+    const st = useNavStore.getState();
+    st.lockBar(); st.lockBar();
+    expect(useNavStore.getState().barLocks).toBe(2);
+    st.unlockBar(); st.unlockBar(); st.unlockBar();
+    expect(useNavStore.getState().barLocks).toBe(0);
+  });
+});

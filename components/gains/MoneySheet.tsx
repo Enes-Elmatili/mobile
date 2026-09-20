@@ -18,7 +18,7 @@ import { Ledger } from './Ledger';
 type Props = { line: GainLine | null; bankLabel: string | null; onClose: () => void; onInvoice?: (missionId: number) => void };
 
 export function MoneySheet({ line, bankLabel, onClose, onInvoice }: Props) {
-  useHideBar(); // la barre flottante s'efface sous la feuille
+  useHideBar(!!line); // la barre flottante s'efface tant que la feuille est ouverte
   const theme = useAppTheme();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();

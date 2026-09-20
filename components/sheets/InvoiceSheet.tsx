@@ -154,7 +154,7 @@ export default function InvoiceSheet({
   duration,
   onNavigateToWallet,
 }: InvoiceSheetProps) {
-  useHideBar(); // la barre flottante s'efface sous la feuille
+  useHideBar(isVisible); // la barre flottante s'efface tant que la feuille est ouverte
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();

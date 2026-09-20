@@ -116,7 +116,7 @@ const sr = StyleSheet.create({
 // ============================================================================
 
 export default function TicketDetailSheet({ ticket, isVisible, onClose, onNavigateToOngoing }: TicketDetailSheetProps) {
-  useHideBar(); // la barre flottante s'efface sous la feuille
+  useHideBar(isVisible); // la barre flottante s'efface tant que la feuille est ouverte
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const { t } = useTranslation();
