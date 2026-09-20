@@ -35,10 +35,16 @@ const DASHBOARD: RequestDestination =
   { pathname: '/(tabs)/dashboard', replace: true, ctaKey: 'go_to_space', icon: 'grid' };
 const PROVIDER_MISSIONS: RequestDestination =
   { pathname: '/(tabs)/missions', replace: true, ctaKey: 'cta_view_missions', icon: 'briefcase' };
-// L'onglet Opportunités vit DANS l'écran Missions (tab interne par défaut) —
-// l'ancien écran /(tabs)/opportunities a été supprimé.
-const PROVIDER_OPPORTUNITIES: RequestDestination =
+// Les demandes « à prendre » vivent dans l'agenda (onglet Missions).
+export const PROVIDER_OPPORTUNITIES: RequestDestination =
   { pathname: '/(tabs)/missions', replace: true, ctaKey: 'cta_view_opportunities', icon: 'compass' };
+// Une demande qui vient d'arriver se présente sur l'accueil (la fiche « elle est pour vous »).
+export const PROVIDER_HOME: RequestDestination =
+  { pathname: '/(tabs)/dashboard', replace: true, ctaKey: 'cta_view_opportunities', icon: 'compass' };
+// La mission du prestataire vit sur l'accueil : on la met devant (?mission=).
+function providerMission(id: string, ctaKey: string, icon: string): RequestDestination {
+  return { pathname: '/(tabs)/dashboard', params: { mission: id }, replace: true, ctaKey, icon };
+}
 
 // Remboursement : on mène à la PREUVE — la facture précise passée en "Remboursé"
 // (ouverte directement dans l'onglet Documents via `openRequestId`).
@@ -116,23 +122,22 @@ export function resolveProviderDestination(req: RequestLike | null | undefined):
   const status = (req.status || '').toUpperCase();
 
   switch (status) {
-    case 'QUOTE_PENDING':                 // le prestataire doit (encore) envoyer son devis
-      return { pathname: '/request/[id]/send-quote', params: { id }, ctaKey: 'cta_send_quote', icon: 'edit-3' };
-    case 'QUOTE_SENT':                    // devis envoyé, en attente du client
-      return PROVIDER_MISSIONS;
+    case 'QUOTE_SENT':                    // devis envoyé, le client décide — la feuille le dit, sur l'accueil
+      return providerMission(id, 'cta_view_mission', 'briefcase');
 
     case 'QUOTE_ACCEPTED':
-    case 'ACCEPTED':
-    case 'ONGOING':                       // mission active du prestataire
-      return { pathname: '/request/[id]/ongoing', params: { id }, ctaKey: 'cta_view_mission', icon: 'briefcase' };
+    case 'ACCEPTED':                      // mission du prestataire (devis à rédiger compris) : elle vit sur l'accueil
+    case 'ONGOING':
+      return providerMission(id, 'cta_view_mission', 'briefcase');
 
     case 'DONE':                          // mission terminée → ses gains
       return { pathname: '/request/[id]/earnings', params: { id }, ctaKey: 'cta_view_earnings', icon: 'dollar-sign' };
 
+    case 'QUOTE_PENDING':                 // payée, pas encore prise : « à prendre »
     case 'QUOTE_REFUSED':
     case 'QUOTE_EXPIRED':
     case 'PUBLISHED':
-    case 'PENDING_PAYMENT':               // opportunité perdue / pas encore à lui → le flux d'opportunités
+    case 'PENDING_PAYMENT':               // opportunité perdue / pas encore à lui → « à prendre »
       return PROVIDER_OPPORTUNITIES;
 
     case 'CANCELLED':
@@ -155,7 +160,7 @@ const CLIENT_REQUEST_SCREENS = new Set(['MissionView', 'QuoteReview', 'Rating'])
 export type NotifIntent =
   | { kind: 'support' }
   | { kind: 'kyc' }
-  | { kind: 'opportunity' }
+  | { kind: 'opportunity'; home?: boolean }
   | { kind: 'refund'; requestId?: string }
   | { kind: 'client-request'; requestId: string }
   | { kind: 'provider-request'; requestId: string }
@@ -166,28 +171,36 @@ export type NotifIntent =
 // re-résout contre l'état courant, avec le rôle que l'événement déclare.
 const CATALOGUE_REQUEST_SCREENS = new Set(['MissionView', 'QuoteReview', 'Rating', 'Ongoing', 'Earnings']);
 
-export function classifyNotification(data: any): NotifIntent {
+/**
+ * `isProvider` : le rôle de l'utilisateur qui tape. Quand l'événement ne
+ * déclare pas d'audience (litiges, support), c'est lui qui décide du résolveur —
+ * sinon un prestataire atterrissait sur le suivi CLIENT de sa mission.
+ */
+export function classifyNotification(data: any, opts: { isProvider?: boolean } = {}): NotifIntent {
   if (!data) return { kind: 'space' };
-  const { category, type, screen, requestId, event, audience } = data;
+  const { category, type, screen, requestId, event } = data;
   const rid = requestId != null ? String(requestId) : undefined;
+  const audience: 'provider' | 'client' = data.audience === 'provider' || data.audience === 'client' ? data.audience : (opts.isProvider ? 'provider' : 'client');
 
   if (category === 'support' || type === 'support_escalation' || screen === 'Support') return { kind: 'support' };
   if (type === 'kyc_status') return { kind: 'kyc' };
   // ── Catalogue (data.event) : la destination est déclarée, le rôle aussi ──
   if (typeof event === 'string') {
-    if (event.startsWith('request.')) return { kind: 'opportunity' };
+    // Une demande qui arrive (request.new / urgent / preferred) se présente sur
+    // l'accueil ; planifiée ou devis voulu : « à prendre » dans l'agenda.
+    if (event.startsWith('request.')) return { kind: 'opportunity', home: screen === 'Dashboard' };
     if (event === 'refund.issued' || event.startsWith('quote.expired')) return { kind: 'refund', requestId: rid };
     if (rid && CATALOGUE_REQUEST_SCREENS.has(screen)) {
       return audience === 'provider' ? { kind: 'provider-request', requestId: rid } : { kind: 'client-request', requestId: rid };
     }
-    if (rid && audience === 'provider' && screen === 'Dashboard') return { kind: 'provider-request', requestId: rid };
+    if (rid && audience === 'provider' && (screen === 'Dashboard' || screen === 'Missions')) return { kind: 'provider-request', requestId: rid };
     return screen ? { kind: 'screen' } : { kind: 'space' };
   }
-  if (PROVIDER_OPPORTUNITY_TYPES.has(type)) return { kind: 'opportunity' };
+  if (PROVIDER_OPPORTUNITY_TYPES.has(type)) return { kind: 'opportunity', home: true };
   if (PROVIDER_QUOTE_TYPES.has(type) && rid) return { kind: 'provider-request', requestId: rid };
   if (category === 'refund' || type === 'refund') return { kind: 'refund', requestId: rid };
   if (rid && (CLIENT_REQUEST_CATEGORIES.has(category) || CLIENT_REQUEST_SCREENS.has(screen) || type === 'quote_received')) {
-    return { kind: 'client-request', requestId: rid };
+    return audience === 'provider' ? { kind: 'provider-request', requestId: rid } : { kind: 'client-request', requestId: rid };
   }
   if (screen) return { kind: 'screen' };
   return { kind: 'space' };

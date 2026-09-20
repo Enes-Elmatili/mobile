@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { api } from './api';
 import { tokenStorage } from './storage';
 import { devLog, devWarn } from './logger';
-import { classifyNotification, navigateToRequestById, navigateToDestination, refundDestination } from './requestDestination';
+import { classifyNotification, navigateToRequestById, navigateToDestination, refundDestination, PROVIDER_HOME, PROVIDER_OPPORTUNITIES } from './requestDestination';
 import { isSocketUp } from './socketStatus';
 
 // Au premier plan : un événement du catalogue (data.event) arrive aussi par le
@@ -28,6 +28,9 @@ Notifications.setNotificationHandler({
   },
 });
 
+/** Réponses de lancement déjà traitées (évite de rejouer la même navigation). */
+const handledLaunchIds = new Set<string>();
+
 /**
  * Demande la permission et synchronise le token Expo Push avec le backend.
  * Se déclenche dès que `userId` est non-null (utilisateur connecté).
@@ -35,14 +38,27 @@ Notifications.setNotificationHandler({
  *
  * @param userId - ID de l'utilisateur connecté, ou null/undefined si déconnecté
  */
-export function usePushNotifications(userId?: string | null) {
+export function usePushNotifications(userId?: string | null, isProvider: boolean = false) {
   const notificationListener = useRef<Notifications.EventSubscription>(undefined);
   const responseListener = useRef<Notifications.EventSubscription>(undefined);
+  const roleRef = useRef(isProvider);
+  useEffect(() => { roleRef.current = isProvider; }, [isProvider]);
 
   useEffect(() => {
     if (!userId) return; // Pas d'utilisateur connecté → rien à faire
 
     registerForPushNotifications();
+
+    // L'app a été LANCÉE par un tap sur une notification (app fermée) : le
+    // listener ci-dessous ne reçoit pas cette réponse-là. On la relit ici, une
+    // fois par identifiant, quand l'utilisateur est connecté et le routeur monté.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      const id = response?.notification?.request?.identifier;
+      if (!response || !id || handledLaunchIds.has(id)) return;
+      handledLaunchIds.add(id);
+      const data = response.notification.request.content.data as any;
+      setTimeout(() => { handleNotificationNavigation(data, { isProvider: roleRef.current }); }, 600);
+    }).catch(() => {});
 
     // Listener : notification reçue en foreground
     notificationListener.current = Notifications.addNotificationReceivedListener(
@@ -56,7 +72,8 @@ export function usePushNotifications(userId?: string | null) {
       (response) => {
         const data = response.notification.request.content.data as any;
         devLog('[Push] Notification tapée:', data);
-        handleNotificationNavigation(data);
+        handledLaunchIds.add(response.notification.request.identifier);
+        handleNotificationNavigation(data, { isProvider: roleRef.current });
       }
     );
 
@@ -145,7 +162,7 @@ async function registerForPushNotifications() {
   }
 }
 
-export async function handleNotificationNavigation(data: any) {
+export async function handleNotificationNavigation(data: any, opts: { isProvider?: boolean } = {}) {
   if (!data) return;
   try {
     // ───────────────────────────────────────────────────────────────────────
@@ -155,11 +172,11 @@ export async function handleNotificationNavigation(data: any) {
     //   → plus de searching view sur une mission annulée, plus de page de
     //     notation ré-ouverte, plus de provider-dashboard en aveugle.
     // ───────────────────────────────────────────────────────────────────────
-    const intent = classifyNotification(data);
+    const intent = classifyNotification(data, opts);
     switch (intent.kind) {
       case 'support':          router.push('/support'); return;
       case 'kyc':              router.replace('/onboarding/provider/pending'); return;
-      case 'opportunity':      router.replace('/(tabs)/missions'); return; // onglet Opportunités interne à Missions
+      case 'opportunity':      navigateToDestination(intent.home ? PROVIDER_HOME : PROVIDER_OPPORTUNITIES); return;
       case 'refund':           navigateToDestination(refundDestination(intent.requestId)); return;
       case 'client-request':   await navigateToRequestById(intent.requestId, { provider: false }); return;
       case 'provider-request': await navigateToRequestById(intent.requestId, { provider: true }); return;
@@ -172,7 +189,7 @@ export async function handleNotificationNavigation(data: any) {
         if (senderId) router.push({ pathname: '/messages/[userId]', params: { userId: String(senderId) } });
         else router.push('/messages');
         return;
-      case 'Documents': router.push('/(tabs)/documents'); return;
+      case 'Documents': router.push(opts.isProvider ? '/invoices' : '/(tabs)/documents'); return; // Documents est un onglet client ; le prestataire a ses factures
       case 'Dashboard': router.replace('/(tabs)/dashboard'); return;
       case 'Wallet':    router.push('/(tabs)/wallet'); return;
       case 'Missions':  router.replace('/(tabs)/missions'); return;

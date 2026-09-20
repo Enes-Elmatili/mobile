@@ -14,6 +14,7 @@ import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import NotificationDetailSheet from '@/components/sheets/NotificationDetailSheet';
@@ -25,6 +26,8 @@ const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unk
 const SECTION_KEY: Record<Section, string> = { today: 'notifications.section_today', yesterday: 'notifications.section_yesterday', week: 'notifications.section_week', earlier: 'notifications.section_earlier' };
 
 export default function NotificationsScreen() {
+  const { user } = useAuth();
+  const isProvider = !!user?.roles?.includes('PROVIDER');
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useAppTheme();
@@ -85,7 +88,7 @@ export default function NotificationsScreen() {
     if (!n.data) { setSelected(n); return; }
     if (navigating.current) return;
     navigating.current = true;
-    try { await handleNotificationNavigation(n.data); } finally { navigating.current = false; }
+    try { await handleNotificationNavigation(n.data, { isProvider }); } finally { navigating.current = false; }
   }, [markRead]);
 
   const handleLongPress = useCallback((n: Notif) => { feedback.haptic('light'); if (!n.readAt) markRead(n.id); setSelected(n); }, [markRead]);

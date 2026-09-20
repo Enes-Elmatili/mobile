@@ -17,7 +17,8 @@ describe('resolveRequestDestination', () => {
 describe('classifyNotification — catalogue serveur (data.event / audience)', () => {
   const { classifyNotification } = require('@/lib/requestDestination');
   it('les demandes vont aux opportunités, les remboursements à la preuve', () => {
-    expect(classifyNotification({ event: 'request.new', audience: 'provider', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'opportunity' });
+    expect(classifyNotification({ event: 'request.new', audience: 'provider', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'opportunity', home: true });
+    expect(classifyNotification({ event: 'request.quote_wanted', audience: 'provider', requestId: 47, screen: 'Missions' })).toEqual({ kind: 'opportunity', home: false });
     expect(classifyNotification({ event: 'refund.issued', audience: 'client', requestId: 47, screen: 'Documents' })).toEqual({ kind: 'refund', requestId: '47' });
     expect(classifyNotification({ event: 'quote.expired_refunded', audience: 'client', requestId: 47, screen: 'Documents' })).toEqual({ kind: 'refund', requestId: '47' });
   });
@@ -27,6 +28,10 @@ describe('classifyNotification — catalogue serveur (data.event / audience)', (
     expect(classifyNotification({ event: 'quote.accepted', audience: 'provider', requestId: 47, screen: 'Ongoing' })).toEqual({ kind: 'provider-request', requestId: '47' });
     expect(classifyNotification({ event: 'mission.done_provider', audience: 'provider', requestId: 47, screen: 'Earnings' })).toEqual({ kind: 'provider-request', requestId: '47' });
     expect(classifyNotification({ event: 'mission.cancelled_by_client', audience: 'provider', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'provider-request', requestId: '47' });
+    expect(classifyNotification({ event: 'quote.refused', audience: 'provider', requestId: 47, screen: 'Missions' })).toEqual({ kind: 'provider-request', requestId: '47' });
+    // Sans audience (litiges, support) : le rôle de celui qui tape décide — un prestataire ne va pas sur le suivi client.
+    expect(classifyNotification({ event: 'dispute.resolved', requestId: 47, screen: 'MissionView' }, { isProvider: true })).toEqual({ kind: 'provider-request', requestId: '47' });
+    expect(classifyNotification({ event: 'dispute.resolved', requestId: 47, screen: 'MissionView' }, { isProvider: false })).toEqual({ kind: 'client-request', requestId: '47' });
   });
   it('sans mission : l’écran déclaré, le support, ou l’espace', () => {
     expect(classifyNotification({ event: 'account.bank_ready', audience: 'provider', screen: 'Wallet' })).toEqual({ kind: 'screen' });
@@ -36,5 +41,24 @@ describe('classifyNotification — catalogue serveur (data.event / audience)', (
   it('les anciennes notifications continuent de se classer', () => {
     expect(classifyNotification({ category: 'refund', requestId: 12 })).toEqual({ kind: 'refund', requestId: '12' });
     expect(classifyNotification({ type: 'quote_accepted', requestId: 12 })).toEqual({ kind: 'provider-request', requestId: '12' });
+    expect(classifyNotification({ type: 'new_request', requestId: 12 })).toEqual({ kind: 'opportunity', home: true });
+  });
+});
+
+describe('resolveProviderDestination — la mission vit sur l’accueil', () => {
+  const { resolveProviderDestination } = require('@/lib/requestDestination');
+  it('ACCEPTED / ONGOING / QUOTE_SENT / QUOTE_ACCEPTED → l’accueil, la mission devant', () => {
+    for (const status of ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED']) {
+      const d = resolveProviderDestination({ id: 7, status });
+      expect(d.pathname).toBe('/(tabs)/dashboard');
+      expect(d.params).toEqual({ mission: '7' });
+    }
+  });
+  it('DONE → le bilan ; pas encore prise ou perdue → « à prendre » ; annulée → l’agenda', () => {
+    expect(resolveProviderDestination({ id: 7, status: 'DONE' }).pathname).toBe('/request/[id]/earnings');
+    expect(resolveProviderDestination({ id: 7, status: 'QUOTE_PENDING' }).pathname).toBe('/(tabs)/missions');
+    expect(resolveProviderDestination({ id: 7, status: 'PUBLISHED' }).pathname).toBe('/(tabs)/missions');
+    expect(resolveProviderDestination({ id: 7, status: 'CANCELLED' }).pathname).toBe('/(tabs)/missions');
+    expect(resolveProviderDestination(null).pathname).toBe('/(tabs)/missions');
   });
 });

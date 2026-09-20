@@ -88,7 +88,7 @@ function RootLayoutNav() {
   const segments                   = useSegments();
   const router                     = useRouter();
 
-  usePushNotifications(user?.id);
+  usePushNotifications(user?.id, !!user?.roles?.includes('PROVIDER'));
 
   // ── Thème système ─────────────────────────────────────────────────────────
   const colorScheme = useColorScheme();

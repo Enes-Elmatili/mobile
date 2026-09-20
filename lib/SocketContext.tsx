@@ -595,7 +595,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         message: String(n.message || ''),
         tone: family === 'money' ? 'green' : 'accent',
         action: data && (data.screen || data.requestId)
-          ? { label: family === 'message' ? i18n.t('notifications.toast_reply') : i18n.t('notifications.toast_view'), onPress: () => { handleNotificationNavigation(data); } }
+          ? { label: family === 'message' ? i18n.t('notifications.toast_reply') : i18n.t('notifications.toast_view'), onPress: () => { handleNotificationNavigation(data, { isProvider: !!userRef.current?.roles?.includes('PROVIDER') }); } }
           : undefined,
       });
     });
