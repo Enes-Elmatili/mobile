@@ -22,6 +22,7 @@ import { isQuoteMode, netFor, type MissionBrief } from '@/lib/mission/brief';
 import { distanceLabel, placeShort, serviceName } from '@/components/mission/blocks';
 import type { AgendaItem, MonthGroup, TimelineRow, Week } from '@/lib/agenda/model';
 
+const CAPSULE_INSET = 4;
 const clock = (ms: number) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 // ─── La semaine ──────────────────────────────────────────────────────────────
@@ -44,17 +45,18 @@ function DayCell({ day, selected, label, onPress, width }: { day: Week['days'][n
 function WeekPage({ week, width, cell, selectedKey, dayLabel, onSelect }: { week: Week; width: number; cell: number; selectedKey: string; dayLabel: (dow: number) => string; onSelect: (key: string) => void }) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
+  // La capsule respire : 4 pt de marge de chaque côté du jour, jamais collée à ses voisins.
   const idx = week.days.findIndex((d) => d.key === selectedKey);
-  const x = useSharedValue(Math.max(0, idx) * cell);
+  const x = useSharedValue(Math.max(0, idx) * cell + CAPSULE_INSET);
   const on = useSharedValue(idx >= 0 ? 1 : 0);
   useEffect(() => {
-    if (idx >= 0) x.value = reduced ? withTiming(idx * cell, { duration: 120 }) : withSpring(idx * cell, MOTION.tab);
+    if (idx >= 0) x.value = reduced ? withTiming(idx * cell + CAPSULE_INSET, { duration: 120 }) : withSpring(idx * cell + CAPSULE_INSET, MOTION.tab);
     on.value = withTiming(idx >= 0 ? 1 : 0, { duration: 160 });
   }, [idx, cell, reduced, x, on]);
   const capsule = useAnimatedStyle(() => ({ opacity: on.value, transform: [{ translateX: x.value }, { scale: 0.92 + 0.08 * on.value }] }));
   return (
     <View style={[s.week, { width }]}>
-      <Animated.View pointerEvents="none" style={[s.capsule, { width: cell, backgroundColor: theme.accent }, capsule]} />
+      <Animated.View pointerEvents="none" style={[s.capsule, { width: cell - CAPSULE_INSET * 2, backgroundColor: theme.accent }, capsule]} />
       {week.days.map((d) => <DayCell key={d.key} day={d} width={cell} selected={d.key === selectedKey} label={dayLabel(d.dow)} onPress={() => { feedback.haptic('selection'); onSelect(d.key); }} />)}
     </View>
   );
@@ -294,8 +296,8 @@ export function useOpenMonths(currentKey: string) {
 
 const s = StyleSheet.create({
   week: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 12 },
-  capsule: { position: 'absolute', left: 12, top: 12, bottom: 0, borderRadius: 14 },
-  day: { alignItems: 'center', gap: 5, paddingVertical: 8, borderRadius: 14 },
+  capsule: { position: 'absolute', left: 12, top: 12, bottom: 0, borderRadius: 16 },
+  day: { alignItems: 'center', gap: 6, paddingVertical: 11, borderRadius: 16 },
   dayLabel: { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 0.5 },
   dayNum: { fontFamily: FONTS.bebas, fontSize: 20, includeFontPadding: false },
   dots: { flexDirection: 'row', gap: 3, height: 5 },
