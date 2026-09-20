@@ -226,7 +226,9 @@ class AppErrorBoundary extends React.Component<
   }
   render() {
     if (this.state.hasError) {
-      const dark = Appearance.getColorScheme() === 'dark';
+      // Composant de classe : pas de hook — on lit le réglage d'apparence directement dans le store.
+      const pref = usePrefs.getState().theme;
+      const dark = pref === 'system' ? Appearance.getColorScheme() === 'dark' : pref === 'dark';
       const t = dark ? darkTokens : lightTokens;
       return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: t.bg }}>
