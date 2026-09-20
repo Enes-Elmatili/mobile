@@ -390,7 +390,7 @@ export default function VerifyEmail() {
           variant="flat"
         />
 
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           onPress={() => {
             if (pollRef.current) clearInterval(pollRef.current);
             signOut();

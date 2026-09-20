@@ -46,12 +46,12 @@ export function ActionSheet() {
       <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 16 }]}>
         {!!sheet.title && <Text style={[s.title, { color: theme.textMuted }]}>{sheet.title}</Text>}
         {sheet.options.map((opt, i) => (
-          <TouchableOpacity key={i} style={s.optionBtn} onPress={() => settle(i)}>
+          <TouchableOpacity accessibilityRole="button" key={i} style={s.optionBtn} onPress={() => settle(i)}>
             <Text style={[s.optionText, { color: theme.text }, opt.destructive && { color: COLORS.danger }]}>{opt.label}</Text>
           </TouchableOpacity>
         ))}
         <View style={[s.divider, { backgroundColor: theme.border }]} />
-        <TouchableOpacity style={s.cancelBtn} onPress={() => settle(null)}>
+        <TouchableOpacity accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(null)}>
           <Text style={[s.cancelText, { color: theme.textMuted }]}>{sheet.cancelLabel}</Text>
         </TouchableOpacity>
       </BottomSheetView>

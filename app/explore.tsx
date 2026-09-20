@@ -72,7 +72,7 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
   const cat = provider.categories?.[0]?.name;
 
   return (
-    <TouchableOpacity style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity accessibilityRole="button" style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress} activeOpacity={0.8}>
       <View style={[pc.avatar, { backgroundColor: theme.accent }]}>
         <Text style={[pc.avatarText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{init}</Text>
         {isOnline && <View style={[pc.dot, { borderColor: theme.cardBg }]} />}
@@ -197,7 +197,7 @@ export default function ExploreScreen() {
         <Feather name="map-pin" size={52} color={theme.textDisabled} />
         <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.location_error')}</Text>
         <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.explore_location_denied_sub')}</Text>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
+        <TouchableOpacity accessibilityRole="button" style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -275,7 +275,7 @@ export default function ExploreScreen() {
         {/* Radius filter overlay */}
         <View style={[s.radiusBar, { backgroundColor: theme.isDark ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)' }]}>
           {RADII.map((r, i) => (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               key={r.label}
               style={[s.radiusBtn, i === radiusIdx && [s.radiusBtnActive, { backgroundColor: theme.accent }]]}
               onPress={() => setRadiusIdx(i)}
@@ -291,7 +291,7 @@ export default function ExploreScreen() {
 
       {/* Selected provider callout */}
       {selectedProvider && (
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.callout, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity }]}
           onPress={() => router.push(`/providers/${selectedProvider.id}` as any)}
           activeOpacity={0.85}
@@ -335,7 +335,7 @@ export default function ExploreScreen() {
               <View style={s.empty}>
                 <Feather name="wifi-off" size={36} color={theme.textDisabled} />
                 <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Impossible de charger les prestataires.</Text>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.retryBtn, { backgroundColor: theme.accent }]}
                   onPress={retryFetch}
                   activeOpacity={0.85}

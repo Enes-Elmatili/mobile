@@ -409,7 +409,7 @@ export default function InvoiceSheet({
 
         {/* Actions : Download (primaire, plein) + Close (secondaire, sans cadre) */}
         <View style={s.actions}>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.btnPrimary, { backgroundColor: accentBg }]}
             onPress={handleDownloadPDF}
             activeOpacity={0.78}
@@ -425,7 +425,7 @@ export default function InvoiceSheet({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={s.btnGhost}
             onPress={onClose}
             activeOpacity={0.6}
@@ -553,7 +553,7 @@ export default function InvoiceSheet({
 
         {/* Actions */}
         <View style={s.actions}>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.btnPrimary, { backgroundColor: accentBg }]}
             onPress={handleDownloadPDF}
             activeOpacity={0.78}
@@ -569,7 +569,7 @@ export default function InvoiceSheet({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.btnOutline, { borderColor: borderColor }]}
             onPress={onClose}
             activeOpacity={0.78}

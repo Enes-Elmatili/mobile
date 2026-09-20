@@ -19,7 +19,7 @@ function Article({ n, title, body }: { n: string; title: string; body: string })
   const { t } = useTranslation();
   return (
     <View style={[s.article, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-      <TouchableOpacity style={s.articleHeader} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
+      <TouchableOpacity accessibilityRole="button" style={s.articleHeader} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
         <View style={s.articleLeft}>
           <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('ext.cgu_art')} {n}</Text>
           <Text style={[s.articleTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{title}</Text>

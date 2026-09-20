@@ -64,7 +64,7 @@ export default function RequestDispatcher() {
           <Text style={[styles.errorText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.request_load_error')}
           </Text>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.retryBtn, { backgroundColor: theme.accent }]}
             onPress={resolve}
             activeOpacity={0.85}
@@ -74,7 +74,7 @@ export default function RequestDispatcher() {
               {t('common.retry')}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={styles.backBtn}
             onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
             activeOpacity={0.7}

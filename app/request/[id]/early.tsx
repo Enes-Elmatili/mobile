@@ -144,7 +144,7 @@ export default function EarlyScreen() {
         <Text style={[s.errorTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
           {t('missions.mission_unavailable')}
         </Text>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.errorBtn, { backgroundColor: theme.text }]}
           onPress={() => router.replace('/(tabs)/missions')}
           activeOpacity={0.85}
@@ -281,7 +281,7 @@ export default function EarlyScreen() {
 
         {/* Actions */}
         <View style={s.actionsRow}>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.actionPrimary, { backgroundColor: theme.text }]}
             onPress={handleNavigate}
             activeOpacity={0.85}
@@ -291,7 +291,7 @@ export default function EarlyScreen() {
               {t('ext.early_itinerary')}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.actionSecondary, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={handleCallClient}
             activeOpacity={0.85}
@@ -313,7 +313,7 @@ export default function EarlyScreen() {
         </View>
 
         {/* Cancel */}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.refuseBtn, { borderColor: theme.borderLight }]}
           onPress={async () => {
             const ok = await feedback.confirm({

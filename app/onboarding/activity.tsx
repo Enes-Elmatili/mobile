@@ -231,7 +231,7 @@ export default function OnboardingActivity() {
       {/* Métiers */}
       <Text style={s.sectionLabel}>{t("onboarding.categories_label")}</Text>
       {catsError && categories.length === 0 ? (
-        <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
           <Feather name="refresh-cw" size={22} color={C.grey} />
           <Text style={s.retryText}>{t("common.retry")}</Text>
         </TouchableOpacity>

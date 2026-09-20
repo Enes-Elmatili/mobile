@@ -162,7 +162,7 @@ export default function MessagesInbox() {
   };
 
   const renderItem = useCallback(({ item }: { item: Conversation }) => (
-    <TouchableOpacity
+    <TouchableOpacity accessibilityRole="button"
       style={[s.row, { backgroundColor: theme.cardBg }]}
       activeOpacity={0.7}
       onPress={() =>
@@ -234,7 +234,7 @@ export default function MessagesInbox() {
           <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
             {t('messages.empty_sub_client')}
           </Text>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.replace('/(tabs)/dashboard')}
             activeOpacity={0.85}

@@ -268,10 +268,10 @@ export default function TicketDetailScreen() {
         <Feather name="alert-circle" size={36} color={theme.textMuted} />
         <Text style={[s.errText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.ticket_not_found')}</Text>
         <View style={s.errBtnRow}>
-          <TouchableOpacity onPress={() => { setLoading(true); load(); }} style={[s.errBtn, { backgroundColor: theme.accent }]}>
+          <TouchableOpacity accessibilityRole="button" onPress={() => { setLoading(true); load(); }} style={[s.errBtn, { backgroundColor: theme.accent }]}>
             <Text style={[s.errBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { goBack(router, '/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
+          <TouchableOpacity accessibilityRole="button" onPress={() => { goBack(router, '/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
             <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
@@ -288,7 +288,7 @@ export default function TicketDetailScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/settings/help'); }}
           activeOpacity={0.75}
@@ -337,7 +337,7 @@ export default function TicketDetailScreen() {
 
         {/* ── Mission link (si rattaché) ─────────────────────────────────── */}
         {ticket.requestId && (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.missionLink, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={() => router.push({ pathname: '/request/[id]/missionview', params: { id: String(ticket.requestId) } })}
             activeOpacity={0.75}
@@ -461,7 +461,7 @@ export default function TicketDetailScreen() {
         </Text>
 
         <View style={s.actionsCol}>
-          <TouchableOpacity style={s.actionRow} onPress={openWhatsApp} activeOpacity={0.75}>
+          <TouchableOpacity accessibilityRole="button" style={s.actionRow} onPress={openWhatsApp} activeOpacity={0.75}>
             <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
             <View style={{ flex: 1 }}>
               <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
@@ -474,7 +474,7 @@ export default function TicketDetailScreen() {
             <Feather name="arrow-up-right" size={14} color={theme.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.actionRow} onPress={openEmail} activeOpacity={0.75}>
+          <TouchableOpacity accessibilityRole="button" style={s.actionRow} onPress={openEmail} activeOpacity={0.75}>
             <Feather name="mail" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
               <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
@@ -492,7 +492,7 @@ export default function TicketDetailScreen() {
       {/* ── Footer CTA ─────────────────────────────────────────────────── */}
       <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
         {isClosed ? (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.ctaBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }, updating && { opacity: 0.5 }]}
             onPress={reopen}
             disabled={updating}
@@ -508,7 +508,7 @@ export default function TicketDetailScreen() {
             )}
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.ctaBtn, { backgroundColor: theme.accent }, updating && { opacity: 0.6 }]}
             onPress={markResolved}
             disabled={updating}

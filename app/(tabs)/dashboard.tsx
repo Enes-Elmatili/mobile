@@ -266,7 +266,7 @@ function MissionIsland({
     const etaMin = etaMinMatch ? etaMinMatch[1] : null;
 
     return (
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         onPress={onActiveMissionPress}
         activeOpacity={PRESS_PRIMARY}
       >
@@ -366,7 +366,7 @@ function MissionIsland({
   // ── PUBLISHED — searching (même gabarit que active)
   if (searchingMission) {
     return (
-      <TouchableOpacity onPress={onSearchingPress} activeOpacity={PRESS_PRIMARY}>
+      <TouchableOpacity accessibilityRole="button" onPress={onSearchingPress} activeOpacity={PRESS_PRIMARY}>
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -412,7 +412,7 @@ function MissionIsland({
   if (quoteMission && onQuotePress) {
     const isQuoteSent = quoteMission.status?.toUpperCase() === 'QUOTE_SENT';
     return (
-      <TouchableOpacity onPress={onQuotePress} activeOpacity={PRESS_PRIMARY}>
+      <TouchableOpacity accessibilityRole="button" onPress={onQuotePress} activeOpacity={PRESS_PRIMARY}>
         <View style={{ padding: 20 }}>
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -498,7 +498,7 @@ function ActivityItem({
   }
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={PRESS_PRIMARY} style={{ marginBottom: 8 }}>
+    <TouchableOpacity accessibilityRole="button" onPress={onPress} activeOpacity={PRESS_PRIMARY} style={{ marginBottom: 8 }}>
       <FixedCard pad={14}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
@@ -610,7 +610,7 @@ function UpcomingIslandCard({
   const barTrack = theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
 
   return (
-    <TouchableOpacity
+    <TouchableOpacity accessibilityRole="button"
       style={[uc.card, {
         backgroundColor: theme.cardBg,
         borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
@@ -1118,7 +1118,7 @@ function ClientDashboard() {
             <Text style={{ flex: 1, fontSize: 13, fontFamily: FONTS.sans, color: theme.text }}>
               Impossible de charger vos données.
             </Text>
-            <TouchableOpacity onPress={() => { hapticLight(); loadDashboard(); }}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => { hapticLight(); loadDashboard(); }}>
               <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text }}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
@@ -1276,7 +1276,7 @@ function ClientDashboard() {
         </View>
         <View style={{ paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {LAUNCH_CARDS.map((card) => (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               key={card.key}
               onPress={() => {
                 hapticMedium();
@@ -1327,7 +1327,7 @@ function ClientDashboard() {
 
         {/* See all button */}
         {hasMore && (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={s.seeAllBtn}
             onPress={() => { hapticLight(); setShowAllRequests(v => !v); }}
             activeOpacity={PRESS_SECONDARY}
@@ -1381,7 +1381,7 @@ function ClientDashboard() {
               ))}
 
               {['ACCEPTED', 'ONGOING'].includes(selectedRequest.status?.toUpperCase()) && (
-                <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => handleNavigateToMission(selectedRequest)}>
+                <TouchableOpacity accessibilityRole="button" style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => handleNavigateToMission(selectedRequest)}>
                   <Text style={[s.actionBtnText, { color: theme.accentText }]}>
                     {selectedRequest.status === 'ACCEPTED' ? t('dashboard.track_provider') : t('dashboard.track_mission')}
                   </Text>
@@ -1391,7 +1391,7 @@ function ClientDashboard() {
 
               {selectedRequest.status?.toUpperCase() === 'PUBLISHED' && (
                 <>
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={[s.actionBtn, { backgroundColor: theme.accent }]}
                     onPress={() => {
                       bottomSheetRef.current?.close();
@@ -1401,7 +1401,7 @@ function ClientDashboard() {
                     <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.track_search')}</Text>
                     <Feather name="radio" size={17} color={theme.accentText} />
                   </TouchableOpacity>
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={[s.resendBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
                     onPress={async () => {
                       try { await api.post(`/requests/${selectedRequest.id}/notify`); } catch {}
@@ -1420,7 +1420,7 @@ function ClientDashboard() {
                     <Text style={[s.doneText, { color: theme.text }]}>{t('dashboard.mission_success')}</Text>
                   </View>
                   {invoice && (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button"
                       style={[s.actionBtn, { backgroundColor: theme.accent, marginTop: 10 }]}
                       onPress={() => {
                         bottomSheetRef.current?.close();
@@ -1436,7 +1436,7 @@ function ClientDashboard() {
               )}
 
               {selectedRequest.status?.toUpperCase() === 'PENDING_PAYMENT' && (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.actionBtn, { backgroundColor: theme.accent }]}
                   onPress={() => {
                     bottomSheetRef.current?.close();
@@ -1452,7 +1452,7 @@ function ClientDashboard() {
               )}
 
               {['QUOTE_PENDING', 'QUOTE_SENT'].includes(selectedRequest.status?.toUpperCase()) && (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.actionBtn, { backgroundColor: theme.accent }]}
                   onPress={() => {
                     bottomSheetRef.current?.close();
@@ -1473,7 +1473,7 @@ function ClientDashboard() {
               )}
 
               {selectedRequest.status?.toUpperCase() === 'QUOTE_ACCEPTED' && (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.actionBtn, { backgroundColor: theme.accent }]}
                   onPress={() => handleNavigateToMission(selectedRequest)}
                 >
@@ -1491,7 +1491,7 @@ function ClientDashboard() {
                       <Text style={[s.expiredSub, { color: theme.textMuted }]}>{t('dashboard.restart_search_sub')}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }}>
+                  <TouchableOpacity accessibilityRole="button" style={[s.actionBtn, { backgroundColor: theme.accent }]} onPress={() => { bottomSheetRef.current?.close(); router.push('/request/NewRequestStepper'); }}>
                     <Text style={[s.actionBtnText, { color: theme.accentText }]}>{t('dashboard.restart_search')}</Text>
                     <Feather name="refresh-cw" size={17} color={theme.accentText} />
                   </TouchableOpacity>

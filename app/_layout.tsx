@@ -244,7 +244,7 @@ class AppErrorBoundary extends React.Component<
               {this.state.detail}
             </Text>
           ) : null}
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={() => this.setState({ hasError: false, detail: null })}
             style={{ backgroundColor: t.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >

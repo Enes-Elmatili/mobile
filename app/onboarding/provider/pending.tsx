@@ -510,7 +510,7 @@ export default function PendingValidation() {
                   <Text style={[s.docStatus, { color: C.red }]}>{t('onboarding.pending_doc_refused')}</Text>
                 </View>
               ))}
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={s.docsFixBtn}
                 onPress={() => { feedback.haptic('medium'); router.push("/onboarding/documents"); }}
                 activeOpacity={0.8}
@@ -524,7 +524,7 @@ export default function PendingValidation() {
           {/* En attendant : complétez votre profil */}
           <Text style={s.prepTitle}>{t('onboarding.pending_prep_title')}</Text>
           <View style={s.prepList}>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.prepRow}
               onPress={handleAddPhoto}
               disabled={photoBusy || hasPhoto}
@@ -539,7 +539,7 @@ export default function PendingValidation() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.prepRow}
               onPress={() => { feedback.haptic('light'); setBioOpen(o => !o); }}
               disabled={hasBio && !bioOpen}
@@ -565,7 +565,7 @@ export default function PendingValidation() {
                   multiline
                   maxLength={500}
                 />
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.bioSave, bioSaving && { opacity: 0.5 }]}
                   onPress={handleSaveBio}
                   disabled={bioSaving}
@@ -601,7 +601,7 @@ export default function PendingValidation() {
               </View>
             </TouchableOpacity>
           ) : !stripeConnected ? (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
@@ -619,7 +619,7 @@ export default function PendingValidation() {
           {/* Stripe reste accessible en second rang tant qu'il manque des pièces :
               on ne retire rien, on ne fait que remettre l'ordre. */}
           {fileIncomplete && !stripeConnected && (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.secondaryLink}
               onPress={() => {
                 feedback.haptic('light');
@@ -637,7 +637,7 @@ export default function PendingValidation() {
             <Text style={s.notifText}>{t('onboarding.pending_notification')}</Text>
           </View>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.logoutBtn, { paddingBottom: insets.bottom + 16 }]}
             onPress={() => {
               feedback.haptic('light');
@@ -679,7 +679,7 @@ export default function PendingValidation() {
               <Text style={s.titleOutline}>{t('onboarding.approved_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>{t('onboarding.approved_sub')}</Text>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
@@ -711,7 +711,7 @@ export default function PendingValidation() {
                 <Text style={s.reasonText}>{rejectionReason}</Text>
               </View>
             )}
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
@@ -743,7 +743,7 @@ export default function PendingValidation() {
                 <Text style={s.reasonText}>{rejectionReason}</Text>
               </View>
             )}
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
@@ -775,7 +775,7 @@ export default function PendingValidation() {
                 <Text style={s.reasonText}>{rejectionReason}</Text>
               </View>
             )}
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
@@ -793,7 +793,7 @@ export default function PendingValidation() {
       </View>
 
       <View style={s.footer}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.logoutBtn, { paddingBottom: insets.bottom + 16 }]}
           onPress={() => {
             feedback.haptic('light');

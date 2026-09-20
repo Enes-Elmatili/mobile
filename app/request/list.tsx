@@ -80,7 +80,7 @@ export default function RequestsListScreen() {
   };
 
   const renderRequest = ({ item }: any) => (
-    <TouchableOpacity
+    <TouchableOpacity accessibilityRole="button"
       style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
       onPress={() => {
         router.push({
@@ -130,7 +130,7 @@ export default function RequestsListScreen() {
         <View style={styles.empty}>
           <Feather name="alert-circle" size={56} color={theme.textMuted} />
           <Text style={[styles.emptyText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('ext.reqlist_load_error')}</Text>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.retryBtn, { backgroundColor: theme.accent }]}
             onPress={() => { setLoading(true); loadRequests(); }}
             activeOpacity={0.85}

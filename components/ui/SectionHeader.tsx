@@ -16,7 +16,7 @@ export default function SectionHeader({ label, action, onAction }: SectionHeader
     <View style={s.row}>
       <Text style={[s.label, { color: theme.textMuted }]}>{label}</Text>
       {action ? (
-        <TouchableOpacity onPress={onAction} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" onPress={onAction} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
           <Text style={[s.action, { color: theme.textSub }]}>{action}</Text>
         </TouchableOpacity>
       ) : null}

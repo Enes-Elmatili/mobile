@@ -74,7 +74,7 @@ function FAQItem({ item, isLast }: { item: FaqItem; isLast: boolean }) {
   const theme = useAppTheme();
   return (
     <View style={[fi.wrap, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderLight }]}>
-      <TouchableOpacity style={fi.row} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
+      <TouchableOpacity accessibilityRole="button" style={fi.row} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
         <Text style={[fi.q, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{item.q}</Text>
         <Feather name={open ? 'minus' : 'plus'} size={16} color={theme.textMuted} />
       </TouchableOpacity>
@@ -191,7 +191,7 @@ export default function HelpScreen() {
 
       {/* Header — sobre, monochrome */}
       <View style={s.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           activeOpacity={0.75}
@@ -222,7 +222,7 @@ export default function HelpScreen() {
         </View>
 
         {/* ── Bandeau support WhatsApp ─────────────────────────────────────── */}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.supportBanner, { backgroundColor: 'rgba(37,211,102,0.10)', borderColor: 'rgba(37,211,102,0.30)' }]}
           onPress={openWhatsApp}
           activeOpacity={0.85}
@@ -263,7 +263,7 @@ export default function HelpScreen() {
         {/* ── 2 cartes d'action prioritaires ───────────────────────────────── */}
         <View style={s.actionsRow}>
           {/* Mission — accent fort (rouge subtil pour signaler "urgent") */}
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={openMissionSupport}
             activeOpacity={0.85}
@@ -280,7 +280,7 @@ export default function HelpScreen() {
           </TouchableOpacity>
 
           {/* Support direct */}
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={openWhatsApp}
             activeOpacity={0.85}
@@ -299,7 +299,7 @@ export default function HelpScreen() {
 
         {/* ── Erreur de chargement des tickets (≠ absence de tickets) ──────── */}
         {ticketsError && tickets.length === 0 && (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.ticketsErrorRow, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={loadTickets}
             activeOpacity={0.8}
@@ -320,7 +320,7 @@ export default function HelpScreen() {
                 {t('help.tickets_label')}
               </Text>
               <View style={[s.tabsRow, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   onPress={() => setTicketsTab('open')}
                   style={[s.tab, ticketsTab === 'open' && { backgroundColor: theme.cardBg }]}
                   activeOpacity={0.7}
@@ -329,7 +329,7 @@ export default function HelpScreen() {
                     {t('help.tickets_tab_open')} ({openTickets.length})
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   onPress={() => setTicketsTab('closed')}
                   style={[s.tab, ticketsTab === 'closed' && { backgroundColor: theme.cardBg }]}
                   activeOpacity={0.7}
@@ -359,7 +359,7 @@ export default function HelpScreen() {
                     : COLORS.amber;
                   const date = new Date(ticket.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button"
                       key={ticket.id}
                       style={[s.ticketRow, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderLight }]}
                       onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: ticket.id } })}
@@ -432,7 +432,7 @@ export default function HelpScreen() {
             {t('help.contact_section')}
           </Text>
 
-          <TouchableOpacity style={s.contactRow} onPress={openEmail} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" style={s.contactRow} onPress={openEmail} activeOpacity={0.7}>
             <Feather name="mail" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
               <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>support@thefixed.app</Text>
@@ -441,7 +441,7 @@ export default function HelpScreen() {
             <Feather name="external-link" size={14} color={theme.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.contactRow} onPress={openWhatsApp} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" style={s.contactRow} onPress={openWhatsApp} activeOpacity={0.7}>
             <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
             <View style={{ flex: 1 }}>
               <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('help.contact_whatsapp_title')}</Text>

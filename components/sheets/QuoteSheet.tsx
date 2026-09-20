@@ -153,7 +153,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               <Text style={[qs.noQuote, { color: textMuted, fontFamily: FONTS.sans, paddingVertical: 8 }]}>
                 Impossible de charger le devis.
               </Text>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[qs.retryBtn, { borderColor: borderColor }]}
                 onPress={loadQuote}
                 activeOpacity={0.78}
@@ -243,7 +243,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
           {/* Actions */}
           <View style={qs.actions}>
             {isSent && quote && (
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[qs.btnPrimary, { backgroundColor: accentBg }]}
                 onPress={() => {
                   onClose();
@@ -257,7 +257,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[qs.btnOutline, { borderColor: borderColor }]}
               onPress={onClose}
               activeOpacity={0.78}

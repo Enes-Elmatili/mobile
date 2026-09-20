@@ -135,7 +135,7 @@ export function AuthPhoneInput({
         ]}
       >
         {/* Country chip — flag + dial code + chevron */}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={s.chip}
           activeOpacity={0.7}
           onPress={() => setPickerVisible(true)}

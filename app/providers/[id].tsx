@@ -198,7 +198,7 @@ export default function ProviderDetailScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={56} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Prestataire introuvable</Text>
-        <TouchableOpacity style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
+        <TouchableOpacity accessibilityRole="button" style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnFallbackText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -393,7 +393,7 @@ export default function ProviderDetailScreen() {
                 <ReviewCard key={review.id} review={review} />
               ))}
               {reviews.length > 3 && !showAll && (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.seeAllBtn, { backgroundColor: theme.surface }]}
                   onPress={() => setShowAll(true)}
                   activeOpacity={0.75}
@@ -412,7 +412,7 @@ export default function ProviderDetailScreen() {
 
       {/* Bottom CTA — full width accent button */}
       <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.ctaBtn, { backgroundColor: theme.accent }, ctaLoading && { opacity: 0.6 }]}
           activeOpacity={0.85}
           onPress={handleRequestProvider}
@@ -445,7 +445,7 @@ export default function ProviderDetailScreen() {
               {firstName} est actuellement occupé ou hors ligne. Vous pouvez planifier une mission avec lui pour plus tard, ou trouver un autre prestataire disponible maintenant.
             </Text>
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.modalPrimary, { backgroundColor: theme.accent }]}
               onPress={handleScheduleWithProvider}
               activeOpacity={0.85}
@@ -456,7 +456,7 @@ export default function ProviderDetailScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.modalSecondary, { borderColor: theme.borderLight }]}
               onPress={handleFindOther}
               activeOpacity={0.75}
@@ -466,7 +466,7 @@ export default function ProviderDetailScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setBusyModal(false)} activeOpacity={0.7} style={{ paddingVertical: 8 }}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setBusyModal(false)} activeOpacity={0.7} style={{ paddingVertical: 8 }}>
               <Text style={[s.modalCancel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Annuler</Text>
             </TouchableOpacity>
           </Pressable>

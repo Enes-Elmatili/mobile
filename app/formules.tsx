@@ -218,7 +218,7 @@ function UpgradeCard({ tier, onChoose, choosing }: { tier: Tier; onChoose: (t: s
         </View>
       )}
 
-      <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} disabled={choosing} onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}>
+      <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} style={s.ctaWrap} disabled={choosing} onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}>
         <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
           {choosing
             ? <ActivityIndicator color={G.onAccent} />
@@ -341,7 +341,7 @@ export default function FormulesScreen() {
           <View style={s.center}>
             <Feather name="wifi-off" size={36} color={G.textVeryMuted} />
             <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>{t('formules.load_error')}</Text>
-            <TouchableOpacity activeOpacity={0.85} style={s.ctaWrap} onPress={() => { feedback.haptic('light'); load(); }}>
+            <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} style={s.ctaWrap} onPress={() => { feedback.haptic('light'); load(); }}>
               <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={[s.cta, s.retry]}>
                 <Feather name="refresh-cw" size={15} color={G.onAccent} />
                 <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>{t('formules.retry')}</Text>

@@ -105,7 +105,7 @@ export default function InvoicesScreen() {
       : `#${String(item.id).slice(-5).toUpperCase()}`;
 
     return (
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
         onPress={() => setSelectedInvoice(item)}
         activeOpacity={0.75}
@@ -193,7 +193,7 @@ export default function InvoicesScreen() {
             <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               {t('ext.invoice_check_connection')}
             </Text>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.retryBtn, { backgroundColor: theme.accent }]}
               onPress={() => { setLoading(true); loadInvoices(); }}
               activeOpacity={0.85}

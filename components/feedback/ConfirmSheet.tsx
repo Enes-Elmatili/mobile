@@ -51,7 +51,7 @@ export function ConfirmSheet() {
       <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 16 }]}>
         <Text style={[s.title, { color: theme.text }]}>{confirm.title}</Text>
         {!!confirm.message && <Text style={[s.message, { color: theme.textSub }]}>{confirm.message}</Text>}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.btn, { backgroundColor: confirm.destructive ? COLORS.danger : theme.accent }]}
           onPress={() => settle(true)}
         >
@@ -59,7 +59,7 @@ export function ConfirmSheet() {
             {confirm.confirmLabel}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.cancelBtn} onPress={() => settle(false)}>
+        <TouchableOpacity accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(false)}>
           <Text style={[s.cancelText, { color: theme.textMuted }]}>{confirm.cancelLabel}</Text>
         </TouchableOpacity>
       </BottomSheetView>

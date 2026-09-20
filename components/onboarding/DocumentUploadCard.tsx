@@ -119,7 +119,7 @@ export function DocumentUploadCard({
 
       {/* Bouton principal — pièce manquante, refusée, ou premier envoi en cours */}
       {!sent && (
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.uploadBtn}
           onPress={() => onUpload(requirement.type)}
           disabled={uploading}
@@ -144,7 +144,7 @@ export function DocumentUploadCard({
           une photo floue/illisible tant que l'admin ne l'a pas approuvé.
           Une pièce APPROUVÉE reste verrouillée (pas de bouton). */}
       {sent && !approved && (
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.replaceBtn}
           onPress={() => onUpload(requirement.type)}
           disabled={uploading}

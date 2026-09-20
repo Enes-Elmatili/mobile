@@ -108,6 +108,7 @@ export function SectionHead({ title, aside }: { title: string; aside?: string | 
 
 // ─── Maintenant ──────────────────────────────────────────────────────────────
 export function NowRow({ item, sub, onPress }: { item: AgendaItem; sub: string; onPress: () => void }) {
+  const theme = useAppTheme();
   const press = usePressScale(0.98);
   const title = [serviceName(item.brief), item.brief.client?.name ? cleanName(item.brief.client.name) : null].filter(Boolean).join(' · ');
   return (
@@ -115,8 +116,8 @@ export function NowRow({ item, sub, onPress }: { item: AgendaItem; sub: string; 
       <Animated.View style={[s.now, press.style]}>
         <Text style={s.nowTime} maxFontSizeMultiplier={1.2}>{clock(item.at)}</Text>
         <View style={{ flex: 1 }}>
-          <Text style={s.nowTitle} numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
-          <Text style={s.nowSub} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text>
+          <Text style={[s.nowTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
+          <Text style={[s.nowSub, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{sub}</Text>
         </View>
         <Feather name="arrow-right" size={18} color={COLORS.amber} />
       </Animated.View>
@@ -307,8 +308,8 @@ const s = StyleSheet.create({
   secAside: { fontFamily: FONTS.monoMedium, fontSize: 11, letterSpacing: 1 },
   now: { marginHorizontal: 20, marginTop: 10, padding: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: alpha(COLORS.amber, 0.10), borderWidth: 1, borderColor: alpha(COLORS.amber, 0.25), flexDirection: 'row', alignItems: 'center', gap: 12 },
   nowTime: { fontFamily: FONTS.bebas, fontSize: 20, color: COLORS.amber, minWidth: 46, includeFontPadding: false },
-  nowTitle: { fontFamily: FONTS.sansMedium, fontSize: 14, color: '#F4F4F2' },
-  nowSub: { fontFamily: FONTS.sans, fontSize: 12, color: 'rgba(244,244,242,0.7)', marginTop: 2 },
+  nowTitle: { fontFamily: FONTS.sansMedium, fontSize: 14 },
+  nowSub: { fontFamily: FONTS.sans, fontSize: 12, marginTop: 2 },
   takeWrap: { marginHorizontal: 20, marginTop: 8 },
   take: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 11, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1 },
   takeAmt: { fontFamily: FONTS.bebas, fontSize: 22, minWidth: 58, includeFontPadding: false },

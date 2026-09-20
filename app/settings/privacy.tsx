@@ -100,7 +100,7 @@ export default function PrivacyScreen() {
           <Text style={[s.dangerSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_danger_sub')}
           </Text>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.deleteBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)' }]}
             onPress={handleDeleteAccount}
             disabled={deleting}

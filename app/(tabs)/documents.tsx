@@ -102,9 +102,9 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const status = invoice.status?.toUpperCase();
   const isPaid = status === 'PAID';
   const isRefunded = status === 'REFUNDED';
-  const barColor = isPaid ? COLORS.greenBrand : isRefunded ? '#888' : COLORS.orangeBrand;
+  const barColor = isPaid ? COLORS.greenBrand : isRefunded ? (theme.textMuted as string) : COLORS.orangeBrand;
   const iconBg = isPaid ? 'rgba(21,193,110,0.08)' : isRefunded ? 'rgba(0,0,0,0.04)' : 'rgba(232,120,58,0.08)';
-  const iconColor = isPaid ? theme.greenText : isRefunded ? '#999' : COLORS.orangeBrand;
+  const iconColor = isPaid ? theme.greenText : isRefunded ? theme.textMuted : COLORS.orangeBrand;
   const pillBg = isPaid ? 'rgba(21,193,110,0.1)' : isRefunded ? theme.surface : 'rgba(232,120,58,0.1)';
   const pillColor = isPaid ? theme.greenText : isRefunded ? theme.textMuted : COLORS.orangeBrand;
   const pillLabel = isPaid ? t('ext.invoice_pill_paid') : isRefunded ? t('ext.invoice_pill_refunded') : t('ext.invoice_pill_pending');
@@ -115,7 +115,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const service = (invoice as any).request?.serviceType || t('ext.invoice_service_default');
 
   return (
-    <TouchableOpacity style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity accessibilityRole="button" style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress} activeOpacity={0.85}>
       <View style={[iv.bar, { backgroundColor: barColor }]} />
       <View style={[iv.icon, { backgroundColor: iconBg }]}>
         <Feather name={iconName as any} size={16} color={iconColor} />
@@ -322,7 +322,7 @@ export default function Documents() {
             : tab === 'devis' ? quoteRequests.length
             : scheduledRequests.length;
           return (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               key={tab}
               style={[s.mainTab, isActive && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
               onPress={() => setActiveTab(tab)}
@@ -361,7 +361,7 @@ export default function Documents() {
             <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
               Vérifiez votre connexion puis réessayez.
             </Text>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.emptyCta, { backgroundColor: theme.accent }]}
               onPress={() => { setLoading(true); load(); }}
               activeOpacity={0.85}
@@ -420,7 +420,7 @@ export default function Documents() {
                     : t('ext.documents_empty_invoices_filter_desc')}
                 </Text>
                 {filter === 'all' && (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={[s.emptyCta, { backgroundColor: theme.accent }]}
                     onPress={() => router.push('/request/NewRequestStepper')}
                     activeOpacity={0.85}
@@ -445,7 +445,7 @@ export default function Documents() {
 
             {/* Assistance card */}
             <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>{t('ext.documents_assistance')}</Text>
-            <TouchableOpacity style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
+            <TouchableOpacity accessibilityRole="button" style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
               <View style={s.assistIcon}>
                 <Feather name="message-circle" size={18} color="rgba(255,255,255,0.7)" />
               </View>
@@ -472,7 +472,7 @@ export default function Documents() {
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   Vos devis apparaîtront ici une fois qu’un prestataire aura fait son diagnostic.
                 </Text>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.emptyCta, { backgroundColor: theme.accent }]}
                   onPress={() => router.push('/request/NewRequestStepper')}
                   activeOpacity={0.85}
@@ -523,7 +523,7 @@ export default function Documents() {
                   };
 
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button"
                       key={req.id}
                       style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
                       onPress={handlePress}
@@ -574,7 +574,7 @@ export default function Documents() {
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   {t('ext.documents_empty_scheduled_desc')}
                 </Text>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[s.emptyCta, { backgroundColor: theme.accent }]}
                   onPress={() => router.push('/request/NewRequestStepper')}
                   activeOpacity={0.85}
@@ -627,7 +627,7 @@ export default function Documents() {
                       : { pathname: '/request/[id]/scheduled', params: { id: req.id, mode: 'recap' } };
 
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button"
                       key={req.id}
                       style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
                       onPress={() => router.push(target)}

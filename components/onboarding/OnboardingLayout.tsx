@@ -188,7 +188,7 @@ export function OnboardingLayout({
         {/* CTA */}
         {cta && (
           <View style={[s.footer, Platform.OS === "android" && { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
               onPress={() => {
                 feedback.haptic('medium');
@@ -212,7 +212,7 @@ export function OnboardingLayout({
             )}
 
             {secondaryCta && (
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 onPress={() => {
                   feedback.haptic('light');
                   secondaryCta.onPress();

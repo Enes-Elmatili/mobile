@@ -136,7 +136,7 @@ export default function SendQuote() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={40} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textSub }]}>Impossible de charger cette demande.</Text>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.retryBtn, { backgroundColor: theme.accent }]}
           onPress={loadRequest}
           activeOpacity={0.85}
@@ -264,7 +264,7 @@ export default function SendQuote() {
 
       {/* Footer CTA */}
       <SafeAreaView edges={["bottom"]} style={[s.footer, { backgroundColor: theme.bg }]}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[
             s.ctaBtn,
             { backgroundColor: theme.accent },

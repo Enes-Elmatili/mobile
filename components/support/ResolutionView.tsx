@@ -205,7 +205,7 @@ export default function ResolutionView({
       </View>
 
       {/* CTA principal */}
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={[
           s.actionBtn,
           { backgroundColor: problem.severity === 'high' ? COLORS.red : theme.text },
@@ -242,7 +242,7 @@ export default function ResolutionView({
       {/* CTA secondaires */}
       {problem.severity !== 'low' && (
         <View style={s.secondaryRow}>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.secondaryBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={callEmergency}
             activeOpacity={0.8}
@@ -252,7 +252,7 @@ export default function ResolutionView({
               {t('ext.support_call')}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.secondaryBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => Linking.openURL(`mailto:${SUPPORT_CHANNELS.email}?subject=${encodeURIComponent(`Support — ${problem.label}`)}`)}
             activeOpacity={0.8}
@@ -266,7 +266,7 @@ export default function ResolutionView({
       )}
 
       {/* Retour */}
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={s.backBtn}
         onPress={onBack}
         activeOpacity={0.7}
@@ -318,7 +318,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
         )}
       </View>
 
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={[s.actionBtn, { backgroundColor: theme.text }]}
         onPress={onWhatsApp}
         activeOpacity={0.85}
@@ -329,7 +329,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={[s.secondaryBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight, height: 50 }]}
         onPress={onCallSupport}
         activeOpacity={0.8}
@@ -340,7 +340,7 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={s.backBtn}
         onPress={onDone}
         activeOpacity={0.7}

@@ -796,7 +796,7 @@ export default function Signup() {
               </Text>
               <View style={s.cityDropdown}>
                 {CITY_OPTIONS.map((opt) => (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     key={opt.value}
                     style={[
                       s.cityOption,
@@ -886,7 +886,7 @@ export default function Signup() {
                   <ActivityIndicator size="large" color={alpha(theme.text, 0.6)} />
                 </View>
               ) : catsError && categories.length === 0 ? (
-                <TouchableOpacity style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
+                <TouchableOpacity accessibilityRole="button" style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
                   <Feather name="refresh-cw" size={24} color={alpha(theme.text, theme.isDark ? 0.5 : 0.68)} />
                   <Text
                     style={[s.retryText, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
@@ -902,7 +902,7 @@ export default function Signup() {
                     .map((cat) => {
                       const sel = selectedCats.includes(cat.id);
                       return (
-                        <TouchableOpacity
+                        <TouchableOpacity accessibilityRole="button"
                           key={cat.id}
                           style={[
                             s.chip,

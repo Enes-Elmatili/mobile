@@ -400,7 +400,7 @@ export default function ConversationScreen() {
           <Text style={[b.timestamp, { color: theme.textMuted }]}>{fmtTime(item.createdAt)}</Text>
         )}
         <View style={[b.row, isMine ? b.rowRight : b.rowLeft]}>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             disabled={!isFailed}
             onPress={() => retryMessage(item)}
             activeOpacity={isFailed ? 0.7 : 1}

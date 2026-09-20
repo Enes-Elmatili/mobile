@@ -337,7 +337,7 @@ export default function ScheduledConfirmation() {
 
       {/* Bottom CTAs */}
       <View style={st.bottom}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[st.btn, { backgroundColor: theme.accent }]}
           onPress={() => {
             feedback.haptic('light');
@@ -350,7 +350,7 @@ export default function ScheduledConfirmation() {
         </TouchableOpacity>
 
         {isRecapMode ? (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[st.btnSecondary, { borderColor: COLORS.red }]}
             onPress={handleCancel}
             disabled={cancelling}
@@ -365,7 +365,7 @@ export default function ScheduledConfirmation() {
             )}
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[st.btnSecondary, { borderColor: theme.border }]}
             onPress={() => {
               feedback.haptic('light');

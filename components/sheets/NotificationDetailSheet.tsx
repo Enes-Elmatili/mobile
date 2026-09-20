@@ -155,7 +155,7 @@ export default function NotificationDetailSheet({
           {/* Actions */}
           <View style={s.actions}>
             {isWarn && notif.data?.category !== 'support' && (
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[s.ctaGhost, { borderColor: theme.borderLight }]}
                 onPress={goToSupport}
                 activeOpacity={0.85}
@@ -165,7 +165,7 @@ export default function NotificationDetailSheet({
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.ctaGhost, { borderColor: COLORS.red + '55' }]}
               onPress={handleDelete}
               activeOpacity={0.85}
@@ -174,7 +174,7 @@ export default function NotificationDetailSheet({
               <Text style={[s.ctaGhostText, { color: COLORS.red, fontFamily: FONTS.sansMedium }]}>{t('notifications.delete')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={s.closeBtn} onPress={onClose} activeOpacity={0.6}>
+            <TouchableOpacity accessibilityRole="button" style={s.closeBtn} onPress={onClose} activeOpacity={0.6}>
               <Text style={[s.closeText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('notifications.understood')}</Text>
             </TouchableOpacity>
           </View>

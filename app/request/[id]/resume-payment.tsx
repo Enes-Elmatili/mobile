@@ -309,7 +309,7 @@ export default function ResumePayment() {
       {/* Footer CTA */}
       {!loading && (
         <View style={[s.footer, Platform.OS === 'android' && { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[s.btnPrimary, (!paymentReady || paying) && s.btnDisabled]}
             onPress={handlePay}
             disabled={!paymentReady || paying}

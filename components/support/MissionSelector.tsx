@@ -91,7 +91,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
             autoCapitalize="none"
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="x" size={16} color={theme.textMuted} />
             </TouchableOpacity>
           )}
@@ -113,7 +113,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
               : isProvider ? t('ext.support_p_empty_hint') : t('ext.support_create_first')}
           </Text>
           {!query && (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.emptyCta, { backgroundColor: theme.text }]}
               onPress={() => router.push(isProvider ? '/(tabs)/missions' : '/request/NewRequestStepper')}
               activeOpacity={0.85}
@@ -131,7 +131,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
             <MissionCard key={mission.id} mission={mission} onPress={() => onSelect(mission)} theme={theme} />
           ))}
           {hiddenCount > 0 && !showAll && !query.trim() && (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[s.showMore, { borderColor: theme.borderLight }]}
               onPress={() => setShowAll(true)}
               activeOpacity={0.7}
@@ -152,7 +152,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
           <Text style={[s.dividerText, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('ext.or')}</Text>
           <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
         </View>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[s.otherBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={onOther}
           activeOpacity={0.75}
@@ -184,7 +184,7 @@ function MissionCard({ mission, onPress, theme }: {
 }) {
   const { t } = useTranslation();
   return (
-    <TouchableOpacity
+    <TouchableOpacity accessibilityRole="button"
       style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
       onPress={onPress}
       activeOpacity={0.78}

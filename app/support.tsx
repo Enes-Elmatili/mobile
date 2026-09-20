@@ -344,7 +344,7 @@ export default function SupportScreen() {
         {level === 1 && (
           <FadeSlide key="level1">
             {loadError && !loading && (
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[s.errorBanner, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
                 onPress={() => { setLoading(true); loadMissions(); }}
                 activeOpacity={0.8}

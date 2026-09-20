@@ -235,7 +235,7 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
         {/* -- CTA -- */}
         {mission.status === 'QUOTE_PENDING' && (
           <View style={sd.actionsBlock}>
-            <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+            <TouchableOpacity accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
               <Feather name="file-text" size={18} color={t.accentText} />
               <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_send_quote')}</Text>
             </TouchableOpacity>
@@ -251,7 +251,7 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
         )}
         {mission.status === 'QUOTE_ACCEPTED' && (
           <View style={sd.actionsBlock}>
-            <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+            <TouchableOpacity accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
               <Feather name="arrow-right" size={18} color={t.accentText} />
               <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_start_mission')}</Text>
             </TouchableOpacity>
@@ -260,7 +260,7 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
         {(canNavigate || canComplete || cfg.active) && !['QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(mission.status) && (
           <View style={sd.actionsBlock}>
             {cfg.active && (
-              <TouchableOpacity style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+              <TouchableOpacity accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
                 <Feather name="arrow-right" size={18} color={t.accentText} />
                 <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_resume_mission')}</Text>
               </TouchableOpacity>

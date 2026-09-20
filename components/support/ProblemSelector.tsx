@@ -136,7 +136,7 @@ export default function ProblemSelector({ missionStatus, onSelect, isProvider }:
       {problems.map(problem => {
         const tone = severityColor(problem.severity, theme);
         return (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             key={problem.id}
             style={[s.option, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={() => onSelect(problem)}

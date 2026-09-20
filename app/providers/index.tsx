@@ -59,7 +59,7 @@ export default function ProvidersListScreen() {
     const avgRating = Number(item.avgRating) || 0;
 
     return (
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
         onPress={() => {
           router.push({

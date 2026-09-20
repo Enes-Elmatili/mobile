@@ -154,7 +154,7 @@ export default function ForgotPassword() {
         />
 
         {!sent && (
-          <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
+          <TouchableOpacity accessibilityRole="button" onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
             <Text
               style={[
                 s.secondaryLinkText,
