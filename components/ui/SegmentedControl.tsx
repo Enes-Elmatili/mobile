@@ -18,7 +18,8 @@ type Props<T extends string> = {
   onChange: (value: T) => void;
 };
 
-const PAD = 3;
+/** Retrait de l'indicateur dans la piste : la sélection respire, jamais collée au bord. */
+const PAD = 4;
 
 export function SegmentedControl<T extends string>({ options, value, onChange }: Props<T>) {
   const theme = useAppTheme();

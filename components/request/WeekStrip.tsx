@@ -89,9 +89,10 @@ const s = StyleSheet.create({
   range:    { fontFamily: FONTS.sansMedium, fontSize: 13 },
   arrows:   { flexDirection: 'row', gap: 18 },
   arrowOff: { opacity: 0.3 },
-  pager:    { height: 62 },
-  days:     { flexDirection: 'row', gap: 4 },
-  day:      { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 12 },
+  pager:    { height: 66 },
+  // La sélection respire : 8 pt entre deux jours (4 de retrait de chaque côté), de l'air dedans.
+  days:     { flexDirection: 'row', gap: 8 },
+  day:      { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 10, borderRadius: 14 },
   dayName:  { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 0.5 },
   dayNum:   { fontFamily: FONTS.bebas, fontSize: 20, includeFontPadding: false, fontVariant: ['tabular-nums'] },
   todayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent' },
