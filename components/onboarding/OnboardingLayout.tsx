@@ -1,5 +1,5 @@
 // components/onboarding/OnboardingLayout.tsx — Dark premium wrapper for onboarding screens
-import React, { useEffect } from "react";
+import React from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, StatusBar,

@@ -1,7 +1,7 @@
 // app/request/[id]/send-quote.tsx — Provider envoie un devis (adaptive dark/light)
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  View, Text, StyleSheet, StatusBar, Platform,
+  View, Text, StyleSheet, StatusBar, 
   TouchableOpacity, ScrollView, TextInput, ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
@@ -19,6 +19,7 @@ import Animated from "react-native-reanimated";
 import { MOTION, useCountingValue, usePresence } from "@/lib/motion";
 import { ReText } from "@/components/ui/ReText";
 import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
+import { goBack } from '@/lib/nav/back';
 
 // Normalise la virgule décimale (clavier FR/BE) avant parseFloat.
 const parseAmount = (value: string): number => parseFloat(value.replace(",", ".")) || 0;
@@ -81,7 +82,7 @@ export default function SendQuote() {
     } finally {
       setChecking(false);
     }
-  }, [id, user?.id, router]);
+  }, [id, user?.id, router, t]);
 
   useEffect(() => { loadRequest(); }, [loadRequest]);
 
@@ -109,14 +110,14 @@ export default function SendQuote() {
         notes: notes || undefined,
       });
       feedback.success(t('quote.sent_msg'));
-      router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard');
+      goBack(router, '/(tabs)/dashboard');
     } catch (e: any) {
       devError("Send quote error:", e);
       feedback.error(e?.message || t('common.error'));
     } finally {
       setSending(false);
     }
-  }, [canSend, id, laborCents, partsCents, notes, router]);
+  }, [canSend, id, laborCents, partsCents, notes, router, t]);
 
   // Vérification en cours (guard ownership/statut) → loader plein écran.
   if (checking) {
@@ -156,7 +157,7 @@ export default function SendQuote() {
         <View style={s.header}>
           <TouchableOpacity
             style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
-            onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+            onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}

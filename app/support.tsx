@@ -24,6 +24,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import MissionSelector from '@/components/support/MissionSelector';
 import ProblemSelector, { type ProblemOption } from '@/components/support/ProblemSelector';
 import ResolutionView from '@/components/support/ResolutionView';
+import { goBack } from '@/lib/nav/back';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -299,7 +300,7 @@ export default function SupportScreen() {
       <View style={s.header}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"

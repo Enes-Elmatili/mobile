@@ -1,5 +1,5 @@
 // app/(auth)/forgot-password.tsx — forgot password (flat theme-aware, v2 éditorial)
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,

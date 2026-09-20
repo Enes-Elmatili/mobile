@@ -9,7 +9,8 @@ import { useSocket } from '../SocketContext';
 import { useAuth } from '../auth/AuthContext';
 import { CallService, isWebRTCAvailable } from './CallService';
 import { devLog, devError } from '../logger';
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
+import { feedback } from '../feedback/feedback';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -84,15 +85,9 @@ function isMicPermissionError(err: unknown): boolean {
   return /notallowed|permission|denied|security/i.test(msg);
 }
 
-function showMicPermissionAlert() {
-  Alert.alert(
-    'Micro refusé',
-    'FIXED n\'a pas accès à votre micro. Activez-le dans les Réglages pour passer des appels.',
-    [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Ouvrir les Réglages', onPress: () => Linking.openSettings() },
-    ],
-  );
+async function showMicPermissionAlert() {
+  const go = await feedback.confirm({ titleKey: 'common.mic_denied_title', messageKey: 'common.mic_denied_msg', confirmKey: 'common.open_settings', cancelKey: 'common.cancel' });
+  if (go) Linking.openSettings();
 }
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -232,10 +227,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (callState !== 'idle' || !socket) return;
 
     if (!isWebRTCAvailable()) {
-      Alert.alert(
-        'Appel non disponible',
-        'Les appels VoIP nécessitent un build de développement. Utilisez l\'appel téléphonique classique.',
-      );
+      feedback.error('common.voip_unavailable');
       return;
     }
 

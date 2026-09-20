@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  ScrollView,
   ActivityIndicator,
   Platform,
   BackHandler,
@@ -198,6 +197,7 @@ export default function Signup() {
       // Échec OAuth Google — sans ce feedback le bouton redevenait juste actif
       showToast(t('auth.su_err_social'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement
   }, [googleResponse]);
 
   // ── Routage post-authentification sociale ──────────────────────────────────
@@ -373,10 +373,11 @@ export default function Signup() {
         showToast(t('auth.su_err_cats_load'));
       })
       .finally(() => setCatsLoading(false));
-  }, []);
+  }, [showToast, t]);
 
   useEffect(() => {
     if (phase === "zone" && isProvider && categories.length === 0) loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule fois à l'entrée dans la phase
   }, [phase, isProvider]);
 
   // Validation
@@ -455,6 +456,7 @@ export default function Signup() {
     };
     const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
     return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- le retour matériel ne dépend que de la phase
   }, [phase]);
 
   const toggleCat = (id: number) => {

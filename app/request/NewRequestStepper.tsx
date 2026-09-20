@@ -59,6 +59,7 @@ import { buildWeeks, findDay, isSlotDisabled, type WeekDay } from '@/lib/schedul
 import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
+import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const TOTAL_STEPS = 4;
@@ -69,10 +70,6 @@ const DEFAULT_REGION = {
   latitudeDelta: 0.015,
   longitudeDelta: 0.0121,
 };
-
-// ─── Carte Grayscale (light) ───────────────────────────────────────────────────
-// ─── Cartes Google Maps (source unique light + dark) ────────────────────────────
-import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 
 // Local Ionicons→Feather icon name bridge. Used to translate legacy category
 // icon names returned by toIoniconName() into Feather glyphs without touching
@@ -755,7 +752,6 @@ export default function NewRequestStepper() {
     flatAmount:  basePrice,
     vatRate,
   }), [basePrice, isUrgent, requestDateIso, vatRate]);
-  const urgencySurcharge = parseFloat(priceDetails.urgentFee);
   const step3Ready = scheduleMode === 'now' || (scheduleMode === 'later' && !!selectedDayIso && !!selectedTime);
 
   // Chargement catégories
@@ -858,8 +854,6 @@ export default function NewRequestStepper() {
   // on saute la PaymentSheet. Inerte pour un vrai utilisateur (demo jamais renvoyé).
   const [bypassPayment,      setBypassPayment]      = useState(false);
   const [paymentInitLoading, setPaymentInitLoading] = useState(false);
-  const [priceDetailOpen,    setPriceDetailOpen]    = useState(false);
-  const [pricingToken,       setPricingToken]       = useState<string | null>(null);
   const [serverPrice,        setServerPrice]        = useState<ReturnType<typeof computePrice> | null>(null);
   const [pricingError,       setPricingError]       = useState<string | null>(null);
   const [confirmedCalloutCents, setConfirmedCalloutCents] = useState<number | null>(null);
@@ -889,7 +883,6 @@ export default function NewRequestStepper() {
     }
     setServerPrice(null);
     setPaymentReady(false);
-    setPricingToken(null);
     setRequestId(null);
     setConfirmedCalloutCents(null);
     setAppliedPromo(null);
@@ -1020,7 +1013,6 @@ export default function NewRequestStepper() {
           ...(vatEligible ? { buildingOver10y, privateUse } : {}),
         });
         if (cancelled) return;
-        setPricingToken(lockRes.pricingToken);
         setServerPrice(lockRes.price);
 
         const payload: Record<string, unknown> = {

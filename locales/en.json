@@ -124,7 +124,12 @@
     "message": "Message",
     "slide_to_accept": "Slide to accept",
     "slide_to_accept_hint": "Slide the knob to the right to accept",
-    "accepted": "Accepted"
+    "accepted": "Accepted",
+    "session_expired": "Session expired — please sign in again.",
+    "mic_denied_title": "Microphone denied",
+    "mic_denied_msg": "FIXED can't access your microphone. Enable it in Settings to make calls.",
+    "open_settings": "Open Settings",
+    "voip_unavailable": "In-app calls aren't available here — use a regular phone call."
   },
   "auth": {
     "login": "Sign in",

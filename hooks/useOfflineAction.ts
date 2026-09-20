@@ -35,6 +35,7 @@ export function useOfflineAction(
       await enqueue(actionType, payload);
       options.onQueued?.();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- les callbacks d'options sont lus individuellement
   }, [isOnline, actionType, enqueue, options.onQueued, options.onSuccess, options.onError]);
 
   return { execute, isOnline };

@@ -2,7 +2,7 @@
 // Spec: maquette « welcome-editorial-v2 » validée 2026-07-07.
 // Titre Bebas calé à gauche (contenu, plus de débordement), point vert signature,
 // eyebrow mono avec tiret vert, steps sur hairline, CTA pill qui respire.
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import {
   View,
   Text,

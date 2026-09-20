@@ -86,7 +86,7 @@ export default function ActiveCallScreen() {
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/dashboard');
     }
-  }, [callState]);
+  }, [callState, router]);
 
   const isRinging = callState === 'outgoing' || callState === 'connecting';
   const isConnected = callState === 'connected';

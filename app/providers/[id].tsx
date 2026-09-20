@@ -24,6 +24,7 @@ import { PulseDot } from '@/components/ui/PulseDot';
 import IconBtn from '@/components/ui/IconBtn';
 import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { cleanName } from '@/lib/displayName';
+import { goBack } from '@/lib/nav/back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -197,7 +198,7 @@ export default function ProviderDetailScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={56} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Prestataire introuvable</Text>
-        <TouchableOpacity style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+        <TouchableOpacity style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnFallbackText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -253,7 +254,7 @@ export default function ProviderDetailScreen() {
         <IconBtn
           icon="chevron-left"
           accessibilityLabel="Retour"
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
         />
         <Text style={[s.headerTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>PRESTATAIRE</Text>
         {/* Spacer symétrique (l'ancien bouton "…" sans action a été retiré) */}

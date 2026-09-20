@@ -6,11 +6,11 @@
 //   3. Ledger blanc — détail main d'œuvre / pièces / acompte
 //   4. Prestataire (identité) → notes → réassurance paiement
 //   5. Footer : UNE action dominante (accepter), refus en lien discret → sheet dédiée
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
   TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Modal,
+  KeyboardAvoidingView, Modal, Linking,
 } from "react-native";
 import Animated, {
   Easing, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle,
@@ -31,7 +31,6 @@ import { ProviderRow } from "@/components/tracking";
 import { PhotoGallery } from "@/components/mission/photos";
 import { briefOf } from "@/lib/mission/brief";
 import { useCall } from "@/lib/webrtc/CallContext";
-import { Linking } from "react-native";
 import { RaisedButton } from "@/components/ui/RaisedButton";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { useAndroidBackClose } from "@/hooks/use-android-back-close";

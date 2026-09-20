@@ -124,7 +124,12 @@
     "message": "Bericht",
     "slide_to_accept": "Schuif om te accepteren",
     "slide_to_accept_hint": "Schuif de knop naar rechts om te accepteren",
-    "accepted": "Geaccepteerd"
+    "accepted": "Geaccepteerd",
+    "session_expired": "Sessie verlopen — meld u opnieuw aan.",
+    "mic_denied_title": "Microfoon geweigerd",
+    "mic_denied_msg": "FIXED heeft geen toegang tot uw microfoon. Schakel hem in bij Instellingen om te bellen.",
+    "open_settings": "Instellingen openen",
+    "voip_unavailable": "Ingebouwde oproepen zijn hier niet beschikbaar — gebruik een gewone telefoonoproep."
   },
   "auth": {
     "login": "Inloggen",

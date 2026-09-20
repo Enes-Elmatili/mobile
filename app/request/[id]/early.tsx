@@ -19,6 +19,7 @@ import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
+import { goBack } from '@/lib/nav/back';
 
 interface MissionData {
   id: number;
@@ -88,6 +89,7 @@ export default function EarlyScreen() {
     const hours = Math.floor((totalMin % (60 * 24)) / 60);
     const mins = totalMin % 60;
     return { days, hours, mins, totalMin };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick force le recalcul chaque minute
   }, [mission?.preferredTimeStart, tick]);
 
   const formattedDate = useMemo(() => {
@@ -114,7 +116,7 @@ export default function EarlyScreen() {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${mission.lat},${mission.lng}`;
     feedback.haptic('light');
     Linking.openURL(url).catch(() => feedback.error('ext.early_navigation_failed'));
-  }, [mission, t]);
+  }, [mission]);
 
   const handleCallClient = useCallback(() => {
     const phone = mission?.client?.phone;
@@ -123,7 +125,7 @@ export default function EarlyScreen() {
       return;
     }
     Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() => {});
-  }, [mission?.client?.phone, t]);
+  }, [mission?.client?.phone]);
 
   if (loading) {
     return (
@@ -161,7 +163,7 @@ export default function EarlyScreen() {
       <View style={s.header}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/missions'); }}
+          onPress={() => { goBack(router, '/(tabs)/missions'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"

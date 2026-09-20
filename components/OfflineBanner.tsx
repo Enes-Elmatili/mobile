@@ -65,7 +65,7 @@ export function OfflineBanner() {
         if (finished) runOnJS(setOfflineVisible)(false);
       });
     }
-  }, [bannerActive]);
+  }, [bannerActive, slideY]);
 
   // Bandeau fugace "Connexion rétablie" — réseau revenu OU socket reconnecté
   useEffect(() => {

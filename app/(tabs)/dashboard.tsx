@@ -7,21 +7,12 @@ import {
   TouchableOpacity,
   Pressable,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   RefreshControl,
     StatusBar,
   Linking,
 } from 'react-native';
-import Reanimated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withRepeat,
-  cancelAnimation,
-  Easing as REasing,
-} from 'react-native-reanimated';
-import { useReduceMotion } from '@/lib/motion/sheet';
+import Reanimated from 'react-native-reanimated';
 import { runWhenIdle } from '@/lib/idle';
 import { usePressScale } from '@/lib/motion/press';
 import { CascadeItem } from '@/lib/motion/useCascade';
@@ -147,16 +138,8 @@ const getServiceIcon = (label?: string): string => {
 };
 
 // ============================================================================
-// STATUS LED — using shared PulseDot component
+// CARTES DE SERVICES — le catalogue affiché sur l'accueil
 // ============================================================================
-
-// ============================================================================
-// RUNWAY CAROUSEL — service category cards
-// ============================================================================
-
-const CARD_WIDTH = 128;
-const CARD_HEIGHT = 138;
-const CARD_GAP = 10;
 
 // Le `label` est volontairement absent : on rend `t(`category.${key}`)` au moment
 // du render — comme ça la card s'affiche en NL / EN si le user a switché de langue.
@@ -174,150 +157,6 @@ const SERVICE_CARDS = [
 // Catalogue actuel : uniquement Plomberie et Serrurerie
 const LAUNCH_CARDS = SERVICE_CARDS.filter(c => c.key === 'plomberie' || c.key === 'serrurerie');
 
-function RunwayCarousel({ onPress, theme }: { onPress: (category: string) => void; theme: AppTheme }) {
-  const { t } = useTranslation();
-  const scrollRef = useRef<ScrollView>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const handleScroll = (e: any) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + CARD_GAP));
-    setActiveIndex(Math.min(idx, LAUNCH_CARDS.length - 1));
-  };
-
-  return (
-    <>
-      {/* Section header */}
-      <View style={runway.header}>
-        <Text style={[runway.headerTitle, { color: theme.textMuted }]}>{t('dashboard.services_available')}</Text>
-        <View style={runway.headerHint}>
-          <Feather name="chevron-right" size={9} color={theme.textMuted} />
-          <Text style={[runway.headerHintText, { color: theme.textMuted }]}>{t('dashboard.swipe_hint')}</Text>
-        </View>
-      </View>
-
-      {/* Cards */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={CARD_WIDTH + CARD_GAP}
-        decelerationRate="fast"
-        contentContainerStyle={runway.scrollContent}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        {LAUNCH_CARDS.map((card, index) => {
-          const isBlack = card.theme === 'black';
-          const cardBg = isBlack
-            ? theme.accent
-            : theme.cardBg;
-          const cardBorder = isBlack
-            ? theme.accent
-            : theme.borderLight;
-          const textColor = isBlack ? theme.accentText : theme.text;
-          const iconBg = isBlack
-            ? 'rgba(255,255,255,0.1)'
-            : theme.surface;
-          const arrowBg = isBlack
-            ? 'rgba(255,255,255,0.12)'
-            : theme.surface;
-
-          return (
-            <TouchableOpacity
-              key={card.key}
-              style={[runway.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
-              onPress={() => onPress(card.category)}
-              activeOpacity={PRESS_PRIMARY}
-            >
-              {/* Ghost number */}
-              <Text style={[runway.ghostNum, {
-                color: isBlack ? 'rgba(255,255,255,0.04)' : (theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.045)'),
-              }]}>
-                {index + 1}
-              </Text>
-
-              <View style={runway.cardInner}>
-                {/* Top row: icon + LED + count */}
-                <View style={runway.cardTop}>
-                  <View style={[runway.iconBox, { backgroundColor: iconBg }]}>
-                    <Feather name={card.icon as any} size={14} color={textColor} />
-                  </View>
-                  <View style={runway.ledRow}>
-                    <PulseDot size={6} color={card.led} />
-                  </View>
-                </View>
-
-                {/* Service name */}
-                <Text style={[runway.serviceName, { color: textColor }]}>{t(`category.${card.key}`, { defaultValue: card.key })}</Text>
-
-                {/* Bottom arrow */}
-                <View style={runway.cardBottom}>
-                  <View style={{ flex: 1 }} />
-                  <View style={[runway.cardArrow, { backgroundColor: arrowBg }]}>
-                    <Feather name="arrow-right" size={8} color={textColor} />
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Dots */}
-      <View style={runway.dots}>
-        {LAUNCH_CARDS.map((_, i) => (
-          <View key={i} style={[
-            runway.dot,
-            { backgroundColor: theme.borderLight },
-            i === activeIndex && { width: 20, borderRadius: 2, backgroundColor: theme.accent },
-          ]} />
-        ))}
-      </View>
-    </>
-  );
-}
-
-const runway = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8,
-  },
-  headerTitle: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.2 },
-  headerHint: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  headerHintText: { fontFamily: FONTS.mono, fontSize: 10 },
-
-  scrollContent: { paddingHorizontal: 16, gap: CARD_GAP, paddingBottom: 4 },
-
-  card: {
-    width: CARD_WIDTH, height: CARD_HEIGHT,
-    borderRadius: 20, overflow: 'hidden',
-    position: 'relative', borderWidth: 1.5,
-  },
-
-  ghostNum: {
-    position: 'absolute', bottom: -8, right: 4,
-    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 54, lineHeight: 54,
-  },
-
-  cardInner: {
-    position: 'relative', zIndex: 2,
-    padding: 14, flex: 1,
-    justifyContent: 'space-between',
-  },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-
-  iconBox: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-
-  ledRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-
-  serviceName: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 19, letterSpacing: 0.6, lineHeight: 20 },
-
-  cardBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  cardArrow: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-
-  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingTop: 10, paddingBottom: 4 },
-  dot: { width: 4, height: 3, borderRadius: 2 },
-});
 
 // ============================================================================
 // MISSION ISLAND — active request or empty state
@@ -615,42 +454,6 @@ function MissionIsland({
   return null;
 }
 
-const islandStyles = StyleSheet.create({
-  active: {
-    borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-  },
-  pulseWrap: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-  pulseRing: { position: 'absolute', width: 10, height: 10, borderRadius: 5 },
-  textWrap: { flex: 1 },
-  label: {
-    fontFamily: FONTS.mono, fontSize: 11,
-    letterSpacing: 0.6, textTransform: 'uppercase',
-  },
-  mission: {
-    fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 18, letterSpacing: 0.7,
-    marginTop: 1, lineHeight: 20,
-  },
-  sub: { fontFamily: FONTS.sans, fontSize: 11, marginTop: 2 },
-  arrow: {
-    width: 32, height: 32, borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  empty: {
-    borderWidth: 1.5, borderStyle: 'dashed',
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
-  emptyIconBox: {
-    width: 28, height: 28, borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  emptyText: { fontFamily: FONTS.sans, fontSize: 11, lineHeight: 16, flex: 1 },
-});
 
 // ============================================================================
 // ACTIVITY ITEM — recent request row
@@ -724,27 +527,6 @@ function ActivityItem({
   );
 }
 
-const actStyles = StyleSheet.create({
-  card: {
-    borderRadius: 18, borderWidth: 1, padding: 14, marginBottom: 8,
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: {
-    width: 40, height: 40, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  center: { flex: 1, minWidth: 0 },
-  name: { fontFamily: FONTS.sansMedium, fontSize: 13.5, lineHeight: 16 },
-  meta: { fontFamily: FONTS.mono, fontSize: 10.5, marginTop: 2, letterSpacing: 0.6 },
-  right: { alignItems: 'flex-end', gap: 4 },
-  price: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 0.4 },
-  badge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8,
-  },
-  badgeDot: { width: 6, height: 6, borderRadius: 3 },
-  badgeText: { fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.5 },
-});
 
 // ============================================================================
 // UPCOMING ISLAND CARD — demande planifiée future
@@ -1302,8 +1084,7 @@ function ClientDashboard() {
       label: kind === 'track' ? t('dashboard.track_mission') : t('dashboard.new_request'),
       onPress: kind === 'track' ? () => { if (liveMission) navigateToMissionView(liveMission); } : () => router.push('/request/NewRequestStepper'),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- la mission suivie ne change que par son id
-  }, [liveMissionId, liveMission?.status, t, setDisc, navigateToMissionView, router]);
+  }, [liveMissionId, liveMission?.status, liveMission, t, setDisc, navigateToMissionView, router]);
   useEffect(() => () => setDisc({ kind: 'hidden' }), [setDisc]);
 
   // Skeleton shell during cold load — prevents layout reflow when data lands

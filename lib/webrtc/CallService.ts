@@ -10,6 +10,7 @@ let WebRTC: any = null;
 function getWebRTC() {
   if (!WebRTC) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- module natif optionnel (absent d'Expo Go)
       WebRTC = require('react-native-webrtc');
     } catch {
       devLog('📞 [WebRTC] react-native-webrtc not available (Expo Go?)');

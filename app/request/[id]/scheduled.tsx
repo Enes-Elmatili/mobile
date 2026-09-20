@@ -9,16 +9,15 @@
 // Socket listener actif dans les deux modes : quand un prestataire accepte
 // la demande, transition automatique vers missionview.
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, ActivityIndicator,
+  TouchableOpacity, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
-import { Linking } from 'react-native';
 import { ProviderRow } from '@/components/tracking';
 import { PhotoGallery } from '@/components/mission/photos';
 import { briefOf } from '@/lib/mission/brief';
@@ -149,7 +148,7 @@ export default function ScheduledConfirmation() {
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [id, router, t]);
 
   useEffect(() => {
     // Mode confirmation : animations + déjà des params → fetch quand même en background
@@ -195,7 +194,7 @@ export default function ScheduledConfirmation() {
       socket.off('request:accepted', handleAccepted);
       socket.off('request:cancelled', handleCancelled);
     };
-  }, [socket, id, fetchRequest, router]);
+  }, [socket, id, fetchRequest, router, t]);
 
   // ── Action : annuler la demande ──
   const handleCancel = async () => {

@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, StatusBar, Linking,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
+import { goBack } from '@/lib/nav/back';
 
 const WHATSAPP_URL = 'https://wa.me/message/SXNKDKILPEFMO1';
 
@@ -191,13 +192,13 @@ export default function TicketDetailScreen() {
     try {
       await api.tickets.addMessage(id, text);
       await load();
-    } catch (err) {
+    } catch {
       feedback.error('ext.ticket_msg_send_failed');
       setMessage(text);
     } finally {
       setSending(false);
     }
-  }, [id, message, sending, load, t]);
+  }, [id, message, sending, load]);
 
   const openWhatsApp = useCallback(() => {
     WebBrowser.openBrowserAsync(WHATSAPP_URL);
@@ -222,12 +223,12 @@ export default function TicketDetailScreen() {
     try {
       await api.patch(`/tickets/${ticket.id}`, { status: 'CLOSED' });
       await load();
-    } catch (err) {
+    } catch {
       feedback.error('ext.ticket_update_failed');
     } finally {
       setUpdating(false);
     }
-  }, [ticket, load, t]);
+  }, [ticket, load]);
 
   const reopen = useCallback(async () => {
     if (!ticket) return;
@@ -242,12 +243,12 @@ export default function TicketDetailScreen() {
     try {
       await api.patch(`/tickets/${ticket.id}`, { status: 'OPEN' });
       await load();
-    } catch (err) {
+    } catch {
       feedback.error('ext.ticket_reopen_failed');
     } finally {
       setUpdating(false);
     }
-  }, [ticket, load, t]);
+  }, [ticket, load]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -270,7 +271,7 @@ export default function TicketDetailScreen() {
           <TouchableOpacity onPress={() => { setLoading(true); load(); }} style={[s.errBtn, { backgroundColor: theme.accent }]}>
             <Text style={[s.errBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
+          <TouchableOpacity onPress={() => { goBack(router, '/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
             <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
@@ -289,7 +290,7 @@ export default function TicketDetailScreen() {
       <View style={s.header}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/settings/help'); }}
+          onPress={() => { goBack(router, '/settings/help'); }}
           activeOpacity={0.75}
           accessibilityLabel={t('common.back')}
           hitSlop={8}

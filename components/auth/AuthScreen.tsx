@@ -12,7 +12,6 @@ import {
   StyleSheet,
   StatusBar,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   ViewStyle,
   StyleProp,

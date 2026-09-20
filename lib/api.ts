@@ -1,7 +1,7 @@
-import { Alert } from 'react-native';
 import { tokenStorage } from './storage';
 import { devLog, devWarn, devError } from './logger';
 import i18nInstance from './i18n';
+import { feedback } from './feedback/feedback';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 if (!API_BASE_URL) {
@@ -181,7 +181,7 @@ class ApiClient {
         } else {
           devLog('Token refresh failed, clearing session...');
           await tokenStorage.removeToken();
-          Alert.alert('Session expirée', 'Veuillez vous reconnecter.');
+          feedback.error('common.session_expired');
           const sessionErr: any = new Error('Session expirée');
           sessionErr.status = 401;
           throw sessionErr;

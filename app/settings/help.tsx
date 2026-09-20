@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Linking, Platform, StatusBar, TextInput,
+  TouchableOpacity, Linking, StatusBar, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { goBack } from '@/lib/nav/back';
 
 // ── FAQ catégorisée ────────────────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ export default function HelpScreen() {
       <View style={s.header}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           accessibilityLabel={t('help.back_label')}
           hitSlop={8}

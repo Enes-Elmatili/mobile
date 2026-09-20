@@ -18,7 +18,7 @@
 //
 // SOURCE UNIQUE COULEURS : tokens GRAPHITE de @/hooks/use-app-theme (zéro hex en dur).
 // SOURCE UNIQUE TEXTES   : i18n (namespace formules.*) — FR/NL/EN. Haptics via feedback.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   StatusBar, Platform, ActivityIndicator, ScrollView,
@@ -34,6 +34,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { formatEURCents } from '@/lib/format';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
 import { Skeleton as SkeletonBlock } from '@/components/ui/Skeleton';
+import { goBack } from '@/lib/nav/back';
 
 // Google Play impose Play Billing pour tout ce qui peut être lu comme du contenu ou une
 // fonctionnalité numérique, et interdit même de renvoyer vers un paiement tiers. Les
@@ -322,7 +323,7 @@ export default function FormulesScreen() {
         <View style={[s.header, { borderBottomColor: G.border }]}>
           <TouchableOpacity
             style={[s.backBtn, { backgroundColor: G.scrim }]}
-            onPress={() => { feedback.haptic('light'); router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard' as any); }}
+            onPress={() => { feedback.haptic('light'); goBack(router, '/(tabs)/dashboard'); }}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}

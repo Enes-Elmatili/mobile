@@ -1,7 +1,7 @@
 // app/onboarding/stripe.tsx — Paiements / Stripe Connect (dark design)
 // Redesign onboarding : l'écran prépare au lieu de vanter — durée (≈ 5 min),
 // pièces à réunir (identité + IBAN), et ce qui se passe après la redirection.
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Platform, StatusBar } from "react-native";
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";

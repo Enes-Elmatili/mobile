@@ -14,12 +14,14 @@ import { api } from '../lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
-// Reanimated n'expose pas Animated.SectionList : on l'anime nous-mêmes.
-const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 import { useAuth } from '@/lib/auth/AuthContext';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR as formatEuros } from '@/lib/format';
+import { goBack } from '@/lib/nav/back';
+
+// Reanimated n'expose pas Animated.SectionList : on l'anime nous-mêmes.
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 
 const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
 const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
@@ -151,7 +153,7 @@ export default function InvoicesScreen() {
 
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <TouchableOpacity onPress={() => { goBack(router, '/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 }]}>{t('ext.wallet_my_invoices')}</Text>

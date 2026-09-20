@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
@@ -17,6 +16,7 @@ import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+import { goBack } from '@/lib/nav/back';
 
 export default function ProvidersListScreen() {
   const router = useRouter();
@@ -104,7 +104,7 @@ export default function ProvidersListScreen() {
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
         <TouchableOpacity
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           style={[styles.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"

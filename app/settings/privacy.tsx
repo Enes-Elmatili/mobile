@@ -13,6 +13,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { goBack } from '@/lib/nav/back';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export default function PrivacyScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={20} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.privacy')}</Text>

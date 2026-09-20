@@ -1,8 +1,8 @@
 // app/messages/index.tsx — Inbox : liste des conversations
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, Platform, ActivityIndicator, StatusBar,
+  View, Text, TouchableOpacity, StyleSheet,
+  RefreshControl, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -10,13 +10,14 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { onIncomingMessage, useSocket } from '../../lib/SocketContext';
-import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
+import { useAppTheme, FONTS } from '../../hooks/use-app-theme';
 import Avatar from '@/components/ui/Avatar';
 import { cleanName } from '@/lib/displayName';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import i18nInstance from '@/lib/i18n';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
+import { goBack } from '@/lib/nav/back';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -183,7 +184,7 @@ export default function MessagesInbox() {
       </View>
       {item.unread && <View style={[s.unreadDot, { backgroundColor: theme.accent }]} />}
     </TouchableOpacity>
-  ), [router, theme]);
+  ), [router, theme, t]);
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -192,7 +193,7 @@ export default function MessagesInbox() {
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
         <TouchableOpacity
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"

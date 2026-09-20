@@ -1,7 +1,7 @@
 import i18n from '../lib/i18n'; // i18n — doit être importé avant tout autre module
 import { usePrefs } from '@/stores/prefs';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import { SocketProvider } from '../lib/SocketContext';
 import { NetworkProvider } from '../lib/NetworkContext';
@@ -21,7 +21,6 @@ import {
   StatusBar,
   Appearance,
 } from 'react-native';
-import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { useFonts } from 'expo-font';
@@ -92,7 +91,6 @@ function RootLayoutNav() {
 
   // ── Thème : le réglage de l'app prime sur le téléphone (stores/prefs) ───
   const t           = useAppTheme();
-  const isDark      = t.isDark;
   const hydratePrefs = usePrefs((s) => s.hydrate);
   useEffect(() => { hydratePrefs(); }, [hydratePrefs]);
 
@@ -177,6 +175,7 @@ function RootLayoutNav() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clés primitives sérialisées ci-dessus (rolesKey, segmentKey) : le tableau brut relancerait le gate à chaque rendu
   }, [userId, isBooting, segmentKey, hasToken, profileIncomplete, rolesKey]);
 
   if (isBooting) {

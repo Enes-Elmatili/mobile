@@ -3,7 +3,7 @@
 // Non-dismissable: no back button, no skip. User MUST complete to proceed.
 // Receives missing field names via route param "missingFields" (comma-separated).
 // Uses Option A: missingFields supplied by the login response, not /auth/me.
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,

@@ -2,7 +2,7 @@ import { FEEDBACK_EVENTS, FeedbackEventDef, FeedbackEventName } from '../events'
 
 test('every event has a valid tier and channels', () => {
   const tiers = ['micro', 'standard', 'celebration'];
-  for (const [name, def] of Object.entries(FEEDBACK_EVENTS) as [string, FeedbackEventDef][]) {
+  for (const def of Object.values(FEEDBACK_EVENTS) as FeedbackEventDef[]) {
     expect(tiers).toContain(def.tier);
     if (def.haptic) expect(['light','medium','heavy','selection','success','warning','error']).toContain(def.haptic);
     if (def.toast) expect(['success','error','info']).toContain(def.toast.type);

@@ -20,6 +20,7 @@ if (!API_BASE_URL) {
   throw new Error('EXPO_PUBLIC_API_URL environment variable is required');
 }
 
+// eslint-disable-next-line import/no-named-as-default-member -- API axios : l'instance par défaut porte .create()
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15_000,

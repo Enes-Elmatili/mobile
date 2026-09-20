@@ -1,7 +1,7 @@
 // app/connect/reauth.tsx — Deep link handler pour Stripe Connect link expiré
 // Stripe redirige vers fixed://connect/reauth quand le lien a expiré
 import { useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
+import { ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';

@@ -124,7 +124,12 @@
     "message": "Message",
     "slide_to_accept": "Glisser pour accepter",
     "slide_to_accept_hint": "Faites glisser le curseur vers la droite pour accepter",
-    "accepted": "Acceptée"
+    "accepted": "Acceptée",
+    "session_expired": "Session expirée — reconnectez-vous.",
+    "mic_denied_title": "Micro refusé",
+    "mic_denied_msg": "FIXED n'a pas accès à votre micro. Activez-le dans les Réglages pour passer des appels.",
+    "open_settings": "Ouvrir les Réglages",
+    "voip_unavailable": "Les appels intégrés ne sont pas disponibles ici — utilisez l'appel téléphonique."
   },
   "auth": {
     "login": "Connexion",

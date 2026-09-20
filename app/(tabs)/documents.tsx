@@ -1,7 +1,7 @@
 // app/(tabs)/documents.tsx — Client Documents (Glow Up v2)
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,8 @@ import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR, formatEURCents, formatEURInt } from '@/lib/format';
+
+const TERMINAL_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
 
 type Tab = 'factures' | 'devis' | 'planifiees';
 type Filter = 'all' | 'paid' | 'pending';
@@ -180,7 +182,6 @@ export default function Documents() {
   const openedRef = useRef<string | null>(null);
 
   // Statuts terminaux communs aux deux onglets (Devis + Planifiées).
-  const TERMINAL_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
 
   // Une demande appartient au flow Devis si elle est en mode estimate/diagnostic
   // ET que le callout fee a été payé (la transition QUOTE_PENDING peut ne pas être

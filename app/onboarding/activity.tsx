@@ -95,6 +95,7 @@ export default function OnboardingActivity() {
       setBooting(false);
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chargement unique au montage
   }, []);
 
   const toggleCat = (id: number) => {

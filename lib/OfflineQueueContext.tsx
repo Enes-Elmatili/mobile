@@ -98,6 +98,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     if (isOnline && wasOffline && queueRef.current.length > 0) {
       processQueue();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rejoue au retour en ligne seulement, pas à chaque changement de file
   }, [isOnline, wasOffline]);
 
   async function loadQueue() {
@@ -151,7 +152,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       try {
         await executeAction(action);
         devLog(`[OfflineQueue] Executed: ${action.type} (id=${action.id})`);
-      } catch (err) {
+      } catch {
         const updatedAction = { ...action, retryCount: action.retryCount + 1 };
         if (updatedAction.retryCount <= updatedAction.maxRetries) {
           failedActions.push(updatedAction);

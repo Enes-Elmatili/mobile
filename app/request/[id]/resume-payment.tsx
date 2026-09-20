@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 import { formatEUR } from '@/lib/format';
 import { useLayoutClass } from '@/lib/layout';
+import { goBack } from '@/lib/nav/back';
 
 const GRID_SIZE = 40;
 
@@ -146,6 +147,7 @@ export default function ResumePayment() {
         if (mountedRef.current) setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialise la feuille de paiement une fois par demande
   }, [id, user?.id]);
 
   const confirmPaymentSuccess = async (): Promise<void> => {
@@ -238,7 +240,7 @@ export default function ResumePayment() {
       <View style={[s.header, Platform.OS === 'android' && { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={s.backBtn}
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           activeOpacity={0.75}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"

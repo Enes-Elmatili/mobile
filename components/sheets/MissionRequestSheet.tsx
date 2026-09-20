@@ -178,17 +178,20 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
     } else if (isVisible) {
       hide();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la demande seulement ; show/hide sont stables
   }, [request]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleAccept = useCallback(() => {
     triggerSuccessHaptic();
     hide(() => onAccept(String(request?.requestId)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hide et l'haptique sont stables
   }, [request, onAccept]);
 
   const handleDecline = useCallback(() => {
     triggerDeclineHaptic();
     hide(() => onDecline());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hide et l'haptique sont stables
   }, [onDecline]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.value * 0.45 }));

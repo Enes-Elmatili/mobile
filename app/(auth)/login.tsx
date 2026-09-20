@@ -137,6 +137,7 @@ export default function Login() {
       // Échec OAuth Google — sans feedback l'utilisateur ne voit rien
       showToast(t("auth.login_google_failed"));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement ; les handlers sont stables dans la pratique
   }, [googleResponse]);
 
 

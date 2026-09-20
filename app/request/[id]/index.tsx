@@ -24,6 +24,7 @@ import {
   resolveProviderDestination,
   navigateToDestination,
 } from '@/lib/requestDestination';
+import { goBack } from '@/lib/nav/back';
 
 export default function RequestDispatcher() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function RequestDispatcher() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+            onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
             activeOpacity={0.7}
           >
             <Text style={[styles.backText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>

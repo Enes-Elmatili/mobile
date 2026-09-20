@@ -25,7 +25,7 @@ export function FeedbackHost() {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
     return () => sub.remove();
-  }, []);
+  }, [hydrate, setReduceMotion]);
 
   return (
     <>

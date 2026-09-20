@@ -1,8 +1,8 @@
 // hooks/useProviderDiscovery.ts — Provider discovery with geolocation + filters
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { api } from '../lib/api';
-import { devLog, devWarn } from '../lib/logger';
+import { devWarn } from '../lib/logger';
 
 export interface DiscoveredProvider {
   id: string;
@@ -34,7 +34,6 @@ export function useProviderDiscovery() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   // Obtenir la localisation de l'utilisateur
   useEffect(() => {
@@ -90,7 +89,7 @@ export function useProviderDiscovery() {
   // Refetch quand la localisation ou les filtres changent
   useEffect(() => {
     if (userLocation) fetchProviders();
-  }, [userLocation, filters]);
+  }, [userLocation, filters, fetchProviders]);
 
   const updateFilters = useCallback((newFilters: Partial<DiscoveryFilters>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));

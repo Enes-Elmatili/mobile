@@ -55,11 +55,12 @@ export default function VerifyEmail() {
   const verifiedRef = useRef(false);
 
   // Countdown renvoi
+  const counting = cooldown > 0;
   useEffect(() => {
-    if (cooldown <= 0) return;
+    if (!counting) return;
     const id = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
     return () => clearInterval(id);
-  }, [cooldown > 0]);
+  }, [counting]);
 
   const handleContinue = useCallback(async () => {
     let detectedRole = await AsyncStorage.getItem(ROLE_INTENT_KEY);
@@ -153,7 +154,7 @@ export default function VerifyEmail() {
     } finally {
       setSubmitting(false);
     }
-  }, [markVerified, runShake, submitting]);
+  }, [markVerified, runShake, submitting, t]);
 
   const onChangeCode = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, CODE_LENGTH);

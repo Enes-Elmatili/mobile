@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { cleanName } from '@/lib/displayName';
+import { goBack } from '@/lib/nav/back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -196,7 +197,7 @@ export default function ExploreScreen() {
         <Feather name="map-pin" size={52} color={theme.textDisabled} />
         <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.location_error')}</Text>
         <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.explore_location_denied_sub')}</Text>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}>
+        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -211,7 +212,7 @@ export default function ExploreScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.title')}</Text>

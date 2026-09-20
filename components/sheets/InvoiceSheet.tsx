@@ -285,7 +285,7 @@ export default function InvoiceSheet({
       downloadingRef.current = false;
       setDownloading(false);
     }
-  }, [invoice?.id, invoice?.number]);
+  }, [invoice?.id, invoice?.number, t]);
 
   if (!isVisible || !invoice) return null;
 

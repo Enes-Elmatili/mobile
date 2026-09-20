@@ -1,7 +1,7 @@
 // app/connect/success.tsx — Deep link handler pour retour Stripe Connect réussi
 // Stripe redirige vers fixed://connect/success via la page HTML du backend
 import { useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
+import { ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { api } from '../../lib/api';

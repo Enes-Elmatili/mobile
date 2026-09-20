@@ -25,6 +25,7 @@ import {
 } from '../../lib/SocketContext';
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import { contactNameCacheGet, contactNameCacheSet } from './index';
+import { goBack } from '@/lib/nav/back';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 // `status` est purement local : présent uniquement sur les messages optimistes
@@ -318,7 +319,7 @@ export default function ConversationScreen() {
         feedback.error(t('messages.not_sent_retry'));
       }
     }
-  }, [userId]);
+  }, [userId, t]);
 
   const sendMessage = () => {
     const content = inputText.trim();
@@ -439,7 +440,7 @@ export default function ConversationScreen() {
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
       >
         <TouchableOpacity
-          onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }}
+          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"

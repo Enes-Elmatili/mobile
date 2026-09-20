@@ -254,6 +254,7 @@ export default function PendingValidation() {
       if (done) clearInterval(interval);
     }, 30_000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- vérification unique au montage ; le socket prend le relais
   }, []);
 
   // Real-time: instant update when admin validates
@@ -281,6 +282,7 @@ export default function PendingValidation() {
     };
     socket.on('provider:validation_updated', handler);
     return () => { socket.off('provider:validation_updated', handler); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abonnement au socket seulement
   }, [socket]);
 
   // ── Actions profil ─────────────────────────────────────────────────────────
@@ -317,7 +319,7 @@ export default function PendingValidation() {
     } finally {
       setPhotoBusy(false);
     }
-  }, [photoBusy, refreshMe]);
+  }, [photoBusy, refreshMe, t]);
 
   const handleSaveBio = useCallback(async () => {
     const bio = bioDraft.trim();
@@ -337,7 +339,7 @@ export default function PendingValidation() {
     } finally {
       setBioSaving(false);
     }
-  }, [bioDraft, refreshMe]);
+  }, [bioDraft, refreshMe, t]);
 
   // Animations : halo qui respire, chip « EN VALIDATION » qui pulse, coche
   // de succès qui atterrit (MOTION.land).

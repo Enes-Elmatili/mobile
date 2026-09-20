@@ -23,8 +23,7 @@ import fr from '../locales/fr.json';
 import nl from '../locales/nl.json';
 import en from '../locales/en.json';
 
-const SUPPORTED = ['fr', 'nl', 'en'] as const;
-type Supported = typeof SUPPORTED[number];
+type Supported = 'fr' | 'nl' | 'en';
 
 function pickDeviceLanguage(): Supported {
   try {
@@ -39,6 +38,7 @@ function pickDeviceLanguage(): Supported {
   return 'en';
 }
 
+// eslint-disable-next-line import/no-named-as-default-member -- API i18next : l'instance par défaut porte .use()
 i18n
   .use(initReactI18next)
   .init({

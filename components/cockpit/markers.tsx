@@ -11,7 +11,6 @@
 // Les épingles passent par MapPin (components/map) : photographiées le temps
 // de leur animation, puis figées — jamais carrées, jamais une capture par frame.
 import React, { memo, useEffect, useMemo } from 'react';
-import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 import { Polyline } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';

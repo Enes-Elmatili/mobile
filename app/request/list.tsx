@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
@@ -20,6 +19,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { formatEUR } from '@/lib/format';
+import { goBack } from '@/lib/nav/back';
 
 // Clés i18n des statuts bruts de l'enum backend (traduits au rendu).
 const STATUS_KEYS: Record<string, string> = {
@@ -56,6 +56,7 @@ export default function RequestsListScreen() {
 
   useEffect(() => {
     loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul chargement au montage ; le focus rattrape
   }, []);
 
   const loadRequests = async () => {
@@ -118,7 +119,7 @@ export default function RequestsListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <TouchableOpacity onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.list_all_requests')}</Text>

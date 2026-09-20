@@ -89,7 +89,7 @@ export default function NotificationsScreen() {
     if (navigating.current) return;
     navigating.current = true;
     try { await handleNotificationNavigation(n.data, { isProvider }); } finally { navigating.current = false; }
-  }, [markRead]);
+  }, [markRead, isProvider]);
 
   const handleLongPress = useCallback((n: Notif) => { feedback.haptic('light'); if (!n.readAt) markRead(n.id); setSelected(n); }, [markRead]);
 
