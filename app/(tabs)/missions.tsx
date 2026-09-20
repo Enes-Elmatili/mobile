@@ -14,7 +14,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, RefreshControl, StyleS
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import Reanimated from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -273,6 +273,7 @@ export default function Missions() {
 
   const dayTitle = longDay(selectedKey);
   const isToday = selectedKey === todayKey;
+  const monthLabelText = monthOfStrip.toLocaleDateString(locale, { month: 'long', year: 'numeric' }).toUpperCase();
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
@@ -290,13 +291,16 @@ export default function Missions() {
               {/* -- Titre : le mois affiché, « Missions », Aujourd'hui -- */}
               <View style={s.head}>
                 <View>
-                  <Text style={[s.month, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{monthOfStrip.toLocaleDateString(locale, { month: 'long', year: 'numeric' }).toUpperCase()}</Text>
+                  {/* Le mois suit la semaine affichée, en fondu. */}
+                  <Reanimated.Text key={monthLabelText} entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={[s.month, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{monthLabelText}</Reanimated.Text>
                   <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('ext.missions_title').toUpperCase()}</Text>
                 </View>
                 {!isToday || weekIndex !== WEEKS_BEFORE ? (
-                  <Pressable onPress={() => { feedback.haptic('selection'); setSelectedKey(todayKey); setJump((j) => ({ index: WEEKS_BEFORE, n: j.n + 1 })); }} style={[s.todayBtn, { borderColor: theme.border }]} accessibilityRole="button">
-                    <Text style={[s.todayText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.today')}</Text>
-                  </Pressable>
+                  <Reanimated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)}>
+                    <Pressable onPress={() => { feedback.haptic('selection'); setSelectedKey(todayKey); setJump((j) => ({ index: WEEKS_BEFORE, n: j.n + 1 })); }} style={[s.todayBtn, { borderColor: theme.border }]} accessibilityRole="button">
+                      <Text style={[s.todayText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.today')}</Text>
+                    </Pressable>
+                  </Reanimated.View>
                 ) : null}
               </View>
 
@@ -310,37 +314,46 @@ export default function Missions() {
               ) : null}
 
               {/* -- Maintenant -- */}
-              {current ? (<><SectionHead title={t('agenda.now')} /><NowRow item={current} sub={currentSub} onPress={goHome} /></>) : null}
+              {current ? (
+                <Reanimated.View entering={FadeInDown.duration(240)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                  <SectionHead title={t('agenda.now')} /><NowRow item={current} sub={currentSub} onPress={goHome} />
+                </Reanimated.View>
+              ) : null}
 
               {/* -- À prendre -- */}
               {opportunities.length ? (
-                <>
+                <Reanimated.View entering={FadeInDown.duration(240)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
                   <SectionHead title={t('agenda.to_take')} aside={t('agenda.around_you', { count: opportunities.length })} />
-                  {opportunities.map((o) => (
-                    <TakeRow key={o.id} brief={o.brief} when={whenLabel(o.preferredTimeStart)} onPress={() => openOpportunity(o)} onAccept={acceptingOpp ? undefined : () => handleAcceptOpp(o.id)} onDecline={acceptingOpp ? undefined : () => handleDeclineOpp(o.id)} />
+                  {opportunities.map((o, i) => (
+                    <Reanimated.View key={o.id} entering={FadeInDown.delay(Math.min(i, 6) * 40).duration(220)} exiting={FadeOut.duration(160)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                      <TakeRow brief={o.brief} when={whenLabel(o.preferredTimeStart)} onPress={() => openOpportunity(o)} onAccept={acceptingOpp ? undefined : () => handleAcceptOpp(o.id)} onDecline={acceptingOpp ? undefined : () => handleDeclineOpp(o.id)} />
+                    </Reanimated.View>
                   ))}
-                </>
+                </Reanimated.View>
               ) : null}
 
               {/* -- Le jour choisi -- */}
-              <SectionHead title={dayTitle} aside={day.count ? t('agenda.n_missions', { count: day.count }) : t('agenda.nothing_planned')} />
-              {day.count ? (
-                <>
-                  <Timeline rows={day.rows} onPressMission={openMission} />
-                  <DayFoot label={dayTitle.split(' ')[0].replace(/^./, (c) => c.toUpperCase())} net={day.net} />
-                </>
-              ) : (
-                <EmptyDay title={t('agenda.free_day')} sub={t('agenda.free_day_sub')} />
-              )}
+              {/* Changer de jour : le fil s'efface et le nouveau entre, ligne après ligne. */}
+              <Reanimated.View key={selectedKey} entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                <SectionHead title={dayTitle} aside={day.count ? t('agenda.n_missions', { count: day.count }) : t('agenda.nothing_planned')} />
+                {day.count ? (
+                  <>
+                    <Timeline rows={day.rows} onPressMission={openMission} />
+                    <DayFoot label={dayTitle.split(' ')[0].replace(/^./, (c) => c.toUpperCase())} net={day.net} />
+                  </>
+                ) : (
+                  <EmptyDay title={t('agenda.free_day')} sub={t('agenda.free_day_sub')} />
+                )}
+              </Reanimated.View>
 
               {/* -- Passées -- */}
               {past.length ? (
-                <>
+                <Reanimated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
                   <SectionHead title={t('agenda.past')} />
                   <View style={{ marginTop: 8 }}>
                     {past.map((g) => <PastMonth key={g.key} group={g} label={monthLabel(g.key)} open={isOpen(g.key)} onToggle={() => toggle(g.key)} onPress={openPast} dayLabel={shortDay} />)}
                   </View>
-                </>
+                </Reanimated.View>
               ) : null}
             </Reanimated.ScrollView>
           </>

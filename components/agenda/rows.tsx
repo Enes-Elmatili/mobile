@@ -5,12 +5,16 @@
 // « DEVIS » = devis à rédiger), jamais dans une pastille de texte.
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
-import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { usePressScale } from '@/lib/motion/press';
+import { MOTION } from '@/lib/motion/springs';
+import { useReduceMotion } from '@/lib/motion/sheet';
+import { CascadeItem } from '@/lib/motion/useCascade';
+import { DigitReel } from '@/components/ui/DigitReel';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEUR } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
@@ -25,7 +29,7 @@ function DayCell({ day, selected, label, onPress, width }: { day: Week['days'][n
   const theme = useAppTheme();
   const dots = Math.min(3, day.count);
   return (
-    <Pressable onPress={onPress} style={[s.day, { width }, selected && { backgroundColor: theme.accent }]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${label} ${day.dayOfMonth}${day.count ? `, ${day.count}` : ''}`}>
+    <Pressable onPress={onPress} style={[s.day, { width }]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${label} ${day.dayOfMonth}${day.count ? `, ${day.count}` : ''}`}>
       <Text style={[s.dayLabel, { color: selected ? alpha(theme.accentText, 0.6) : theme.textMuted }]} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
       <Text style={[s.dayNum, { color: selected ? theme.accentText : day.isToday ? theme.text : theme.textSub }]} maxFontSizeMultiplier={1.2}>{day.dayOfMonth}</Text>
       <View style={s.dots}>
@@ -33,6 +37,26 @@ function DayCell({ day, selected, label, onPress, width }: { day: Week['days'][n
         {day.isToday && !selected && !dots ? <View style={[s.dot, { backgroundColor: COLORS.greenBrand }]} /> : null}
       </View>
     </Pressable>
+  );
+}
+
+/** Une semaine : la capsule GLISSE d'un jour à l'autre (règle 1 : depuis sa position courante). */
+function WeekPage({ week, width, cell, selectedKey, dayLabel, onSelect }: { week: Week; width: number; cell: number; selectedKey: string; dayLabel: (dow: number) => string; onSelect: (key: string) => void }) {
+  const theme = useAppTheme();
+  const reduced = useReduceMotion();
+  const idx = week.days.findIndex((d) => d.key === selectedKey);
+  const x = useSharedValue(Math.max(0, idx) * cell);
+  const on = useSharedValue(idx >= 0 ? 1 : 0);
+  useEffect(() => {
+    if (idx >= 0) x.value = reduced ? withTiming(idx * cell, { duration: 120 }) : withSpring(idx * cell, MOTION.tab);
+    on.value = withTiming(idx >= 0 ? 1 : 0, { duration: 160 });
+  }, [idx, cell, reduced, x, on]);
+  const capsule = useAnimatedStyle(() => ({ opacity: on.value, transform: [{ translateX: x.value }, { scale: 0.92 + 0.08 * on.value }] }));
+  return (
+    <View style={[s.week, { width }]}>
+      <Animated.View pointerEvents="none" style={[s.capsule, { width: cell, backgroundColor: theme.accent }, capsule]} />
+      {week.days.map((d) => <DayCell key={d.key} day={d} width={cell} selected={d.key === selectedKey} label={dayLabel(d.dow)} onPress={() => { feedback.haptic('selection'); onSelect(d.key); }} />)}
+    </View>
   );
 }
 
@@ -49,9 +73,7 @@ export function AgendaWeek({ weeks, selectedKey, onSelect, width, dayLabel, init
     if (first?.index != null) onWeekChange?.(first.index);
   });
   const render = useCallback(({ item }: { item: Week }) => (
-    <View style={[s.week, { width }]}>
-      {item.days.map((d) => <DayCell key={d.key} day={d} width={cell} selected={d.key === selectedKey} label={dayLabel(d.dow)} onPress={() => { feedback.haptic('selection'); onSelect(d.key); }} />)}
-    </View>
+    <WeekPage week={item} width={width} cell={cell} selectedKey={selectedKey} dayLabel={dayLabel} onSelect={onSelect} />
   ), [width, cell, selectedKey, dayLabel, onSelect]);
   return (
     <FlatList
@@ -184,14 +206,16 @@ export const Timeline = memo(function Timeline({ rows, onPressMission }: { rows:
   return (
     <View style={s.tl}>
       {rows.map((row, i) => {
-        if (row.kind === 'mission') return <MissionLine key={row.item.id} row={row} onPress={() => onPressMission(row.item, row.isCurrent)} />;
+        // Les lignes entrent l'une après l'autre ; les trajets et les creux
+        // arrivent en fondu, sans décalage : ils relient, ils ne comptent pas.
+        if (row.kind === 'mission') return <CascadeItem key={row.item.id} index={i} stepMs={35}><MissionLine row={row} onPress={() => onPressMission(row.item, row.isCurrent)} /></CascadeItem>;
         if (row.kind === 'trip') return (
-          <View key={`trip-${i}`} style={s.between}><View style={[s.rule, { backgroundColor: theme.border }]} /><Feather name="arrow-right" size={12} color={theme.textSub as string} /><Text style={[s.betweenText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.trip', { n: row.minutes })}</Text></View>
+          <Animated.View key={`trip-${i}`} entering={FadeIn.delay(120 + i * 35).duration(220)} style={s.between}><View style={[s.rule, { backgroundColor: theme.border }]} /><Feather name="arrow-right" size={12} color={theme.textSub as string} /><Text style={[s.betweenText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.trip', { n: row.minutes })}</Text></Animated.View>
         );
         if (row.kind === 'gap') return (
-          <View key={`gap-${i}`} style={s.between}><View style={[s.rule, { backgroundColor: theme.border }]} /><Text style={[s.betweenText, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{t('agenda.free_until', { time: clock(row.untilMs) }).toUpperCase()}</Text></View>
+          <Animated.View key={`gap-${i}`} entering={FadeIn.delay(120 + i * 35).duration(220)} style={s.between}><View style={[s.rule, { backgroundColor: theme.border }]} /><Text style={[s.betweenText, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{t('agenda.free_until', { time: clock(row.untilMs) }).toUpperCase()}</Text></Animated.View>
         );
-        return <Text key="free" style={[s.free, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{t('agenda.free_rest')}</Text>;
+        return <Animated.Text key="free" entering={FadeIn.delay(160 + i * 35).duration(220)} style={[s.free, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{t('agenda.free_rest')}</Animated.Text>;
       })}
     </View>
   );
@@ -201,21 +225,25 @@ export function DayFoot({ label, net }: { label: string; net: number }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   return (
-    <View style={[s.foot, { borderTopColor: theme.borderLight }]}>
+    <Animated.View entering={FadeIn.delay(200).duration(220)} style={[s.foot, { borderTopColor: theme.borderLight }]}>
       <Text style={[s.footLabel, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{label}</Text>
-      <Text style={[s.footAmt, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{formatEUR(net, 0)} <Text style={[s.footUnit, { color: theme.textSub }]}>{t('agenda.net').toUpperCase()}</Text></Text>
-    </View>
+      <View style={s.footRight} accessible accessibilityLabel={`${formatEUR(net, 0)} ${t('agenda.net')}`}>
+        <DigitReel value={Math.round(net)} lineHeight={26} textStyle={{ ...s.footAmt, color: theme.text as string }} />
+        <Text style={[s.footAmt, { color: theme.text }]} maxFontSizeMultiplier={1.2}> €</Text>
+        <Text style={[s.footUnit, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}> {t('agenda.net').toUpperCase()}</Text>
+      </View>
+    </Animated.View>
   );
 }
 
 export function EmptyDay({ title, sub }: { title: string; sub: string }) {
   const theme = useAppTheme();
   return (
-    <View style={s.empty}>
+    <Animated.View entering={FadeInDown.duration(260)} style={s.empty}>
       <Feather name="calendar" size={28} color={theme.textMuted as string} />
       <Text style={[s.emptyTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{title.toUpperCase()}</Text>
       <Text style={[s.emptySub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{sub}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -223,20 +251,25 @@ export function EmptyDay({ title, sub }: { title: string; sub: string }) {
 export function PastMonth({ group, label, open, onToggle, onPress, dayLabel }: { group: MonthGroup; label: string; open: boolean; onToggle: () => void; onPress: (item: AgendaItem) => void; dayLabel: (ms: number) => string }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
+  const reduced = useReduceMotion();
+  const turn = useSharedValue(open ? 1 : 0);
+  useEffect(() => { turn.value = reduced ? withTiming(open ? 1 : 0, { duration: 120 }) : withSpring(open ? 1 : 0, MOTION.tab); }, [open, reduced, turn]);
+  const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 90}deg` }] }));
   return (
-    <View>
+    <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
       <Pressable onPress={() => { feedback.haptic('selection'); onToggle(); }} style={[s.month, { borderTopColor: theme.borderLight }]} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${label}, ${t('agenda.n_missions', { count: group.count })}, ${formatEUR(group.net, 0)}`}>
         <Text style={[s.monthName, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
         <Text style={[s.monthCount, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.n_missions', { count: group.count })}</Text>
         <Text style={[s.monthAmt, { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{formatEUR(group.net, 0)}</Text>
-        <Feather name={open ? 'chevron-down' : 'chevron-right'} size={14} color={theme.textMuted as string} />
+        <Animated.View style={chevron}><Feather name="chevron-right" size={14} color={theme.textMuted as string} /></Animated.View>
       </Pressable>
-      {open ? group.items.map((it) => {
+      {open ? group.items.map((it, i) => {
         const cancelled = it.status !== 'DONE';
         const endLabel = it.status === 'QUOTE_REFUSED' ? t('agenda.quote_refused') : it.status === 'QUOTE_EXPIRED' || it.status === 'EXPIRED' ? t('agenda.expired') : cancelled ? t('agenda.cancelled') : null;
         const net = netFor(it.brief);
         return (
-          <Pressable key={it.id} onPress={() => { feedback.haptic('light'); onPress(it); }} style={s.past} accessibilityRole="button" accessibilityLabel={`${dayLabel(it.at)} ${serviceName(it.brief)}`}>
+          <Animated.View key={it.id} entering={FadeInDown.delay(Math.min(i, 8) * 30).duration(200)} exiting={FadeOut.duration(120)}>
+          <Pressable onPress={() => { feedback.haptic('light'); onPress(it); }} style={s.past} accessibilityRole="button" accessibilityLabel={`${dayLabel(it.at)} ${serviceName(it.brief)}`}>
             <Text style={[s.pastDay, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{dayLabel(it.at).toUpperCase()}</Text>
             <Text style={{ flex: 1 }} numberOfLines={1} maxFontSizeMultiplier={1.2}>
               <Text style={[s.pastTitle, { color: theme.text }]}>{serviceName(it.brief)}</Text>
@@ -244,9 +277,10 @@ export function PastMonth({ group, label, open, onToggle, onPress, dayLabel }: {
             </Text>
             {net != null ? <Text style={[s.pastAmt, cancelled ? { color: theme.textMuted, textDecorationLine: 'line-through' } : { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{cancelled ? formatEUR(net, 0) : `+${formatEUR(net, 0)}`}</Text> : null}
           </Pressable>
+          </Animated.View>
         );
       }) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -260,6 +294,7 @@ export function useOpenMonths(currentKey: string) {
 
 const s = StyleSheet.create({
   week: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 12 },
+  capsule: { position: 'absolute', left: 12, top: 12, bottom: 0, borderRadius: 14 },
   day: { alignItems: 'center', gap: 5, paddingVertical: 8, borderRadius: 14 },
   dayLabel: { fontFamily: FONTS.sansMedium, fontSize: 10, letterSpacing: 0.5 },
   dayNum: { fontFamily: FONTS.bebas, fontSize: 20, includeFontPadding: false },
@@ -292,6 +327,7 @@ const s = StyleSheet.create({
   free: { marginLeft: 46, fontFamily: FONTS.sans, fontSize: 12, paddingTop: 4, paddingBottom: 6 },
   foot: { marginHorizontal: 20, marginTop: 6, paddingTop: 12, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   footLabel: { fontFamily: FONTS.sansMedium, fontSize: 12.5 },
+  footRight: { flexDirection: 'row', alignItems: 'baseline' },
   footAmt: { fontFamily: FONTS.bebas, fontSize: 22, includeFontPadding: false },
   footUnit: { fontFamily: FONTS.monoMedium, fontSize: 11, letterSpacing: 1 },
   empty: { alignItems: 'center', marginHorizontal: 28, marginTop: 28 },
