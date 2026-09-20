@@ -1,4 +1,5 @@
 import i18n from '../lib/i18n'; // i18n — doit être importé avant tout autre module
+import { usePrefs } from '@/stores/prefs';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useCallback, useState } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
@@ -17,7 +18,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  useColorScheme,
   StatusBar,
   Appearance,
 } from 'react-native';
@@ -29,7 +29,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
-import { darkTokens, lightTokens, FONTS } from '@/hooks/use-app-theme';
+import { darkTokens, lightTokens, FONTS, useAppTheme } from '@/hooks/use-app-theme';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
@@ -90,10 +90,11 @@ function RootLayoutNav() {
 
   usePushNotifications(user?.id, !!user?.roles?.includes('PROVIDER'));
 
-  // ── Thème système ─────────────────────────────────────────────────────────
-  const colorScheme = useColorScheme();
-  const isDark      = colorScheme === 'dark';
-  const t           = isDark ? darkTokens : lightTokens;
+  // ── Thème : le réglage de l'app prime sur le téléphone (stores/prefs) ───
+  const t           = useAppTheme();
+  const isDark      = t.isDark;
+  const hydratePrefs = usePrefs((s) => s.hydrate);
+  useEffect(() => { hydratePrefs(); }, [hydratePrefs]);
 
   // Primitives stables — évitent de relancer l'effet sur chaque re-render
   // `segments` est un nouveau tableau à chaque render (référence instable)

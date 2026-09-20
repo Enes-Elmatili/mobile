@@ -14,6 +14,7 @@
  *       import { lightTokens as t } from '@/hooks/use-app-theme';
  */
 import { useColorScheme } from 'react-native';
+import { usePrefs } from '@/stores/prefs';
 
 // ── Font families (loaded in _layout.tsx) ──────────────────────────────────
 export const FONTS = {
@@ -218,7 +219,10 @@ export const lightTokens = buildTheme(false);
 
 export function useAppTheme() {
   const scheme = useColorScheme();
-  return scheme === 'dark' ? darkTokens : lightTokens;
+  // Le réglage de l'app (Réglages → Apparence) prime sur le téléphone.
+  const pref = usePrefs((s) => s.theme);
+  const dark = pref === 'system' ? scheme === 'dark' : pref === 'dark';
+  return dark ? darkTokens : lightTokens;
 }
 
 export type AppTheme = ReturnType<typeof useAppTheme>;
