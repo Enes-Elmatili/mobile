@@ -2404,5 +2404,26 @@
     "done_next": "Mission suivante",
     "done_duration": "{{n}} min",
     "done_net_short": "net"
+  },
+  "agenda": {
+    "today": "Aujourd'hui",
+    "today_short": "auj.",
+    "tomorrow": "demain",
+    "now": "Maintenant",
+    "to_take": "À prendre",
+    "around_you_one": "{{count}} autour de vous",
+    "around_you_other": "{{count}} autour de vous",
+    "n_missions_one": "{{count}} mission",
+    "n_missions_other": "{{count}} missions",
+    "nothing_planned": "Rien de prévu",
+    "trip": "{{n}} min de route",
+    "free_until": "Libre jusqu'à {{time}}",
+    "free_rest": "Libre le reste de la journée.",
+    "past": "Passées",
+    "free_day": "Journée libre",
+    "free_day_sub": "Les demandes arrivent sur l'accueil quand vous êtes en ligne. Celles qui sont planifiées se poseront ici.",
+    "cancelled": "annulée",
+    "quote_todo": "devis à rédiger",
+    "net": "net"
   }
 }

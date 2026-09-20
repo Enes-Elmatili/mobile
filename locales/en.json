@@ -2522,5 +2522,26 @@
     "done_next": "Next job",
     "done_duration": "{{n}} min",
     "done_net_short": "net"
+  },
+  "agenda": {
+    "today": "Today",
+    "today_short": "today",
+    "tomorrow": "tomorrow",
+    "now": "Now",
+    "to_take": "Up for grabs",
+    "around_you_one": "{{count}} near you",
+    "around_you_other": "{{count}} near you",
+    "n_missions_one": "{{count}} job",
+    "n_missions_other": "{{count}} jobs",
+    "nothing_planned": "Nothing planned",
+    "trip": "{{n}} min drive",
+    "free_until": "Free until {{time}}",
+    "free_rest": "Free for the rest of the day.",
+    "past": "Past",
+    "free_day": "Free day",
+    "free_day_sub": "Requests arrive on Home when you're online. Scheduled ones will show up here.",
+    "cancelled": "cancelled",
+    "quote_todo": "quote to write",
+    "net": "net"
   }
 }

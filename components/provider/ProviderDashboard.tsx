@@ -769,7 +769,8 @@ export default function ProviderDashboard() {
   const setBadge = useNavStore((st) => st.setBadge);
   const quotesToWrite = useMemo(() => reminders.filter((r) => r.kind === 'quote').length, [reminders]);
   const payoutsTodo = useMemo(() => reminders.some((r) => r.kind === 'payouts'), [reminders]);
-  useEffect(() => { setBadge('missions', quotesToWrite || null); }, [quotesToWrite, setBadge]);
+  const toTake = useNavStore((st) => st.toTake);
+  useEffect(() => { setBadge('missions', (quotesToWrite + toTake) || null); }, [quotesToWrite, toTake, setBadge]);
   useEffect(() => { setBadge('profile', payoutsTodo ? '!' : null); }, [payoutsTodo, setBadge]);
 
   // -- Loading screen --

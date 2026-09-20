@@ -2522,5 +2522,26 @@
     "done_next": "Volgende opdracht",
     "done_duration": "{{n}} min",
     "done_net_short": "netto"
+  },
+  "agenda": {
+    "today": "Vandaag",
+    "today_short": "vandaag",
+    "tomorrow": "morgen",
+    "now": "Nu",
+    "to_take": "Te nemen",
+    "around_you_one": "{{count}} bij u in de buurt",
+    "around_you_other": "{{count}} bij u in de buurt",
+    "n_missions_one": "{{count}} opdracht",
+    "n_missions_other": "{{count}} opdrachten",
+    "nothing_planned": "Niets gepland",
+    "trip": "{{n}} min rijden",
+    "free_until": "Vrij tot {{time}}",
+    "free_rest": "Vrij de rest van de dag.",
+    "past": "Afgerond",
+    "free_day": "Vrije dag",
+    "free_day_sub": "Aanvragen komen op het startscherm binnen wanneer u online bent. Geplande opdrachten verschijnen hier.",
+    "cancelled": "geannuleerd",
+    "quote_todo": "offerte op te stellen",
+    "net": "netto"
   }
 }

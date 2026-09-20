@@ -35,6 +35,9 @@ type NavState = {
   unlockBar: () => void;
   badges: Badges;
   setBadge: (tab: keyof Badges, value: number | string | null) => void;
+  /** Demandes « à prendre » (onglet Missions) : l'accueil les ajoute au badge Missions. */
+  toTake: number;
+  setToTake: (n: number) => void;
 };
 
 export const useNavStore = create<NavState>((set) => ({
@@ -46,6 +49,8 @@ export const useNavStore = create<NavState>((set) => ({
   lockBar: () => set((s) => ({ barLocks: s.barLocks + 1 })),
   unlockBar: () => set((s) => ({ barLocks: Math.max(0, s.barLocks - 1) })),
   badges: {},
+  toTake: 0,
+  setToTake: (toTake) => set((s) => (s.toTake === toTake ? s : { toTake })),
   setBadge: (tab, value) => set((s) => (s.badges[tab] === value ? s : { badges: { ...s.badges, [tab]: value } })),
 }));
 
