@@ -26,6 +26,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { useTranslation } from 'react-i18next';
 
@@ -39,7 +40,7 @@ const LETTERS_END = 0.915;    // coupe qui masque le point du PNG (on dessine le
 // Coupes des tranches montantes (blancs du wordmark) : f | i | xe | d
 const CUTS = [0, 332 / WM_W, 530 / WM_W, 1595 / WM_W, LETTERS_END];
 
-// Timings (ms) — durées exactes des 3 scènes du design :
+// Timings (ms) — durées exactes des 3 scènes du design (premier lancement) :
 // Ouverture 1,4 s · Le mot 2,6 s · Signature 1,8 s (5,8 s au total).
 const S1 = 1400, S2 = 2600;         // durées scènes 1 et 2
 const P2_START = S1;                 // 1400
@@ -47,6 +48,12 @@ const P3_START = S1 + S2;            // 4000
 // Tranches montantes : chaque coupe monte sur ~1048 ms, décalées de 206 ms.
 const RISE_DUR = 1048, RISE_STAGGER = 206, RISE_BASE = 1816;
 const HOLD = 450, FADE = 420;
+
+// Version courte, jouée à partir du deuxième lancement (Apple : le launch
+// screen ne retarde pas l'utilisateur) : le point, le mot, la signature — en
+// 1,6 s au lieu de 5,8. La cinématique complète ne joue qu'une fois.
+const SEEN_KEY = '@fixed:splash:seen';
+const SHORT = { S1: 420, S2: 760, RISE_BASE: 520, RISE_DUR: 420, RISE_STAGGER: 70, HOLD: 220 };
 
 /** Une tranche du wordmark qui monte depuis sous le lockup. */
 function RiseSlice({ progress, x0, width, W, H, wordmark }: {
@@ -136,13 +143,17 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
         holdTimer = setTimeout(finish, 1100);
         return;
       }
-      runSequence();
+      AsyncStorage.getItem(SEEN_KEY).then((seen) => {
+        if (cancelled) return;
+        if (seen) runSequence('short'); else { runSequence('full'); AsyncStorage.setItem(SEEN_KEY, '1').catch(() => {}); }
+      }).catch(() => { if (!cancelled) runSequence('short'); });
     });
     return () => { cancelled = true; if (holdTimer) clearTimeout(holdTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runSequence = () => {
+  const runSequence = (variant: 'full' | 'short') => {
+    if (variant === 'short') { runShort(); return; }
     // Scène 1 — Ouverture (0 → 1400). La hairline apparaît (308 ms dès 112 ms)
     // puis s'efface à l'ouverture de la scène 2 : une seule séquence par valeur.
     hairlineOp.value = withSequence(
@@ -172,6 +183,30 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
         }),
       ),
     );
+  };
+
+  // La version courte : mêmes gestes, tempo serré, sans respiration.
+  const runShort = () => {
+    const { S1: s1, RISE_BASE: rb, RISE_DUR: rd, RISE_STAGGER: rs } = SHORT;
+    hairlineOp.value = withSequence(
+      withDelay(40, withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) })),
+      withDelay(s1 - 200, withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) })),
+    );
+    hairline.value = withDelay(40, withTiming(1, { duration: 320, easing: Easing.inOut(Easing.poly(4)) }));
+    dotScale.value = withDelay(120, withTiming(1, { duration: 300, easing: Easing.out(Easing.exp) }));
+    ring.value = withDelay(300, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
+    dotSlide.value = withDelay(s1 + 40, withTiming(1, { duration: 520, easing: Easing.inOut(Easing.poly(4)) }));
+    cols.forEach((c, i) => {
+      c.value = withDelay(rb + i * rs, withTiming(1, { duration: rd, easing: Easing.out(Easing.poly(4)) }));
+    });
+    const p3 = s1 + SHORT.S2;
+    tagOp.value = withDelay(p3, withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
+    tagY.value = withDelay(p3, withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) }, (finished) => {
+      if (finished) runOnJS(scheduleShortFinish)();
+    }));
+  };
+  const scheduleShortFinish = () => {
+    if (!finishedRef.current) setTimeout(finish, SHORT.HOLD);
   };
 
   // ── Styles ───────────────────────────────────────────────────────────────
