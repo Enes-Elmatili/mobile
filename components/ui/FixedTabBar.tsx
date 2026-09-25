@@ -85,10 +85,9 @@ function TabItem({ label, icon, focused, color, onPress, onLongPress, vertical, 
     >
       <Animated.View style={[s.itemInner, press.style]}>
         <View>
-          <TabIcon name={icon} color={color} focused={focused} />
+          <TabIcon name={icon} color={color} focused={focused} size={24} />
           <Badge value={badge} />
         </View>
-        <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[s.label, { color }]}>{label}</Text>
       </Animated.View>
     </Pressable>
   );
@@ -227,9 +226,9 @@ const s = StyleSheet.create({
   track: { flex: 1, flexDirection: 'row', paddingHorizontal: TRACK_PAD },
   trackVertical: { flexDirection: 'column', paddingHorizontal: 0 },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  itemVertical: { flex: 0, height: 72 },
-  itemInner: { alignItems: 'center', justifyContent: 'center', gap: 3 },
-  label: { fontSize: 10, fontFamily: FONTS.sansMedium, letterSpacing: 0.2 },
+  itemVertical: { flex: 0, height: 60 },
+  // Icônes seules : le nom de l'onglet reste annoncé par le lecteur d'écran (accessibilityLabel).
+  itemInner: { alignItems: 'center', justifyContent: 'center' },
   indicator: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   indicatorHorizontal: { top: 0, bottom: 0, left: TRACK_PAD },
   indicatorVertical: { left: 0, right: 0, top: 0 },

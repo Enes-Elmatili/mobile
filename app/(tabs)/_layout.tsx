@@ -6,13 +6,12 @@
 // PROVIDER: Accueil · Missions (avec onglet Opportunités interne) · Gains · Profil
 
 import { Redirect, Tabs } from 'expo-router';
-import { Text } from 'react-native';
 import { useCallback, useMemo } from 'react';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
 import { TabIcon } from '@/components/ui/TabIcon';
 import { FixedTabBar, SIDEBAR_WIDTH, TAB_BAR_HEIGHT as BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
@@ -47,22 +46,6 @@ export default function TabLayout() {
   const isProvider = useMemo(() => rolesKey.includes('PROVIDER'), [rolesKey]);
   const providerStatus = user?.providerStatus;
 
-  // ── Label custom : plafonne le Dynamic Type à 1.3× (le Label natif de React
-  // Navigation n'expose que allowFontScaling booléen, pas de plafond). Rendu
-  // strictement identique au style natif à l'échelle 1.0 → aucun changement visuel.
-  const renderTabLabel = useCallback(
-    ({ color, children }: { focused: boolean; color: string; children: string }) => (
-      <Text
-        numberOfLines={1}
-        maxFontSizeMultiplier={1.3}
-        style={{ fontSize: 10, fontFamily: FONTS.sansMedium, letterSpacing: 0.2, marginTop: -2, color }}
-      >
-        {children}
-      </Text>
-    ),
-    [],
-  );
-
   // ── screenOptions stable ──────────────────────────────────────────────────
   const screenOptions = useMemo(() => ({
     headerShown: false,
@@ -70,18 +53,11 @@ export default function TabLayout() {
     contentStyle: { backgroundColor: theme.bg, paddingLeft: isRegular ? SIDEBAR_WIDTH : 0 },
     tabBarActiveTintColor:   theme.accent,
     tabBarInactiveTintColor: theme.textMuted,
-    tabBarShowLabel: true,
-    tabBarLabelStyle: {
-      fontSize:      10,
-      fontFamily:    FONTS.sansMedium,
-      letterSpacing: 0.2,
-      marginTop:     -2,
-    },
+    tabBarShowLabel: false,
     // La barre est custom (tabBar={renderTabBar}) et flotte au-dessus du
     // contenu : rien à réserver ici, chaque écran compense via useTabBarPadding().
     tabBarStyle: { position: 'absolute' as const, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0, shadowOpacity: 0 },
-    tabBarLabel: renderTabLabel,
-  }), [theme.bg, theme.accent, theme.textMuted, renderTabLabel, isRegular]);
+  }), [theme.bg, theme.accent, theme.textMuted, isRegular]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect
