@@ -4,7 +4,7 @@
 // mission et sa destination — on tape, on y est. Appui long : le détail.
 // Glisser à gauche supprime. « Tout lu » s'efface quand il n'y a rien à lire.
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, StatusBar, Pressable, SectionList } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, StatusBar, SectionList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -21,6 +21,7 @@ import NotificationDetailSheet from '@/components/sheets/NotificationDetailSheet
 import { NotifRow } from '@/components/notifications/NotifRow';
 import { groupBySection, type Notif, type Section } from '@/lib/notifications/model';
 import { handleNotificationNavigation } from '@/lib/usePushNotifications';
+import { PressScale } from '@/components/ui/PressScale';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 const SECTION_KEY: Record<Section, string> = { today: 'notifications.section_today', yesterday: 'notifications.section_yesterday', week: 'notifications.section_week', earlier: 'notifications.section_earlier' };
@@ -121,19 +122,19 @@ export default function NotificationsScreen() {
       <StatusBar barStyle={theme.statusBar} />
 
       <View style={s.header}>
-        <Pressable
+        <PressScale
           onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }}
-          style={({ pressed }) => [s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]}
+          style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.border  }]}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2} accessibilityRole="header">{t('notifications.title').toUpperCase()}</Text>
-        <Pressable onPress={handleMarkAllRead} disabled={unreadCount === 0} style={({ pressed }) => [s.markAll, { opacity: unreadCount === 0 ? 0.3 : pressed ? 0.6 : 1 }]} accessibilityRole="button" accessibilityLabel={t('notifications.mark_all_read')} accessibilityState={{ disabled: unreadCount === 0 }} hitSlop={8}>
+        <PressScale onPress={handleMarkAllRead} disabled={unreadCount === 0} style={[s.markAll, { opacity: unreadCount === 0 ? 0.3 : 1 }]} accessibilityRole="button" accessibilityLabel={t('notifications.mark_all_read')} accessibilityState={{ disabled: unreadCount === 0 }} hitSlop={8}>
           <Text style={[s.markAllText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('notifications.mark_all_read')}</Text>
-        </Pressable>
+        </PressScale>
       </View>
 
       <BrandRefreshHeader style={brandRefresh.headerStyle} />

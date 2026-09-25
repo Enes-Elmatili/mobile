@@ -7,7 +7,6 @@
  */
 import React, { useEffect } from "react";
 import {
-  Pressable,
   Text,
   StyleSheet,
   ActivityIndicator,
@@ -17,6 +16,8 @@ import Animated, { Easing, cancelAnimation, interpolate, useAnimatedStyle, useSh
 import { Feather } from "@expo/vector-icons";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
+import { PressScale } from "@/components/ui/PressScale";
+import { useReduceMotion } from "@/lib/motion/sheet";
 
 type Variant = "inverted" | "standard" | "flat";
 
@@ -41,6 +42,7 @@ type Props = {
 export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant = "inverted" }: Props) {
   const theme = useAppTheme();
   const arrow = useSharedValue(0);
+  const reduced = useReduceMotion();
   const resolvedVariant: "inverted" | "standard" =
     variant === "flat" ? (theme.isDark ? "standard" : "inverted") : variant;
   const isStandard = resolvedVariant === "standard";
@@ -50,12 +52,13 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
   const borderColor = isStandard ? "transparent" : alpha(authT.textOnDark, 0.18);
 
   useEffect(() => {
-    if (hideArrow || loading) { cancelAnimation(arrow); arrow.value = 0; return; }
+    // Sous « Réduire les animations », la flèche reste posée, visible.
+    if (hideArrow || loading || reduced) { cancelAnimation(arrow); arrow.value = reduced ? 0.5 : 0; return; }
     arrow.value = 0;
     // Un aller (1,4 s) puis retour instantané au départ : withRepeat sans reverse.
     arrow.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) }), -1, false);
     return () => cancelAnimation(arrow);
-  }, [arrow, hideArrow, loading]);
+  }, [arrow, hideArrow, loading, reduced]);
 
   const arrowStyle = useAnimatedStyle(() => ({
     opacity: interpolate(arrow.value, [0, 0.2, 0.8, 1], [0, 1, 1, 0]),
@@ -65,17 +68,16 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
   const isDisabled = disabled || loading;
 
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: isDisabled, busy: !!loading }}
-      style={({ pressed }) => [
+      style={[
         s.cta,
         { backgroundColor: pillBg, borderColor, borderWidth: 1 },
         isDisabled && s.disabled,
-        pressed && !isDisabled && { transform: [{ scale: 0.98 }], opacity: 0.95 },
       ]}
     >
       <Text style={[s.label, { color: labelColor }]} maxFontSizeMultiplier={1.3}>{label}</Text>
@@ -86,7 +88,7 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
           <Feather name="arrow-right" size={22} color={arrowColor} />
         </Animated.View>
       ) : null}
-    </Pressable>
+    </PressScale>
   );
 }
 

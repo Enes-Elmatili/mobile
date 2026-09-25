@@ -2,7 +2,7 @@
 // Contrôle segmenté (2 à 3 options) : piste `surface`, indicateur `accent` qui
 // glisse sous l'option active sur MOTION.tab depuis sa position courante.
 // `value` peut être null : l'indicateur est alors invisible.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -30,9 +30,13 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
 
   const x = useSharedValue(Math.max(0, index) * slot);
   const visible = useSharedValue(index >= 0 ? 1 : 0);
+  // Première mesure (ou rotation) : l'indicateur se pose sans glisser depuis 0 ;
+  // seul un changement de sélection se voit bouger.
+  const measuredSlot = useRef(0);
   useEffect(() => {
     const target = Math.max(0, index) * slot;
-    x.value = reduced ? withTiming(target, { duration: 120 }) : withSpring(target, MOTION.tab);
+    if (measuredSlot.current !== slot) { measuredSlot.current = slot; x.value = target; }
+    else x.value = reduced ? withTiming(target, { duration: 120 }) : withSpring(target, MOTION.tab);
     visible.value = withTiming(index >= 0 ? 1 : 0, { duration: 120 });
   }, [index, slot, reduced, x, visible]);
 

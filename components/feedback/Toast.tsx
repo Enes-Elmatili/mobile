@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, Platform, Pressable, View } from 'react-native';
+import { StyleSheet, Text, Platform, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { ToastItem, useFeedbackStore } from '@/lib/feedback/store';
 import { MOTION, spring } from '@/lib/motion/springs';
 import { useReduceMotion } from '@/lib/motion/sheet';
+import { PressScale } from '@/components/ui/PressScale';
 
 const ICON: Record<ToastItem['type'], keyof typeof Feather.glyphMap> = {
   success: 'check-circle', error: 'x-circle', info: 'info',
@@ -61,9 +62,9 @@ export function Toast({ item }: { item: ToastItem }) {
           <Text style={[s.cardMsg, { color: fg }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.message}</Text>
         </View>
         {item.action ? (
-          <Pressable onPress={onAction} style={({ pressed }) => [s.cardAction, { backgroundColor: green ? 'rgba(10,10,10,0.12)' : theme.isDark ? 'rgba(10,10,10,0.12)' : 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel={item.action.label} hitSlop={6}>
+          <PressScale onPress={onAction} style={[s.cardAction, { backgroundColor: green ? 'rgba(10,10,10,0.12)' : theme.isDark ? 'rgba(10,10,10,0.12)' : 'rgba(255,255,255,0.16)'  }]} accessibilityRole="button" accessibilityLabel={item.action.label} hitSlop={6}>
             <Text style={[s.cardActionText, { color: fg }]} maxFontSizeMultiplier={1.1}>{item.action.label.toUpperCase()}</Text>
-          </Pressable>
+          </PressScale>
         ) : null}
       </Animated.View>
     );

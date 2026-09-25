@@ -4,7 +4,7 @@
 // Gains, la note et le rang dans le profil — l'accueil ne montre que ce qui
 // sert à travailler.
 import React, { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, COLORS, FONTS } from '@/hooks/use-app-theme';
@@ -13,6 +13,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { formatClock } from '@/lib/format';
 import { placeShort } from '@/components/mission/blocks';
 import { inLabel, type NextMission, type Reminder } from '@/lib/cockpit/day';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   visible: boolean;
@@ -35,20 +36,20 @@ function DayStripBase({ visible, bottom, left, width, dense, reminders, next, on
       {reminders.length > 0 ? (
         <CascadeItem index={0} visible={visible} from="bottom" style={[s.chips, dense && s.chipsDense]}>
           {reminders.map((r, i) => (
-            <Pressable key={`${r.kind}-${r.requestId ?? i}`} onPress={() => { feedback.haptic('light'); onReminder(r); }} style={({ pressed }) => [s.chip, { backgroundColor: theme.cardBg, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" hitSlop={4}>
+            <PressScale key={`${r.kind}-${r.requestId ?? i}`} onPress={() => { feedback.haptic('light'); onReminder(r); }} style={[s.chip, { backgroundColor: theme.cardBg, borderColor: theme.border  }]} accessibilityRole="button" hitSlop={4}>
               <View style={[s.dot, { backgroundColor: COLORS.amber }]} />
               <Text style={[s.chipText, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                 {r.kind === 'payouts' ? t('cockpit.reminder_payouts') : t('cockpit.reminder_quote', { id: r.requestId })}
               </Text>
-            </Pressable>
+            </PressScale>
           ))}
         </CascadeItem>
       ) : null}
       {next ? (
         <CascadeItem index={1} visible={visible} from="bottom">
-          <Pressable
+          <PressScale
             onPress={() => { feedback.haptic('light'); onNext(next); }}
-            style={({ pressed }) => [s.card, { backgroundColor: theme.cardBg, borderColor: next.soon ? theme.accent : theme.border, opacity: pressed ? 0.7 : 1 }]}
+            style={[s.card, { backgroundColor: theme.cardBg, borderColor: next.soon ? theme.accent : theme.border  }]}
             accessibilityRole="button"
             accessibilityLabel={`${t('cockpit.next_mission')}, ${inLabel(next.inMin, t)}, ${formatClock(new Date(next.startAt))}, ${[next.serviceType, placeShort(next.address), next.clientName].filter(Boolean).join(', ')}`}
           >
@@ -60,7 +61,7 @@ function DayStripBase({ visible, bottom, left, width, dense, reminders, next, on
               </Text>
             </View>
             <Feather name="chevron-right" size={16} color={theme.textMuted} />
-          </Pressable>
+          </PressScale>
         </CascadeItem>
       ) : null}
     </View>

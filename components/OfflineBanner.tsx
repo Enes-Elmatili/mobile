@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SHEET_SPRING } from '@/lib/motion/sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -61,7 +61,8 @@ export function OfflineBanner() {
       setOfflineVisible(true);
       slideY.value = withSpring(0, SHEET_SPRING);
     } else {
-      slideY.value = withTiming(-120, { duration: 300 }, (finished) => {
+      // Sortie sur le même ressort que l'entrée, depuis la position courante.
+      slideY.value = withSpring(-120, SHEET_SPRING, (finished) => {
         if (finished) runOnJS(setOfflineVisible)(false);
       });
     }

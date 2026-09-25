@@ -13,6 +13,7 @@ import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { useLayoutClass } from '@/lib/layout';
 import Reanimated, { Easing, useSharedValue, useAnimatedStyle, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
+import { MOTION } from '@/lib/motion/springs';
 import { feedback } from '@/lib/feedback/feedback';
 import { briefOf, type MissionBrief } from '@/lib/mission/brief';
 import { IncomingMissionCard } from '@/components/mission/IncomingMissionCard';
@@ -137,7 +138,7 @@ function IncomingJobCard({
   useEffect(() => {
     if (!leaving) return;
     // Repli : la fiche descend et s'efface, en partant de sa position courante.
-    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withTiming(Math.max(size.h, 400) + 80, { duration: 460, easing: Easing.in(Easing.cubic) });
+    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withSpring(Math.max(size.h, 400) + 80, MOTION.pane);
     fade.value = withTiming(0, { duration: reduced ? 200 : 380 });
   }, [leaving, reduced, slideUp, fade, size.h]);
   const tintStyle = useAnimatedStyle(() => ({ opacity: tint.value }));

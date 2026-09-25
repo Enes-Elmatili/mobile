@@ -28,7 +28,8 @@ import { useSocket } from '@/lib/SocketContext';
 import { devError } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
-import { spring } from '@/lib/motion/springs';
+import { MOTION } from '@/lib/motion/springs';
+import { useReduceMotion } from '@/lib/motion/sheet';
 import { PressScale } from '@/components/ui/PressScale';
 
 // Format "Mer 8 à 19:00"
@@ -78,6 +79,7 @@ export default function ScheduledConfirmation() {
 
   // Confirmation : l'icône prend (léger dépassement), puis le contenu apparaît.
   const iconScale = useSharedValue(isRecapMode ? 1 : 0);
+  const reduced = useReduceMotion();
   const contentFade = useSharedValue(isRecapMode ? 1 : 0);
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: iconScale.value }] }));
   const contentStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
@@ -161,7 +163,9 @@ export default function ScheduledConfirmation() {
   useEffect(() => {
     if (isRecapMode) return; // skip animation en recap
     feedback.haptic('success');
-    iconScale.value = withSpring(1, spring(220, 0.7));
+    // L'icône « prend » (MOTION.take, léger dépassement) ; sous réduction, l'état final posé.
+    if (reduced) { iconScale.value = 1; contentFade.value = withTiming(1, { duration: 150 }); return; }
+    iconScale.value = withSpring(1, MOTION.take);
     contentFade.value = withDelay(400, withTiming(1, { duration: 300 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- séquence jouée à l'arrivée
   }, [isRecapMode]);

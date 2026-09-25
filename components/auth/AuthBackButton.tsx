@@ -8,10 +8,11 @@
  * unchanged.
  */
 import React from "react";
-import { Pressable, StyleSheet, ViewStyle, StyleProp } from "react-native";
+import { StyleSheet, ViewStyle, StyleProp } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { authT, alpha } from "./tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   onPress: () => void;
@@ -32,20 +33,19 @@ export function AuthBackButton({ onPress, style, themed = false }: Props) {
   const backgroundColor = alpha(base, 0.05);
 
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel="Retour"
-      style={({ pressed }) => [
+      style={[
         s.btn,
         { borderColor, backgroundColor },
-        pressed && { transform: [{ scale: 0.94 }], opacity: 0.85 },
         style,
       ]}
     >
       <Feather name="chevron-left" size={20} color={iconColor} />
-    </Pressable>
+    </PressScale>
   );
 }
 

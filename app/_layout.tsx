@@ -25,6 +25,7 @@ import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono'
 import { darkTokens, lightTokens, FONTS, useAppTheme } from '@/hooks/use-app-theme';
 import * as Sentry from '@sentry/react-native';
 import { PressScale } from '@/components/ui/PressScale';
+import { useReduceMotion } from '@/lib/motion/sheet';
 
 Sentry.init({
   dsn: 'https://1bf1a0242d483a309a3dafbe00d22e59@o4511135218532352.ingest.de.sentry.io/4511135226396752',
@@ -78,6 +79,7 @@ const MISSION_FLOW_ROUTES = [
 const PUBLIC_LEGAL_ROUTES = ['cgu', 'privacy'];
 
 function RootLayoutNav() {
+  const reducedMotion = useReduceMotion();
   const { user, isBooting, token, missingFields } = useAuth();
   const segments                   = useSegments();
   const router                     = useRouter();
@@ -191,7 +193,8 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar barStyle={t.statusBar} />
-      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: 'slide_from_right' }}>
+      {/* « Réduire les animations » : les écrans se relaient en fondu au lieu de glisser (règle 8). */}
+      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: reducedMotion ? 'fade' : 'slide_from_right' }}>
         {/* Appareil photo guidé du stepper : plein écran, fondu, pas de geste de retour latéral. */}
         <Stack.Screen name="request/camera" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
       </Stack>

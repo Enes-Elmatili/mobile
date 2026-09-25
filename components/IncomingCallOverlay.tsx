@@ -8,6 +8,7 @@ import {
 import { Audio } from 'expo-av';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { MOTION } from '@/lib/motion/springs';
+import { useReduceMotion } from '@/lib/motion/sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
@@ -30,6 +31,7 @@ export default function IncomingCallOverlay() {
   const insets = useSafeAreaInsets();
   const slideY = useSharedValue(-200);
   const pulse = useSharedValue(1);
+  const reduced = useReduceMotion();
   const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideY.value }] }));
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
@@ -78,7 +80,8 @@ export default function IncomingCallOverlay() {
     if (incoming) {
       feedback.haptic('warning');
       slideY.value = withSpring(0, MOTION.island);
-      pulse.value = withRepeat(
+      // Sous « Réduire les animations », l'avatar ne pulse pas : la sonnerie et l'haptique suffisent.
+      if (!reduced) pulse.value = withRepeat(
         withSequence(
           withTiming(1.2, { duration: 600, easing: Easing.inOut(Easing.ease) }),
           withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
@@ -87,12 +90,12 @@ export default function IncomingCallOverlay() {
         false,
       );
     } else {
-      slideY.value = withTiming(-200, { duration: 250 });
+      slideY.value = -200; // le composant se démonte aussitôt : pas de sortie à animer
       cancelAnimation(pulse);
       pulse.value = 1;
     }
     return () => cancelAnimation(pulse);
-  }, [incoming, pulse, slideY]);
+  }, [incoming, pulse, slideY, reduced]);
 
   if (!incoming) return null;
 

@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, TextInput, Platform, StatusBar, KeyboardAvoidingView, Modal, Switch, UIManager, BackHandler,
+  View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, TextInput, Platform, StatusBar, KeyboardAvoidingView, Modal, Switch, BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -350,10 +350,6 @@ const dim = StyleSheet.create({
 });
 
 // ─── DIRECTION B · helpers + composants paiement ────────────────────────────────
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
 const stripEuro = (s: string) => String(s ?? '').replace(/\s*€\s*$/, '').trim();
 
 /** HT affiché = TTC − TVA (le mockup : 182,70 − 8,70 = 174,00). */

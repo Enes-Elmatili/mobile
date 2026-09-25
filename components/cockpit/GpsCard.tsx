@@ -2,12 +2,13 @@
 // n'arrive. Une carte à la place de la journée, un seul bouton : Autoriser
 // (ouvre les réglages du système).
 import React, { memo } from 'react';
-import { Linking, Pressable, StyleSheet, Text } from 'react-native';
+import { Linking, StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { usePresence } from '@/lib/motion/usePresence';
 import { feedback } from '@/lib/feedback/feedback';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = { visible: boolean; bottom: number; left: number; width: number };
 
@@ -17,15 +18,15 @@ function GpsCardBase({ visible, bottom, left, width }: Props) {
   const { style: presence } = usePresence(visible, { from: 'bottom' });
   return (
     <Animated.View style={[s.wrap, { bottom, left, width }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
-      <Pressable
+      <PressScale
         onPress={() => { feedback.haptic('light'); Linking.openSettings(); }}
-        style={({ pressed }) => [s.card, { backgroundColor: theme.cardBg, borderColor: theme.danger, opacity: pressed ? 0.7 : 1 }]}
+        style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.danger  }]}
         accessibilityRole="button"
         accessibilityLabel={`${t('cockpit.gps_refused')}. ${t('cockpit.gps_allow')}`}
       >
         <Text style={[s.text, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{t('cockpit.gps_refused')}</Text>
         <Text style={[s.cta, { color: theme.text, backgroundColor: theme.surface }]} maxFontSizeMultiplier={1.1}>{t('cockpit.gps_allow').toUpperCase()}</Text>
-      </Pressable>
+      </PressScale>
     </Animated.View>
   );
 }

@@ -3,7 +3,7 @@
 // roule (DigitReel) quand une mission se clôture, avec un éclat vert court.
 // La rangée s'efface vers le haut quand une demande monte.
 import React, { memo, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { usePresence } from '@/lib/motion/usePresence';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { DigitReel } from '@/components/ui/DigitReel';
 import { feedback } from '@/lib/feedback/feedback';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   visible: boolean;
@@ -35,14 +36,14 @@ function RoundButton({ icon, badge, onPress, label }: { icon: React.ComponentPro
   const { t } = useTranslation();
   const a11y = badge && badge > 0 ? `${label}, ${t('cockpit.unread', { count: badge })}` : label;
   return (
-    <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} style={({ pressed }) => [s.rb, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.isDark ? 0.35 : 0.12, opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel={a11y} hitSlop={6}>
+    <PressScale onPress={() => { feedback.haptic('light'); onPress(); }} style={[s.rb, { backgroundColor: theme.cardBg, borderColor: theme.border, shadowOpacity: theme.isDark ? 0.35 : 0.12  }]} accessibilityRole="button" accessibilityLabel={a11y} hitSlop={6}>
       <Feather name={icon} size={18} color={theme.text} />
       {badge && badge > 0 ? (
         <View style={[s.badge, { backgroundColor: theme.accent }]}>
           <Text style={[s.badgeText, { color: theme.accentText }]} maxFontSizeMultiplier={1}>{badge > 9 ? '9+' : badge}</Text>
         </View>
       ) : null}
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -72,7 +73,7 @@ function TopRowBase({ visible, top, left, width, todayCents, settled, unreadMess
   return (
     <Animated.View style={[s.row, { top, left, width }, presence]} pointerEvents={visible ? 'box-none' : 'none'}>
       <RoundButton icon="user" onPress={onProfile} label={t('cockpit.profile')} />
-      <Pressable onPress={() => { feedback.haptic('light'); onToday(); }} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })} accessibilityRole="button" accessibilityLabel={t('cockpit.today_a11y', { amount: euros })}>
+      <PressScale onPress={() => { feedback.haptic('light'); onToday(); }}  accessibilityRole="button" accessibilityLabel={t('cockpit.today_a11y', { amount: euros })}>
         <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, shadowOpacity: theme.isDark ? 0.35 : 0.12 }, pillStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: green }, burst]} pointerEvents="none" />
           <View style={s.amount}>
@@ -81,7 +82,7 @@ function TopRowBase({ visible, top, left, width, todayCents, settled, unreadMess
           </View>
           <Text style={[s.k, { color: theme.textSub }]} maxFontSizeMultiplier={1}>{t('cockpit.today').toUpperCase()}</Text>
         </Animated.View>
-      </Pressable>
+      </PressScale>
       <View style={s.side}>
         <RoundButton icon="message-square" badge={unreadMessages} onPress={onMessages} label={t('cockpit.messages')} />
         <RoundButton icon="bell" badge={unreadNotifs} onPress={onNotifs} label={t('common.notifications')} />

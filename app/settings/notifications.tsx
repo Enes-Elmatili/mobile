@@ -6,7 +6,7 @@
 // Tout reste visible dans la cloche. Les réglages de retour (son, haptique,
 // animations) restent en bas, locaux à l'appareil.
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Platform, Pressable, StatusBar, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Platform, StatusBar, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -16,6 +16,7 @@ import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
 import { devWarn } from '@/lib/logger';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
 const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true, quiet: { enabled: false, from: '22:00', to: '07:00' } };
@@ -100,9 +101,9 @@ export default function NotificationsSettingsScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.header}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={({ pressed }) => [s.back, { backgroundColor: theme.cardBg, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border  }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.back')}>
           <Feather name="arrow-left" size={18} color={theme.text} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2} accessibilityRole="header">{t('notifications.prefs_title').toUpperCase()}</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -142,11 +143,11 @@ export default function NotificationsSettingsScreen() {
           <Row icon="zap" label={t('feedback.settings.animations')} sublabel={t('feedback.settings.animations_sub')} value={animations} onToggle={(v) => { setPref('animations', v); feedback.haptic('selection'); }} last />
         </Group>
 
-        <Pressable onPress={() => Linking.openSettings()} style={({ pressed }) => [s.sys, { borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel={t('ext.settings_notif_hint')}>
+        <PressScale onPress={() => Linking.openSettings()} style={[s.sys, { borderColor: theme.border  }]} accessibilityRole="button" accessibilityLabel={t('ext.settings_notif_hint')}>
           <Feather name="settings" size={15} color={theme.textSub} />
           <Text style={[s.sysText, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('ext.settings_notif_hint')}</Text>
           <Feather name="chevron-right" size={15} color={theme.textMuted} />
-        </Pressable>
+        </PressScale>
       </ScrollView>
     </SafeAreaView>
   );
