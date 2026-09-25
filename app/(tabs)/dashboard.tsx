@@ -15,6 +15,7 @@ import {
 import Reanimated from 'react-native-reanimated';
 import { runWhenIdle } from '@/lib/idle';
 import { usePressScale } from '@/lib/motion/press';
+import { useSheetMotion } from '@/lib/motion/sheet';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
@@ -162,6 +163,22 @@ const LAUNCH_CARDS = SERVICE_CARDS.filter(c => c.key === 'plomberie' || c.key ==
 // MISSION ISLAND — active request or empty state
 // ============================================================================
 
+// Le compte à rebours de la recherche : seul ce texte se redessine chaque
+// seconde, pas toute la carte de mission.
+function SearchCountdown({ expiresAt, fallback, color }: { expiresAt: string | null; fallback: number; color: string }) {
+  const left = useCallback(() => expiresAt ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)) : null, [expiresAt]);
+  const [seconds, setSeconds] = useState(() => left() ?? fallback);
+  useEffect(() => {
+    const iv = setInterval(() => setSeconds((p) => left() ?? Math.max(0, p - 1)), 1000);
+    return () => clearInterval(iv);
+  }, [left]);
+  return (
+    <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color, letterSpacing: 0.5, fontVariant: ['tabular-nums'] }}>
+      {`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`}
+    </Text>
+  );
+}
+
 function MissionIsland({
   activeMission,
   searchingMission,
@@ -184,7 +201,6 @@ function MissionIsland({
   theme: AppTheme;
 }) {
   const { t } = useTranslation();
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [etaLabel, setEtaLabel] = useState<string>(t('dashboard.loading_eta'));
   // "LIVE · GPS" ne s'affiche que si on a de vraies coordonnées prestataire —
   // pas quand l'ETA vient du fallback haversine sans position live.
@@ -196,17 +212,6 @@ function MissionIsland({
   // n'était rendue nulle part. Elle faisait tourner une animation infinie sans
   // aucun pixel à l'écran, tant qu'une mission était active. Si le halo revient
   // un jour, le rebrancher en Reanimated (cf. CockpitIsland), pas en Animated.
-
-  // Countdown for search
-  useEffect(() => {
-    if (!searchingMission) { setSecondsLeft(null); return; }
-    const compute = () => searchingMission.expiresAt
-      ? Math.max(0, Math.floor((new Date(searchingMission.expiresAt).getTime() - Date.now()) / 1000))
-      : SEARCH_TIMEOUT;
-    setSecondsLeft(compute());
-    const iv = setInterval(() => setSecondsLeft(p => (p !== null && p > 0) ? p - 1 : 0), 1000);
-    return () => clearInterval(iv);
-  }, [searchingMission?.id]);
 
   // ETA from API
   useEffect(() => {
@@ -256,7 +261,6 @@ function MissionIsland({
     return () => { cancelled = true; clearInterval(iv); };
   }, [activeMission?.id, activeMission?.status]);
 
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   // ── ACCEPTED / ONGOING — HERO mission island (ETA dominant)
   if (activeMission) {
@@ -371,11 +375,7 @@ function MissionIsland({
           {/* Status row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <FixedStatusChip status="SEARCHING" label={t('dashboard.search_in_progress').toUpperCase()} />
-            {secondsLeft !== null && (
-              <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: theme.heroSubFaint, letterSpacing: 0.5 }}>
-                {fmt(secondsLeft)}
-              </Text>
-            )}
+            <SearchCountdown key={searchingMission.id} expiresAt={searchingMission.expiresAt ?? null} fallback={SEARCH_TIMEOUT} color={theme.heroSubFaint as string} />
           </View>
 
           {/* Service name — hero */}
@@ -813,6 +813,7 @@ function ClientDashboard() {
   const ctaPress = usePressScale();
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const sheetMotion = useSheetMotion();
   // Sheet détail montée UNIQUEMENT quand ouverte : toujours montée avec
   // index={-1} + enableDynamicSizing, gorhom l'auto-ouvre sur Android et son
   // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
@@ -1349,6 +1350,9 @@ function ClientDashboard() {
         enableDynamicSizing
         enablePanDownToClose
         onClose={() => setDetailSheetOpen(false)}
+        animationConfigs={sheetMotion.animationConfigs}
+        overDragResistanceFactor={sheetMotion.overDragResistanceFactor}
+        onAnimate={sheetMotion.onAnimate}
         backdropComponent={renderBackdrop}
         backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
         handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}

@@ -4,7 +4,7 @@
 // chips. Aucune carte sombre, aucune modale : des listes, comme l'agenda.
 import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { MOTION } from '@/lib/motion/springs';
 import { useCountingValue } from '@/lib/motion/useCountingValue';
 import { ReText } from '@/components/ui/ReText';
@@ -12,6 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { usePressScale } from '@/lib/motion/press';
 import { feedback } from '@/lib/feedback/feedback';
+import { LAYOUT } from '@/lib/motion/layout';
 
 export type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -86,7 +87,7 @@ export function Chip({ label, icon, add = false, onPress }: { label: string; ico
   const theme = useAppTheme();
   const press = usePressScale(0.96);
   return (
-    <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+    <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)} layout={LAYOUT}>
     <Pressable onPress={onPress ? () => { feedback.haptic('light'); onPress(); } : undefined} onPressIn={press.onPressIn} onPressOut={press.onPressOut} disabled={!onPress} accessibilityRole="button" accessibilityLabel={label}>
       <Animated.View style={[s.chip, { backgroundColor: add ? 'transparent' : theme.cardBg, borderColor: theme.border, borderStyle: add ? 'dashed' : 'solid' }, press.style]}>
         {icon ? <Feather name={icon} size={13} color={theme.textSub as string} /> : null}

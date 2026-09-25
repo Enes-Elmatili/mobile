@@ -122,7 +122,6 @@ export default function MissionView() {
   const mapMode: 'full' | 'band' | 'gone' = done ? 'gone' : bandMode ? 'band' : 'full';
   const [mapReady, setMapReady] = useState(false);
   const [regionKey, setRegionKey] = useState(0);
-  const [now1s, setNow1s] = useState(() => Date.now());
   const search = useSearching(String(id), clientCoord, searchingLayer);
 
   const providerUserId = provider?.userId || null;
@@ -183,12 +182,6 @@ export default function MissionView() {
     const iv = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(iv);
   }, [stage]);
-  // La ligne mono de la recherche compte les secondes.
-  useEffect(() => {
-    if (!searchingLayer) return;
-    const iv = setInterval(() => setNow1s(Date.now()), 1000);
-    return () => clearInterval(iv);
-  }, [searchingLayer]);
 
   // ─── Le moment « accepté » : sur la carte de recherche, 2,4 s ──────────
   const beginAcceptedMoment = useCallback((providerId: string | null, name: string | null) => {
@@ -415,7 +408,6 @@ export default function MissionView() {
         <SearchingSheet
           brief={brief}
           pros={search.pros} round={search.round} remaining={search.remaining} nextWaveAt={search.nextWaveAt} startedAt={search.startedAt}
-          now={now1s}
           expiresAt={params.expiresAt || null}
           cancelling={cancelling}
           isScheduled={paramIsScheduled || isFutureScheduled(request?.preferredTimeStart, now)}
@@ -490,7 +482,7 @@ export default function MissionView() {
         {requestRow}
       </>
     );
-  }, [brief, stage, startedAt, now, now1s, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, theme.textSub, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router, searchingLayer, search, params.expiresAt, params.scheduledLabel, paramIsScheduled, request?.preferredTimeStart, justAccepted, acceptedName]);
+  }, [brief, stage, startedAt, now, isQuote, amount, calloutFee, provider, unread, message, call, openProfile, t, firstName, arrived, cancel, cancelling, theme.textMuted, theme.textSub, pinCode, work, hasLiveGps, etaMin, distance, providerLocation, router, searchingLayer, search, params.expiresAt, params.scheduledLabel, paramIsScheduled, request?.preferredTimeStart, justAccepted, acceptedName]);
 
   // ═════════════════════════════════════════════════════════════════════════
   if (invalidId || notFound) {

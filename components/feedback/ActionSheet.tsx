@@ -1,11 +1,13 @@
 import React, { useCallback, useRef } from 'react';
-import { Text, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
 import { useLayoutClass } from '@/lib/layout';
+import { useSheetMotion } from '@/lib/motion/sheet';
+import { PressScale } from '@/components/ui/PressScale';
 
 export function ActionSheet() {
   const theme = useAppTheme();
@@ -14,6 +16,7 @@ export function ActionSheet() {
   const clear = useFeedbackStore((s) => s.clearActionSheet);
   const ref = useRef<BottomSheet>(null);
   const insets = useSafeAreaInsets();
+  const motion = useSheetMotion();
 
   const settle = useCallback((index: number | null) => {
     const current = useFeedbackStore.getState().actionSheet;
@@ -42,18 +45,21 @@ export function ActionSheet() {
       handleIndicatorStyle={{ backgroundColor: theme.border }}
       backgroundStyle={{ backgroundColor: theme.cardBg }}
       onClose={() => settle(null)}
+      animationConfigs={motion.animationConfigs}
+      overDragResistanceFactor={motion.overDragResistanceFactor}
+      onAnimate={motion.onAnimate}
     >
       <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 16 }]}>
         {!!sheet.title && <Text style={[s.title, { color: theme.textMuted }]}>{sheet.title}</Text>}
         {sheet.options.map((opt, i) => (
-          <TouchableOpacity accessibilityRole="button" key={i} style={s.optionBtn} onPress={() => settle(i)}>
+          <PressScale accessibilityRole="button" key={i} style={s.optionBtn} onPress={() => settle(i)}>
             <Text style={[s.optionText, { color: theme.text }, opt.destructive && { color: COLORS.danger }]}>{opt.label}</Text>
-          </TouchableOpacity>
+          </PressScale>
         ))}
         <View style={[s.divider, { backgroundColor: theme.border }]} />
-        <TouchableOpacity accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(null)}>
+        <PressScale accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(null)}>
           <Text style={[s.cancelText, { color: theme.textMuted }]}>{sheet.cancelLabel}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </BottomSheetView>
     </BottomSheet>
   );

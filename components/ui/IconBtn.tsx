@@ -1,7 +1,8 @@
 // components/ui/IconBtn.tsx — 36x36 icon button with surface background
 // Design system pattern: consistent icon buttons across all screens
 import React from 'react';
-import { TouchableOpacity, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { PressScale } from './PressScale';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
 
@@ -19,9 +20,9 @@ export default function IconBtn({ icon, accessibilityLabel, onPress, size = 36, 
   // Étend la cible tactile à 44pt minimum (recommandation a11y iOS/Android).
   const slop = Math.max(0, Math.round((44 - size) / 2));
   return (
-    <TouchableOpacity
+    <PressScale
       onPress={onPress}
-      activeOpacity={0.7}
+      scale={0.94}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       hitSlop={{ top: slop, bottom: slop, left: slop, right: slop }}
@@ -40,7 +41,7 @@ export default function IconBtn({ icon, accessibilityLabel, onPress, size = 36, 
       {badge && (
         <View style={[s.badge, { backgroundColor: COLORS.orangeBrand, borderColor: theme.surface }]} />
       )}
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 

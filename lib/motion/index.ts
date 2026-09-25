@@ -16,3 +16,4 @@ export * from './useSlideToConfirm';
 export * from './useRubberPull';
 export * from './useEntrance';
 export * from './useLoops';
+export * from './layout';

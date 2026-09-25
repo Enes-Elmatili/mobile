@@ -1,11 +1,13 @@
 import React, { useCallback, useRef } from 'react';
-import { Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
 import { useLayoutClass } from '@/lib/layout';
+import { useSheetMotion } from '@/lib/motion/sheet';
+import { PressScale } from '@/components/ui/PressScale';
 
 export function ConfirmSheet() {
   const theme = useAppTheme();
@@ -14,6 +16,7 @@ export function ConfirmSheet() {
   const clear = useFeedbackStore((s) => s.clearConfirm);
   const ref = useRef<BottomSheet>(null);
   const insets = useSafeAreaInsets();
+  const motion = useSheetMotion();
 
   // resolve(false) if dismissed without an explicit choice.
   // Reads the live store: once settled, clear() nulls confirm, so a
@@ -47,21 +50,24 @@ export function ConfirmSheet() {
       handleIndicatorStyle={{ backgroundColor: theme.border }}
       backgroundStyle={{ backgroundColor: theme.cardBg }}
       onClose={() => settle(false)}
+      animationConfigs={motion.animationConfigs}
+      overDragResistanceFactor={motion.overDragResistanceFactor}
+      onAnimate={motion.onAnimate}
     >
       <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 16 }]}>
         <Text style={[s.title, { color: theme.text }]}>{confirm.title}</Text>
         {!!confirm.message && <Text style={[s.message, { color: theme.textSub }]}>{confirm.message}</Text>}
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.btn, { backgroundColor: confirm.destructive ? COLORS.danger : theme.accent }]}
           onPress={() => settle(true)}
         >
           <Text style={[s.btnText, { color: confirm.destructive ? COLORS.alwaysWhite : theme.accentText }]}>
             {confirm.confirmLabel}
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(false)}>
+        </PressScale>
+        <PressScale accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(false)}>
           <Text style={[s.cancelText, { color: theme.textMuted }]}>{confirm.cancelLabel}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </BottomSheetView>
     </BottomSheet>
   );

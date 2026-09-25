@@ -14,7 +14,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, RefreshControl, StyleS
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import Reanimated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
@@ -24,6 +24,7 @@ import { briefOf } from '@/lib/mission/brief';
 import { fetchRoute } from '@/lib/mission/route';
 import { SplitPane, useSplitPane, useLayoutClass } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
+import { useSheetMotion } from '@/lib/motion/sheet';
 import { useSocket } from '@/lib/SocketContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTabBarPadding } from './_layout';
@@ -31,6 +32,7 @@ import { BarLock, useNavStore } from '@/stores/nav';
 import { currentOf, dayKey, dayTimeline, monthGroups, startOfWeek, tripPairs, weeksAround, type AgendaItem, type Trips } from '@/lib/agenda/model';
 import { AgendaWeek, DayFoot, EmptyDay, NowRow, PastMonth, SectionHead, TakeRow, Timeline, useOpenMonths } from '@/components/agenda/rows';
 import { MissionDetail, OpportunityDetail, getLocale, type Mission, type Opportunity } from '@/components/agenda/details';
+import { LAYOUT } from '@/lib/motion/layout';
 
 const WEEKS_BEFORE = 4;
 const WEEKS_AFTER = 8;
@@ -210,6 +212,7 @@ export default function Missions() {
 
   // ─── Détail (même feuille qu'avant) ──────────────────────────────────────
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const sheetMotion = useSheetMotion();
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
@@ -335,17 +338,17 @@ export default function Missions() {
 
               {/* -- Maintenant -- */}
               {current ? (
-                <Reanimated.View entering={FadeInDown.duration(240)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                <Reanimated.View entering={FadeInDown.duration(240)} exiting={FadeOut.duration(140)} layout={LAYOUT}>
                   <SectionHead title={t('agenda.now')} /><NowRow item={current} sub={currentSub} onPress={goHome} />
                 </Reanimated.View>
               ) : null}
 
               {/* -- À prendre -- */}
               {opportunities.length ? (
-                <Reanimated.View entering={FadeInDown.duration(240)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                <Reanimated.View entering={FadeInDown.duration(240)} exiting={FadeOut.duration(140)} layout={LAYOUT}>
                   <SectionHead title={t('agenda.to_take')} aside={t('agenda.around_you', { count: opportunities.length })} />
                   {opportunities.map((o, i) => (
-                    <Reanimated.View key={o.id} entering={FadeInDown.delay(Math.min(i, 6) * 40).duration(220)} exiting={FadeOut.duration(160)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                    <Reanimated.View key={o.id} entering={FadeInDown.delay(Math.min(i, 6) * 40).duration(220)} exiting={FadeOut.duration(160)} layout={LAYOUT}>
                       <TakeRow brief={o.brief} when={whenLabel(o.preferredTimeStart)} onPress={() => openOpportunity(o)} onAccept={acceptingOpp ? undefined : () => handleAcceptOpp(o.id)} onDecline={acceptingOpp ? undefined : () => handleDeclineOpp(o.id)} />
                     </Reanimated.View>
                   ))}
@@ -354,7 +357,7 @@ export default function Missions() {
 
               {/* -- Le jour choisi -- */}
               {/* Changer de jour : le fil s'efface et le nouveau entre, ligne après ligne. */}
-              <Reanimated.View key={selectedKey} entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+              <Reanimated.View key={selectedKey} entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} layout={LAYOUT}>
                 <SectionHead title={dayTitle} aside={day.count ? t('agenda.n_missions', { count: day.count }) : t('agenda.nothing_planned')} />
                 {day.count ? (
                   <>
@@ -368,7 +371,7 @@ export default function Missions() {
 
               {/* -- Passées -- */}
               {past.length ? (
-                <Reanimated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+                <Reanimated.View layout={LAYOUT}>
                   <SectionHead title={t('agenda.past')} />
                   <View style={{ marginTop: 8 }}>
                     {past.map((g) => <PastMonth key={g.key} group={g} label={monthLabel(g.key)} open={isOpen(g.key)} onToggle={() => toggle(g.key)} onPress={openPast} dayLabel={shortDay} />)}
@@ -386,7 +389,7 @@ export default function Missions() {
         )}
       />
       {detailOpen && !isSplit ? (
-        <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailOpen(false)} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: theme.cardBg }} handleIndicatorStyle={{ backgroundColor: theme.border }} maxDynamicContentSize={windowHeight * 0.85}>
+        <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailOpen(false)} {...sheetMotion} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: theme.cardBg }} handleIndicatorStyle={{ backgroundColor: theme.border }} maxDynamicContentSize={windowHeight * 0.85}>
           <BarLock />
           {detail}
         </BottomSheet>

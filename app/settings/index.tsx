@@ -19,8 +19,9 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { usePrefs, currentLanguage, type LanguagePref, type ThemePref } from '@/stores/prefs';
 import { Group, Row, SectionHead, SwitchRow } from '@/components/settings/rows';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
+import { LAYOUT } from '@/lib/motion/layout';
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
 const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true, quiet: { enabled: false, from: '22:00', to: '07:00' } };
@@ -130,7 +131,7 @@ export default function Settings() {
         <SectionHead title={t('settings.help_support')} aside={tickets.length ? t('profile.tickets_open_count', { count: tickets.length }) : null} />
         <Group>
           {tickets.slice(0, 2).map((tk, i) => (
-            <Animated.View key={tk.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+            <Animated.View key={tk.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)} layout={LAYOUT}>
               <Row first={i === 0} icon="message-square" title={tk.title} sub={tk.status === 'OPEN' ? t('profile.ticket_open') : t('profile.ticket_in_progress')} onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: String(tk.id) } })} />
             </Animated.View>
           ))}

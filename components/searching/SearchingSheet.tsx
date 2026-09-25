@@ -43,7 +43,6 @@ type Props = {
   remaining: number | null;
   nextWaveAt: number | null;
   startedAt: number;
-  now: number;
   expiresAt?: string | null;
   cancelling?: boolean;
   isScheduled?: boolean;
@@ -52,9 +51,13 @@ type Props = {
   onCancel: () => void;
 };
 
-export function SearchingSheet({ brief, pros, round, remaining, nextWaveAt, startedAt, now, expiresAt, cancelling, isScheduled, scheduledLabel, acceptedName, onCancel }: Props) {
+export function SearchingSheet({ brief, pros, round, remaining, nextWaveAt, startedAt, expiresAt, cancelling, isScheduled, scheduledLabel, acceptedName, onCancel }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
+  // L'horloge des secondes vit ici : seule la feuille se redessine chaque
+  // seconde, pas tout l'écran de suivi (carte comprise).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv); }, []);
   const awake = pros.filter((p) => p.wave > 0 && !p.declined);
   const declinedCount = pros.filter((p) => p.declined).length;
   const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));

@@ -10,8 +10,9 @@ import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
+import { LAYOUT } from '@/lib/motion/layout';
 
 export default function AddressesSettings() {
   const router = useRouter();
@@ -39,10 +40,10 @@ export default function AddressesSettings() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
         <CascadeItem index={0}>
         <SectionHead title={t('addresses.title')} aside={addresses.length ? String(addresses.length) : null} />
-        <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+        <Animated.View layout={LAYOUT}>
         <Group>
           {addresses.length ? addresses.map((a, i) => (
-            <Animated.View key={a.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} layout={LinearTransition.springify().damping(24).stiffness(260)}>
+            <Animated.View key={a.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} layout={LAYOUT}>
               <Row first={i === 0} icon={/maison|home|huis/i.test(a.label || '') ? 'home' : 'map-pin'} title={a.label || t('addresses.address')} sub={a.address} chevron={false} right={
                 <Pressable onPress={() => remove(a.id)} accessibilityRole="button" accessibilityLabel={t('common.delete')} hitSlop={10}><Feather name="trash-2" size={16} color={theme.textMuted as string} /></Pressable>
               } />

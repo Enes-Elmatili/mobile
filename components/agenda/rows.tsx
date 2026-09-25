@@ -5,7 +5,7 @@
 // « DEVIS » = devis à rédiger), jamais dans une pastille de texte.
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +21,7 @@ import { cleanName } from '@/lib/displayName';
 import { isQuoteMode, netFor, type MissionBrief } from '@/lib/mission/brief';
 import { distanceLabel, placeShort, serviceName } from '@/components/mission/blocks';
 import type { AgendaItem, MonthGroup, TimelineRow, Week } from '@/lib/agenda/model';
+import { LAYOUT } from '@/lib/motion/layout';
 
 const CAPSULE_INSET = 4;
 const clock = (ms: number) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -259,7 +260,7 @@ export function PastMonth({ group, label, open, onToggle, onPress, dayLabel }: {
   useEffect(() => { turn.value = reduced ? withTiming(open ? 1 : 0, { duration: 120 }) : withSpring(open ? 1 : 0, MOTION.tab); }, [open, reduced, turn]);
   const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 90}deg` }] }));
   return (
-    <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+    <Animated.View layout={LAYOUT}>
       <Pressable onPress={() => { feedback.haptic('selection'); onToggle(); }} style={[s.month, { borderTopColor: theme.borderLight }]} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${label}, ${t('agenda.n_missions', { count: group.count })}, ${formatEUR(group.net, 0)}`}>
         <Text style={[s.monthName, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
         <Text style={[s.monthCount, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.n_missions', { count: group.count })}</Text>

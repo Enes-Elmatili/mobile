@@ -11,7 +11,7 @@ import { Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -28,6 +28,7 @@ import { useAvatar } from '@/lib/profile/avatar';
 import { useTabBarPadding } from './_layout';
 import { Chip, Figure, Group, Row, SectionHead, type FeatherName } from '@/components/settings/rows';
 import { CategoriesSheet } from '@/components/settings/CategoriesSheet';
+import { LAYOUT } from '@/lib/motion/layout';
 
 type ProviderInfo = {
   validationStatus?: string | null; vatNumber?: string | null; description?: string | null;
@@ -145,7 +146,7 @@ export default function Profile() {
         </Animated.View>
 
         {isProvider ? (
-          <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+          <Animated.View layout={LAYOUT}>
             <CascadeItem index={1}>
             {/* -- Métiers -- */}
             <SectionHead title={t('profile.trades')} aside={prov?.categories ? t('profile.trades_count', { n: prov.categories.length }) : null} />
@@ -175,7 +176,7 @@ export default function Profile() {
             </CascadeItem>
           </Animated.View>
         ) : (
-          <Animated.View layout={LinearTransition.springify().damping(24).stiffness(260)}>
+          <Animated.View layout={LAYOUT}>
             <CascadeItem index={1}>
             {/* -- Vos adresses -- */}
             <SectionHead title={t('addresses.title')} aside={addresses.length ? String(addresses.length) : null} />
