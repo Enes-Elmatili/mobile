@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
@@ -90,14 +90,17 @@ export default function Missions() {
     }
   }, [t]);
 
-  const fetchOpportunities = useCallback(async () => {
+  const fetchOpportunities = useCallback(async (): Promise<Opportunity[] | null> => {
     try {
       const res = await api.get('/requests/opportunities');
       const data = res?.data ?? res;
       const list: any[] = Array.isArray(data) ? data : data?.data ?? [];
-      setOpportunities(list.map((o) => ({ ...o, brief: briefOf(o) })));
+      const mapped = list.map((o) => ({ ...o, brief: briefOf(o) }));
+      setOpportunities(mapped);
+      return mapped;
     } catch (e) {
       devError('Opportunities load error:', e);
+      return null;
     }
   }, []);
 
@@ -229,6 +232,23 @@ export default function Missions() {
     finally { setLoadingDetails(false); }
   }, [raw, goHome, t]);
   const openOpportunity = useCallback((o: Opportunity) => { setSelectedMission(null); setSelectedOpportunity(o); setDetailOpen(true); }, []);
+
+  // Une notification « demande planifiée / devis voulu » tapée (?opportunity=) :
+  // sa fiche s'ouvre, ou on dit qu'elle est partie — pas un agenda muet.
+  const { opportunity: wantedOpp } = useLocalSearchParams<{ opportunity?: string }>();
+  const handledOppRef = useRef<string | null>(null);
+  useEffect(() => {
+    const rid = wantedOpp ? String(wantedOpp) : null;
+    if (!rid || handledOppRef.current === rid) return;
+    handledOppRef.current = rid;
+    router.setParams({ opportunity: undefined });
+    (async () => {
+      const list = await fetchOpportunities();
+      const o = list?.find((x) => String(x.id) === rid);
+      if (o) openOpportunity(o);
+      else if (list) feedback.info('cockpit.request_gone');
+    })();
+  }, [wantedOpp, router, fetchOpportunities, openOpportunity]);
   const openPast = useCallback((item: AgendaItem) => {
     if (item.status === 'DONE') router.push({ pathname: '/request/[id]/earnings', params: { id: item.id } });
     else openMission(item, false);

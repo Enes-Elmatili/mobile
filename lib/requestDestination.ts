@@ -160,12 +160,89 @@ const CLIENT_REQUEST_SCREENS = new Set(['MissionView', 'QuoteReview', 'Rating'])
 export type NotifIntent =
   | { kind: 'support' }
   | { kind: 'kyc' }
-  | { kind: 'opportunity'; home?: boolean }
+  | { kind: 'opportunity'; home?: boolean; requestId?: string }
+  | { kind: 'route'; dest: RequestDestination }
   | { kind: 'refund'; requestId?: string }
   | { kind: 'client-request'; requestId: string }
   | { kind: 'provider-request'; requestId: string }
   | { kind: 'screen' }
   | { kind: 'space' };
+
+// ─── Événements du catalogue dont la destination ne se déduit pas de l'écran ──
+// Chaque ligne corrige un cas où la notification menait ailleurs que ce
+// qu'elle annonce (audit 2026-09-25). Renvoie null → règle générale.
+function documentsFor(rid: string | undefined, ctaKey: string, icon: string): RequestDestination {
+  return { pathname: '/(tabs)/documents', params: rid ? { openRequestId: rid } : undefined, ctaKey, icon };
+}
+const INVOICES: RequestDestination = { pathname: '/invoices', ctaKey: 'cta_view_invoice', icon: 'file-text' };
+
+function catalogueIntent(event: string, data: any, rid: string | undefined, audience: 'provider' | 'client'): NotifIntent | null {
+  switch (event) {
+    // Une demande qui arrive : l'accueil (immédiate) ou l'agenda (planifiée /
+    // devis), la demande désignée — jamais un écran vide.
+    case 'request.new':
+    case 'request.new_urgent':
+    case 'request.preferred':
+    case 'request.scheduled':
+    case 'request.quote_wanted':
+      return { kind: 'opportunity', home: data.screen === 'Dashboard' && data.type !== 'preferred_opportunity', requestId: rid };
+
+    // La mission n'est plus au prestataire : pas de re-résolution (403, ou
+    // pire, la demande re-proposée « à prendre » à celui qui vient de l'abandonner).
+    case 'mission.cancelled_by_client':
+    case 'mission.reassigned':
+    case 'mission.abandoned':
+      return { kind: 'route', dest: PROVIDER_MISSIONS };
+    case 'mission.reassigned_in_progress':
+      return { kind: 'route', dest: DASHBOARD };
+
+    // Devis expiré sans remboursement : pas de preuve de remboursement à montrer.
+    case 'quote.expired':
+      return { kind: 'route', dest: DASHBOARD };
+
+    // Le reçu annoncé, pas la liste.
+    case 'payment.receipt':
+      return { kind: 'route', dest: documentsFor(rid, 'cta_view_invoice', 'file-text') };
+    case 'invoice.ready':
+      return { kind: 'route', dest: audience === 'provider' ? INVOICES : documentsFor(rid, 'cta_view_invoice', 'file-text') };
+    case 'payment.commission_invoice':
+      return { kind: 'route', dest: INVOICES };
+
+    // Litige côté client : la facture de la mission, jamais la page de notation.
+    case 'dispute.registered':
+    case 'dispute.resolved':
+    case 'dispute.resolved_client_wins':
+    case 'dispute.resolved_provider_wins':
+    case 'dispute.resolved_split':
+      if (audience === 'client') return { kind: 'route', dest: documentsFor(rid, 'cta_view_invoice', 'file-text') };
+      return rid ? { kind: 'provider-request', requestId: rid } : null;
+
+    // Le signalement qu'on vient d'ouvrir, pas un formulaire vierge.
+    case 'support.report_received':
+    case 'support.report_received_urgent':
+      return data.ticketId
+        ? { kind: 'route', dest: { pathname: '/tickets/[id]', params: { id: String(data.ticketId) }, ctaKey: 'cta_view_ticket', icon: 'life-buoy' } }
+        : { kind: 'support' };
+    // Un client signale la mission du prestataire : sa mission, pas le formulaire client.
+    case 'support.client_report':
+      return rid ? { kind: 'provider-request', requestId: rid } : { kind: 'route', dest: PROVIDER_MISSIONS };
+
+    // Compte validé / réactivé : l'accueil, sans rejouer l'animation « dossier validé ».
+    case 'account.approved':
+    case 'account.reactivated':
+      return { kind: 'route', dest: DASHBOARD };
+
+    // L'avis porte sur une mission : son bilan.
+    case 'review.received':
+      return rid ? { kind: 'route', dest: { pathname: '/request/[id]/earnings', params: { id: rid }, ctaKey: 'cta_view_earnings', icon: 'star' } } : null;
+
+    case 'message.received':
+      return data.senderId
+        ? { kind: 'route', dest: { pathname: '/messages/[userId]', params: { userId: String(data.senderId), ...(rid ? { requestId: rid } : {}) }, ctaKey: 'cta_view_message', icon: 'message-circle' } }
+        : null;
+  }
+  return null;
+}
 
 // Écrans du catalogue serveur (lib/notify.js) qui portent une mission : on
 // re-résout contre l'état courant, avec le rôle que l'événement déclare.
@@ -182,21 +259,27 @@ export function classifyNotification(data: any, opts: { isProvider?: boolean } =
   const rid = requestId != null ? String(requestId) : undefined;
   const audience: 'provider' | 'client' = data.audience === 'provider' || data.audience === 'client' ? data.audience : (opts.isProvider ? 'provider' : 'client');
 
-  if (category === 'support' || type === 'support_escalation' || screen === 'Support') return { kind: 'support' };
-  if (type === 'kyc_status') return { kind: 'kyc' };
-  // ── Catalogue (data.event) : la destination est déclarée, le rôle aussi ──
+  // ── Catalogue (data.event) : l'événement prime sur les anciens champs
+  // `type` / `category` qu'il transporte encore (support_escalation, kyc_status).
   if (typeof event === 'string') {
-    // Une demande qui arrive (request.new / urgent / preferred) se présente sur
-    // l'accueil ; planifiée ou devis voulu : « à prendre » dans l'agenda.
-    if (event.startsWith('request.')) return { kind: 'opportunity', home: screen === 'Dashboard' };
-    if (event === 'refund.issued' || event.startsWith('quote.expired')) return { kind: 'refund', requestId: rid };
+    const specific = catalogueIntent(event, data, rid, audience);
+    if (specific) return specific;
+    if (type === 'kyc_status') return { kind: 'kyc' };
+    if (category === 'support' || screen === 'Support') return { kind: 'support' };
+    if (event === 'refund.issued' || event === 'quote.expired_refunded') return { kind: 'refund', requestId: rid };
     if (rid && CATALOGUE_REQUEST_SCREENS.has(screen)) {
       return audience === 'provider' ? { kind: 'provider-request', requestId: rid } : { kind: 'client-request', requestId: rid };
     }
     if (rid && audience === 'provider' && (screen === 'Dashboard' || screen === 'Missions')) return { kind: 'provider-request', requestId: rid };
     return screen ? { kind: 'screen' } : { kind: 'space' };
   }
-  if (PROVIDER_OPPORTUNITY_TYPES.has(type)) return { kind: 'opportunity', home: true };
+  if (category === 'support' || type === 'support_escalation' || screen === 'Support') {
+    return data.ticketId
+      ? { kind: 'route', dest: { pathname: '/tickets/[id]', params: { id: String(data.ticketId) }, ctaKey: 'cta_view_ticket', icon: 'life-buoy' } }
+      : { kind: 'support' };
+  }
+  if (type === 'kyc_status') return { kind: 'kyc' };
+  if (PROVIDER_OPPORTUNITY_TYPES.has(type)) return { kind: 'opportunity', home: type === 'new_request' || type === 'preferred_request', requestId: rid };
   if (PROVIDER_QUOTE_TYPES.has(type) && rid) return { kind: 'provider-request', requestId: rid };
   if (category === 'refund' || type === 'refund') return { kind: 'refund', requestId: rid };
   if (rid && (CLIENT_REQUEST_CATEGORIES.has(category) || CLIENT_REQUEST_SCREENS.has(screen) || type === 'quote_received')) {

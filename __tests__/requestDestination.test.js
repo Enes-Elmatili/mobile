@@ -17,8 +17,10 @@ describe('resolveRequestDestination', () => {
 describe('classifyNotification — catalogue serveur (data.event / audience)', () => {
   const { classifyNotification } = require('@/lib/requestDestination');
   it('les demandes vont aux opportunités, les remboursements à la preuve', () => {
-    expect(classifyNotification({ event: 'request.new', audience: 'provider', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'opportunity', home: true });
-    expect(classifyNotification({ event: 'request.quote_wanted', audience: 'provider', requestId: 47, screen: 'Missions' })).toEqual({ kind: 'opportunity', home: false });
+    expect(classifyNotification({ event: 'request.new', audience: 'provider', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'opportunity', home: true, requestId: '47' });
+    expect(classifyNotification({ event: 'request.quote_wanted', audience: 'provider', requestId: 47, screen: 'Missions' })).toEqual({ kind: 'opportunity', home: false, requestId: '47' });
+    // Préférée mais planifiée : l'agenda, pas l'accueil.
+    expect(classifyNotification({ event: 'request.preferred', type: 'preferred_opportunity', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'opportunity', home: false, requestId: '47' });
     expect(classifyNotification({ event: 'refund.issued', audience: 'client', requestId: 47, screen: 'Documents' })).toEqual({ kind: 'refund', requestId: '47' });
     expect(classifyNotification({ event: 'quote.expired_refunded', audience: 'client', requestId: 47, screen: 'Documents' })).toEqual({ kind: 'refund', requestId: '47' });
   });
@@ -27,21 +29,22 @@ describe('classifyNotification — catalogue serveur (data.event / audience)', (
     expect(classifyNotification({ event: 'dispute.opened', audience: 'provider', requestId: 47, screen: 'MissionView' })).toEqual({ kind: 'provider-request', requestId: '47' });
     expect(classifyNotification({ event: 'quote.accepted', audience: 'provider', requestId: 47, screen: 'Ongoing' })).toEqual({ kind: 'provider-request', requestId: '47' });
     expect(classifyNotification({ event: 'mission.done_provider', audience: 'provider', requestId: 47, screen: 'Earnings' })).toEqual({ kind: 'provider-request', requestId: '47' });
-    expect(classifyNotification({ event: 'mission.cancelled_by_client', audience: 'provider', requestId: 47, screen: 'Dashboard' })).toEqual({ kind: 'provider-request', requestId: '47' });
     expect(classifyNotification({ event: 'quote.refused', audience: 'provider', requestId: 47, screen: 'Missions' })).toEqual({ kind: 'provider-request', requestId: '47' });
     // Sans audience (litiges, support) : le rôle de celui qui tape décide — un prestataire ne va pas sur le suivi client.
     expect(classifyNotification({ event: 'dispute.resolved', requestId: 47, screen: 'MissionView' }, { isProvider: true })).toEqual({ kind: 'provider-request', requestId: '47' });
-    expect(classifyNotification({ event: 'dispute.resolved', requestId: 47, screen: 'MissionView' }, { isProvider: false })).toEqual({ kind: 'client-request', requestId: '47' });
+    expect(classifyNotification({ event: 'dispute.resolved', requestId: 47, screen: 'MissionView' }, { isProvider: false }).dest.params).toEqual({ openRequestId: '47' });
   });
   it('sans mission : l’écran déclaré, le support, ou l’espace', () => {
     expect(classifyNotification({ event: 'account.bank_ready', audience: 'provider', screen: 'Wallet' })).toEqual({ kind: 'screen' });
     expect(classifyNotification({ event: 'support.report_received', audience: 'client', screen: 'Support' })).toEqual({ kind: 'support' });
-    expect(classifyNotification({ event: 'message.received', screen: 'Messages', senderId: 'u1' })).toEqual({ kind: 'screen' });
+    expect(classifyNotification({ event: 'message.received', screen: 'Messages' })).toEqual({ kind: 'screen' });
   });
   it('les anciennes notifications continuent de se classer', () => {
     expect(classifyNotification({ category: 'refund', requestId: 12 })).toEqual({ kind: 'refund', requestId: '12' });
     expect(classifyNotification({ type: 'quote_accepted', requestId: 12 })).toEqual({ kind: 'provider-request', requestId: '12' });
-    expect(classifyNotification({ type: 'new_request', requestId: 12 })).toEqual({ kind: 'opportunity', home: true });
+    expect(classifyNotification({ type: 'new_request', requestId: 12 })).toEqual({ kind: 'opportunity', home: true, requestId: '12' });
+    expect(classifyNotification({ type: 'new_opportunity', requestId: 12 })).toEqual({ kind: 'opportunity', home: false, requestId: '12' });
+    expect(classifyNotification({ type: 'support_escalation', ticketId: 't9' }).dest.pathname).toBe('/tickets/[id]');
   });
 });
 
@@ -60,5 +63,54 @@ describe('resolveProviderDestination — la mission vit sur l’accueil', () => 
     expect(resolveProviderDestination({ id: 7, status: 'PUBLISHED' }).pathname).toBe('/(tabs)/missions');
     expect(resolveProviderDestination({ id: 7, status: 'CANCELLED' }).pathname).toBe('/(tabs)/missions');
     expect(resolveProviderDestination(null).pathname).toBe('/(tabs)/missions');
+  });
+});
+
+describe('classifyNotification — chaque événement mène à ce qu’il annonce (audit 2026-09-25)', () => {
+  const { classifyNotification } = require('@/lib/requestDestination');
+  const dest = (data, opts) => classifyNotification(data, opts).dest;
+  it('devis expiré sans remboursement : l’accueil, pas une preuve de remboursement', () => {
+    expect(dest({ event: 'quote.expired', audience: 'client', requestId: 47, screen: 'Dashboard' }).pathname).toBe('/(tabs)/dashboard');
+  });
+  it('reçu de paiement : la facture de la mission', () => {
+    const d = dest({ event: 'payment.receipt', audience: 'client', requestId: 47, screen: 'Documents' });
+    expect(d.pathname).toBe('/(tabs)/documents');
+    expect(d.params).toEqual({ openRequestId: '47' });
+  });
+  it('facture de commission : les factures du prestataire', () => {
+    expect(dest({ event: 'payment.commission_invoice', audience: 'provider', requestId: 47, screen: 'Wallet' }).pathname).toBe('/invoices');
+  });
+  it('litige côté client : la facture, jamais la page de notation', () => {
+    for (const event of ['dispute.registered', 'dispute.resolved_client_wins', 'dispute.resolved']) {
+      expect(dest({ event, audience: 'client', requestId: 47, screen: 'MissionView' }).params).toEqual({ openRequestId: '47' });
+    }
+  });
+  it('signalement reçu : le ticket ouvert, pas un formulaire vierge', () => {
+    const d = dest({ event: 'support.report_received', audience: 'client', ticketId: 'tk1', category: 'support', screen: 'Support' });
+    expect(d.pathname).toBe('/tickets/[id]');
+    expect(d.params).toEqual({ id: 'tk1' });
+  });
+  it('signalement d’un client : la mission du prestataire, pas le formulaire client', () => {
+    expect(classifyNotification({ event: 'support.client_report', audience: 'provider', type: 'support_escalation', requestId: 47, screen: 'MissionView' })).toEqual({ kind: 'provider-request', requestId: '47' });
+  });
+  it('mission retirée au prestataire : pas de re-résolution sur une mission qui n’est plus la sienne', () => {
+    for (const event of ['mission.cancelled_by_client', 'mission.reassigned', 'mission.abandoned']) {
+      expect(dest({ event, audience: 'provider', requestId: 47, screen: 'Dashboard' }).pathname).toBe('/(tabs)/missions');
+    }
+    expect(dest({ event: 'mission.reassigned_in_progress', audience: 'provider', requestId: 47 }).pathname).toBe('/(tabs)/dashboard');
+  });
+  it('compte validé ou réactivé : l’accueil ; refusé / suspendu : le dossier', () => {
+    expect(dest({ event: 'account.approved', audience: 'provider', type: 'kyc_status', status: 'ACTIVE' }).pathname).toBe('/(tabs)/dashboard');
+    expect(dest({ event: 'account.reactivated', audience: 'provider', type: 'kyc_status' }).pathname).toBe('/(tabs)/dashboard');
+    expect(classifyNotification({ event: 'account.suspended', audience: 'provider', type: 'kyc_status' })).toEqual({ kind: 'kyc' });
+  });
+  it('avis reçu : le bilan de la mission notée', () => {
+    const d = dest({ event: 'review.received', audience: 'provider', requestId: 47, screen: 'Profile' });
+    expect(d.pathname).toBe('/request/[id]/earnings');
+  });
+  it('message : la conversation, avec la mission si connue', () => {
+    const d = dest({ event: 'message.received', screen: 'Messages', senderId: 'u1', requestId: 47 });
+    expect(d.pathname).toBe('/messages/[userId]');
+    expect(d.params).toEqual({ userId: 'u1', requestId: '47' });
   });
 });

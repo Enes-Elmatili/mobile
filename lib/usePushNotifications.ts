@@ -176,20 +176,29 @@ export async function handleNotificationNavigation(data: any, opts: { isProvider
     switch (intent.kind) {
       case 'support':          router.push('/support'); return;
       case 'kyc':              router.replace('/onboarding/provider/pending'); return;
-      case 'opportunity':      navigateToDestination(intent.home ? PROVIDER_HOME : PROVIDER_OPPORTUNITIES); return;
+      case 'opportunity': {
+        // La demande désignée : l'accueil (?request=) ou l'agenda (?opportunity=) l'ouvre, ou dit qu'elle est partie.
+        const base = intent.home ? PROVIDER_HOME : PROVIDER_OPPORTUNITIES;
+        navigateToDestination(intent.requestId ? { ...base, params: { [intent.home ? 'request' : 'opportunity']: intent.requestId } } : base);
+        return;
+      }
+      case 'route':            navigateToDestination(intent.dest); return;
       case 'refund':           navigateToDestination(refundDestination(intent.requestId)); return;
       case 'client-request':   await navigateToRequestById(intent.requestId, { provider: false }); return;
       case 'provider-request': await navigateToRequestById(intent.requestId, { provider: true }); return;
     }
 
     // Deep-links push restants, sans état de demande (messagerie, onglets).
-    const { screen, senderId } = data;
+    const { screen, senderId, requestId } = data;
     switch (screen) {
       case 'Messages':
         if (senderId) router.push({ pathname: '/messages/[userId]', params: { userId: String(senderId) } });
         else router.push('/messages');
         return;
-      case 'Documents': router.push(opts.isProvider ? '/invoices' : '/(tabs)/documents'); return; // Documents est un onglet client ; le prestataire a ses factures
+      case 'Documents': // Documents est un onglet client ; le prestataire a ses factures
+        if (opts.isProvider) router.push('/invoices');
+        else router.push(requestId != null ? { pathname: '/(tabs)/documents', params: { openRequestId: String(requestId) } } : '/(tabs)/documents');
+        return;
       case 'Dashboard': router.replace('/(tabs)/dashboard'); return;
       case 'Wallet':    router.push('/(tabs)/wallet'); return;
       case 'Missions':  router.replace('/(tabs)/missions'); return;

@@ -247,7 +247,7 @@ export default function ProviderDashboard() {
   const [currentMission, setCurrentMission] = useState<CurrentMission | null>(null);
   // Lien profond hérité (/request/:id/ongoing → accueil ?mission=) : cette
   // mission passe devant la dérivation, même planifiée un peu plus tôt.
-  const { mission: wantedMissionParam } = useLocalSearchParams<{ mission?: string }>();
+  const { mission: wantedMissionParam, request: wantedRequestParam } = useLocalSearchParams<{ mission?: string; request?: string }>();
   const wantedMissionRef = useRef<string | null>(null);
   if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
   // Ce que la feuille de mission dit à l'accueil (stade, caméra, porte, hauteur).
@@ -499,12 +499,17 @@ export default function ProviderDashboard() {
     applyOnline(online);
     socket.timeout(8000).emit('provider:set_status', { status: online ? 'READY' : 'OFFLINE' }, (err: Error | null, res?: { ok?: boolean; status?: string; code?: string }) => {
       pendingRef.current = false;
-      if (!err && res?.ok) { applyOnline(isOnlineStatus(res.status)); return; }
+      if (!err && res?.ok) {
+        const on = isOnlineStatus(res.status);
+        applyOnline(on);
+        if (on) fetchIncomingQueue(); // en ligne : la file tout de suite, pas au prochain tick de 20 s
+        return;
+      }
       if (res?.code === GATE_CODES.NOT_VALIDATED || res?.code === GATE_CODES.STRIPE_NOT_READY) return;
       applyOnline(silent ? false : before);
       if (!silent) feedback.error('cockpit.status_failed');
     });
-  }, [socket, applyOnline]);
+  }, [socket, applyOnline, fetchIncomingQueue]);
 
   // Socket
   useEffect(() => {
@@ -630,6 +635,31 @@ export default function ProviderDashboard() {
       socket.off('provider:status_rejected', handleStatusRejected);
     };
   }, [socket, user?.id, fetchIncomingQueue, applyOnline, sendStatus]);
+
+  // Une notification « nouvelle demande » tapée (?request=) : la demande
+  // désignée. En ligne, elle rejoint la file ; hors ligne, on propose de
+  // passer en ligne (hors ligne rien n'arrive, c'est la règle de l'accueil) ;
+  // prise ou annulée entre-temps, on le dit au lieu d'un accueil vide.
+  const handledRequestRef = useRef<string | null>(null);
+  useEffect(() => {
+    const rid = wantedRequestParam ? String(wantedRequestParam) : null;
+    if (loading || !rid || handledRequestRef.current === rid) return;
+    handledRequestRef.current = rid;
+    router.setParams({ request: undefined });
+    if (currentMissionRef.current) return; // en mission : rien d'autre n'arrive
+    (async () => {
+      let available = false;
+      try {
+        const res: any = await api.get(`/requests/${rid}`);
+        const r = res?.data ?? res;
+        available = (r?.status === 'PUBLISHED' || r?.status === 'QUOTE_PENDING') && !r?.providerId;
+      } catch { available = false; }
+      if (!available) { feedback.info('cockpit.request_gone'); return; }
+      if (isOnlineRef.current) { fetchIncomingQueue(); return; }
+      const go = await feedback.confirm({ titleKey: 'cockpit.request_waiting_title', messageKey: 'cockpit.request_waiting_msg', confirmKey: 'cockpit.go_a11y', cancelKey: 'cockpit.request_later' });
+      if (go && !pendingRef.current) { userChoseRef.current = true; sendStatus(true); }
+    })();
+  }, [loading, wantedRequestParam, router, fetchIncomingQueue, sendStatus]);
 
   // Le GO : passer en ligne / hors ligne. L'haptique est partie à l'appui
   // (ActionDisc), sur la même frame que le départ du disque. Lu dans les refs :
