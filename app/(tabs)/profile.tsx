@@ -6,7 +6,7 @@
 // adresses et le FIXED Pass. En bas, le compte (informations, connexion).
 // Les réglages de l'app vivent derrière l'engrenage (app/settings).
 // Une information se modifie un champ à la fois (components/settings/FieldSheet).
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -55,14 +55,15 @@ export default function Profile() {
   const [prov, setProv] = useState<ProviderInfo | null>(null);
   const [connect, setConnect] = useState<{ needsOnboarding?: boolean; payoutsEnabled?: boolean } | null>(null);
   const [docsCount, setDocsCount] = useState<number | null>(null);
-  const [tier, setTier] = useState<string | null>(null);
+  // Palier courant tel que le serveur le décrit (/tiers : libellé, commission) — rien d'écrit ici.
+  const [plan, setPlan] = useState<{ label: string; rate: number; paid: boolean } | null>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
     const jobs: Promise<any>[] = [api.addresses.list().catch(() => null)];
-    if (isProvider) jobs.push(api.providers.me().catch(() => null), api.connect.balance().catch(() => null), api.providerDocs.list().catch(() => null), api.subscription.get().catch(() => null));
+    if (isProvider) jobs.push(api.providers.me().catch(() => null), api.connect.balance().catch(() => null), api.providerDocs.list().catch(() => null), api.get('/tiers').catch(() => null));
     const [addr, p, c, docs, sub] = await Promise.all(jobs);
     setAddresses(Array.isArray(addr) ? addr : addr?.data || []);
     if (isProvider) {
@@ -71,8 +72,9 @@ export default function Profile() {
       if (c) { const cc = c?.data ?? c; setConnect({ needsOnboarding: cc?.needsOnboarding, payoutsEnabled: cc?.payoutsEnabled }); }
       const list = docs?.documents ?? docs?.data ?? docs;
       if (Array.isArray(list)) setDocsCount(list.length);
-      const me = sub?.data ?? sub;
-      if (me?.tier) setTier(String(me.tier));
+      const tiersRes = sub?.data ?? sub;
+      const cur = tiersRes?.tiers?.find((x: any) => x.tier === tiersRes.currentTier) ?? tiersRes?.tiers?.find((x: any) => !x.monthlyPriceCents);
+      if (cur) setPlan({ label: String(cur.label), rate: Math.round(Number(cur.commissionRate) * 100), paid: Number(cur.monthlyPriceCents) > 0 });
     }
     setRefreshing(false);
   }, [user?.id, isProvider]);
@@ -93,12 +95,6 @@ export default function Profile() {
     ? [prov?.categories?.length ? prov.categories.map((c) => translateCategoryRaw(c)).join(' & ') : null, city].filter(Boolean).join(' · ')
     : [email, city].filter(Boolean).join(' · ');
   const rating = prov?.avgRating && prov.avgRating > 0 ? prov.avgRating.toFixed(1).replace('.', ',') : '—';
-  const tierLabel = useMemo(() => {
-    const k = (tier || 'FREE').toUpperCase();
-    if (k.includes('PLUS') || k === 'PRO_PLUS') return 'Pro+';
-    if (k.includes('PRO')) return 'Pro';
-    return 'Free';
-  }, [tier]);
   const payoutsReady = !!connect && !connect.needsOnboarding && connect.payoutsEnabled !== false;
 
   const openCategories = () => setCatsOpen(true);
@@ -169,7 +165,7 @@ export default function Profile() {
             {/* -- Votre activité -- */}
             <SectionHead title={t('profile.activity')} />
             <Group>
-              <Row first icon="zap" title={t('profile.subscription')} sub={tierLabel === 'Free' ? t('profile.plan_free_sub') : t('profile.plan_paid_sub', { plan: tierLabel })} value={tierLabel === 'Free' ? t('profile.go_pro') : tierLabel} tone={tierLabel === 'Free' ? 'warn' : 'default'} onPress={() => router.push('/formules')} />
+              <Row first icon="zap" title={t('profile.subscription')} sub={plan ? t('profile.plan_sub', { plan: plan.label, rate: plan.rate }) : null} value={plan?.paid ? plan.label : t('profile.see_plans')} onPress={() => router.push('/formules')} />
               <Row icon="credit-card" title={t('profile.payouts')} sub={payoutsReady ? t('profile.payouts_ready_sub') : t('profile.payouts_todo_sub')} value={payoutsReady ? t('profile.ready') : t('profile.to_set_up')} tone={payoutsReady ? 'ok' : 'warn'} onPress={() => router.push('/(tabs)/wallet')} />
               <Row icon="file-text" title={t('profile.company')} sub={[prov?.vatNumber ? `${t('profile.vat_label')} ${prov.vatNumber}` : null, docsCount != null ? t('profile.docs_count', { n: docsCount }) : null].filter(Boolean).join(' · ') || t('profile.company_sub')} onPress={() => router.push('/settings/company')} />
             </Group>
@@ -193,7 +189,8 @@ export default function Profile() {
             {/* -- FIXED Pass -- */}
             <SectionHead title="FIXED Pass" />
             <Group>
-              <Row first icon="zap" title={t('profile.pass_none')} sub={t('profile.pass_sub')} value={t('profile.pass_price')} tone="warn" onPress={() => router.push('/formules')} />
+              {/* Le Pass n'est pas encore ouvert : pas de lien vers la page d'abonnement prestataire. */}
+              <Row first icon="zap" title={t('profile.pass_none')} sub={t('profile.pass_sub')} value={t('formules.soon_title')} chevron={false} />
             </Group>
             </CascadeItem>
           </Animated.View>

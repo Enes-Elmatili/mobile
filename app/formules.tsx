@@ -34,7 +34,10 @@ import { feedback } from '@/lib/feedback/feedback';
 import { formatEURCents } from '@/lib/format';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
 import { Skeleton as SkeletonBlock } from '@/components/ui/Skeleton';
+import { PressScale } from '@/components/ui/PressScale';
 import { goBack } from '@/lib/nav/back';
+import * as WebBrowser from 'expo-web-browser';
+import i18n from '@/lib/i18n';
 
 // Google Play impose Play Billing pour tout ce qui peut être lu comme du contenu ou une
 // fonctionnalité numérique, et interdit même de renvoyer vers un paiement tiers. Les
@@ -180,6 +183,41 @@ function PromoBanner({ remaining, nominalPct }: { remaining: number; nominalPct:
   );
 }
 
+// ── Paliers à venir — quand les abonnements payants dorment encore ─────────────
+// Lus sur le serveur (/tiers : libellé, prix, commission) : rien d'écrit ici.
+// Information seulement : aucun achat, aucun lien de paiement.
+const PRICING_URL = { fr: 'https://www.thefixed.app/pricing', nl: 'https://www.thefixed.app/nl/pricing', en: 'https://www.thefixed.app/en/pricing' } as const;
+
+function SoonTiers({ tiers }: { tiers: Tier[] }) {
+  const { t } = useTranslation();
+  const lang = (i18n.language || 'fr').slice(0, 2) as keyof typeof PRICING_URL;
+  const openSite = () => {
+    feedback.haptic('light');
+    WebBrowser.openBrowserAsync(PRICING_URL[lang] ?? PRICING_URL.fr, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }).catch(() => {});
+  };
+  return (
+    <View style={s.soon}>
+      <Text style={[s.upTitle, { color: G.textMuted, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.soon_title').toUpperCase()}</Text>
+      <View style={[s.soonList, { borderColor: G.border }]}>
+        {tiers.map((tier, i) => (
+          <View key={tier.tier} style={[s.soonRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: G.border }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[s.soonName, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]} numberOfLines={1}>{tier.label}</Text>
+              <Text style={[s.soonSub, { color: G.green, fontFamily: FONTS.sansMedium }]}>{t('formules.commission_rate', { rate: ratePct(tier.commissionRate) })}</Text>
+            </View>
+            <Text style={[s.soonPrice, { color: G.textSecondary, fontFamily: FONTS.sansMedium }]}>{`${euros(tier.monthlyPriceCents)} ${t('formules.per_month')}`}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={[s.soonNote, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.soon_note')}</Text>
+      <PressScale accessibilityRole="link" onPress={openSite} style={[s.siteBtn, { borderColor: G.border }]}>
+        <Text style={[s.siteBtnText, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>{t('formules.see_site')}</Text>
+        <Feather name="arrow-up-right" size={16} color={G.textPrimary} />
+      </PressScale>
+    </View>
+  );
+}
+
 // ── TierUpgradeSection — rendu UNIQUEMENT si subscriptionsEnabled=true ──────────
 function UpgradeCard({ tier, onChoose, choosing }: { tier: Tier; onChoose: (t: string) => void; choosing: boolean }) {
   const { t } = useTranslation();
@@ -313,6 +351,9 @@ export default function FormulesScreen() {
   const paidTiers = tiers
     .filter((x) => x.tier !== currentTierKey && availableTiers.includes(x.tier))
     .sort((a, b) => a.order - b.order);
+  const soonTiers = tiers
+    .filter((x) => x.tier !== currentTierKey && x.monthlyPriceCents > 0)
+    .sort((a, b) => a.order - b.order);
 
   return (
     <View style={s.root}>
@@ -374,6 +415,8 @@ export default function FormulesScreen() {
                 ))}
               </>
             )}
+
+            {!subscriptionsEnabled && soonTiers.length > 0 && <SoonTiers tiers={soonTiers} />}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -396,6 +439,16 @@ const s = StyleSheet.create({
   scrollPad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
 
   banner: { paddingHorizontal: 4, paddingBottom: 16, gap: 5 },
+
+  soon: { marginTop: 22, gap: 10 },
+  soonList: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  soonRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  soonName: { fontSize: 22, letterSpacing: 0.5 },
+  soonSub: { fontSize: 13, marginTop: 2 },
+  soonPrice: { fontSize: 14 },
+  soonNote: { fontSize: 13, lineHeight: 18, paddingHorizontal: 4 },
+  siteBtn: { height: 50, borderRadius: 25, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  siteBtnText: { fontSize: 15 },
   bannerTitle: { fontSize: 30, letterSpacing: 0.5, lineHeight: 32 },
   bannerSub: { fontSize: 14, lineHeight: 19 },
 
