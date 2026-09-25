@@ -266,6 +266,9 @@ export default function ProviderDashboard() {
   // cette session, un statut READY hérité d'une session précédente (renvoyé par
   // le serveur au register) est ramené à OFFLINE au lieu d'être affiché.
   const userChoseRef = useRef(false);
+  // Un GO en vol : tant que le serveur n'a pas répondu, ses échos plus anciens
+  // (status_update d'avant l'appui) ne défont pas l'état choisi.
+  const pendingRef = useRef(false);
   const declinedIdsRef = useRef<Set<string>>(new Set());
   // Depuis quand on est en ligne (chrono du dock) — posé au passage à « en ligne ».
   const [onlineSince, setOnlineSince] = useState<number | null>(null);
@@ -476,6 +479,33 @@ export default function ProviderDashboard() {
     return () => clearInterval(iv);
   }, [user?.id, isOnline, fetchIncomingQueue]);
 
+  const applyOnline = useCallback((online: boolean) => {
+    isOnlineRef.current = online;
+    setIsOnline(online);
+    if (!online) setIncomingRequests([]);
+  }, []);
+
+  // Demande un statut au serveur et attend son accusé. Optimiste à l'écran,
+  // mais sans réponse (socket coupée, serveur muet, erreur) on revient à l'état
+  // d'avant et on le dit : le GO ne ment plus. Un refus de gate arrive aussi
+  // par provider:status_rejected, qui ouvre la feuille « finir l'étape ».
+  const sendStatus = useCallback((online: boolean, { silent = false }: { silent?: boolean } = {}) => {
+    const before = isOnlineRef.current;
+    if (!socket?.connected) {
+      if (!silent) feedback.error('cockpit.status_offline');
+      return;
+    }
+    pendingRef.current = true;
+    applyOnline(online);
+    socket.timeout(8000).emit('provider:set_status', { status: online ? 'READY' : 'OFFLINE' }, (err: Error | null, res?: { ok?: boolean; status?: string; code?: string }) => {
+      pendingRef.current = false;
+      if (!err && res?.ok) { applyOnline(isOnlineStatus(res.status)); return; }
+      if (res?.code === GATE_CODES.NOT_VALIDATED || res?.code === GATE_CODES.STRIPE_NOT_READY) return;
+      applyOnline(silent ? false : before);
+      if (!silent) feedback.error('cockpit.status_failed');
+    });
+  }, [socket, applyOnline]);
+
   // Socket
   useEffect(() => {
     if (!socket || !user?.id) return;
@@ -534,38 +564,40 @@ export default function ProviderDashboard() {
     const handleCancelled = (data: any) => removeRequest(data?.id ?? data);
 
     // Un « en ligne » que le prestataire n'a pas choisi dans cette session
-    // (statut hérité, ou remise en READY après une mission) est refusé.
+    // (statut hérité, ou remise en READY par l'admin) est refusé.
     const applyServerOnline = (online: boolean) => {
+      if (pendingRef.current) return; // la réponse au GO fait foi
       if (online && !userChoseRef.current) {
         socket.emit('provider:set_status', { status: 'OFFLINE' });
         online = false;
       }
-      isOnlineRef.current = online;
-      setIsOnline(online);
-      if (!online) setIncomingRequests([]);
+      applyOnline(online);
     };
 
     const handleStatusUpdate = (data: { providerId: string; status: string }) => {
       if (data.providerId === user.id) applyServerOnline(isOnlineStatus(data.status));
     };
 
-    // Réponse du serveur à provider:register — porte le statut réel du compte.
-    // Un dossier non validé revient en 'pending_validation' : le switch doit
-    // refléter ça, pas un optimisme local.
+    // Réponse du serveur à provider:register — porte le statut réel du compte,
+    // que le register ne modifie plus. Après une coupure réseau le serveur
+    // est repassé OFFLINE : si le prestataire avait choisi d'être en ligne
+    // dans cette session, on réaffirme son choix au lieu de le perdre.
     const handleRegistered = (data: any) => {
+      if (pendingRef.current) return;
       // server.js émet { providerId, status, blocked? } ; on accepte aussi la
       // forme imbriquée au cas où un ancien serveur répondrait { provider }.
-      applyServerOnline(isOnlineStatus(data?.status ?? data?.provider?.status));
+      const serverOnline = isOnlineStatus(data?.status ?? data?.provider?.status);
+      const wanted = userChoseRef.current && isOnlineRef.current;
+      if (wanted && !serverOnline && !data?.blocked) { sendStatus(true, { silent: true }); return; }
+      applyServerOnline(serverOnline);
     };
 
     // Le serveur refuse le passage en ligne (dossier incomplet ou Stripe non
     // finalisé). On remet le GO sur la vérité serveur et on propose
     // d'aller finir l'étape manquante — volet coulissant, pas d'alerte système.
     const handleStatusRejected = async (data: { code?: string; message?: string; status?: string }) => {
-      const online = isOnlineStatus(data?.status);
-      isOnlineRef.current = online;
-      setIsOnline(online);
-      if (!online) setIncomingRequests([]);
+      pendingRef.current = false;
+      applyOnline(isOnlineStatus(data?.status));
       feedback.haptic('warning');
 
       const copy = gateCopyFor(data?.code);
@@ -597,21 +629,16 @@ export default function ProviderDashboard() {
       socket.off('provider:registered',      handleRegistered);
       socket.off('provider:status_rejected', handleStatusRejected);
     };
-  }, [socket, user?.id, fetchIncomingQueue]);
+  }, [socket, user?.id, fetchIncomingQueue, applyOnline, sendStatus]);
 
   // Le GO : passer en ligne / hors ligne. L'haptique est partie à l'appui
-  // (ActionDisc), sur la même frame que le départ du disque.
+  // (ActionDisc), sur la même frame que le départ du disque. Lu dans les refs :
+  // le handler reste stable et un double appui ne calcule pas deux fois le même « next ».
   const handleToggleOnline = useCallback(() => {
-    if (!user?.id) return;
-    const next = !isOnline;
+    if (!user?.id || pendingRef.current) return;
     userChoseRef.current = true;
-    isOnlineRef.current = next;
-    setIsOnline(next);
-    // providerId retiré du payload : le serveur prend l'identité sur le socket
-    // authentifié (il l'ignore désormais côté backend).
-    if (socket) socket.emit('provider:set_status', { status: next ? 'READY' : 'OFFLINE' });
-    if (!next) setIncomingRequests([]);
-  }, [isOnline, socket, user?.id]);
+    sendStatus(!isOnlineRef.current);
+  }, [sendStatus, user?.id]);
 
   // Accept — REST call (reliable) + socket notification (real-time bonus)
   const handleAccept = useCallback(async (request: IncomingRequest) => {

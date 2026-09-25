@@ -2559,6 +2559,8 @@
     "gps_veil": "Zonder locatie komt er niets binnen",
     "go_a11y": "Online gaan",
     "stop_a11y": "Offline gaan",
+    "status_offline": "Verbinding met de server wordt gemaakt. Probeer het zo opnieuw.",
+    "status_failed": "Je status kon niet worden gewijzigd. Probeer het opnieuw.",
     "net_title": "Geen verbinding",
     "net_sub": "Wachten op netwerk",
     "net_veil": "Zonder netwerk komt er niets binnen",

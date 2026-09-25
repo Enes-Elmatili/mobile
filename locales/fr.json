@@ -2441,6 +2441,8 @@
     "gps_veil": "Sans position, rien n'arrive",
     "go_a11y": "Passer en ligne",
     "stop_a11y": "Passer hors ligne",
+    "status_offline": "Connexion au serveur en cours. Réessayez dans un instant.",
+    "status_failed": "Le changement de statut n'a pas abouti. Réessayez.",
     "net_title": "Pas de connexion",
     "net_sub": "En attente du réseau",
     "net_veil": "Sans réseau, rien n'arrive",

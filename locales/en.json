@@ -2559,6 +2559,8 @@
     "gps_veil": "No position, nothing comes in",
     "go_a11y": "Go online",
     "stop_a11y": "Go offline",
+    "status_offline": "Connecting to the server. Try again in a moment.",
+    "status_failed": "Your status couldn't be changed. Please try again.",
     "net_title": "No connection",
     "net_sub": "Waiting for network",
     "net_veil": "No network, nothing comes in",
