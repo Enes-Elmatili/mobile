@@ -39,6 +39,7 @@
     "cta_view_opportunities": "View opportunities",
     "cta_view_ticket": "View the report",
     "cta_view_message": "Open the conversation",
+    "cta_view_documents": "View my documents",
     "tag_mission": "Mission",
     "tag_rating": "Rating",
     "tag_refund": "Refund",
@@ -2639,5 +2640,28 @@
     "pwd_confirm": "Once more",
     "pwd_confirm_hint": "To avoid a typo.",
     "social_note": "You sign in with {{provider}}: no FIXED password to manage."
+  },
+  "company": {
+    "section_company": "Company",
+    "section_docs": "Submitted documents",
+    "vat": "CBE / VAT no.",
+    "vat_verified": "Verified with VIES on {{date}}",
+    "legal_name": "Legal name",
+    "address": "Registered address",
+    "iban": "Payout IBAN",
+    "missing": "To complete",
+    "docs_approved": "{{n}}/{{total}} approved",
+    "doc_approved": "Approved",
+    "doc_approved_sub": "Approved on {{date}}",
+    "doc_pending": "Under review",
+    "doc_pending_sub": "Sent on {{date}} · under review",
+    "doc_rejected": "Rejected",
+    "doc_rejected_sub": "Rejected — send a readable, up-to-date version.",
+    "doc_missing": "Missing",
+    "doc_missing_sub": "Not sent yet",
+    "resend": "Send",
+    "view_sent": "View the sent document",
+    "open_error": "Couldn't open the document.",
+    "note": "An approved document can't be replaced here: if it changes (new insurance, new CBE extract), contact support from Settings › Help."
   }
 }

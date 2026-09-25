@@ -39,6 +39,7 @@
     "cta_view_opportunities": "Voir les opportunités",
     "cta_view_ticket": "Voir le signalement",
     "cta_view_message": "Ouvrir la conversation",
+    "cta_view_documents": "Voir mes pièces",
     "tag_mission": "Mission",
     "tag_rating": "Évaluation",
     "tag_refund": "Remboursement",
@@ -2521,5 +2522,28 @@
     "pwd_confirm": "Encore une fois",
     "pwd_confirm_hint": "Pour éviter une faute de frappe.",
     "social_note": "Vous entrez avec {{provider}} : pas de mot de passe FIXED à gérer."
+  },
+  "company": {
+    "section_company": "Entreprise",
+    "section_docs": "Pièces transmises",
+    "vat": "N° BCE / TVA",
+    "vat_verified": "Vérifié auprès de VIES le {{date}}",
+    "legal_name": "Raison sociale",
+    "address": "Siège",
+    "iban": "IBAN des virements",
+    "missing": "À compléter",
+    "docs_approved": "{{n}}/{{total}} validées",
+    "doc_approved": "Validée",
+    "doc_approved_sub": "Validée le {{date}}",
+    "doc_pending": "En vérification",
+    "doc_pending_sub": "Envoyée le {{date}} · vérification en cours",
+    "doc_rejected": "Refusée",
+    "doc_rejected_sub": "Refusée — renvoyez une version lisible et à jour.",
+    "doc_missing": "Manquante",
+    "doc_missing_sub": "Pas encore envoyée",
+    "resend": "Envoyer",
+    "view_sent": "Voir la pièce envoyée",
+    "open_error": "Impossible d'ouvrir la pièce.",
+    "note": "Une pièce validée ne se remplace pas ici : si elle change (nouvelle assurance, nouvel extrait BCE), écrivez au support depuis Réglages › Aide."
   }
 }

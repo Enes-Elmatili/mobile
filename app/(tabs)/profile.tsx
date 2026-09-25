@@ -30,7 +30,7 @@ import { Chip, Figure, Group, Row, SectionHead, type FeatherName } from '@/compo
 import { CategoriesSheet } from '@/components/settings/CategoriesSheet';
 
 type ProviderInfo = {
-  validationStatus?: string | null; vatNumber?: string | null; description?: string | null; companyNumber?: string | null;
+  validationStatus?: string | null; vatNumber?: string | null; description?: string | null;
   avgRating?: number | null; totalRatings?: number | null; jobsCompleted?: number | null; acceptanceRate?: number | null;
   categories?: { id: number; name: string; slug?: string | null; icon?: string | null }[];
 };
@@ -170,7 +170,7 @@ export default function Profile() {
             <Group>
               <Row first icon="zap" title={t('profile.subscription')} sub={tierLabel === 'Free' ? t('profile.plan_free_sub') : t('profile.plan_paid_sub', { plan: tierLabel })} value={tierLabel === 'Free' ? t('profile.go_pro') : tierLabel} tone={tierLabel === 'Free' ? 'warn' : 'default'} onPress={() => router.push('/formules')} />
               <Row icon="credit-card" title={t('profile.payouts')} sub={payoutsReady ? t('profile.payouts_ready_sub') : t('profile.payouts_todo_sub')} value={payoutsReady ? t('profile.ready') : t('profile.to_set_up')} tone={payoutsReady ? 'ok' : 'warn'} onPress={() => router.push('/(tabs)/wallet')} />
-              <Row icon="file-text" title={t('profile.company')} sub={[prov?.companyNumber ? `BCE ${prov.companyNumber}` : null, prov?.vatNumber ? `${t('profile.vat_label')} ${prov.vatNumber}` : null, docsCount != null ? t('profile.docs_count', { n: docsCount }) : null].filter(Boolean).join(' · ') || t('profile.company_sub')} onPress={() => router.push('/onboarding/provider/pending')} />
+              <Row icon="file-text" title={t('profile.company')} sub={[prov?.vatNumber ? `${t('profile.vat_label')} ${prov.vatNumber}` : null, docsCount != null ? t('profile.docs_count', { n: docsCount }) : null].filter(Boolean).join(' · ') || t('profile.company_sub')} onPress={() => router.push('/settings/company')} />
             </Group>
             </CascadeItem>
           </Animated.View>

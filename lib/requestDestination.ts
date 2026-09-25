@@ -232,6 +232,10 @@ function catalogueIntent(event: string, data: any, rid: string | undefined, audi
     case 'account.reactivated':
       return { kind: 'route', dest: DASHBOARD };
 
+    // Une pièce refusée : la liste des pièces, où elle se renvoie.
+    case 'account.document_rejected':
+      return { kind: 'route', dest: { pathname: '/settings/company', ctaKey: 'cta_view_documents', icon: 'file-text' } };
+
     // L'avis porte sur une mission : son bilan.
     case 'review.received':
       return rid ? { kind: 'route', dest: { pathname: '/request/[id]/earnings', params: { id: rid }, ctaKey: 'cta_view_earnings', icon: 'star' } } : null;

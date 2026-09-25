@@ -104,6 +104,9 @@ describe('classifyNotification — chaque événement mène à ce qu’il annonc
     expect(dest({ event: 'account.reactivated', audience: 'provider', type: 'kyc_status' }).pathname).toBe('/(tabs)/dashboard');
     expect(classifyNotification({ event: 'account.suspended', audience: 'provider', type: 'kyc_status' })).toEqual({ kind: 'kyc' });
   });
+  it('pièce refusée : la page des pièces, où elle se renvoie', () => {
+    expect(dest({ event: 'account.document_rejected', audience: 'provider', type: 'kyc_document', docKey: 'ID_FRONT', screen: 'Profile' }).pathname).toBe('/settings/company');
+  });
   it('avis reçu : le bilan de la mission notée', () => {
     const d = dest({ event: 'review.received', audience: 'provider', requestId: 47, screen: 'Profile' });
     expect(d.pathname).toBe('/request/[id]/earnings');

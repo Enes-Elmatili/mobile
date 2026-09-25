@@ -39,6 +39,7 @@
     "cta_view_opportunities": "Opportuniteiten bekijken",
     "cta_view_ticket": "Melding bekijken",
     "cta_view_message": "Gesprek openen",
+    "cta_view_documents": "Mijn documenten bekijken",
     "tag_mission": "Opdracht",
     "tag_rating": "Beoordeling",
     "tag_refund": "Terugbetaling",
@@ -2639,5 +2640,28 @@
     "pwd_confirm": "Nog een keer",
     "pwd_confirm_hint": "Om een tikfout te vermijden.",
     "social_note": "U meldt aan met {{provider}}: geen FIXED-wachtwoord te beheren."
+  },
+  "company": {
+    "section_company": "Onderneming",
+    "section_docs": "Ingediende documenten",
+    "vat": "KBO-/btw-nr.",
+    "vat_verified": "Geverifieerd bij VIES op {{date}}",
+    "legal_name": "Handelsnaam",
+    "address": "Maatschappelijke zetel",
+    "iban": "IBAN voor uitbetalingen",
+    "missing": "Aan te vullen",
+    "docs_approved": "{{n}}/{{total}} goedgekeurd",
+    "doc_approved": "Goedgekeurd",
+    "doc_approved_sub": "Goedgekeurd op {{date}}",
+    "doc_pending": "In controle",
+    "doc_pending_sub": "Verzonden op {{date}} · wordt gecontroleerd",
+    "doc_rejected": "Geweigerd",
+    "doc_rejected_sub": "Geweigerd — stuur een leesbare, recente versie.",
+    "doc_missing": "Ontbreekt",
+    "doc_missing_sub": "Nog niet verzonden",
+    "resend": "Versturen",
+    "view_sent": "Verzonden document bekijken",
+    "open_error": "Kan het document niet openen.",
+    "note": "Een goedgekeurd document kan hier niet worden vervangen: verandert het (nieuwe verzekering, nieuw KBO-uittreksel), neem dan contact op met support via Instellingen › Hulp."
   }
 }
