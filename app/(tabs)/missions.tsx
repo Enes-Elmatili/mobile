@@ -10,7 +10,7 @@
 // Mêmes données qu'avant (/requests, /requests/opportunities), même feuille
 // de détail (components/agenda/details), même glissé pour accepter.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
@@ -33,6 +33,7 @@ import { currentOf, dayKey, dayTimeline, monthGroups, startOfWeek, tripPairs, we
 import { AgendaWeek, DayFoot, EmptyDay, NowRow, PastMonth, SectionHead, TakeRow, Timeline, useOpenMonths } from '@/components/agenda/rows';
 import { MissionDetail, OpportunityDetail, getLocale, type Mission, type Opportunity } from '@/components/agenda/details';
 import { LAYOUT } from '@/lib/motion/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 const WEEKS_BEFORE = 4;
 const WEEKS_AFTER = 8;
@@ -320,9 +321,9 @@ export default function Missions() {
                 </View>
                 {!isToday || weekIndex !== WEEKS_BEFORE ? (
                   <Reanimated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)}>
-                    <Pressable onPress={() => { feedback.haptic('selection'); setSelectedKey(todayKey); setJump((j) => ({ index: WEEKS_BEFORE, n: j.n + 1 })); }} style={[s.todayBtn, { borderColor: theme.border }]} accessibilityRole="button">
+                    <PressScale onPress={() => { feedback.haptic('selection'); setSelectedKey(todayKey); setJump((j) => ({ index: WEEKS_BEFORE, n: j.n + 1 })); }} style={[s.todayBtn, { borderColor: theme.border }]} accessibilityRole="button">
                       <Text style={[s.todayText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.today')}</Text>
-                    </Pressable>
+                    </PressScale>
                   </Reanimated.View>
                 ) : null}
               </View>
@@ -331,9 +332,9 @@ export default function Missions() {
               <AgendaWeek weeks={weeks} selectedKey={selectedKey} onSelect={setSelectedKey} width={width} dayLabel={dayLabel} initialIndex={WEEKS_BEFORE} jump={jump} onWeekChange={setWeekIndex} />
 
               {error ? (
-                <Pressable onPress={loadMissions} style={[s.error, { backgroundColor: theme.surface }]} accessibilityRole="button">
+                <PressScale onPress={loadMissions} style={[s.error, { backgroundColor: theme.surface }]} accessibilityRole="button">
                   <Text style={[s.errorText, { color: theme.text }]}>{error} · {t('common.retry')}</Text>
-                </Pressable>
+                </PressScale>
               ) : null}
 
               {/* -- Maintenant -- */}

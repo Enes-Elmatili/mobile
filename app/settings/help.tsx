@@ -10,8 +10,7 @@
 //   7. Footer contact (email + WhatsApp + horaires + SLA "réponse sous 2h")
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Linking, StatusBar, TextInput,
+  View, Text, StyleSheet, ScrollView, Linking, StatusBar, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -22,6 +21,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ── FAQ catégorisée ────────────────────────────────────────────────────────────
 
@@ -74,10 +74,10 @@ function FAQItem({ item, isLast }: { item: FaqItem; isLast: boolean }) {
   const theme = useAppTheme();
   return (
     <View style={[fi.wrap, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderLight }]}>
-      <TouchableOpacity accessibilityRole="button" style={fi.row} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
+      <PressScale accessibilityRole="button" style={fi.row} onPress={() => setOpen(v => !v)}>
         <Text style={[fi.q, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{item.q}</Text>
         <Feather name={open ? 'minus' : 'plus'} size={16} color={theme.textMuted} />
-      </TouchableOpacity>
+      </PressScale>
       {open && (
         <Text style={[fi.a, { color: theme.textSub, fontFamily: FONTS.sans }]}>{item.a}</Text>
       )}
@@ -191,15 +191,14 @@ export default function HelpScreen() {
 
       {/* Header — sobre, monochrome */}
       <View style={s.header}>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
-          activeOpacity={0.75}
           accessibilityLabel={t('help.back_label')}
           hitSlop={8}
         >
           <Feather name="arrow-left" size={20} color={theme.text} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
           {t('help.header')}
         </Text>
@@ -222,10 +221,9 @@ export default function HelpScreen() {
         </View>
 
         {/* ── Bandeau support WhatsApp ─────────────────────────────────────── */}
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.supportBanner, { backgroundColor: 'rgba(37,211,102,0.10)', borderColor: 'rgba(37,211,102,0.30)' }]}
           onPress={openWhatsApp}
-          activeOpacity={0.85}
         >
           <View style={s.supportIconWrap}>
             <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
@@ -239,7 +237,7 @@ export default function HelpScreen() {
             </Text>
           </View>
           <Feather name="arrow-up-right" size={16} color={theme.textMuted} />
-        </TouchableOpacity>
+        </PressScale>
 
         {/* ── Search ───────────────────────────────────────────────────────── */}
         <View style={[s.searchBar, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
@@ -254,19 +252,18 @@ export default function HelpScreen() {
             autoCorrect={false}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.clear')}>
+            <PressScale onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.clear')}>
               <Feather name="x-circle" size={16} color={theme.textMuted} />
-            </TouchableOpacity>
+            </PressScale>
           )}
         </View>
 
         {/* ── 2 cartes d'action prioritaires ───────────────────────────────── */}
         <View style={s.actionsRow}>
           {/* Mission — accent fort (rouge subtil pour signaler "urgent") */}
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={openMissionSupport}
-            activeOpacity={0.85}
           >
             <View style={[s.actionIcon, { backgroundColor: 'rgba(239,68,68,0.10)' }]}>
               <Feather name="alert-triangle" size={20} color="#EF4444" />
@@ -277,13 +274,12 @@ export default function HelpScreen() {
             <Text style={[s.actionSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               {t('help.action_mission_sub')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
 
           {/* Support direct */}
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={openWhatsApp}
-            activeOpacity={0.85}
           >
             <View style={[s.actionIcon, { backgroundColor: 'rgba(37,211,102,0.10)' }]}>
               <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
@@ -294,22 +290,21 @@ export default function HelpScreen() {
             <Text style={[s.actionSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               {t('help.action_support_sub')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
 
         {/* ── Erreur de chargement des tickets (≠ absence de tickets) ──────── */}
         {ticketsError && tickets.length === 0 && (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.ticketsErrorRow, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={loadTickets}
-            activeOpacity={0.8}
           >
             <Feather name="alert-triangle" size={14} color={theme.textSub} />
             <Text style={[s.ticketsErrorText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
               Impossible de charger vos tickets. Appuyez pour réessayer.
             </Text>
             <Feather name="refresh-cw" size={13} color={theme.textMuted} />
-          </TouchableOpacity>
+          </PressScale>
         )}
 
         {/* ── Mes tickets (ouverts + résolus) ──────────────────────────────── */}
@@ -320,24 +315,22 @@ export default function HelpScreen() {
                 {t('help.tickets_label')}
               </Text>
               <View style={[s.tabsRow, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   onPress={() => setTicketsTab('open')}
                   style={[s.tab, ticketsTab === 'open' && { backgroundColor: theme.cardBg }]}
-                  activeOpacity={0.7}
                 >
                   <Text style={[s.tabText, { color: ticketsTab === 'open' ? theme.text : theme.textMuted, fontFamily: FONTS.monoMedium }]}>
                     {t('help.tickets_tab_open')} ({openTickets.length})
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button"
+                </PressScale>
+                <PressScale accessibilityRole="button"
                   onPress={() => setTicketsTab('closed')}
                   style={[s.tab, ticketsTab === 'closed' && { backgroundColor: theme.cardBg }]}
-                  activeOpacity={0.7}
                 >
                   <Text style={[s.tabText, { color: ticketsTab === 'closed' ? theme.text : theme.textMuted, fontFamily: FONTS.monoMedium }]}>
                     {t('help.tickets_tab_closed')} ({closedTickets.length})
                   </Text>
-                </TouchableOpacity>
+                </PressScale>
               </View>
             </View>
 
@@ -359,11 +352,10 @@ export default function HelpScreen() {
                     : COLORS.amber;
                   const date = new Date(ticket.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                   return (
-                    <TouchableOpacity accessibilityRole="button"
+                    <PressScale accessibilityRole="button"
                       key={ticket.id}
                       style={[s.ticketRow, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderLight }]}
                       onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: ticket.id } })}
-                      activeOpacity={0.7}
                     >
                       <View style={[s.ticketDot, { backgroundColor: dotColor }]} />
                       <View style={{ flex: 1 }}>
@@ -385,7 +377,7 @@ export default function HelpScreen() {
                         </Text>
                       </View>
                       <Feather name="chevron-right" size={14} color={theme.textMuted} />
-                    </TouchableOpacity>
+                    </PressScale>
                   );
                 })}
               </View>
@@ -432,23 +424,23 @@ export default function HelpScreen() {
             {t('help.contact_section')}
           </Text>
 
-          <TouchableOpacity accessibilityRole="button" style={s.contactRow} onPress={openEmail} activeOpacity={0.7}>
+          <PressScale accessibilityRole="button" style={s.contactRow} onPress={openEmail}>
             <Feather name="mail" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
               <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>support@thefixed.app</Text>
               <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('help.contact_email_sub')}</Text>
             </View>
             <Feather name="external-link" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
+          </PressScale>
 
-          <TouchableOpacity accessibilityRole="button" style={s.contactRow} onPress={openWhatsApp} activeOpacity={0.7}>
+          <PressScale accessibilityRole="button" style={s.contactRow} onPress={openWhatsApp}>
             <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
             <View style={{ flex: 1 }}>
               <Text style={[s.contactValue, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('help.contact_whatsapp_title')}</Text>
               <Text style={[s.contactSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('help.contact_whatsapp_sub')}</Text>
             </View>
             <Feather name="external-link" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
+          </PressScale>
 
           <View style={s.contactRow}>
             <Feather name="clock" size={16} color={theme.textSub} />

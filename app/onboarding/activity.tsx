@@ -10,7 +10,7 @@
 // L'écran est un GATE de rattrapage, pas une étape : il se saute tout seul quand
 // l'information est déjà là, et ne s'affiche donc jamais au parcours e-mail.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
@@ -25,6 +25,7 @@ import { getRequiredDocuments } from "../../constants/kycRequirements";
 import { fetchProviderTrades, ONBOARDING_DATA_KEY } from "../../lib/providerOnboarding";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
+import { PressScale } from '@/components/ui/PressScale';
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
@@ -191,18 +192,17 @@ export default function OnboardingActivity() {
         {CITY_OPTIONS.map((opt) => {
           const sel = city === opt.value;
           return (
-            <TouchableOpacity
+            <PressScale
               key={opt.value}
               style={[s.cityOption, sel && s.cityOptionSel]}
               onPress={() => { feedback.haptic("selection"); setCity(opt.value); }}
-              activeOpacity={0.7}
               accessibilityRole="radio"
               accessibilityState={{ selected: sel }}
             >
               <Feather name="map-pin" size={15} color={sel ? darkTokens.bg : alpha(darkTokens.text, 0.6)} />
               <Text style={[s.cityOptionText, sel && { color: darkTokens.bg }]}>{opt.label}</Text>
               {sel && <Feather name="check-circle" size={18} color={C.green} />}
-            </TouchableOpacity>
+            </PressScale>
           );
         })}
       </View>
@@ -231,10 +231,10 @@ export default function OnboardingActivity() {
       {/* Métiers */}
       <Text style={s.sectionLabel}>{t("onboarding.categories_label")}</Text>
       {catsError && categories.length === 0 ? (
-        <TouchableOpacity accessibilityRole="button" style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
+        <PressScale accessibilityRole="button" style={s.centered} onPress={loadCategories}>
           <Feather name="refresh-cw" size={22} color={C.grey} />
           <Text style={s.retryText}>{t("common.retry")}</Text>
-        </TouchableOpacity>
+        </PressScale>
       ) : (
         <View style={s.catGrid}>
           {[...categories]
@@ -242,11 +242,10 @@ export default function OnboardingActivity() {
             .map((cat) => {
               const sel = selectedCats.includes(cat.id);
               return (
-                <TouchableOpacity
+                <PressScale
                   key={cat.id}
                   style={[s.chip, sel && s.chipSel]}
                   onPress={() => toggleCat(cat.id)}
-                  activeOpacity={0.7}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: sel }}
                   accessibilityLabel={cat.name}
@@ -259,7 +258,7 @@ export default function OnboardingActivity() {
                   <Text numberOfLines={1} style={[s.chipText, sel && { color: darkTokens.bg }]}>
                     {cat.name}
                   </Text>
-                </TouchableOpacity>
+                </PressScale>
               );
             })}
         </View>

@@ -9,7 +9,7 @@
 // l'URL — l'agent reçoit le contexte complet à l'ouverture.
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { feedback } from '@/lib/feedback/feedback';
@@ -25,6 +25,7 @@ import {
   shortTicketRef,
 } from '@/lib/support';
 import type { ProblemOption, Severity } from './ProblemSelector';
+import { PressScale } from '@/components/ui/PressScale';
 
 interface Mission {
   id: number;
@@ -205,7 +206,7 @@ export default function ResolutionView({
       </View>
 
       {/* CTA principal */}
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={[
           s.actionBtn,
           { backgroundColor: problem.severity === 'high' ? COLORS.red : theme.text },
@@ -213,7 +214,6 @@ export default function ResolutionView({
         ]}
         onPress={submit}
         disabled={submitting}
-        activeOpacity={0.85}
       >
         {submitting ? (
           <ActivityIndicator color={problem.severity === 'high' ? '#FFF' : theme.bg} />
@@ -237,46 +237,43 @@ export default function ResolutionView({
             </Text>
           </>
         )}
-      </TouchableOpacity>
+      </PressScale>
 
       {/* CTA secondaires */}
       {problem.severity !== 'low' && (
         <View style={s.secondaryRow}>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.secondaryBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={callEmergency}
-            activeOpacity={0.8}
           >
             <Feather name="phone" size={15} color={theme.text} />
             <Text style={[s.secondaryBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
               {t('ext.support_call')}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button"
+          </PressScale>
+          <PressScale accessibilityRole="button"
             style={[s.secondaryBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => Linking.openURL(`mailto:${SUPPORT_CHANNELS.email}?subject=${encodeURIComponent(`Support — ${problem.label}`)}`)}
-            activeOpacity={0.8}
           >
             <Feather name="mail" size={15} color={theme.text} />
             <Text style={[s.secondaryBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
               {t('ext.support_email')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       )}
 
       {/* Retour */}
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={s.backBtn}
         onPress={onBack}
-        activeOpacity={0.7}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Feather name="arrow-left" size={14} color={theme.textMuted} />
         <Text style={[s.backText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
           {t('ext.support_choose_other')}
         </Text>
-      </TouchableOpacity>
+      </PressScale>
     </View>
   );
 }
@@ -318,38 +315,35 @@ function ConfirmationView({ ok, ticketRef, sla, onCallSupport, onWhatsApp, onDon
         )}
       </View>
 
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={[s.actionBtn, { backgroundColor: theme.text }]}
         onPress={onWhatsApp}
-        activeOpacity={0.85}
       >
         <Feather name="message-circle" size={17} color={theme.bg} />
         <Text style={[s.actionBtnText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
           {t('ext.ticket_continue_whatsapp')}
         </Text>
-      </TouchableOpacity>
+      </PressScale>
 
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={[s.secondaryBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight, height: 50 }]}
         onPress={onCallSupport}
-        activeOpacity={0.8}
       >
         <Feather name="phone" size={16} color={theme.text} />
         <Text style={[s.secondaryBtnText, { color: theme.text, fontFamily: FONTS.sansMedium, fontSize: 15 }]}>
           {t('ext.support_call_support')}
         </Text>
-      </TouchableOpacity>
+      </PressScale>
 
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={s.backBtn}
         onPress={onDone}
-        activeOpacity={0.7}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Text style={[s.backText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
           {t('ext.support_back_home')}
         </Text>
-      </TouchableOpacity>
+      </PressScale>
     </View>
   );
 }

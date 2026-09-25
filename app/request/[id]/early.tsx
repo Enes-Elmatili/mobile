@@ -6,8 +6,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, ScrollView, Linking, ActivityIndicator,
+  View, Text, StyleSheet, StatusBar, ScrollView, Linking, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -21,6 +20,7 @@ import { formatEUR } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
 import { useCallParty } from '@/lib/webrtc/CallContext';
+import { PressScale } from '@/components/ui/PressScale';
 
 interface MissionData {
   id: number;
@@ -143,13 +143,12 @@ export default function EarlyScreen() {
         <Text style={[s.errorTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
           {t('missions.mission_unavailable')}
         </Text>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.errorBtn, { backgroundColor: theme.text }]}
           onPress={() => router.replace('/(tabs)/missions')}
-          activeOpacity={0.85}
         >
           <Text style={[s.errorBtnText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </SafeAreaView>
     );
   }
@@ -160,16 +159,15 @@ export default function EarlyScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity
+        <PressScale
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/missions'); }}
-          activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
-        </TouchableOpacity>
+        </PressScale>
         <View style={s.headerCenter}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('missions.mission').toUpperCase()}</Text>
           <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('missions.tab_upcoming')}</Text>
@@ -280,27 +278,25 @@ export default function EarlyScreen() {
 
         {/* Actions */}
         <View style={s.actionsRow}>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.actionPrimary, { backgroundColor: theme.text }]}
             onPress={handleNavigate}
-            activeOpacity={0.85}
           >
             <Feather name="navigation" size={16} color={theme.bg} />
             <Text style={[s.actionPrimaryText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
               {t('ext.early_itinerary')}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button"
+          </PressScale>
+          <PressScale accessibilityRole="button"
             style={[s.actionSecondary, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={handleCallClient}
-            activeOpacity={0.85}
             disabled={!mission.client?.phone}
           >
             <Feather name="phone" size={15} color={mission.client?.phone ? theme.text : theme.textMuted} />
             <Text style={[s.actionSecondaryText, { color: mission.client?.phone ? theme.text : theme.textMuted, fontFamily: FONTS.sansMedium }]}>
               {t('common.call')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
 
         {/* Reminder */}
@@ -312,7 +308,7 @@ export default function EarlyScreen() {
         </View>
 
         {/* Cancel */}
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.refuseBtn, { borderColor: theme.borderLight }]}
           onPress={async () => {
             const ok = await feedback.confirm({
@@ -330,13 +326,12 @@ export default function EarlyScreen() {
               feedback.error(e?.message || t('ext.early_refuse_failed'));
             }
           }}
-          activeOpacity={0.7}
         >
           <Feather name="x" size={14} color={COLORS.red} />
           <Text style={[s.refuseBtnText, { color: COLORS.red, fontFamily: FONTS.sansMedium }]}>
             {t('ext.missions_refuse')}
           </Text>
-        </TouchableOpacity>
+        </PressScale>
       </ScrollView>
     </SafeAreaView>
   );

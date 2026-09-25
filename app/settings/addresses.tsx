@@ -1,7 +1,7 @@
 // app/settings/addresses.tsx — vos adresses enregistrées : celles que le
 // stepper retient à la première demande. On les relit, on en retire.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { Group, Row, SectionHead } from '@/components/settings/rows';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { LAYOUT } from '@/lib/motion/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function AddressesSettings() {
   const router = useRouter();
@@ -31,9 +32,9 @@ export default function AddressesSettings() {
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.head}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('addresses.title').toUpperCase()}</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -45,7 +46,7 @@ export default function AddressesSettings() {
           {addresses.length ? addresses.map((a, i) => (
             <Animated.View key={a.id} entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} layout={LAYOUT}>
               <Row first={i === 0} icon={/maison|home|huis/i.test(a.label || '') ? 'home' : 'map-pin'} title={a.label || t('addresses.address')} sub={a.address} chevron={false} right={
-                <Pressable onPress={() => remove(a.id)} accessibilityRole="button" accessibilityLabel={t('common.delete')} hitSlop={10}><Feather name="trash-2" size={16} color={theme.textMuted as string} /></Pressable>
+                <PressScale onPress={() => remove(a.id)} accessibilityRole="button" accessibilityLabel={t('common.delete')} hitSlop={10}><Feather name="trash-2" size={16} color={theme.textMuted as string} /></PressScale>
               } />
             </Animated.View>
           )) : <Row first icon="map-pin" title={t('addresses.empty')} sub={t('addresses.empty_sub')} chevron={false} />}

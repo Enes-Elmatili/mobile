@@ -3,7 +3,7 @@
 // Dans le parcours normal, le bilan s'ouvre dans la feuille du suivi
 // (missionview, stade « done ») sans changer d'écran.
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import { resolveRequestDestination, navigateToDestination } from '@/lib/requestD
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { DoneContent } from '@/components/tracking/DoneContent';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function DoneScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -54,11 +55,11 @@ export default function DoneScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={40} color={theme.textMuted as string} />
         <Text style={[s.errText, { color: theme.textSub }]}>{t('tracking.load_error')}</Text>
-        <Pressable style={[s.retry, { backgroundColor: theme.accent }]} onPress={load} accessibilityRole="button">
+        <PressScale style={[s.retry, { backgroundColor: theme.accent }]} onPress={load} accessibilityRole="button">
           <Feather name="refresh-cw" size={16} color={theme.accentText as string} />
           <Text style={[s.retryText, { color: theme.accentText }]}>{t('tracking.retry')}</Text>
-        </Pressable>
-        <Pressable onPress={() => router.replace('/(tabs)/dashboard')} accessibilityRole="button" style={s.later}><Text style={[s.laterText, { color: theme.textMuted }]}>{t('tracking.later')}</Text></Pressable>
+        </PressScale>
+        <PressScale onPress={() => router.replace('/(tabs)/dashboard')} accessibilityRole="button" style={s.later}><Text style={[s.laterText, { color: theme.textMuted }]}>{t('tracking.later')}</Text></PressScale>
       </View>
     );
   }

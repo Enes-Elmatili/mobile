@@ -22,6 +22,7 @@ import { useEntrance } from '@/lib/motion/useEntrance';
 import { feedback } from '@/lib/feedback/feedback';
 import { cameraSession } from '@/lib/request/cameraSession';
 import type { LocalShot, ShotQueueItem } from '@/lib/request/photos';
+import { PressScale } from '@/components/ui/PressScale';
 
 const MAX_WIDTH = 1600;
 const JPEG_QUALITY = 0.75;
@@ -117,9 +118,9 @@ export default function GuidedCamera() {
   if (permission && !permission.granted && !permission.canAskAgain) {
     return (
       <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
-        <Pressable onPress={close} style={[s.close, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+        <PressScale onPress={close} style={[s.close, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
           <Feather name="x" size={20} color="#FFFFFF" />
-        </Pressable>
+        </PressScale>
         <View style={s.denied}>
           <Feather name="camera-off" size={28} color="rgba(255,255,255,0.7)" />
           <Text style={s.deniedTitle}>{t('camera.denied_title')}</Text>
@@ -152,9 +153,9 @@ export default function GuidedCamera() {
       <View style={[s.steps, { top: insets.top + 12 }]} accessibilityLabel={t('camera.shot_of', { n: index + 1, total: queue.length })}>
         {queue.map((q, i) => <View key={`${q.key ?? 'free'}-${i}`} style={[s.step, i <= index && s.stepOn]} />)}
       </View>
-      <Pressable onPress={close} style={[s.close, { top: insets.top + 28 }]} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+      <PressScale onPress={close} style={[s.close, { top: insets.top + 28 }]} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
         <Feather name="x" size={20} color="#FFFFFF" />
-      </Pressable>
+      </PressScale>
 
       {/* Consigne */}
       <Animated.View style={[s.caption, { top: insets.top + 84 }, entrance.style]} key={`cap-${index}`}>
@@ -180,14 +181,14 @@ export default function GuidedCamera() {
         ) : (
           <View style={s.shootRow}>
             <View style={s.side} />
-            <Pressable onPress={shoot} disabled={busy || !permission?.granted} accessibilityRole="button" accessibilityLabel={label} style={[s.shutter, busy && { opacity: 0.5 }]}>
+            <PressScale onPress={shoot} disabled={busy || !permission?.granted} accessibilityRole="button" accessibilityLabel={label} style={[s.shutter, busy && { opacity: 0.5 }]}>
               <View style={s.shutterInner} />
-            </Pressable>
+            </PressScale>
             <View style={s.side}>
               {!item.required ? (
-                <Pressable onPress={skip} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.skip')}>
+                <PressScale onPress={skip} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.skip')}>
                   <Text style={s.skip}>{t('camera.skip')}</Text>
-                </Pressable>
+                </PressScale>
               ) : null}
             </View>
           </View>

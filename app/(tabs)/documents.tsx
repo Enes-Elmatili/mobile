@@ -1,8 +1,7 @@
 // app/(tabs)/documents.tsx — Client Documents (Glow Up v2)
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl, StatusBar,
+  View, Text, StyleSheet, ActivityIndicator, RefreshControl, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTabBarPadding } from './_layout';
@@ -19,6 +18,7 @@ import InvoiceSheet from '../../components/sheets/InvoiceSheet';
 import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR, formatEURCents, formatEURInt } from '@/lib/format';
+import { PressScale } from '@/components/ui/PressScale';
 
 const TERMINAL_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
 
@@ -64,8 +64,8 @@ function SummaryCard({ icon, value, label, dark, active, onPress, theme }: {
   const valColor = dark ? darkTokens.text : theme.text;
   const labelColor = dark ? 'rgba(255,255,255,0.3)' : theme.textMuted;
 
-  const Wrapper: any = onPress ? TouchableOpacity : View;
-  const wrapperProps = onPress ? { onPress, activeOpacity: 0.85 } : {};
+  const Wrapper: any = onPress ? PressScale : View;
+  const wrapperProps = onPress ? { onPress } : {};
 
   return (
     <Wrapper style={[sc.card, { backgroundColor: bg, borderColor: border }]} {...wrapperProps}>
@@ -115,7 +115,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const service = (invoice as any).request?.serviceType || t('ext.invoice_service_default');
 
   return (
-    <TouchableOpacity accessibilityRole="button" style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress} activeOpacity={0.85}>
+    <PressScale accessibilityRole="button" style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress}>
       <View style={[iv.bar, { backgroundColor: barColor }]} />
       <View style={[iv.icon, { backgroundColor: iconBg }]}>
         <Feather name={iconName as any} size={16} color={iconColor} />
@@ -130,7 +130,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
           <Text style={[iv.pillText, { color: pillColor }]}>{pillLabel}</Text>
         </View>
       </View>
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 
@@ -299,15 +299,14 @@ export default function Documents() {
               : t('ext.documents_tab_scheduled_sub')}
           </Text>
         </View>
-        <TouchableOpacity
+        <PressScale
           style={[s.helpBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => router.push('/settings/help')}
-          activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={t('common.help')}
         >
           <Feather name="help-circle" size={16} color={theme.text} />
-        </TouchableOpacity>
+        </PressScale>
       </View>
 
       {/* Main tabs */}
@@ -322,11 +321,10 @@ export default function Documents() {
             : tab === 'devis' ? quoteRequests.length
             : scheduledRequests.length;
           return (
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               key={tab}
               style={[s.mainTab, isActive && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
               onPress={() => setActiveTab(tab)}
-              activeOpacity={0.7}
             >
               <Text style={[s.mainTabText, { color: isActive ? theme.text : theme.textMuted }]}>{label}</Text>
               {count > 0 && (
@@ -334,7 +332,7 @@ export default function Documents() {
                   <Text style={[s.mainTabBadgeText, { color: isActive ? theme.accentText : theme.textMuted }]}>{count}</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </PressScale>
           );
         })}
       </View>
@@ -361,14 +359,13 @@ export default function Documents() {
             <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
               Vérifiez votre connexion puis réessayez.
             </Text>
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.emptyCta, { backgroundColor: theme.accent }]}
               onPress={() => { setLoading(true); load(); }}
-              activeOpacity={0.85}
             >
               <Feather name="refresh-cw" size={14} color={theme.accentText} />
               <Text style={[s.emptyCtaText, { color: theme.accentText }]}>{t('common.retry')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         ) : (
         <>
@@ -420,14 +417,13 @@ export default function Documents() {
                     : t('ext.documents_empty_invoices_filter_desc')}
                 </Text>
                 {filter === 'all' && (
-                  <TouchableOpacity accessibilityRole="button"
+                  <PressScale accessibilityRole="button"
                     style={[s.emptyCta, { backgroundColor: theme.accent }]}
                     onPress={() => router.push('/request/NewRequestStepper')}
-                    activeOpacity={0.85}
                   >
                     <Feather name="plus" size={14} color={theme.accentText} />
                     <Text style={[s.emptyCtaText, { color: theme.accentText }]}>{t('ext.documents_order_cta')}</Text>
-                  </TouchableOpacity>
+                  </PressScale>
                 )}
               </View>
             ) : (
@@ -445,7 +441,7 @@ export default function Documents() {
 
             {/* Assistance card */}
             <Text style={[s.sectionLabel, { color: theme.textMuted, marginTop: 10, marginBottom: 10 }]}>{t('ext.documents_assistance')}</Text>
-            <TouchableOpacity accessibilityRole="button" style={s.assistCard} onPress={() => router.push('/settings/help')} activeOpacity={0.85}>
+            <PressScale accessibilityRole="button" style={s.assistCard} onPress={() => router.push('/settings/help')}>
               <View style={s.assistIcon}>
                 <Feather name="message-circle" size={18} color="rgba(255,255,255,0.7)" />
               </View>
@@ -456,7 +452,7 @@ export default function Documents() {
               <View style={s.assistArrow}>
                 <Feather name="arrow-right" size={13} color="rgba(255,255,255,0.6)" />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           </>
         )}
 
@@ -472,14 +468,13 @@ export default function Documents() {
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   Vos devis apparaîtront ici une fois qu’un prestataire aura fait son diagnostic.
                 </Text>
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   style={[s.emptyCta, { backgroundColor: theme.accent }]}
                   onPress={() => router.push('/request/NewRequestStepper')}
-                  activeOpacity={0.85}
                 >
                   <Feather name="plus" size={14} color={theme.accentText} />
                   <Text style={[s.emptyCtaText, { color: theme.accentText }]}>Demander un devis</Text>
-                </TouchableOpacity>
+                </PressScale>
               </View>
             ) : (
               <View style={s.invoiceList}>
@@ -523,11 +518,10 @@ export default function Documents() {
                   };
 
                   return (
-                    <TouchableOpacity accessibilityRole="button"
+                    <PressScale accessibilityRole="button"
                       key={req.id}
                       style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
                       onPress={handlePress}
-                      activeOpacity={0.85}
                     >
                       <View style={[iv.bar, { backgroundColor: barColor }]} />
                       <View style={[iv.icon, { backgroundColor: pillBg }]}>
@@ -554,7 +548,7 @@ export default function Documents() {
                           <Text style={[iv.pillText, { color: pillTone }]}>{pillLabel}</Text>
                         </View>
                       </View>
-                    </TouchableOpacity>
+                    </PressScale>
                   );
                 })}
               </View>
@@ -574,14 +568,13 @@ export default function Documents() {
                 <Text style={[s.emptyDesc, { color: theme.textMuted }]}>
                   {t('ext.documents_empty_scheduled_desc')}
                 </Text>
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   style={[s.emptyCta, { backgroundColor: theme.accent }]}
                   onPress={() => router.push('/request/NewRequestStepper')}
-                  activeOpacity={0.85}
                 >
                   <Feather name="calendar" size={14} color={theme.accentText} />
                   <Text style={[s.emptyCtaText, { color: theme.accentText }]}>{t('ext.documents_schedule_cta')}</Text>
-                </TouchableOpacity>
+                </PressScale>
               </View>
             ) : (
               <View style={s.invoiceList}>
@@ -627,11 +620,10 @@ export default function Documents() {
                       : { pathname: '/request/[id]/scheduled', params: { id: req.id, mode: 'recap' } };
 
                   return (
-                    <TouchableOpacity accessibilityRole="button"
+                    <PressScale accessibilityRole="button"
                       key={req.id}
                       style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
                       onPress={() => router.push(target)}
-                      activeOpacity={0.85}
                     >
                       <View style={[iv.bar, { backgroundColor: barColor }]} />
                       <View style={[iv.icon, { backgroundColor: pillBg }]}>
@@ -649,7 +641,7 @@ export default function Documents() {
                           <Text style={[iv.pillText, { color: pillTone }]}>{pillLabel}</Text>
                         </View>
                       </View>
-                    </TouchableOpacity>
+                    </PressScale>
                   );
                 })}
               </View>

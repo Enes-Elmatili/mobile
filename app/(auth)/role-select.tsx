@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  Pressable,
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -28,6 +27,7 @@ import {
   AuthStepper,
   stripAccent,
 } from "@/components/auth";
+import { PressScale } from '@/components/ui/PressScale';
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
 
@@ -61,7 +61,7 @@ function RoleCard({
 
   return (
     <Animated.View style={press.style}>
-      <Pressable
+      <PressScale
         style={[
           s.card,
           { backgroundColor: theme.cardBg, borderColor: theme.borderLight },
@@ -87,7 +87,7 @@ function RoleCard({
         <View style={[s.radio, { borderColor: alpha(theme.text, 0.3) }, isSelected && { borderColor: dot }]}>
           <Animated.View style={[s.radioInner, { backgroundColor: dot }, dotStyle]} />
         </View>
-      </Pressable>
+      </PressScale>
     </Animated.View>
   );
 }

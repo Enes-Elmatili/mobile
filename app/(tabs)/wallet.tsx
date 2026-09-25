@@ -24,6 +24,7 @@ import { formatDay, formatEURCents, formatMonth } from '@/lib/format';
 import { DEFAULT_PAYOUT_DELAY_DAYS, groupByMonth, inTransit, toLine, type GainLine, type MonthGroup, type Payout, type WalletTx } from '@/lib/gains/model';
 import { GainRow } from '@/components/gains/GainRow';
 import { MoneySheet } from '@/components/gains/MoneySheet';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Segment = 'missions' | 'payouts';
 type ConnectBalance = { needsOnboarding?: boolean; payoutsEnabled?: boolean; available?: number; pending?: number; lastPayout?: Payout | null; payouts?: Payout[]; payoutSchedule?: { interval: string; delayDays: number } | null; bank?: { last4: string; bankName?: string | null } | null };
@@ -50,13 +51,13 @@ function MonthHeader({ group, open, onToggle, lang }: { group: MonthGroup; open:
   const theme = useAppTheme();
   const { t } = useTranslation();
   return (
-    <Pressable onPress={() => { feedback.haptic('selection'); onToggle(); }} style={s.month} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${formatMonth(group.year, group.month, lang)}, ${formatEURCents(group.net, 0)}`}>
+    <PressScale onPress={() => { feedback.haptic('selection'); onToggle(); }} style={s.month} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${formatMonth(group.year, group.month, lang)}, ${formatEURCents(group.net, 0)}`}>
       <Text style={[s.monthLabel, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{`${formatMonth(group.year, group.month, lang)} · ${t('gains.month_missions', { count: group.missions })}`.toUpperCase()}</Text>
       <View style={s.monthRight}>
         <Text style={[s.monthNet, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{formatEURCents(group.net, 0)}</Text>
         <Feather name={open ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textMuted as string} />
       </View>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -205,9 +206,9 @@ export default function WalletTab() {
           <Text style={[s.emptyTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{item.title}</Text>
           <Text style={[s.emptySub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{item.sub}</Text>
           {item.cta ? (
-            <Pressable style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); item.cta!.onPress(); }} accessibilityRole="button" accessibilityLabel={item.cta.label}>
+            <PressScale style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); item.cta!.onPress(); }} accessibilityRole="button" accessibilityLabel={item.cta.label}>
               <Text style={[s.ctaText, { color: theme.accentText }]}>{item.cta.label.toUpperCase()}</Text>
-            </Pressable>
+            </PressScale>
           ) : null}
         </View>
       );
@@ -226,9 +227,9 @@ export default function WalletTab() {
           <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('gains.title')}</Text>
           <Text style={[s.schedule, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{schedule}</Text>
         </View>
-        <Pressable onPress={openMenu} disabled={stripeBusy} style={[s.menuBtn, { backgroundColor: theme.surface }]} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={8}>
+        <PressScale onPress={openMenu} disabled={stripeBusy} style={[s.menuBtn, { backgroundColor: theme.surface }]} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={8}>
           {stripeBusy ? <ActivityIndicator size="small" color={theme.textSub as string} /> : <Feather name="more-horizontal" size={20} color={theme.text as string} />}
-        </Pressable>
+        </PressScale>
       </View>
       <View style={s.segment}>
         <SegmentedControl<Segment> options={[{ value: 'missions', label: t('gains.seg_missions') }, { value: 'payouts', label: t('gains.seg_payouts') }]} value={segment} onChange={(v) => { feedback.haptic('selection'); setSegment(v); }} />

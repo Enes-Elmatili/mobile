@@ -2,7 +2,7 @@
 // de passe, Apple, Google) et, pour un compte email, le changement de mot de
 // passe — trois champs, une feuille chacun.
 import React, { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
 import { CascadeItem } from '@/lib/motion/useCascade';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function LoginSettings() {
   const router = useRouter();
@@ -53,9 +54,9 @@ export default function LoginSettings() {
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.head}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('profile.login').toUpperCase()}</Text>
         <View style={{ width: 40 }} />
       </View>

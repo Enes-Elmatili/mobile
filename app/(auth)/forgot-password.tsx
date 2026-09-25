@@ -1,10 +1,7 @@
 // app/(auth)/forgot-password.tsx — forgot password (flat theme-aware, v2 éditorial)
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
+  View, Text, StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -23,6 +20,7 @@ import {
 } from "@/components/auth";
 import Animated from 'react-native-reanimated';
 import { useEntrance } from '@/lib/motion/useEntrance';
+import { PressScale } from '@/components/ui/PressScale';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -154,7 +152,7 @@ export default function ForgotPassword() {
         />
 
         {!sent && (
-          <TouchableOpacity accessibilityRole="button" onPress={handleBack} activeOpacity={0.7} style={s.secondaryLink}>
+          <PressScale accessibilityRole="button" onPress={handleBack} style={s.secondaryLink}>
             <Text
               style={[
                 s.secondaryLinkText,
@@ -167,7 +165,7 @@ export default function ForgotPassword() {
             >
               {t('auth.back_to_login_link')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         )}
       </Animated.View>
     </AuthScreen>

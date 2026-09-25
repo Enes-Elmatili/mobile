@@ -20,8 +20,7 @@
 // SOURCE UNIQUE TEXTES   : i18n (namespace formules.*) — FR/NL/EN. Haptics via feedback.
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  StatusBar, Platform, ActivityIndicator, ScrollView,
+  View, Text, StyleSheet, StatusBar, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -256,13 +255,13 @@ function UpgradeCard({ tier, onChoose, choosing }: { tier: Tier; onChoose: (t: s
         </View>
       )}
 
-      <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} style={s.ctaWrap} disabled={choosing} onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}>
+      <PressScale accessibilityRole="button" style={s.ctaWrap} disabled={choosing} onPress={() => { feedback.haptic('light'); onChoose(tier.tier); }}>
         <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={s.cta}>
           {choosing
             ? <ActivityIndicator color={G.onAccent} />
             : <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>{t('formules.cta_choose', { label: tier.label })}</Text>}
         </LinearGradient>
-      </TouchableOpacity>
+      </PressScale>
     </>
   );
 
@@ -362,16 +361,15 @@ export default function FormulesScreen() {
         <StatusBar barStyle="light-content" />
 
         <View style={[s.header, { borderBottomColor: G.border }]}>
-          <TouchableOpacity
+          <PressScale
             style={[s.backBtn, { backgroundColor: G.scrim }]}
             onPress={() => { feedback.haptic('light'); goBack(router, '/(tabs)/dashboard'); }}
-            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}
             hitSlop={8}
           >
             <Feather name="arrow-left" size={20} color={G.textPrimary} />
-          </TouchableOpacity>
+          </PressScale>
           <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.title').toUpperCase()}</Text>
           <View style={{ width: 38 }} />
         </View>
@@ -382,12 +380,12 @@ export default function FormulesScreen() {
           <View style={s.center}>
             <Feather name="wifi-off" size={36} color={G.textVeryMuted} />
             <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>{t('formules.load_error')}</Text>
-            <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} style={s.ctaWrap} onPress={() => { feedback.haptic('light'); load(); }}>
+            <PressScale accessibilityRole="button" style={s.ctaWrap} onPress={() => { feedback.haptic('light'); load(); }}>
               <LinearGradient colors={G.gradCta} start={A180.start} end={A180.end} style={[s.cta, s.retry]}>
                 <Feather name="refresh-cw" size={15} color={G.onAccent} />
                 <Text style={[s.ctaText, { color: G.onAccent, fontFamily: FONTS.sansMedium }]}>{t('formules.retry')}</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         ) : (
           <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>

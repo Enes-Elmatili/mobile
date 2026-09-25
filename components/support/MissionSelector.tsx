@@ -3,13 +3,14 @@
 // utilisateurs avec un historique long, et un empty state actionnable.
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatEUR } from '@/lib/format';
+import { PressScale } from '@/components/ui/PressScale';
 
 interface Mission {
   id: number;
@@ -91,9 +92,9 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
             autoCapitalize="none"
           />
           {query.length > 0 && (
-            <TouchableOpacity accessibilityRole="button" onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <PressScale accessibilityRole="button" onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="x" size={16} color={theme.textMuted} />
-            </TouchableOpacity>
+            </PressScale>
           )}
         </View>
       )}
@@ -113,16 +114,15 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
               : isProvider ? t('ext.support_p_empty_hint') : t('ext.support_create_first')}
           </Text>
           {!query && (
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.emptyCta, { backgroundColor: theme.text }]}
               onPress={() => router.push(isProvider ? '/(tabs)/missions' : '/request/NewRequestStepper')}
-              activeOpacity={0.85}
             >
               <Feather name={isProvider ? 'compass' : 'plus'} size={14} color={theme.bg} />
               <Text style={[s.emptyCtaText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>
                 {isProvider ? t('ext.support_p_view_opportunities') : t('dashboard.new_request')}
               </Text>
-            </TouchableOpacity>
+            </PressScale>
           )}
         </View>
       ) : (
@@ -131,16 +131,15 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
             <MissionCard key={mission.id} mission={mission} onPress={() => onSelect(mission)} theme={theme} />
           ))}
           {hiddenCount > 0 && !showAll && !query.trim() && (
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.showMore, { borderColor: theme.borderLight }]}
               onPress={() => setShowAll(true)}
-              activeOpacity={0.7}
             >
               <Text style={[s.showMoreText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
                 {t('dashboard.see_all_more', { count: hiddenCount })}
               </Text>
               <Feather name="chevron-down" size={14} color={theme.textSub} />
-            </TouchableOpacity>
+            </PressScale>
           )}
         </View>
       )}
@@ -152,10 +151,9 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
           <Text style={[s.dividerText, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('ext.or')}</Text>
           <View style={[s.dividerLine, { backgroundColor: theme.borderLight }]} />
         </View>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.otherBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={onOther}
-          activeOpacity={0.75}
         >
           <View style={[s.otherIcon, { backgroundColor: theme.cardBg }]}>
             <Feather name="help-circle" size={18} color={theme.textSub} />
@@ -169,7 +167,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
             </Text>
           </View>
           <Feather name="chevron-right" size={16} color={theme.textMuted} />
-        </TouchableOpacity>
+        </PressScale>
       </View>
     </View>
   );
@@ -184,10 +182,9 @@ function MissionCard({ mission, onPress, theme }: {
 }) {
   const { t } = useTranslation();
   return (
-    <TouchableOpacity accessibilityRole="button"
+    <PressScale accessibilityRole="button"
       style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
       onPress={onPress}
-      activeOpacity={0.78}
     >
       <View style={[s.cardIcon, { backgroundColor: theme.surface }]}>
         <Feather name="tool" size={16} color={theme.textSub} />
@@ -214,7 +211,7 @@ function MissionCard({ mission, onPress, theme }: {
         </View>
       </View>
       <Feather name="chevron-right" size={16} color={theme.textMuted} style={{ alignSelf: 'center' }} />
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 

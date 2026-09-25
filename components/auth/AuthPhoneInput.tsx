@@ -21,7 +21,7 @@
  * Avant ça, « +32 » + « 0470… » donnait +320470123456 — un faux numéro.
  */
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, StyleSheet } from "react-native";
 import CountryPicker, { getAllCountries, FlagType } from "react-native-country-picker-modal";
 import type { Country, CountryCode } from "react-native-country-picker-modal";
 import { toE164, splitInternational, keepsLeadingZero } from "@/lib/phone";
@@ -29,6 +29,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha, themedFieldColors } from "./tokens";
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   defaultValue?: string;
@@ -135,9 +136,8 @@ export function AuthPhoneInput({
         ]}
       >
         {/* Country chip — flag + dial code + chevron */}
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={s.chip}
-          activeOpacity={0.7}
           onPress={() => setPickerVisible(true)}
         >
           <CountryPicker
@@ -160,7 +160,7 @@ export function AuthPhoneInput({
             size={14}
             color={themed ? alpha(theme.text, 0.5) : alpha(authT.textOnDark, 0.5)}
           />
-        </TouchableOpacity>
+        </PressScale>
 
         {/* Subtle separator between chip and number */}
         <View style={[s.divider, themed && { backgroundColor: alpha(theme.text, 0.12) }]} />

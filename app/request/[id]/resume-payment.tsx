@@ -2,8 +2,7 @@
 // Reprendre le paiement d'une demande PENDING_PAYMENT existante
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar, Platform,
-  TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, StatusBar, Platform, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +19,7 @@ import { devError } from '@/lib/logger';
 import { formatEUR } from '@/lib/format';
 import { useLayoutClass } from '@/lib/layout';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 const GRID_SIZE = 40;
 
@@ -238,16 +238,15 @@ export default function ResumePayment() {
 
       {/* Header */}
       <View style={[s.header, Platform.OS === 'android' && { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
+        <PressScale
           style={s.backBtn}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
-          activeOpacity={0.75}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color="rgba(255,255,255,0.85)" />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={s.headerTitle}>{t('ext.invoice_payment_label')}</Text>
         <View style={{ width: 20 }} />
       </View>
@@ -309,11 +308,10 @@ export default function ResumePayment() {
       {/* Footer CTA */}
       {!loading && (
         <View style={[s.footer, Platform.OS === 'android' && { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.btnPrimary, (!paymentReady || paying) && s.btnDisabled]}
             onPress={handlePay}
             disabled={!paymentReady || paying}
-            activeOpacity={0.9}
           >
             {paying ? (
               <ActivityIndicator size="small" color={C.bg} />
@@ -330,7 +328,7 @@ export default function ResumePayment() {
                 </View>
               </>
             )}
-          </TouchableOpacity>
+          </PressScale>
         </View>
       )}
     </View>

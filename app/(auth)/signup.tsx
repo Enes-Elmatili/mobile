@@ -1,15 +1,7 @@
 // app/(auth)/signup.tsx — signup multi-phase (flat theme-aware, v2 éditorial)
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ActivityIndicator,
-  Platform,
-  BackHandler,
+  View, Text, TextInput, StyleSheet, StatusBar, ActivityIndicator, Platform, BackHandler,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
@@ -44,6 +36,7 @@ import {
   AuthStepper,
 } from "@/components/auth";
 import type { ParsedAddress } from "@/components/auth";
+import { PressScale } from '@/components/ui/PressScale';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -593,11 +586,10 @@ export default function Signup() {
             {/* Social */}
             <View style={s.socialRow}>
               {Platform.OS === "ios" && (
-                <TouchableOpacity
+                <PressScale
                   style={[s.socialBtn, socialBtnTheme]}
                   onPress={handleAppleSignIn}
                   disabled={isBusy}
-                  activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={t("auth.su_continue_apple")}
                 >
@@ -609,13 +601,12 @@ export default function Signup() {
                       <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Apple</Text>
                     </>
                   )}
-                </TouchableOpacity>
+                </PressScale>
               )}
-              <TouchableOpacity
+              <PressScale
                 style={[s.socialBtn, socialBtnTheme]}
                 onPress={handleGooglePress}
                 disabled={isBusy}
-                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t("auth.su_continue_google")}
               >
@@ -627,7 +618,7 @@ export default function Signup() {
                     <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Google</Text>
                   </>
                 )}
-              </TouchableOpacity>
+              </PressScale>
             </View>
 
             <View style={s.divider}>
@@ -796,7 +787,7 @@ export default function Signup() {
               </Text>
               <View style={s.cityDropdown}>
                 {CITY_OPTIONS.map((opt) => (
-                  <TouchableOpacity accessibilityRole="button"
+                  <PressScale accessibilityRole="button"
                     key={opt.value}
                     style={[
                       s.cityOption,
@@ -807,7 +798,6 @@ export default function Signup() {
                       feedback.haptic('selection');
                       setCity(opt.value);
                     }}
-                    activeOpacity={0.7}
                   >
                     <Feather
                       name="map-pin"
@@ -824,7 +814,7 @@ export default function Signup() {
                       {opt.label}
                     </Text>
                     {city === opt.value && <Feather name="check-circle" size={18} color={theme.brandDot} />}
-                  </TouchableOpacity>
+                  </PressScale>
                 ))}
               </View>
             </View>
@@ -886,7 +876,7 @@ export default function Signup() {
                   <ActivityIndicator size="large" color={alpha(theme.text, 0.6)} />
                 </View>
               ) : catsError && categories.length === 0 ? (
-                <TouchableOpacity accessibilityRole="button" style={s.centered} onPress={loadCategories} activeOpacity={0.7}>
+                <PressScale accessibilityRole="button" style={s.centered} onPress={loadCategories}>
                   <Feather name="refresh-cw" size={24} color={alpha(theme.text, theme.isDark ? 0.5 : 0.68)} />
                   <Text
                     style={[s.retryText, { color: alpha(theme.text, theme.isDark ? 0.5 : 0.68) }]}
@@ -894,7 +884,7 @@ export default function Signup() {
                   >
                     {t('common.retry')}
                   </Text>
-                </TouchableOpacity>
+                </PressScale>
               ) : (
                 <View style={s.catGrid}>
                   {[...categories]
@@ -902,7 +892,7 @@ export default function Signup() {
                     .map((cat) => {
                       const sel = selectedCats.includes(cat.id);
                       return (
-                        <TouchableOpacity accessibilityRole="button"
+                        <PressScale accessibilityRole="button"
                           key={cat.id}
                           style={[
                             s.chip,
@@ -910,7 +900,6 @@ export default function Signup() {
                             sel && { backgroundColor: theme.text, borderColor: theme.text },
                           ]}
                           onPress={() => toggleCat(cat.id)}
-                          activeOpacity={0.7}
                         >
                           <Feather
                             name={toFeatherName(cat.icon, "briefcase") as any}
@@ -924,7 +913,7 @@ export default function Signup() {
                           >
                             {cat.name}
                           </Text>
-                        </TouchableOpacity>
+                        </PressScale>
                       );
                     })}
                 </View>

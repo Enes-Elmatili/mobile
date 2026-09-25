@@ -15,7 +15,7 @@
  * flat v2 screens — default false = gradient zone rendering, strictly unchanged.
  */
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, Platform, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 import type { GooglePlaceDetail, AddressComponent } from "react-native-google-places-autocomplete";
 import { Feather } from "@expo/vector-icons";
@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha, themedFieldColors } from "./tokens";
 import { AuthInput } from "./AuthInput";
+import { PressScale } from '@/components/ui/PressScale';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
@@ -201,10 +202,9 @@ export function AuthAddressAutocomplete({
           </View>
         </View>
 
-        <TouchableOpacity
+        <PressScale
           onPress={() => setManual(false)}
           style={s.manualLinkRow}
-          activeOpacity={0.7}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={t("auth.address_search_a11y")}
@@ -213,7 +213,7 @@ export function AuthAddressAutocomplete({
           <Text style={[s.manualLink, themed && { color: manualLinkColor }]}>
             {t("auth.address_search_a11y")}
           </Text>
-        </TouchableOpacity>
+        </PressScale>
 
         {effectiveError ? (
           <View style={s.errorRow}>
@@ -363,10 +363,9 @@ export function AuthAddressAutocomplete({
         />
       </View>
 
-      <TouchableOpacity
+      <PressScale
         onPress={switchToManual}
         style={s.manualLinkRow}
-        activeOpacity={0.7}
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={t("auth.address_manual_a11y")}
@@ -375,7 +374,7 @@ export function AuthAddressAutocomplete({
         <Text style={[s.manualLink, themed && { color: manualLinkColor }]}>
           {t("auth.address_manual_link")}
         </Text>
-      </TouchableOpacity>
+      </PressScale>
 
       {effectiveError ? (
         <View style={s.errorRow}>

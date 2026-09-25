@@ -1,8 +1,7 @@
 // app/settings/cgu.tsx — Conditions Générales d'Utilisation (v1.0 — 15 mars 2026)
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, StatusBar,
+  View, Text, StyleSheet, ScrollView, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -10,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ── Accordion Article ─────────────────────────────────────────────────────────
 
@@ -19,13 +19,13 @@ function Article({ n, title, body }: { n: string; title: string; body: string })
   const { t } = useTranslation();
   return (
     <View style={[s.article, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-      <TouchableOpacity accessibilityRole="button" style={s.articleHeader} onPress={() => setOpen(v => !v)} activeOpacity={0.7}>
+      <PressScale accessibilityRole="button" style={s.articleHeader} onPress={() => setOpen(v => !v)}>
         <View style={s.articleLeft}>
           <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('ext.cgu_art')} {n}</Text>
           <Text style={[s.articleTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{title}</Text>
         </View>
         <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} />
-      </TouchableOpacity>
+      </PressScale>
       {open && (
         <Text style={[s.articleBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>{body}</Text>
       )}
@@ -259,9 +259,9 @@ export default function CGUScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={20} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.cgu_title')}</Text>
         <View style={{ width: 38 }} />
       </View>

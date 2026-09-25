@@ -1,8 +1,9 @@
 // components/ui/SectionHeader.tsx — Mono uppercase label + optional action text
 // Design system pattern: consistent section headers across all screens
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { PressScale } from '@/components/ui/PressScale';
 
 interface SectionHeaderProps {
   label: string;
@@ -16,9 +17,9 @@ export default function SectionHeader({ label, action, onAction }: SectionHeader
     <View style={s.row}>
       <Text style={[s.label, { color: theme.textMuted }]}>{label}</Text>
       {action ? (
-        <TouchableOpacity accessibilityRole="button" onPress={onAction} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
+        <PressScale accessibilityRole="button" onPress={onAction} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={[s.action, { color: theme.textSub }]}>{action}</Text>
-        </TouchableOpacity>
+        </PressScale>
       ) : null}
     </View>
   );

@@ -1,8 +1,7 @@
 // components/onboarding/OnboardingLayout.tsx — Dark premium wrapper for onboarding screens
 import React from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, StatusBar,
+  View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, StatusBar,
 } from "react-native";
 import Animated from "react-native-reanimated";
 import { useGlow } from "@/lib/motion/useLoops";
@@ -16,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
 import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
+import { PressScale } from '@/components/ui/PressScale';
 
 const GRID_SIZE = 40;
 
@@ -133,16 +133,15 @@ export function OnboardingLayout({
       <View style={[s.header, Platform.OS === "android" && { paddingTop: insets.top + 16 }]}>
         <View style={s.navRow}>
           {shouldShowBack ? (
-            <TouchableOpacity
+            <PressScale
               style={s.backBtn}
               onPress={handleBack}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('common.back')}
             >
               <Feather name="chevron-left" size={16} color={alpha(darkTokens.text, 0.6)} />
-            </TouchableOpacity>
+            </PressScale>
           ) : (
             <View style={{ width: 36 }} />
           )}
@@ -188,14 +187,13 @@ export function OnboardingLayout({
         {/* CTA */}
         {cta && (
           <View style={[s.footer, Platform.OS === "android" && { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
               onPress={() => {
                 feedback.haptic('medium');
                 cta.onPress();
               }}
               disabled={cta.disabled || cta.loading}
-              activeOpacity={0.82}
             >
               <Text style={s.btnPrimaryText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                 {cta.loading ? t('common.loading').toUpperCase() : cta.label.toUpperCase()}
@@ -205,23 +203,22 @@ export function OnboardingLayout({
                   <Feather name="arrow-right" size={14} color={C.white} />
                 </View>
               )}
-            </TouchableOpacity>
+            </PressScale>
 
             {!!cta.sub && (
               <Text style={s.ctaSub}>{cta.sub.toUpperCase()}</Text>
             )}
 
             {secondaryCta && (
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 onPress={() => {
                   feedback.haptic('light');
                   secondaryCta.onPress();
                 }}
                 style={s.secondaryCta}
-                activeOpacity={0.7}
               >
                 <Text style={s.secondaryCtaText}>{secondaryCta.label}</Text>
-              </TouchableOpacity>
+              </PressScale>
             )}
           </View>
         )}

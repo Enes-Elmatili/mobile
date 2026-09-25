@@ -5,9 +5,10 @@
  * actionable suffix. Variant `onDark` for use in the dark zone.
  */
 import React from "react";
-import { Pressable, Text, StyleSheet } from "react-native";
+import { Text, StyleSheet } from "react-native";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
 import { authT, alpha } from "./tokens";
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   prefix?: string;
@@ -31,7 +32,7 @@ export function AuthLink({ prefix, action, onPress, onDark, themed = false }: Pr
     : alpha(base, 0.55);
   const actionColor = themed ? theme.text : base;
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
@@ -42,7 +43,7 @@ export function AuthLink({ prefix, action, onPress, onDark, themed = false }: Pr
         {prefix ? `${prefix} ` : ""}
         <Text style={[s.strong, { color: actionColor }]}>{action}</Text>
       </Text>
-    </Pressable>
+    </PressScale>
   );
 }
 

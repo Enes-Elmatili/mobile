@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Platform, Vibration,
+  View, Text, StyleSheet, Platform, Vibration,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
@@ -17,6 +17,7 @@ import { RINGTONE_SOUND } from '@/hooks/useSoundManager';
 import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useTranslation } from 'react-i18next';
+import { PressScale } from '@/components/ui/PressScale';
 
 // Android : [attente, vibration, pause] — iOS : durées entre deux vibrations.
 const RING_VIBRATION_PATTERN = Platform.OS === 'android' ? [0, 800, 1600] : [800, 1600];
@@ -118,24 +119,22 @@ export default function IncomingCallOverlay() {
 
         {/* Actions */}
         <View style={s.actions}>
-          <TouchableOpacity
+          <PressScale
             style={s.rejectBtn}
             onPress={rejectCall}
-            activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Refuser l'appel"
           >
             <Feather name="x" size={22} color={COLORS.red} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressScale>
+          <PressScale
             style={s.acceptBtn}
             onPress={acceptCall}
-            activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Accepter l'appel"
           >
             <Feather name="phone" size={22} color="#FFF" />
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </View>
     </Animated.View>

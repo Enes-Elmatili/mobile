@@ -8,7 +8,7 @@
 // manquante se renvoient ici : remplacer une pièce validée la repasserait
 // « en vérification » — ce cas passe par le support.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead, type RowTone } from '@/components/settings/rows';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { getRequiredDocuments, type DocumentRequirement } from '@/constants/kycRequirements';
+import { PressScale } from '@/components/ui/PressScale';
 
 type DocStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 type ServerDoc = { docKey: string; fileUrl?: string | null; status: DocStatus; rejectionReason?: string | null; approvedAt?: string | null; createdAt?: string | null };
@@ -124,9 +125,9 @@ export default function CompanyScreen() {
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.head}>
-        <Pressable onPress={() => goBack(router, '/(tabs)/profile')} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => goBack(router, '/(tabs)/profile')} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t('profile.company').toUpperCase()}</Text>
         <View style={{ width: 40 }} />
       </View>

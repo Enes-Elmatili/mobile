@@ -2,7 +2,7 @@
 // Une ligne par champ (nom, téléphone, ville, bio et TVA pour le prestataire) ;
 // chaque ligne ouvre une feuille à un champ (components/settings/FieldSheet).
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
 import { CascadeItem } from '@/lib/motion/useCascade';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Key = 'name' | 'phone' | 'city' | 'description' | 'vatNumber';
 
@@ -65,9 +66,9 @@ export default function AccountSettings() {
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.head}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('profile.information').toUpperCase()}</Text>
         <View style={{ width: 40 }} />
       </View>

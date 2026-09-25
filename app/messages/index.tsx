@@ -1,8 +1,7 @@
 // app/messages/index.tsx — Inbox : liste des conversations
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, StatusBar,
+  View, Text, StyleSheet, RefreshControl, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import i18nInstance from '@/lib/i18n';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -162,9 +162,8 @@ export default function MessagesInbox() {
   };
 
   const renderItem = useCallback(({ item }: { item: Conversation }) => (
-    <TouchableOpacity accessibilityRole="button"
+    <PressScale accessibilityRole="button"
       style={[s.row, { backgroundColor: theme.cardBg }]}
-      activeOpacity={0.7}
       onPress={() =>
         router.push({ pathname: '/messages/[userId]', params: { userId: item.userId, name: item.displayName } })
       }
@@ -183,7 +182,7 @@ export default function MessagesInbox() {
         </Text>
       </View>
       {item.unread && <View style={[s.unreadDot, { backgroundColor: theme.accent }]} />}
-    </TouchableOpacity>
+    </PressScale>
   ), [router, theme, t]);
 
   return (
@@ -192,7 +191,7 @@ export default function MessagesInbox() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity
+        <PressScale
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -200,7 +199,7 @@ export default function MessagesInbox() {
           accessibilityLabel="Retour"
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('messages.title')}</Text>
         <View style={{ width: 38 }} />
       </View>
@@ -216,16 +215,15 @@ export default function MessagesInbox() {
           <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
             {t('messages.load_error_sub')}
           </Text>
-          <TouchableOpacity
+          <PressScale
             style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => { setLoading(true); fetchInbox(); }}
-            activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={t('common.retry')}
           >
             <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('common.retry').toUpperCase()}</Text>
             <Feather name="refresh-cw" size={15} color={theme.accentText} />
-          </TouchableOpacity>
+          </PressScale>
         </View>
       ) : conversations.length === 0 ? (
         <View style={s.centered}>
@@ -234,14 +232,13 @@ export default function MessagesInbox() {
           <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
             {t('messages.empty_sub_client')}
           </Text>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.emptyBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.replace('/(tabs)/dashboard')}
-            activeOpacity={0.85}
           >
             <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('messages.find_pro').toUpperCase()}</Text>
             <Feather name="arrow-right" size={15} color={theme.accentText} />
-          </TouchableOpacity>
+          </PressScale>
         </View>
       ) : (
         <>

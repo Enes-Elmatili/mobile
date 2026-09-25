@@ -5,8 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, ScrollView, KeyboardAvoidingView,
+  View, Text, StyleSheet, StatusBar, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
@@ -25,6 +24,7 @@ import MissionSelector from '@/components/support/MissionSelector';
 import ProblemSelector, { type ProblemOption } from '@/components/support/ProblemSelector';
 import ResolutionView from '@/components/support/ResolutionView';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -162,9 +162,9 @@ function MissionContextCard({ mission, onChange, theme }: {
             {t('ext.support_not_linked')}
           </Text>
         </View>
-        <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.edit')}>
+        <PressScale onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.edit')}>
           <Feather name="edit-2" size={14} color={theme.textMuted} />
-        </TouchableOpacity>
+        </PressScale>
       </View>
     );
   }
@@ -182,9 +182,9 @@ function MissionContextCard({ mission, onChange, theme }: {
           #{mission.id} · {date}
         </Text>
       </View>
-      <TouchableOpacity onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.edit')}>
+      <PressScale onPress={onChange} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('common.edit')}>
         <Feather name="edit-2" size={14} color={theme.textMuted} />
-      </TouchableOpacity>
+      </PressScale>
     </View>
   );
 }
@@ -298,16 +298,15 @@ export default function SupportScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity
+        <PressScale
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
-          activeOpacity={0.75}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
-        </TouchableOpacity>
+        </PressScale>
         <View style={s.headerCenter}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
             {t('ext.support_center')}
@@ -344,17 +343,16 @@ export default function SupportScreen() {
         {level === 1 && (
           <FadeSlide key="level1">
             {loadError && !loading && (
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 style={[s.errorBanner, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
                 onPress={() => { setLoading(true); loadMissions(); }}
-                activeOpacity={0.8}
               >
                 <Feather name="alert-triangle" size={15} color={theme.textSub} />
                 <Text style={[s.errorBannerText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                   {t('ext.support_load_error')}
                 </Text>
                 <Feather name="refresh-cw" size={14} color={theme.textMuted} />
-              </TouchableOpacity>
+              </PressScale>
             )}
             <MissionSelector
               missions={missions}

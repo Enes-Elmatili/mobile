@@ -5,7 +5,7 @@
 // & support (les tickets ouverts d'abord), à propos, la suppression du compte
 // à part, « se déconnecter » en simple lien avec la version.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -22,6 +22,7 @@ import { Group, Row, SectionHead, SwitchRow } from '@/components/settings/rows';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { LAYOUT } from '@/lib/motion/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
 const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true, quiet: { enabled: false, from: '22:00', to: '07:00' } };
@@ -84,9 +85,9 @@ export default function Settings() {
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.head}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </Pressable>
+        </PressScale>
         <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('settings.title').toUpperCase()}</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -156,9 +157,9 @@ export default function Settings() {
           <Row first icon="x" danger title={t('ext.privacy_delete_account')} sub={t('settings.delete_sub')} onPress={deleteAccount} />
         </Group>
 
-        <Pressable onPress={logout} style={s.out} accessibilityRole="button" accessibilityLabel={t('auth.logout')} hitSlop={8}>
+        <PressScale onPress={logout} style={s.out} accessibilityRole="button" accessibilityLabel={t('auth.logout')} hitSlop={8}>
           <Text style={[s.outText, { color: theme.textMuted }]} maxFontSizeMultiplier={1.3}>{t('auth.logout')}</Text>
-        </Pressable>
+        </PressScale>
         <Text style={[s.version, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{`FIXED ${version}${build ? ` · BUILD ${build}` : ''}`}</Text>
         </CascadeItem>
       </ScrollView>

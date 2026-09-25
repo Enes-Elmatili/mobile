@@ -8,9 +8,7 @@
 //   5. Footer : UNE action dominante (accepter), refus en lien discret → sheet dédiée
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  View, Text, StyleSheet, StatusBar, Platform,
-  TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Modal,
+  View, Text, StyleSheet, StatusBar, Platform, TextInput, KeyboardAvoidingView, Modal, Pressable,
 } from "react-native";
 import Animated, {
   Easing, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle,
@@ -41,6 +39,7 @@ import { formatEURCents as fmtEur } from "@/lib/format";
 import { cleanName } from "@/lib/displayName";
 import { translateRequestServiceRaw } from "@/lib/categoryLabel";
 import { useTranslation } from "react-i18next";
+import { PressScale } from '@/components/ui/PressScale';
 
 
 /** Sépare "871,00 €" en { value, cur } pour composer le montant héros en deux tailles. */
@@ -332,16 +331,15 @@ export default function QuoteReview() {
   const Header = (
     <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
       <View style={s.header}>
-        <TouchableOpacity
+        <PressScale
           style={[s.headerBack, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={goBack}
-          activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel={t('common.back')}
           hitSlop={8}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.short_label').toUpperCase()}</Text>
         <View style={{ width: 36 }} />
       </View>
@@ -371,9 +369,9 @@ export default function QuoteReview() {
             <Feather name="file-text" size={28} color={theme.textMuted} />
           </View>
           <Text style={[s.emptyText, { color: theme.textSub }]}>{t('quote.empty_no_quote_yet')}</Text>
-          <TouchableOpacity style={s.emptyBack} onPress={goBack} accessibilityRole="button" hitSlop={8}>
+          <PressScale style={s.emptyBack} onPress={goBack} accessibilityRole="button" hitSlop={8}>
             <Text style={[s.emptyBackText, { color: theme.text }]}>{t('common.back')}</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </View>
     );
@@ -605,10 +603,9 @@ export default function QuoteReview() {
         {/* ── Prestataire ── */}
         {provider ? (
           <Reveal delay={180}>
-            <TouchableOpacity
+            <PressScale
               style={[s.card, s.providerCard, cardStyle]}
               onPress={() => router.push(`/providers/${provider.id}`)}
-              activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={providerName}
             >
@@ -633,7 +630,7 @@ export default function QuoteReview() {
                 </View>
               </View>
               <Feather name="chevron-right" size={18} color={theme.textMuted} />
-            </TouchableOpacity>
+            </PressScale>
             {/* Message et appel : le prestataire a accepté, on peut lui parler avant de décider. */}
             <View style={{ marginTop: 8 }}>
               <ProviderRow
@@ -697,16 +694,15 @@ export default function QuoteReview() {
               onPress={handleAccept}
               haptic="none"
             />
-            <TouchableOpacity
+            <PressScale
               style={s.refuseLink}
               onPress={() => { feedback.haptic('light'); setShowRefuseInput(true); }}
-              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('quote.refuse_link')}
               hitSlop={8}
             >
               <Text style={[s.refuseLinkText, { color: theme.textSub }]}>{t('quote.refuse_link')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </>
         ) : accepted ? (
           <RaisedButton
@@ -739,9 +735,8 @@ export default function QuoteReview() {
             adjustResize est inopérant sur Android — `undefined` laisserait le champ
             « raison » derrière le clavier. */}
         <KeyboardAvoidingView style={s.modalRoot} behavior="padding">
-          <TouchableOpacity
+          <Pressable
             style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#000000', 0.55) }]}
-            activeOpacity={1}
             onPress={closeRefuse}
             accessibilityRole="button"
             accessibilityLabel={t('common.close')}
@@ -778,14 +773,13 @@ export default function QuoteReview() {
             </View>
 
             <View style={s.sheetBtns}>
-              <TouchableOpacity
+              <PressScale
                 style={[s.sheetCancel, { borderColor: theme.border }]}
                 onPress={closeRefuse}
-                activeOpacity={0.75}
                 accessibilityRole="button"
               >
                 <Text style={[s.sheetCancelText, { color: theme.textSub }]}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
+              </PressScale>
               <RaisedButton
                 variant="destructive"
                 size="md"

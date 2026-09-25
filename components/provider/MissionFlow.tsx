@@ -11,7 +11,7 @@
 // un seul itinéraire) ; la feuille remonte son stade et sa hauteur pour que
 // la caméra et l'étiquette suivent. Ex-app/request/[id]/ongoing.tsx.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,7 @@ import { PhotoGallery, PhotoViewer } from '@/components/mission/photos';
 import { DigitReel } from '@/components/ui/DigitReel';
 import { AccessChips, CodeEntry, Cta, EtaHero, NetLine, PhotoCard, ProviderRow, Rail, StageHeader, StageSheet, TimerHero, type RailRow, type SheetLevel } from '@/components/tracking';
 import { useCallParty } from '@/lib/webrtc/CallContext';
+import { PressScale } from '@/components/ui/PressScale';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const RETRY_MAX = 6;
@@ -372,10 +373,10 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   const end = brief ? plannedEnd(brief) : null;
   // Aide et abandon : une ligne discrète en bas de la feuille (plus de « … » en haut : l'accueil garde sa rangée).
   const options = stage !== 'done' ? (
-    <Pressable onPress={openMenu} disabled={busy} style={s.options} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={6}>
+    <PressScale onPress={openMenu} disabled={busy} style={s.options} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={6}>
       <Feather name="more-horizontal" size={16} color={theme.textMuted as string} />
       <Text style={[s.optionsText, { color: theme.textMuted }]}>{t('missions.options')}</Text>
-    </Pressable>
+    </PressScale>
   ) : null;
 
   let content: React.ReactNode = null;

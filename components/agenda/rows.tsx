@@ -22,6 +22,7 @@ import { isQuoteMode, netFor, type MissionBrief } from '@/lib/mission/brief';
 import { distanceLabel, placeShort, serviceName } from '@/components/mission/blocks';
 import type { AgendaItem, MonthGroup, TimelineRow, Week } from '@/lib/agenda/model';
 import { LAYOUT } from '@/lib/motion/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 const CAPSULE_INSET = 4;
 const clock = (ms: number) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -31,14 +32,14 @@ function DayCell({ day, selected, label, onPress, width }: { day: Week['days'][n
   const theme = useAppTheme();
   const dots = Math.min(3, day.count);
   return (
-    <Pressable onPress={onPress} style={[s.day, { width }]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${label} ${day.dayOfMonth}${day.count ? `, ${day.count}` : ''}`}>
+    <PressScale onPress={onPress} style={[s.day, { width }]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${label} ${day.dayOfMonth}${day.count ? `, ${day.count}` : ''}`}>
       <Text style={[s.dayLabel, { color: selected ? alpha(theme.accentText, 0.6) : theme.textMuted }]} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
       <Text style={[s.dayNum, { color: selected ? theme.accentText : day.isToday ? theme.text : theme.textSub }]} maxFontSizeMultiplier={1.2}>{day.dayOfMonth}</Text>
       <View style={s.dots}>
         {Array.from({ length: dots }).map((_, i) => <View key={i} style={[s.dot, { backgroundColor: selected ? alpha(theme.accentText, 0.5) : day.quote && i === 0 ? COLORS.amber : theme.textSub }]} />)}
         {day.isToday && !selected && !dots ? <View style={[s.dot, { backgroundColor: COLORS.greenBrand }]} /> : null}
       </View>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -261,26 +262,26 @@ export function PastMonth({ group, label, open, onToggle, onPress, dayLabel }: {
   const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 90}deg` }] }));
   return (
     <Animated.View layout={LAYOUT}>
-      <Pressable onPress={() => { feedback.haptic('selection'); onToggle(); }} style={[s.month, { borderTopColor: theme.borderLight }]} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${label}, ${t('agenda.n_missions', { count: group.count })}, ${formatEUR(group.net, 0)}`}>
+      <PressScale onPress={() => { feedback.haptic('selection'); onToggle(); }} style={[s.month, { borderTopColor: theme.borderLight }]} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${label}, ${t('agenda.n_missions', { count: group.count })}, ${formatEUR(group.net, 0)}`}>
         <Text style={[s.monthName, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
         <Text style={[s.monthCount, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('agenda.n_missions', { count: group.count })}</Text>
         <Text style={[s.monthAmt, { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{formatEUR(group.net, 0)}</Text>
         <Animated.View style={chevron}><Feather name="chevron-right" size={14} color={theme.textMuted as string} /></Animated.View>
-      </Pressable>
+      </PressScale>
       {open ? group.items.map((it, i) => {
         const cancelled = it.status !== 'DONE';
         const endLabel = it.status === 'QUOTE_REFUSED' ? t('agenda.quote_refused') : it.status === 'QUOTE_EXPIRED' || it.status === 'EXPIRED' ? t('agenda.expired') : cancelled ? t('agenda.cancelled') : null;
         const net = netFor(it.brief);
         return (
           <Animated.View key={it.id} entering={FadeInDown.delay(Math.min(i, 8) * 30).duration(200)} exiting={FadeOut.duration(120)}>
-          <Pressable onPress={() => { feedback.haptic('light'); onPress(it); }} style={s.past} accessibilityRole="button" accessibilityLabel={`${dayLabel(it.at)} ${serviceName(it.brief)}`}>
+          <PressScale onPress={() => { feedback.haptic('light'); onPress(it); }} style={s.past} accessibilityRole="button" accessibilityLabel={`${dayLabel(it.at)} ${serviceName(it.brief)}`}>
             <Text style={[s.pastDay, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{dayLabel(it.at).toUpperCase()}</Text>
             <Text style={{ flex: 1 }} numberOfLines={1} maxFontSizeMultiplier={1.2}>
               <Text style={[s.pastTitle, { color: theme.text }]}>{serviceName(it.brief)}</Text>
               <Text style={[s.rowSub, { color: theme.textSub }]}>{[placeShort(it.brief.place.address), endLabel].filter(Boolean).map((x) => ` · ${x}`).join('')}</Text>
             </Text>
             {net != null ? <Text style={[s.pastAmt, cancelled ? { color: theme.textMuted, textDecorationLine: 'line-through' } : { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{cancelled ? formatEUR(net, 0) : `+${formatEUR(net, 0)}`}</Text> : null}
-          </Pressable>
+          </PressScale>
           </Animated.View>
         );
       }) : null}

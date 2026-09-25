@@ -65,13 +65,28 @@ export const SHEET_SPRING_REDUCED = {
  */
 export const SHEET_OVER_DRAG_RESISTANCE = 3.5;
 
+// Une seule lecture et un seul abonnement pour toute l'app : chaque bouton
+// (PressScale) lit ce hook — 200 écouteurs système sinon. La valeur est lue
+// dès le chargement du module, donc un écran monté après ne démarre plus à
+// `false` le temps d'une frame (première animation qui ignorait le réglage).
+let reducedNow = false;
+const reducedListeners = new Set<(v: boolean) => void>();
+const setReducedNow = (v: boolean) => {
+  if (v === reducedNow) return;
+  reducedNow = v;
+  reducedListeners.forEach((fn) => fn(v));
+};
+AccessibilityInfo.isReduceMotionEnabled?.().then(setReducedNow).catch(() => {});
+AccessibilityInfo.addEventListener?.('reduceMotionChanged', setReducedNow);
+
 /** État OS du réglage « Réduire les animations ». */
 export function useReduceMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(reducedNow);
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduced).catch(() => {});
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => sub.remove();
+    reducedListeners.add(setReduced);
+    if (reduced !== reducedNow) setReduced(reducedNow);
+    return () => { reducedListeners.delete(setReduced); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abonnement unique au montage
   }, []);
   return reduced;
 }

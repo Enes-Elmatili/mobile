@@ -3,7 +3,7 @@
 // avec le compteur, une seule ligne de progression (2 pt) qui avance sur
 // MOTION.pane depuis sa valeur courante, puis les puces des décisions prises.
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -11,6 +11,7 @@ import { MOTION } from '@/lib/motion/springs';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { StepCrumbs } from './StepCrumbs';
 import type { Crumb } from '@/lib/request/crumbs';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   step: number;
@@ -37,7 +38,7 @@ export function StepHeader({ step, total, title, onBack, backLabel, crumbs = [],
   return (
     <View>
       <View style={s.backRow}>
-        <Pressable
+        <PressScale
           onPress={onBack}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel={backLabel}
@@ -45,7 +46,7 @@ export function StepHeader({ step, total, title, onBack, backLabel, crumbs = [],
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
         >
           <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </Pressable>
+        </PressScale>
       </View>
       <View style={s.titleRow}>
         <Text style={[s.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>

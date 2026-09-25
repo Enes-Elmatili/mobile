@@ -2,7 +2,7 @@
 // demande à prendre, telle qu'elle existait dans l'onglet Missions (déplacée
 // à l'identique lors de la refonte « Missions, c'est l'agenda »).
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import type { MissionBrief } from '@/lib/mission/brief';
+import { PressScale } from '@/components/ui/PressScale';
 
 const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
 export const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
@@ -234,10 +235,10 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
         {/* -- CTA -- */}
         {mission.status === 'QUOTE_PENDING' && (
           <View style={sd.actionsBlock}>
-            <TouchableOpacity accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+            <PressScale accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull}>
               <Feather name="file-text" size={18} color={t.accentText} />
               <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_send_quote')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         )}
         {mission.status === 'QUOTE_SENT' && (
@@ -250,19 +251,19 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
         )}
         {mission.status === 'QUOTE_ACCEPTED' && (
           <View style={sd.actionsBlock}>
-            <TouchableOpacity accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+            <PressScale accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull}>
               <Feather name="arrow-right" size={18} color={t.accentText} />
               <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_start_mission')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         )}
         {(canNavigate || canComplete || cfg.active) && !['QUOTE_PENDING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(mission.status) && (
           <View style={sd.actionsBlock}>
             {cfg.active && (
-              <TouchableOpacity accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull} activeOpacity={0.85}>
+              <PressScale accessibilityRole="button" style={[sd.navBtn, { backgroundColor: t.accent }]} onPress={onViewFull}>
                 <Feather name="arrow-right" size={18} color={t.accentText} />
                 <Text style={[sd.navBtnText, { color: t.accentText }]}>{tr('ext.missions_resume_mission')}</Text>
-              </TouchableOpacity>
+              </PressScale>
             )}
           </View>
         )}
@@ -357,14 +358,14 @@ export function OpportunityDetail({ opportunity, onAccept, onDecline, accepting,
       </View>
       {/* -- CTA Refuser / Accepter -- */}
       <View style={[sd.actionsBlock, { flexDirection: 'row', gap: 10 }]}>
-        <TouchableOpacity
+        <PressScale
           style={[opp.declineBtn, { borderColor: t.border, flex: 1, justifyContent: 'center' }]}
-          onPress={onDecline} disabled={accepting} activeOpacity={0.7}
+          onPress={onDecline} disabled={accepting}
           accessibilityRole="button" accessibilityLabel={tr('ext.missions_refuse')}
         >
           <Feather name="x" size={18} color={t.textSub} />
           <Text style={[opp.declineText, { color: t.textSub }]}>{tr('ext.missions_refuse')}</Text>
-        </TouchableOpacity>
+        </PressScale>
         {/* Moment 6 : accepter est un geste — glisser, pas taper. */}
         <View style={{ flex: 2 }}>
           <SlideToConfirm label={tr('provider.accept')} onConfirm={onAccept} disabled={accepting} />

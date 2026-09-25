@@ -3,13 +3,14 @@
 // validé), une vignette, et le bouton Téléverser vit DANS la carte requise.
 import React from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
+  View, Text, StyleSheet, ActivityIndicator, Image,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
 import type { DocumentRequirement, DocumentType } from "../../constants/kycRequirements";
+import { PressScale } from '@/components/ui/PressScale';
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = {
@@ -119,11 +120,10 @@ export function DocumentUploadCard({
 
       {/* Bouton principal — pièce manquante, refusée, ou premier envoi en cours */}
       {!sent && (
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={styles.uploadBtn}
           onPress={() => onUpload(requirement.type)}
           disabled={uploading}
-          activeOpacity={0.7}
         >
           {uploading ? (
             <>
@@ -137,18 +137,17 @@ export function DocumentUploadCard({
               <Text style={styles.uploadHint}>{t('onboarding.doc_hint')}</Text>
             </>
           )}
-        </TouchableOpacity>
+        </PressScale>
       )}
 
       {/* Remplacer — doc envoyé mais pas encore validé : le presta peut corriger
           une photo floue/illisible tant que l'admin ne l'a pas approuvé.
           Une pièce APPROUVÉE reste verrouillée (pas de bouton). */}
       {sent && !approved && (
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={styles.replaceBtn}
           onPress={() => onUpload(requirement.type)}
           disabled={uploading}
-          activeOpacity={0.6}
           hitSlop={{ top: 6, bottom: 6 }}
         >
           {uploading ? (
@@ -162,7 +161,7 @@ export function DocumentUploadCard({
               <Text style={styles.replaceText}>{t('onboarding.doc_replace')}</Text>
             </>
           )}
-        </TouchableOpacity>
+        </PressScale>
       )}
     </View>
   );

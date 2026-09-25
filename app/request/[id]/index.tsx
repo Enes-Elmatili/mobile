@@ -4,12 +4,7 @@
 // vérité unique). Loading + état erreur/retry si le fetch échoue.
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
+  View, Text, StyleSheet, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -25,6 +20,7 @@ import {
   navigateToDestination,
 } from '@/lib/requestDestination';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function RequestDispatcher() {
   const router = useRouter();
@@ -64,25 +60,23 @@ export default function RequestDispatcher() {
           <Text style={[styles.errorText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.request_load_error')}
           </Text>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[styles.retryBtn, { backgroundColor: theme.accent }]}
             onPress={resolve}
-            activeOpacity={0.85}
           >
             <Feather name="refresh-cw" size={16} color={theme.accentText} />
             <Text style={[styles.retryText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>
               {t('common.retry')}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button"
+          </PressScale>
+          <PressScale accessibilityRole="button"
             style={styles.backBtn}
             onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
-            activeOpacity={0.7}
           >
             <Text style={[styles.backText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>
               {t('common.back')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       ) : (
         <ActivityIndicator size="large" color={theme.accent} />

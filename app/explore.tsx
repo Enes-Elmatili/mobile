@@ -1,14 +1,7 @@
 // app/explore.tsx — Recherche prestataires à proximité
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  FlatList,
-  Platform,
-  StatusBar,
+  View, Text, StyleSheet, ActivityIndicator, FlatList, Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Circle } from 'react-native-maps';
@@ -23,6 +16,7 @@ import { api } from '@/lib/api';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,7 +66,7 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
   const cat = provider.categories?.[0]?.name;
 
   return (
-    <TouchableOpacity accessibilityRole="button" style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress} activeOpacity={0.8}>
+    <PressScale accessibilityRole="button" style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress}>
       <View style={[pc.avatar, { backgroundColor: theme.accent }]}>
         <Text style={[pc.avatarText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{init}</Text>
         {isOnline && <View style={[pc.dot, { borderColor: theme.cardBg }]} />}
@@ -95,7 +89,7 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
         <Text style={[pc.dist, { color: theme.textSub, fontFamily: FONTS.mono }]}>{distanceLabel(provider.distance)}</Text>
       )}
       <Feather name="chevron-right" size={14} color={theme.textMuted} />
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 
@@ -197,9 +191,9 @@ export default function ExploreScreen() {
         <Feather name="map-pin" size={52} color={theme.textDisabled} />
         <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.location_error')}</Text>
         <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.explore_location_denied_sub')}</Text>
-        <TouchableOpacity accessibilityRole="button" style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
+        <PressScale accessibilityRole="button" style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </SafeAreaView>
     );
   }
@@ -212,9 +206,9 @@ export default function ExploreScreen() {
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.title')}</Text>
         <View style={s.headerCount}>
           {!loading && (
@@ -275,26 +269,24 @@ export default function ExploreScreen() {
         {/* Radius filter overlay */}
         <View style={[s.radiusBar, { backgroundColor: theme.isDark ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)' }]}>
           {RADII.map((r, i) => (
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               key={r.label}
               style={[s.radiusBtn, i === radiusIdx && [s.radiusBtnActive, { backgroundColor: theme.accent }]]}
               onPress={() => setRadiusIdx(i)}
-              activeOpacity={0.7}
             >
               <Text style={[s.radiusBtnText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }, i === radiusIdx && { color: theme.accentText }]}>
                 {r.label}
               </Text>
-            </TouchableOpacity>
+            </PressScale>
           ))}
         </View>
       </View>
 
       {/* Selected provider callout */}
       {selectedProvider && (
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.callout, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity }]}
           onPress={() => router.push(`/providers/${selectedProvider.id}` as any)}
-          activeOpacity={0.85}
         >
           <View style={[s.calloutAvatar, { backgroundColor: theme.surface }]}>
             <Text style={[s.calloutAvatarText, { fontFamily: FONTS.sansMedium, color: theme.heroText }]}>{initials(cleanName(selectedProvider.name, { fallback: 'Prestataire' }))}</Text>
@@ -309,7 +301,7 @@ export default function ExploreScreen() {
             <Text style={[s.calloutCTAText, { fontFamily: FONTS.sansMedium, color: '#0A0A0A' }]}>Voir le profil</Text>
             <Feather name="arrow-right" size={12} color="#0A0A0A" />
           </View>
-        </TouchableOpacity>
+        </PressScale>
       )}
 
       {/* Provider list bottom panel */}
@@ -335,14 +327,13 @@ export default function ExploreScreen() {
               <View style={s.empty}>
                 <Feather name="wifi-off" size={36} color={theme.textDisabled} />
                 <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Impossible de charger les prestataires.</Text>
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   style={[s.retryBtn, { backgroundColor: theme.accent }]}
                   onPress={retryFetch}
-                  activeOpacity={0.85}
                 >
                   <Feather name="refresh-cw" size={13} color={theme.accentText} />
                   <Text style={[s.retryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
-                </TouchableOpacity>
+                </PressScale>
               </View>
             ) : (
               <View style={s.empty}>

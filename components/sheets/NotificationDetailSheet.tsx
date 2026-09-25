@@ -6,7 +6,7 @@
 
 import React, { useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Platform,
+  View, Text, StyleSheet, Platform,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { feedback } from '@/lib/feedback/feedback';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { useLayoutClass } from '@/lib/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 export interface NotifData {
   category?: string;
@@ -155,28 +156,26 @@ export default function NotificationDetailSheet({
           {/* Actions */}
           <View style={s.actions}>
             {isWarn && notif.data?.category !== 'support' && (
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 style={[s.ctaGhost, { borderColor: theme.borderLight }]}
                 onPress={goToSupport}
-                activeOpacity={0.85}
               >
                 <Feather name="life-buoy" size={17} color={theme.textMuted} />
                 <Text style={[s.ctaGhostText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('notifications.contact_support')}</Text>
-              </TouchableOpacity>
+              </PressScale>
             )}
 
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.ctaGhost, { borderColor: COLORS.red + '55' }]}
               onPress={handleDelete}
-              activeOpacity={0.85}
             >
               <Feather name="trash-2" size={17} color={COLORS.red} />
               <Text style={[s.ctaGhostText, { color: COLORS.red, fontFamily: FONTS.sansMedium }]}>{t('notifications.delete')}</Text>
-            </TouchableOpacity>
+            </PressScale>
 
-            <TouchableOpacity accessibilityRole="button" style={s.closeBtn} onPress={onClose} activeOpacity={0.6}>
+            <PressScale accessibilityRole="button" style={s.closeBtn} onPress={onClose}>
               <Text style={[s.closeText, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('notifications.understood')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         </View>
       </BottomSheetScrollView>

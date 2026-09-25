@@ -2,8 +2,7 @@
 // Liste scrollable de toutes les factures du client ou provider
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  SectionList, ActivityIndicator, RefreshControl, Platform, StatusBar,
+  View, Text, StyleSheet, SectionList, ActivityIndicator, RefreshControl, Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -19,6 +18,7 @@ import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR as formatEuros } from '@/lib/format';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // Reanimated n'expose pas Animated.SectionList : on l'anime nous-mêmes.
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
@@ -105,10 +105,9 @@ export default function InvoicesScreen() {
       : `#${String(item.id).slice(-5).toUpperCase()}`;
 
     return (
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
         onPress={() => setSelectedInvoice(item)}
-        activeOpacity={0.75}
       >
         <View style={[s.iconWrap, { backgroundColor: theme.surface }]}>
           <Feather
@@ -143,7 +142,7 @@ export default function InvoicesScreen() {
             </Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </PressScale>
     );
   }, [theme, t]);
 
@@ -153,9 +152,9 @@ export default function InvoicesScreen() {
 
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { goBack(router, '/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => { goBack(router, '/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 }]}>{t('ext.wallet_my_invoices')}</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -193,14 +192,13 @@ export default function InvoicesScreen() {
             <Text style={[s.emptySub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
               {t('ext.invoice_check_connection')}
             </Text>
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.retryBtn, { backgroundColor: theme.accent }]}
               onPress={() => { setLoading(true); loadInvoices(); }}
-              activeOpacity={0.85}
             >
               <Feather name="refresh-cw" size={14} color={theme.accentText} />
               <Text style={[s.retryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         ) : (
           <View style={s.center}>

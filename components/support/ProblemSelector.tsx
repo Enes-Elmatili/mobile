@@ -4,10 +4,11 @@
 // préfigure la réponse côté ResolutionView (auto-résolu / WhatsApp / escalade).
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { PressScale } from '@/components/ui/PressScale';
 
 export type Severity = 'low' | 'medium' | 'high';
 
@@ -136,11 +137,10 @@ export default function ProblemSelector({ missionStatus, onSelect, isProvider }:
       {problems.map(problem => {
         const tone = severityColor(problem.severity, theme);
         return (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             key={problem.id}
             style={[s.option, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={() => onSelect(problem)}
-            activeOpacity={0.78}
           >
             <View style={[s.iconWrap, { backgroundColor: theme.surface }]}>
               <Feather name={problem.icon as any} size={18} color={theme.textSub} />
@@ -163,7 +163,7 @@ export default function ProblemSelector({ missionStatus, onSelect, isProvider }:
                 {severityLabel(problem.severity, t)}
               </Text>
             </View>
-          </TouchableOpacity>
+          </PressScale>
         );
       })}
     </View>

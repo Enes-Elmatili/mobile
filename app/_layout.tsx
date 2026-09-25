@@ -13,13 +13,7 @@ import { FeedbackHost } from '@/components/feedback/FeedbackHost';
 import { SplashAnimation } from '@/components/SplashAnimation';
 import { usePushNotifications } from '../lib/usePushNotifications';
 import {
-  ActivityIndicator,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  Appearance,
+  ActivityIndicator, View, Text, StyleSheet, StatusBar, Appearance,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -30,6 +24,7 @@ import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } 
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
 import { darkTokens, lightTokens, FONTS, useAppTheme } from '@/hooks/use-app-theme';
 import * as Sentry from '@sentry/react-native';
+import { PressScale } from '@/components/ui/PressScale';
 
 Sentry.init({
   dsn: 'https://1bf1a0242d483a309a3dafbe00d22e59@o4511135218532352.ingest.de.sentry.io/4511135226396752',
@@ -246,12 +241,12 @@ class AppErrorBoundary extends React.Component<
               {this.state.detail}
             </Text>
           ) : null}
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             onPress={() => this.setState({ hasError: false, detail: null })}
             style={{ backgroundColor: t.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
             <Text style={{ color: t.accentText, fontFamily: FONTS.sansMedium }}>{i18n.t('common.retry')}</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       );
     }

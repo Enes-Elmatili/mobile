@@ -1,9 +1,7 @@
 // app/messages/[userId].tsx — Conversation screen
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
-  NativeSyntheticEvent, NativeScrollEvent,
+  View, Text, FlatList, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar, NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -26,6 +24,7 @@ import {
 import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import { contactNameCacheGet, contactNameCacheSet } from './index';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 // `status` est purement local : présent uniquement sur les messages optimistes
@@ -400,10 +399,9 @@ export default function ConversationScreen() {
           <Text style={[b.timestamp, { color: theme.textMuted }]}>{fmtTime(item.createdAt)}</Text>
         )}
         <View style={[b.row, isMine ? b.rowRight : b.rowLeft]}>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             disabled={!isFailed}
             onPress={() => retryMessage(item)}
-            activeOpacity={isFailed ? 0.7 : 1}
             accessibilityLabel={isFailed ? t('messages.not_sent_a11y') : undefined}
             style={[
               b.bubble,
@@ -416,7 +414,7 @@ export default function ConversationScreen() {
             ]}
           >
             <Text style={[b.text, isMine ? { color: theme.accentText } : { color: theme.textAlt }]}>{item.text}</Text>
-          </TouchableOpacity>
+          </PressScale>
           {isMine && <MessageStatus msg={item} />}
         </View>
         {isFailed && (
@@ -439,7 +437,7 @@ export default function ConversationScreen() {
         style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
       >
-        <TouchableOpacity
+        <PressScale
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -447,7 +445,7 @@ export default function ConversationScreen() {
           accessibilityLabel="Retour"
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={[s.headerTitle, { color: theme.textAlt }]} numberOfLines={1}>{headerName}</Text>
           {isTyping && (
@@ -478,16 +476,15 @@ export default function ConversationScreen() {
             <Text style={[s.emptyText, { color: theme.textMuted }]}>
               Impossible de charger la conversation.
             </Text>
-            <TouchableOpacity
+            <PressScale
               style={[s.retryBtn, { backgroundColor: theme.accent }]}
               onPress={() => { setLoading(true); loadConversation(); }}
-              activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Réessayer"
             >
               <Feather name="refresh-cw" size={15} color={theme.accentText} />
               <Text style={[s.retryBtnText, { color: theme.accentText }]}>{t('common.retry')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         ) : (
           <FlatList
@@ -546,7 +543,7 @@ export default function ConversationScreen() {
               blurOnSubmit={false}
               accessibilityLabel="Votre message"
             />
-            <TouchableOpacity
+            <PressScale
               style={[s.sendBtn, { backgroundColor: theme.accent }, !inputText.trim() && s.sendBtnDisabled]}
               onPress={sendMessage}
               disabled={!inputText.trim()}
@@ -555,7 +552,7 @@ export default function ConversationScreen() {
               accessibilityState={{ disabled: !inputText.trim() }}
             >
               <Feather name="send" size={18} color={theme.accentText} />
-            </TouchableOpacity>
+            </PressScale>
           </View>
         )}
       </KeyboardAvoidingView>

@@ -4,8 +4,8 @@
 import { useHideBar } from '@/stores/nav';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  Platform, ActivityIndicator, Image, } from 'react-native';
+  View, Text, StyleSheet, Platform, ActivityIndicator, Image,
+} from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { devError } from '@/lib/logger';
 import { formatEURCents as fmtEur } from '@/lib/format';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { useLayoutClass } from '@/lib/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 interface QuoteSheetProps {
   requestId: string | null;
@@ -153,14 +154,13 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
               <Text style={[qs.noQuote, { color: textMuted, fontFamily: FONTS.sans, paddingVertical: 8 }]}>
                 Impossible de charger le devis.
               </Text>
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 style={[qs.retryBtn, { borderColor: borderColor }]}
                 onPress={loadQuote}
-                activeOpacity={0.78}
               >
                 <Feather name="refresh-cw" size={15} color={textSecondary} />
                 <Text style={[qs.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
           ) : quote ? (
             <>
@@ -243,27 +243,25 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
           {/* Actions */}
           <View style={qs.actions}>
             {isSent && quote && (
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 style={[qs.btnPrimary, { backgroundColor: accentBg }]}
                 onPress={() => {
                   onClose();
                   router.push({ pathname: '/request/[id]/quote-review', params: { id: String(requestId) } });
                 }}
-                activeOpacity={0.78}
               >
                 <Feather name="check-circle" size={18} color={accentText} />
                 <Text style={[qs.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
                   {t('dashboard.quote_action_review')}
                 </Text>
-              </TouchableOpacity>
+              </PressScale>
             )}
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[qs.btnOutline, { borderColor: borderColor }]}
               onPress={onClose}
-              activeOpacity={0.78}
             >
               <Text style={[qs.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>{t('common.close')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
         </View>
       </BottomSheetScrollView>

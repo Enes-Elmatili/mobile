@@ -1,8 +1,7 @@
 // app/settings/privacy.tsx — Confidentialité
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Platform, StatusBar,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -14,6 +13,7 @@ import { showSocketToast } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
@@ -60,9 +60,9 @@ export default function PrivacyScreen() {
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={20} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.privacy')}</Text>
         <View style={{ width: 38 }} />
       </View>
@@ -100,11 +100,10 @@ export default function PrivacyScreen() {
           <Text style={[s.dangerSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_danger_sub')}
           </Text>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.deleteBtn, { borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)' }]}
             onPress={handleDeleteAccount}
             disabled={deleting}
-            activeOpacity={0.7}
           >
             {deleting
               ? <ActivityIndicator size="small" color={COLORS.danger} />
@@ -113,7 +112,7 @@ export default function PrivacyScreen() {
                   <Text style={[s.deleteBtnText, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>{t('ext.privacy_delete_account')}</Text>
                 </>
             }
-          </TouchableOpacity>
+          </PressScale>
         </View>
 
       </ScrollView>

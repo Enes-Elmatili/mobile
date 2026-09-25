@@ -12,6 +12,7 @@ import { usePressScale } from '@/lib/motion/press';
 import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
 import { formatRating } from '@/lib/mission/brief';
+import { PressScale } from '@/components/ui/PressScale';
 
 export type ProviderLike = {
   id?: string | number | null;
@@ -71,13 +72,13 @@ export function ProviderRow({ provider, unread = 0, onMessage, onCall, onOpenPro
   const meta = metaOverride ?? [formatRating(provider.avgRating), provider.jobsCompleted != null ? t('mission.missions_count', { n: provider.jobsCompleted }) : null].filter(Boolean).join(' · ');
   return (
     <View style={[s.row, !plain && { backgroundColor: theme.bg, borderRadius: 16, padding: 12 }]}>
-      <Pressable onPress={onOpenProfile} disabled={!onOpenProfile} style={s.id} accessibilityRole={onOpenProfile ? 'button' : undefined} accessibilityLabel={name}>
+      <PressScale onPress={onOpenProfile} disabled={!onOpenProfile} style={s.id} accessibilityRole={onOpenProfile ? 'button' : undefined} accessibilityLabel={name}>
         <Avatar name={name} size={44} avatarUrl={provider.avatarUrl} verified={provider.validationStatus === 'ACTIVE'} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[s.name, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>{name}</Text>
           {meta ? <Text style={[s.meta, { color: theme.textSub }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>{meta}</Text> : null}
         </View>
-      </Pressable>
+      </PressScale>
       <RoundBtn icon="message-circle" onPress={onMessage} label={t('tracking.message', { name })} badge={unread} />
       <RoundBtn icon="phone" onPress={onCall} label={t('tracking.call', { name })} primary />
     </View>

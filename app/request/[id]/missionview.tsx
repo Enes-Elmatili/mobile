@@ -8,7 +8,7 @@
 // change de contenu, la carte suit puis se réduit en bandeau, et à la fin la
 // feuille monte jusqu'en haut avec le bilan. Aucun changement d'écran.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Polyline } from 'react-native-maps';
@@ -39,6 +39,7 @@ import { PhotoViewer } from '@/components/mission/photos';
 import { DoneContent, EtaHero, MoneyLine, PhotoCard, PinCard, ProviderRow, QuoteSteps, Rail, RequestRow, StageHeader, StageSheet, TimerHero, providerFirstName, providerName, type RailRow, type SheetLevel } from '@/components/tracking';
 import { useMapCamera, type CameraMode } from '@/lib/mission/useMapCamera';
 import { usePresence } from '@/lib/motion/usePresence';
+import { PressScale } from '@/components/ui/PressScale';
 
 const ACCEPTED_MOMENT_MS = 2400;
 
@@ -424,7 +425,7 @@ export default function MissionView() {
           <QuoteSteps calloutFee={calloutFee} current={arrived ? '72h' : 'diag'} />
           {providerRow}
           {requestRow}
-          <Pressable onPress={cancel} disabled={cancelling} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: COLORS.red }]}>{t('missions.cancel')}</Text></Pressable>
+          <PressScale onPress={cancel} disabled={cancelling} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: COLORS.red }]}>{t('missions.cancel')}</Text></PressScale>
         </>
       );
     }
@@ -461,7 +462,7 @@ export default function MissionView() {
           ) : null}
           <MoneyLine amount={moneyAmount} caption={moneyCaption} promise={promise} />
           {requestRow}
-          <Pressable onPress={() => router.push('/settings/help')} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.textMuted }]}>{t('tracking.support_link')}</Text></Pressable>
+          <PressScale onPress={() => router.push('/settings/help')} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.textMuted }]}>{t('tracking.support_link')}</Text></PressScale>
         </>
       );
     }
@@ -482,7 +483,7 @@ export default function MissionView() {
     return (
       <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
         <Text style={[s.notFound, { color: theme.textSub }]}>{t('mission_view.mission_not_found')}</Text>
-        <Pressable onPress={back} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.text }]}>{t('common.back')}</Text></Pressable>
+        <PressScale onPress={back} accessibilityRole="button" style={s.linkBtn}><Text style={[s.link, { color: theme.text }]}>{t('common.back')}</Text></PressScale>
       </SafeAreaView>
     );
   }
@@ -548,17 +549,17 @@ export default function MissionView() {
           {tracking ? (
             <Animated.View style={topBarEntrance.style}>
               <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
-                <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
+                <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
                   <Feather name="arrow-left" size={20} color={theme.text as string} />
-                </Pressable>
+                </PressScale>
                 <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
                   <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
                   <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
                   <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
                 </View>
-                <Pressable style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
+                <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
                   <Feather name="more-horizontal" size={22} color={theme.text as string} />
-                </Pressable>
+                </PressScale>
               </SafeAreaView>
             </Animated.View>
           ) : null}

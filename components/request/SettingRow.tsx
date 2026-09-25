@@ -3,9 +3,10 @@
 // sous-titre, accessoire à droite (Switch, chevron) ; le contenu dépliable
 // se rend sous la ligne, dans le même bloc.
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type AccessibilityRole, type AccessibilityState } from 'react-native';
+import { StyleSheet, Text, View, type AccessibilityRole, type AccessibilityState } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { PressScale } from '@/components/ui/PressScale';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -37,9 +38,9 @@ export function SettingRow({ icon, title, subtitle, right, onPress, accessibilit
   return (
     <View style={[s.block, { borderTopColor: theme.borderLight }]}>
       {onPress ? (
-        <Pressable onPress={onPress} accessibilityRole={accessibilityRole} accessibilityState={accessibilityState} accessibilityLabel={title}>
+        <PressScale onPress={onPress} accessibilityRole={accessibilityRole} accessibilityState={accessibilityState} accessibilityLabel={title}>
           {row}
-        </Pressable>
+        </PressScale>
       ) : row}
       {children}
     </View>

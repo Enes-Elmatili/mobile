@@ -7,7 +7,7 @@
 // Les réglages de l'app vivent derrière l'engrenage (app/settings).
 // Une information se modifie un champ à la fois (components/settings/FieldSheet).
 import React, { useCallback, useRef, useState } from 'react';
-import { Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -29,6 +29,7 @@ import { useTabBarPadding } from './_layout';
 import { Chip, Figure, Group, Row, SectionHead, type FeatherName } from '@/components/settings/rows';
 import { CategoriesSheet } from '@/components/settings/CategoriesSheet';
 import { LAYOUT } from '@/lib/motion/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 type ProviderInfo = {
   validationStatus?: string | null; vatNumber?: string | null; description?: string | null;
@@ -120,17 +121,17 @@ export default function Profile() {
             <Text style={[s.kicker, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{`${isProvider ? t('profile.provider') : t('profile.client')} · ${t('profile.since', { year: since })}`.toUpperCase()}</Text>
             <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('ext.tabs_profile').toUpperCase()}</Text>
           </View>
-          <Pressable onPress={() => { feedback.haptic('light'); router.push('/settings'); }} style={[s.gear, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('settings.title')} hitSlop={6}>
+          <PressScale onPress={() => { feedback.haptic('light'); router.push('/settings'); }} style={[s.gear, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('settings.title')} hitSlop={6}>
             <Feather name="sliders" size={17} color={theme.text as string} />
-          </Pressable>
+          </PressScale>
         </View>
 
         {/* -- Identité -- */}
         <Animated.View entering={FadeIn.duration(220)} style={s.identity}>
-          <Pressable onPress={pick} accessibilityRole="button" accessibilityLabel={t('profile.edit_photo')} style={[s.avatarRing, { borderColor: verified ? COLORS.greenBrand : theme.border }]}>
+          <PressScale onPress={pick} accessibilityRole="button" accessibilityLabel={t('profile.edit_photo')} style={[s.avatarRing, { borderColor: verified ? COLORS.greenBrand : theme.border }]}>
             <Avatar name={displayName} size={58} imageUri={avatarUri} />
             <View style={[s.avatarEdit, { backgroundColor: theme.accent, borderColor: theme.bg }]}><Feather name={verified ? 'check' : 'camera'} size={11} color={theme.accentText as string} /></View>
-          </Pressable>
+          </PressScale>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[s.name, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{displayName.toUpperCase()}</Text>
             <Text style={[s.identityLine, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>

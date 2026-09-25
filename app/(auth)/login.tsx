@@ -1,13 +1,7 @@
 // app/(auth)/login.tsx — login (flat theme-aware, v2 éditorial)
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  Platform,
+  View, Text, TextInput, StyleSheet, StatusBar, Platform,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
@@ -34,6 +28,7 @@ import {
   AuthMasthead,
   AuthEyebrow,
 } from "@/components/auth";
+import { PressScale } from '@/components/ui/PressScale';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -299,11 +294,10 @@ export default function Login() {
           {/* Social buttons */}
           <View style={s.socialRow}>
             {Platform.OS === "ios" && (
-              <TouchableOpacity
+              <PressScale
                 style={[s.socialBtn, socialBtnTheme]}
                 onPress={handleAppleSignIn}
                 disabled={isBusy}
-                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t("auth.login_apple_a11y")}
               >
@@ -315,14 +309,13 @@ export default function Login() {
                     <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Apple</Text>
                   </>
                 )}
-              </TouchableOpacity>
+              </PressScale>
             )}
 
-            <TouchableOpacity
+            <PressScale
               style={[s.socialBtn, socialBtnTheme]}
               onPress={handleGooglePress}
               disabled={isBusy}
-              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t("auth.login_google_a11y")}
             >
@@ -334,7 +327,7 @@ export default function Login() {
                   <Text style={[s.socialText, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Google</Text>
                 </>
               )}
-            </TouchableOpacity>
+            </PressScale>
           </View>
 
           {/* Divider */}
@@ -386,8 +379,7 @@ export default function Login() {
             />
 
             <View style={s.forgotRow}>
-              <TouchableOpacity
-                activeOpacity={0.6}
+              <PressScale
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
                 accessibilityLabel={t("auth.forgot_password")}
@@ -405,7 +397,7 @@ export default function Login() {
                 >
                   {t("auth.forgot_password")}
                 </Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
           </View>
         </View>

@@ -4,12 +4,7 @@
 // chemin "clic sur le lien" des anciens emails.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
+  View, Text, TextInput, StyleSheet, ActivityIndicator,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
@@ -30,6 +25,7 @@ import {
   AuthEyebrow,
   AuthStepper,
 } from "@/components/auth";
+import { PressScale } from '@/components/ui/PressScale';
 
 const ROLE_INTENT_KEY = "@fixed:signup:role";
 const CODE_LENGTH = 6;
@@ -322,10 +318,9 @@ export default function VerifyEmail() {
                     {t('auth.ve_resend_in', { time: fmtCooldown })}
                   </Text>
                 ) : (
-                  <TouchableOpacity
+                  <PressScale
                     onPress={handleResend}
                     disabled={resending}
-                    activeOpacity={0.7}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     accessibilityRole="button"
                     accessibilityLabel={t('auth.ve_resend_cta')}
@@ -343,7 +338,7 @@ export default function VerifyEmail() {
                         {t('auth.ve_resend_cta')}
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </PressScale>
                 )}
                 <View style={s.metaRight}>
                   {submitting ? (
@@ -390,13 +385,12 @@ export default function VerifyEmail() {
           variant="flat"
         />
 
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           onPress={() => {
             if (pollRef.current) clearInterval(pollRef.current);
             signOut();
             router.replace("/(auth)/welcome");
           }}
-          activeOpacity={0.6}
           style={s.logoutLink}
         >
           <Feather name="log-out" size={14} color={alpha(theme.text, theme.isDark ? 0.5 : 0.68)} />
@@ -412,7 +406,7 @@ export default function VerifyEmail() {
           >
             {t('onboarding.signout')}
           </Text>
-        </TouchableOpacity>
+        </PressScale>
       </Animated.View>
     </AuthScreen>
   );

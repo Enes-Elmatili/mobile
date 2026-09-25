@@ -3,7 +3,7 @@
 // le compte), facture. Feuille gorhom configurée sur le moteur de mouvement.
 import { useHideBar } from '@/stores/nav';
 import React, { useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { formatClock, formatDay, formatDayShort } from '@/lib/format';
 import { ledgerOf, type GainLine } from '@/lib/gains/model';
 import { Ledger } from './Ledger';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = { line: GainLine | null; bankLabel: string | null; onClose: () => void; onInvoice?: (missionId: number) => void };
 
@@ -63,10 +64,10 @@ export function MoneySheet({ line, bankLabel, onClose, onInvoice }: Props) {
           </View>
         ) : null}
         {line.missionId != null && onInvoice ? (
-          <Pressable style={[s.ghost, { borderColor: theme.border }]} onPress={() => onInvoice(line.missionId as number)} accessibilityRole="button" accessibilityLabel={t('gains.view_invoice')}>
+          <PressScale style={[s.ghost, { borderColor: theme.border }]} onPress={() => onInvoice(line.missionId as number)} accessibilityRole="button" accessibilityLabel={t('gains.view_invoice')}>
             <Feather name="file-text" size={15} color={theme.text as string} />
             <Text style={[s.ghostText, { color: theme.text }]}>{t('gains.view_invoice').toUpperCase()}</Text>
-          </Pressable>
+          </PressScale>
         ) : null}
       </BottomSheetView>
     </BottomSheet>

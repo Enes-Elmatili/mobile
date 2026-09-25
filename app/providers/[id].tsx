@@ -1,16 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  Platform,
-  StatusBar,
-  Image,
-  Modal,
-  Pressable,
+  View, Text, StyleSheet, ActivityIndicator, ScrollView, Platform, StatusBar, Image, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -25,6 +15,7 @@ import IconBtn from '@/components/ui/IconBtn';
 import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -198,9 +189,9 @@ export default function ProviderDetailScreen() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={56} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Prestataire introuvable</Text>
-        <TouchableOpacity accessibilityRole="button" style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
+        <PressScale accessibilityRole="button" style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnFallbackText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </SafeAreaView>
     );
   }
@@ -393,16 +384,15 @@ export default function ProviderDetailScreen() {
                 <ReviewCard key={review.id} review={review} />
               ))}
               {reviews.length > 3 && !showAll && (
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   style={[s.seeAllBtn, { backgroundColor: theme.surface }]}
                   onPress={() => setShowAll(true)}
-                  activeOpacity={0.75}
                 >
                   <Text style={[s.seeAllText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>
                     {t('providers.see_all_reviews')} ({reviews.length - 3} de plus)
                   </Text>
                   <Feather name="chevron-down" size={14} color={theme.textSub} />
-                </TouchableOpacity>
+                </PressScale>
               )}
             </View>
           )}
@@ -412,9 +402,8 @@ export default function ProviderDetailScreen() {
 
       {/* Bottom CTA — full width accent button */}
       <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.ctaBtn, { backgroundColor: theme.accent }, ctaLoading && { opacity: 0.6 }]}
-          activeOpacity={0.85}
           onPress={handleRequestProvider}
           disabled={ctaLoading}
         >
@@ -428,13 +417,13 @@ export default function ProviderDetailScreen() {
               <Feather name="arrow-right" size={18} color={theme.accentText} />
             </>
           )}
-        </TouchableOpacity>
+        </PressScale>
       </View>
 
       {/* Modal — provider BUSY/OFFLINE */}
       <Modal visible={busyModal} transparent animationType="fade" onRequestClose={() => setBusyModal(false)} statusBarTranslucent navigationBarTranslucent>
         <Pressable style={s.modalBackdrop} onPress={() => setBusyModal(false)}>
-          <Pressable style={[s.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={(e) => e.stopPropagation()}>
+          <PressScale style={[s.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={(e) => e.stopPropagation()}>
             <View style={[s.modalIconCircle, { backgroundColor: theme.surface }]}>
               <Feather name="clock" size={24} color={theme.textSub} />
             </View>
@@ -445,31 +434,29 @@ export default function ProviderDetailScreen() {
               {firstName} est actuellement occupé ou hors ligne. Vous pouvez planifier une mission avec lui pour plus tard, ou trouver un autre prestataire disponible maintenant.
             </Text>
 
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.modalPrimary, { backgroundColor: theme.accent }]}
               onPress={handleScheduleWithProvider}
-              activeOpacity={0.85}
             >
               <Feather name="calendar" size={18} color={theme.accentText} />
               <Text style={[s.modalPrimaryText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>
                 Planifier avec {firstName}
               </Text>
-            </TouchableOpacity>
+            </PressScale>
 
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={[s.modalSecondary, { borderColor: theme.borderLight }]}
               onPress={handleFindOther}
-              activeOpacity={0.75}
             >
               <Text style={[s.modalSecondaryText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                 Trouver un autre prestataire
               </Text>
-            </TouchableOpacity>
+            </PressScale>
 
-            <TouchableOpacity accessibilityRole="button" onPress={() => setBusyModal(false)} activeOpacity={0.7} style={{ paddingVertical: 8 }}>
+            <PressScale accessibilityRole="button" onPress={() => setBusyModal(false)} style={{ paddingVertical: 8 }}>
               <Text style={[s.modalCancel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Annuler</Text>
-            </TouchableOpacity>
-          </Pressable>
+            </PressScale>
+          </PressScale>
         </Pressable>
       </Modal>
     </SafeAreaView>

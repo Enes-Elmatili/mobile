@@ -3,7 +3,7 @@
 // (taux réel de la mission, jamais un « 20 % » écrit ici), trois faits du
 // mois, la prochaine mission, la facture. Spec 2026-09-14-gains-releve.
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
@@ -21,6 +21,7 @@ import { formatDayShort, formatEURCents } from '@/lib/format';
 import { briefOf, formatRating, netFor } from '@/lib/mission/brief';
 import { DEFAULT_PAYOUT_DELAY_DAYS, estimateArrival } from '@/lib/gains/model';
 import { Ledger } from '@/components/gains/Ledger';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function EarningsScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -69,7 +70,7 @@ export default function EarningsScreen() {
     return (
       <View style={[s.center, { backgroundColor: theme.bg }]}>
         <Text style={[s.err, { color: theme.textMuted }]}>{t('ext.earnings_cant_load')}</Text>
-        <Pressable onPress={() => router.replace('/(tabs)/dashboard')} accessibilityRole="button" style={s.link}><Text style={[s.linkText, { color: theme.text }]}>{t('gains.earn_next')}</Text></Pressable>
+        <PressScale onPress={() => router.replace('/(tabs)/dashboard')} accessibilityRole="button" style={s.link}><Text style={[s.linkText, { color: theme.text }]}>{t('gains.earn_next')}</Text></PressScale>
       </View>
     );
   }
@@ -109,18 +110,18 @@ export default function EarningsScreen() {
             {rating ? <View style={[s.fact, { backgroundColor: theme.surface }]}><Text style={[s.factValue, { color: theme.text }]}>{rating}</Text><Text style={[s.factLabel, { color: theme.textMuted }]}>{t('gains.earn_rating').toUpperCase()}</Text></View> : null}
           </View>
 
-          <Pressable style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); router.replace('/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('gains.earn_next')}>
+          <PressScale style={[s.cta, { backgroundColor: theme.accent }]} onPress={() => { feedback.haptic('light'); router.replace('/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('gains.earn_next')}>
             <Text style={[s.ctaText, { color: theme.accentText }]}>{t('gains.earn_next').toUpperCase()}</Text>
-          </Pressable>
+          </PressScale>
           {invoice ? (
-            <Pressable style={[s.ghost, { borderColor: theme.border }]} onPress={() => setInvoiceVisible(true)} accessibilityRole="button" accessibilityLabel={t('gains.view_invoice')}>
+            <PressScale style={[s.ghost, { borderColor: theme.border }]} onPress={() => setInvoiceVisible(true)} accessibilityRole="button" accessibilityLabel={t('gains.view_invoice')}>
               <Feather name="file-text" size={15} color={theme.text as string} />
               <Text style={[s.ghostText, { color: theme.text }]}>{t('gains.view_invoice').toUpperCase()}</Text>
-            </Pressable>
+            </PressScale>
           ) : null}
-          <Pressable style={s.link} onPress={() => router.push('/(tabs)/wallet')} accessibilityRole="button" accessibilityLabel={t('gains.title')}>
+          <PressScale style={s.link} onPress={() => router.push('/(tabs)/wallet')} accessibilityRole="button" accessibilityLabel={t('gains.title')}>
             <Text style={[s.linkText, { color: theme.textMuted }]}>{t('gains.title')}</Text>
-          </Pressable>
+          </PressScale>
         </Animated.View>
       </ScrollView>
 

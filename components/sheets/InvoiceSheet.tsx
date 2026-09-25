@@ -6,14 +6,8 @@
 import { useHideBar } from '@/stores/nav';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-  Image,
-  ActivityIndicator,
-  } from 'react-native';
+  View, Text, StyleSheet, Platform, Image, ActivityIndicator,
+} from 'react-native';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetBackdrop,
@@ -35,6 +29,7 @@ import { formatEUR as formatEuros } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { useLayoutClass } from '@/lib/layout';
+import { PressScale } from '@/components/ui/PressScale';
 
 // Locale BCP-47 dérivée de la langue i18n active. Évite les hardcodes
 // `fr-BE` qui forcent un format date FR même sur device NL/EN.
@@ -409,10 +404,9 @@ export default function InvoiceSheet({
 
         {/* Actions : Download (primaire, plein) + Close (secondaire, sans cadre) */}
         <View style={s.actions}>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.btnPrimary, { backgroundColor: accentBg }]}
             onPress={handleDownloadPDF}
-            activeOpacity={0.78}
             disabled={downloading}
           >
             {downloading ? (
@@ -423,17 +417,16 @@ export default function InvoiceSheet({
             <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]} numberOfLines={1}>
               {downloading ? t('ext.invoice_downloading') : t('ext.invoice_download_pdf')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
 
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={s.btnGhost}
             onPress={onClose}
-            activeOpacity={0.6}
           >
             <Text style={[s.btnGhostText, { color: textMuted, fontFamily: FONTS.sansMedium }]}>
               {t('ext.invoice_close_btn')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </View>
     </>
@@ -553,10 +546,9 @@ export default function InvoiceSheet({
 
         {/* Actions */}
         <View style={s.actions}>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.btnPrimary, { backgroundColor: accentBg }]}
             onPress={handleDownloadPDF}
-            activeOpacity={0.78}
             disabled={downloading}
           >
             {downloading ? (
@@ -567,17 +559,16 @@ export default function InvoiceSheet({
             <Text style={[s.btnPrimaryText, { color: accentText, fontFamily: FONTS.sansMedium }]}>
               {downloading ? t('ext.invoice_downloading') : t('ext.invoice_download_pdf')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
 
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.btnOutline, { borderColor: borderColor }]}
             onPress={onClose}
-            activeOpacity={0.78}
           >
             <Text style={[s.btnOutlineText, { color: textSecondary, fontFamily: FONTS.sansMedium }]}>
               {t('ext.invoice_close_btn')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </View>
     </>

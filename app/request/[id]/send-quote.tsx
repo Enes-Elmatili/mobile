@@ -1,9 +1,7 @@
 // app/request/[id]/send-quote.tsx — Provider envoie un devis (adaptive dark/light)
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  View, Text, StyleSheet, StatusBar, 
-  TouchableOpacity, ScrollView, TextInput, ActivityIndicator,
-  KeyboardAvoidingView,
+  View, Text, StyleSheet, StatusBar, ScrollView, TextInput, ActivityIndicator, KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -20,6 +18,7 @@ import { MOTION, useCountingValue, usePresence } from "@/lib/motion";
 import { ReText } from "@/components/ui/ReText";
 import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // Normalise la virgule décimale (clavier FR/BE) avant parseFloat.
 const parseAmount = (value: string): number => parseFloat(value.replace(",", ".")) || 0;
@@ -136,14 +135,13 @@ export default function SendQuote() {
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={40} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textSub }]}>Impossible de charger cette demande.</Text>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.retryBtn, { backgroundColor: theme.accent }]}
           onPress={loadRequest}
-          activeOpacity={0.85}
         >
           <Feather name="refresh-cw" size={16} color={theme.accentText} />
           <Text style={[s.retryText, { color: theme.accentText }]}>Réessayer</Text>
-        </TouchableOpacity>
+        </PressScale>
       </View>
     );
   }
@@ -155,16 +153,15 @@ export default function SendQuote() {
       {/* Header */}
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
         <View style={s.header}>
-          <TouchableOpacity
+          <PressScale
             style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
-            activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}
             hitSlop={8}
           >
             <Feather name="arrow-left" size={18} color={theme.text} />
-          </TouchableOpacity>
+          </PressScale>
           <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.send_quote_title')}</Text>
           <View style={{ width: 36 }} />
         </View>
@@ -264,7 +261,7 @@ export default function SendQuote() {
 
       {/* Footer CTA */}
       <SafeAreaView edges={["bottom"]} style={[s.footer, { backgroundColor: theme.bg }]}>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[
             s.ctaBtn,
             { backgroundColor: theme.accent },
@@ -272,7 +269,6 @@ export default function SendQuote() {
           ]}
           onPress={handleSend}
           disabled={!canSend || sending}
-          activeOpacity={0.88}
         >
           {sending ? (
             <ActivityIndicator size="small" color={theme.accentText} />
@@ -295,7 +291,7 @@ export default function SendQuote() {
               <Feather name="arrow-right" size={18} color={canSend ? theme.accentText : theme.textMuted} />
             </>
           )}
-        </TouchableOpacity>
+        </PressScale>
       </SafeAreaView>
       </KeyboardAvoidingView>
     </View>

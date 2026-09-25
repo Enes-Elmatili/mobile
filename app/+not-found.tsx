@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function NotFoundScreen() {
   const theme = useAppTheme();
@@ -14,9 +15,9 @@ export default function NotFoundScreen() {
       <Text style={[styles.title, { color: theme.text }]}>{t('ext.not_found_title')}</Text>
       <Text style={[styles.subtitle, { color: theme.textSub }]}>{t('ext.not_found_sub')}</Text>
       <Link href="/(tabs)/dashboard" asChild>
-        <TouchableOpacity style={[styles.button, { backgroundColor: theme.accent }]}>
+        <PressScale style={[styles.button, { backgroundColor: theme.accent }]}>
           <Text style={[styles.buttonText, { color: theme.accentText }]}>{t('ext.not_found_back')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </Link>
     </View>
   );

@@ -5,7 +5,7 @@
 //   PhotoViewer  — plein écran, pagination horizontale, fermeture au toucher
 // Une URL cassée retombe sur l'icône de catégorie : la fiche ne casse jamais.
 import React, { useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useLayoutClass } from '@/lib/layout';
 import type { BriefPhoto } from '@/lib/mission/brief';
+import { PressScale } from '@/components/ui/PressScale';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const SERVER_BASE = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -50,16 +51,16 @@ export function PhotoViewer({ photos, index, onClose }: { photos: BriefPhoto[]; 
           onMomentumScrollEnd={(e) => setCurrent(Math.round(e.nativeEvent.contentOffset.x / width))}
           showsHorizontalScrollIndicator={false}
           renderItem={({ item }) => (
-            <Pressable onPress={onClose} style={{ width }} accessibilityRole="button" accessibilityLabel={t('mission.close')}>
+            <PressScale onPress={onClose} style={{ width }} accessibilityRole="button" accessibilityLabel={t('mission.close')}>
               <Image source={{ uri: photoUri(item.url) ?? undefined }} style={v.full} contentFit="contain" transition={120} />
-            </Pressable>
+            </PressScale>
           )}
         />
         <View style={[v.top, { top: insets.top + 12 }]} pointerEvents="box-none">
           <Text style={v.counter} accessibilityLabel={t('mission.photo_a11y', { n: current + 1, total: photos.length })}>{current + 1} / {photos.length}</Text>
-          <Pressable onPress={onClose} hitSlop={10} style={v.close} accessibilityRole="button" accessibilityLabel={t('mission.close')}>
+          <PressScale onPress={onClose} hitSlop={10} style={v.close} accessibilityRole="button" accessibilityLabel={t('mission.close')}>
             <Feather name="x" size={20} color="#FFFFFF" />
-          </Pressable>
+          </PressScale>
         </View>
         {shotCaption(photos[current]?.shotKey ?? null, t) ? (
           <Text style={[v.caption, { bottom: insets.bottom + 24 }]}>{shotCaption(photos[current]?.shotKey ?? null, t)}</Text>
@@ -92,13 +93,13 @@ export function PhotoThumbs({ photos, max = 3 }: { photos: BriefPhoto[]; max?: n
         const cap = shotCaption(p.shotKey, t);
         const last = i === shown.length - 1 && rest > 0;
         return (
-          <Pressable key={p.id} style={th.item} onPress={() => setOpen(i)} accessibilityRole="imagebutton" accessibilityLabel={cap ?? t('mission.photo_a11y', { n: i + 1, total: photos.length })}>
+          <PressScale key={p.id} style={th.item} onPress={() => setOpen(i)} accessibilityRole="imagebutton" accessibilityLabel={cap ?? t('mission.photo_a11y', { n: i + 1, total: photos.length })}>
             <Image source={{ uri: photoUri(p.url) ?? undefined }} style={[th.img, { backgroundColor: theme.surface }]} contentFit="cover" transition={120} />
             {cap && !last ? <Text style={th.cap} numberOfLines={1}>{cap.toUpperCase()}</Text> : null}
             {last ? (
               <View style={th.more}><Text style={th.moreText}>+{rest}</Text></View>
             ) : null}
-          </Pressable>
+          </PressScale>
         );
       })}
       <PhotoViewer photos={photos} index={open} onClose={() => setOpen(null)} />
@@ -123,10 +124,10 @@ export function PhotoGallery({ photos, title }: { photos: BriefPhoto[]; title: s
   const [open, setOpen] = useState<number | null>(null);
   if (!photos.length) return null;
   const items = photos.map((p, i) => (
-    <Pressable key={p.id} style={[g.item, isRegular && g.itemGrid]} onPress={() => setOpen(i)} accessibilityRole="imagebutton" accessibilityLabel={shotCaption(p.shotKey, t) ?? t('mission.photo_a11y', { n: i + 1, total: photos.length })}>
+    <PressScale key={p.id} style={[g.item, isRegular && g.itemGrid]} onPress={() => setOpen(i)} accessibilityRole="imagebutton" accessibilityLabel={shotCaption(p.shotKey, t) ?? t('mission.photo_a11y', { n: i + 1, total: photos.length })}>
       <Image source={{ uri: photoUri(p.url) ?? undefined }} style={[g.img, { backgroundColor: theme.surface }]} contentFit="cover" transition={120} />
       {shotCaption(p.shotKey, t) ? <Text style={g.cap} numberOfLines={1}>{shotCaption(p.shotKey, t)!.toUpperCase()}</Text> : null}
-    </Pressable>
+    </PressScale>
   ));
   return (
     <View>

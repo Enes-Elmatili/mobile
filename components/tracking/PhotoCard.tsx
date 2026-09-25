@@ -1,11 +1,12 @@
 // components/tracking/PhotoCard.tsx — une photo du chantier en carte pleine
 // largeur, avec son étiquette mono (AVANT · 14:33). Tap → visionneuse.
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { photoUri } from '@/components/mission/photos';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = { uri: string | null; label: string; onPress?: () => void; /** Emplacement vide (à prendre). */ placeholder?: string; pending?: boolean };
 
@@ -21,10 +22,10 @@ export function PhotoCard({ uri, label, onPress, placeholder, pending }: Props) 
   }
   const src = /^(file|content):/.test(uri) ? uri : (photoUri(uri) ?? uri);
   return (
-    <Pressable style={[s.card, { backgroundColor: theme.surface }]} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'imagebutton' : 'image'} accessibilityLabel={label}>
+    <PressScale style={[s.card, { backgroundColor: theme.surface }]} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'imagebutton' : 'image'} accessibilityLabel={label}>
       <Image source={{ uri: src }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
       <Text style={[s.tag, { color: theme.text, backgroundColor: theme.cardBg }]}>{label.toUpperCase()}{pending ? ' · …' : ''}</Text>
-    </Pressable>
+    </PressScale>
   );
 }
 

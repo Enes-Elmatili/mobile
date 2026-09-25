@@ -5,10 +5,7 @@
 // Uses Option A: missingFields supplied by the login response, not /auth/me.
 import React, { useCallback, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+  View, Text, StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -30,6 +27,7 @@ import {
 import type { ParsedAddress } from "@/components/auth";
 import Animated from 'react-native-reanimated';
 import { useEntrance } from '@/lib/motion/useEntrance';
+import { PressScale } from '@/components/ui/PressScale';
 
 type ToastType = "success" | "error" | "info";
 
@@ -207,13 +205,12 @@ export default function CompleteProfile() {
         />
 
         {/* Échappatoire : si le PATCH échoue en boucle, l'utilisateur peut sortir */}
-        <TouchableOpacity
+        <PressScale
           onPress={() => {
             feedback.haptic("light");
             signOut();
             router.replace("/(auth)/welcome");
           }}
-          activeOpacity={0.6}
           style={s.logoutLink}
           accessibilityRole="button"
           accessibilityLabel={t("auth.sign_out")}
@@ -231,7 +228,7 @@ export default function CompleteProfile() {
           >
             {t("auth.sign_out")}
           </Text>
-        </TouchableOpacity>
+        </PressScale>
       </Animated.View>
     </AuthScreen>
   );

@@ -3,21 +3,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  TextInput,
-  Platform,
-  StatusBar,
-  KeyboardAvoidingView,
-  Modal,
-  Switch,
-  UIManager,
-  BackHandler,
+  View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, TextInput, Platform, StatusBar, KeyboardAvoidingView, Modal, Switch, UIManager, BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -60,6 +46,7 @@ import { computePrice } from '@/lib/services/priceService';
 import { resolveServiceSelection } from '@/lib/services/serviceSelection';
 import { formatEUR, formatEURCents } from '@/lib/format';
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
+import { PressScale } from '@/components/ui/PressScale';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const TOTAL_STEPS = 4;
@@ -211,8 +198,8 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
-        <Pressable onPress={() => {}}>
+      <PressScale style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
+        <PressScale onPress={() => {}}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24 }]}>
 
             {/* Header */}
@@ -255,12 +242,12 @@ function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
               ))}
             </View>
 
-            <TouchableOpacity style={[dim.closeBtn, { backgroundColor: theme.accent }]} onPress={onClose} activeOpacity={0.85} accessibilityRole="button">
+            <PressScale style={[dim.closeBtn, { backgroundColor: theme.accent }]} onPress={onClose} accessibilityRole="button">
               <Text style={[dim.closeBtnText, { color: theme.accentText, fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 20, letterSpacing: 2 }]}>{t('stepper.understood')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           </View>
-        </Pressable>
-      </Pressable>
+        </PressScale>
+      </PressScale>
     </Modal>
   );
 }
@@ -285,9 +272,9 @@ function PromoSheet({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
+      <PressScale style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
         <KeyboardAvoidingView behavior="padding">
-        <Pressable onPress={() => {}}>
+        <PressScale onPress={() => {}}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24, paddingHorizontal: 24 }]}>
             <View style={dim.titleRow}>
               <View style={[dim.iconWrap, { backgroundColor: 'rgba(21,193,110,0.15)', borderColor: 'rgba(21,193,110,0.3)' }]}>
@@ -317,10 +304,9 @@ function PromoSheet({
               }}
             />
 
-            <TouchableOpacity
+            <PressScale
               style={[dim.closeBtn, { backgroundColor: canApply ? theme.accent : (theme.surface as string), marginHorizontal: 0, marginTop: 18, opacity: canApply ? 1 : 0.6 }]}
               onPress={() => canApply && onApply(code)}
-              activeOpacity={0.85}
               disabled={!canApply}
               accessibilityRole="button"
             >
@@ -331,11 +317,11 @@ function PromoSheet({
                   {t('stepper.promo_apply') || 'APPLIQUER'}
                 </Text>
               )}
-            </TouchableOpacity>
+            </PressScale>
           </View>
-        </Pressable>
+        </PressScale>
         </KeyboardAvoidingView>
-      </Pressable>
+      </PressScale>
     </Modal>
   );
 }
@@ -490,9 +476,9 @@ function RecapTile({
   theme: any; icon: any; title: string; sub?: string;
   right?: React.ReactNode; onPress?: () => void;
 }) {
-  const Wrap: any = onPress ? TouchableOpacity : View;
+  const Wrap: any = onPress ? PressScale : View;
   return (
-    <Wrap {...(onPress ? { onPress, activeOpacity: 0.7 } : {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 16 }}>
+    <Wrap {...(onPress ? { onPress } : {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 16 }}>
       <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
         <Feather name={icon} size={17} color={theme.text as string} />
       </View>
@@ -1398,30 +1384,28 @@ export default function NewRequestStepper() {
                 {/* Saved addresses / save actions */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
                   {savedAddresses.length > 0 && (
-                    <TouchableOpacity
+                    <PressScale
                       onPress={() => setShowAddrDropdown(prev => !prev)}
-                      activeOpacity={0.7}
                       style={{ padding: 8 }}
                       accessibilityRole="button"
                       accessibilityLabel={t('stepper.saved_addresses_a11y')}
                       accessibilityState={{ expanded: showAddrDropdown }}
                     >
                       <Feather name="bookmark" size={18} color={showAddrDropdown ? (theme.text as string) : (theme.textMuted as string)} />
-                    </TouchableOpacity>
+                    </PressScale>
                   )}
                   {savedAddresses.length > 0 && location && savedAddresses.length < 10 && !savedAddresses.some((a: any) => a.address === location.address) && (
                     <View style={{ width: 1, height: 16, backgroundColor: theme.sep as string, marginHorizontal: 2 }} />
                   )}
                   {location && savedAddresses.length < 10 && !savedAddresses.some((a: any) => a.address === location.address) && (
-                    <TouchableOpacity
+                    <PressScale
                       onPress={() => setShowSaveSheet(true)}
-                      activeOpacity={0.7}
                       style={{ padding: 8 }}
                       accessibilityRole="button"
                       accessibilityLabel={t('common.save')}
                     >
                       <Feather name="plus-circle" size={18} color={theme.textMuted as string} />
-                    </TouchableOpacity>
+                    </PressScale>
                   )}
                 </View>
               </View>
@@ -1441,7 +1425,7 @@ export default function NewRequestStepper() {
                       ? 'home' : lbl.includes('bureau') || lbl.includes('office') || lbl.includes('travail')
                       ? 'briefcase' : 'map-pin';
                     return (
-                      <TouchableOpacity accessibilityRole="button"
+                      <PressScale accessibilityRole="button"
                         key={addr.id}
                         onPress={() => {
                           setLocation({ address: addr.address, lat: addr.lat, lng: addr.lng });
@@ -1451,7 +1435,6 @@ export default function NewRequestStepper() {
                           mapRef.current?.animateToRegion({ latitude: addr.lat, longitude: addr.lng, latitudeDelta: 0.006, longitudeDelta: 0.006 });
                           feedback.haptic('light');
                         }}
-                        activeOpacity={0.7}
                         style={{
                           flexDirection: 'row', alignItems: 'center', gap: 12,
                           paddingHorizontal: 16, paddingVertical: 12,
@@ -1464,7 +1447,7 @@ export default function NewRequestStepper() {
                           <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: theme.text as string }}>{addr.label}</Text>
                           <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: theme.textMuted as string, marginTop: 1 }} numberOfLines={1}>{addr.address}</Text>
                         </View>
-                      </TouchableOpacity>
+                      </PressScale>
                     );
                   })}
                 </View>
@@ -1513,7 +1496,7 @@ export default function NewRequestStepper() {
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 100,
           }}>
-            <TouchableOpacity accessibilityRole="button" style={{ flex: 1 }} onPress={() => setShowSaveSheet(false)} activeOpacity={1} />
+            <Pressable accessibilityRole="button" style={{ flex: 1 }} onPress={() => setShowSaveSheet(false)} />
             <KeyboardAvoidingView behavior="padding">
             <View style={{
               backgroundColor: theme.card as string, borderTopLeftRadius: 28, borderTopRightRadius: 28,
@@ -1533,9 +1516,8 @@ export default function NewRequestStepper() {
 
               {/* Quick chips with icons */}
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   onPress={() => setSaveLabel('Domicile')}
-                  activeOpacity={0.7}
                   style={{
                     flexDirection: 'row', alignItems: 'center', gap: 6,
                     paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
@@ -1545,10 +1527,9 @@ export default function NewRequestStepper() {
                 >
                   <Feather name="home" size={14} color={saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string)} />
                   <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Domicile' ? (theme.accentText as string) : (theme.text as string) }}>{t('addresses.label_home')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button"
+                </PressScale>
+                <PressScale accessibilityRole="button"
                   onPress={() => setSaveLabel('Bureau')}
-                  activeOpacity={0.7}
                   style={{
                     flexDirection: 'row', alignItems: 'center', gap: 6,
                     paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
@@ -1558,10 +1539,9 @@ export default function NewRequestStepper() {
                 >
                   <Feather name="briefcase" size={14} color={saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string)} />
                   <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Bureau' ? (theme.accentText as string) : (theme.text as string) }}>{t('addresses.label_work')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button"
+                </PressScale>
+                <PressScale accessibilityRole="button"
                   onPress={() => setSaveLabel('Autre')}
-                  activeOpacity={0.7}
                   style={{
                     paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
                     backgroundColor: saveLabel === 'Autre' ? (theme.accent as string) : (theme.surface as string),
@@ -1569,7 +1549,7 @@ export default function NewRequestStepper() {
                   }}
                 >
                   <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 14, color: saveLabel === 'Autre' ? (theme.accentText as string) : (theme.text as string) }}>{t('addresses.label_other')}</Text>
-                </TouchableOpacity>
+                </PressScale>
               </View>
 
               {/* Custom input */}
@@ -1588,10 +1568,9 @@ export default function NewRequestStepper() {
               />
 
               {/* Save CTA */}
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 onPress={handleSaveNewAddress}
                 disabled={!saveLabel.trim() || saving}
-                activeOpacity={0.85}
                 style={{
                   backgroundColor: theme.accent as string, borderRadius: 16, height: 52,
                   alignItems: 'center', justifyContent: 'center',
@@ -1601,7 +1580,7 @@ export default function NewRequestStepper() {
                 <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 16, color: theme.accentText as string }}>
                   {saving ? t('common.saving') : t('addresses.save_address')}
                 </Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
             </KeyboardAvoidingView>
           </View>
@@ -1650,10 +1629,10 @@ export default function NewRequestStepper() {
                         <Text style={[s.unavailable, { color: theme.textSub }]}>{t('stepper.service_unavailable')}</Text>
                       )}
 
-                      <TouchableOpacity style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} activeOpacity={0.7} accessibilityRole="button">
+                      <PressScale style={s.noteToggle} onPress={() => setNoteOpen(p => !p)} accessibilityRole="button">
                         <Feather name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
                         <Text style={[s.noteToggleText, { color: theme.textSub }]}>{t('stepper.add_note')}</Text>
-                      </TouchableOpacity>
+                      </PressScale>
 
                       {noteOpen && (
                         <TextInput
@@ -1757,7 +1736,7 @@ export default function NewRequestStepper() {
                         { val: true,  label: t('stepper.vat_over10') },
                         { val: false, label: t('stepper.vat_under10') },
                       ] as const).map(opt => (
-                        <TouchableOpacity accessibilityRole="button"
+                        <PressScale accessibilityRole="button"
                           key={String(opt.val)}
                           style={[
                             ai.chip,
@@ -1765,10 +1744,9 @@ export default function NewRequestStepper() {
                             buildingOver10y === opt.val && { backgroundColor: theme.accent },
                           ]}
                           onPress={() => { feedback.haptic('light'); setBuildingOver10y(opt.val); }}
-                          activeOpacity={0.7}
                         >
                           <Text style={[ai.chipText, { color: buildingOver10y === opt.val ? theme.accentText : theme.textSub }]}>{opt.label}</Text>
-                        </TouchableOpacity>
+                        </PressScale>
                       ))}
                     </View>
                 </SettingRow>
@@ -1793,7 +1771,7 @@ export default function NewRequestStepper() {
                         { key: 'house',     label: 'stepper.building_house',     icon: 'home' },
                         { key: 'office',    label: 'stepper.building_office',    icon: 'briefcase' },
                       ] as const).map(bt => (
-                        <TouchableOpacity accessibilityRole="button"
+                        <PressScale accessibilityRole="button"
                           key={bt.key}
                           style={[
                             ai.chip,
@@ -1801,11 +1779,10 @@ export default function NewRequestStepper() {
                             buildingType === bt.key && { backgroundColor: theme.accent },
                           ]}
                           onPress={() => setBuildingType(prev => prev === bt.key ? null : bt.key)}
-                          activeOpacity={0.7}
                         >
                           <Feather name={bt.icon as any} size={14} color={buildingType === bt.key ? theme.accentText as string : theme.textSub as string} />
                           <Text style={[ai.chipText, { color: buildingType === bt.key ? theme.accentText : theme.textSub }]}>{t(bt.label)}</Text>
-                        </TouchableOpacity>
+                        </PressScale>
                       ))}
                     </View>
 
@@ -1829,22 +1806,20 @@ export default function NewRequestStepper() {
                       <View style={{ flex: 1 }}>
                         <Text style={[ai.label, { color: theme.textMuted }]}>{t('stepper.elevator')}</Text>
                         <View style={ai.chipRow}>
-                          <TouchableOpacity accessibilityRole="button"
+                          <PressScale accessibilityRole="button"
                             style={[ai.chip, { borderColor: hasElevator === true ? theme.accent : theme.surfaceBorder }, hasElevator === true && { backgroundColor: theme.accent }]}
                             onPress={() => setHasElevator(prev => prev === true ? null : true)}
-                            activeOpacity={0.7}
                           >
                             <Feather name="check" size={14} color={hasElevator === true ? theme.accentText as string : theme.textSub as string} />
                             <Text style={[ai.chipText, { color: hasElevator === true ? theme.accentText : theme.textSub }]}>{t('common.yes')}</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity accessibilityRole="button"
+                          </PressScale>
+                          <PressScale accessibilityRole="button"
                             style={[ai.chip, { borderColor: hasElevator === false ? theme.accent : theme.surfaceBorder }, hasElevator === false && { backgroundColor: theme.accent }]}
                             onPress={() => setHasElevator(prev => prev === false ? null : false)}
-                            activeOpacity={0.7}
                           >
                             <Feather name="x" size={14} color={hasElevator === false ? theme.accentText as string : theme.textSub as string} />
                             <Text style={[ai.chipText, { color: hasElevator === false ? theme.accentText : theme.textSub }]}>{t('common.no')}</Text>
-                          </TouchableOpacity>
+                          </PressScale>
                         </View>
                       </View>
                     </View>
@@ -1872,7 +1847,7 @@ export default function NewRequestStepper() {
                         { key: 'nl', label: 'Nederlands' },
                         { key: 'en', label: 'English' },
                       ] as const).map(lang => (
-                        <TouchableOpacity accessibilityRole="button"
+                        <PressScale accessibilityRole="button"
                           key={lang.key}
                           style={[
                             ai.chip,
@@ -1880,10 +1855,9 @@ export default function NewRequestStepper() {
                             clientLanguage === lang.key && { backgroundColor: theme.accent },
                           ]}
                           onPress={() => setClientLanguage(prev => prev === lang.key ? null : lang.key)}
-                          activeOpacity={0.7}
                         >
                           <Text style={[ai.chipText, { color: clientLanguage === lang.key ? theme.accentText : theme.textSub }]}>{lang.label}</Text>
-                        </TouchableOpacity>
+                        </PressScale>
                       ))}
                     </View>
                   </View>
@@ -1952,14 +1926,13 @@ export default function NewRequestStepper() {
                   <Text style={{ flex: 1, fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18, color: COLORS.orangeBrand }}>
                     {t('stepper.payment_prepare_error')}
                   </Text>
-                  <TouchableOpacity
+                  <PressScale
                     onPress={() => { feedback.haptic('light'); setPricingError(null); setInitAttempt(a => a + 1); }}
                     style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: theme.accent as string }}
-                    activeOpacity={0.85}
                     accessibilityRole="button"
                   >
                     <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 12.5, color: theme.accentText as string }}>{t('common.retry')}</Text>
-                  </TouchableOpacity>
+                  </PressScale>
                 </View>
               )}
 
@@ -1974,17 +1947,16 @@ export default function NewRequestStepper() {
                   <Text style={{ flex: 1, fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18, color: COLORS.orangeBrand }}>
                     {t('stepper.payment_confirm_failed_banner')}
                   </Text>
-                  <TouchableOpacity
+                  <PressScale
                     onPress={retryConfirmPayment}
                     disabled={loading}
                     style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: theme.accent as string, opacity: loading ? 0.6 : 1 }}
-                    activeOpacity={0.85}
                     accessibilityRole="button"
                   >
                     {loading
                       ? <ActivityIndicator size="small" color={theme.accentText as string} />
                       : <Text style={{ fontFamily: FONTS.sansMedium, fontSize: 12.5, color: theme.accentText as string }}>{t('common.retry')}</Text>}
-                  </TouchableOpacity>
+                  </PressScale>
                 </View>
               )}
 
@@ -2018,14 +1990,14 @@ export default function NewRequestStepper() {
                       </Text>
                     ) : null}
                   />
-                  <TouchableOpacity accessibilityRole="button"
+                  <PressScale accessibilityRole="button"
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
-                    onPress={() => setDevisModalVisible(true)} activeOpacity={0.7}
+                    onPress={() => setDevisModalVisible(true)}
                   >
                     <Feather name="file-text" size={14} color={COLORS.amber} />
                     <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>{t('stepper.how_quote_works')}</Text>
                     <Feather name="chevron-right" size={13} color={theme.textMuted as string} />
-                  </TouchableOpacity>
+                  </PressScale>
                 </View>
               ) : (
                 <AmountCardB
@@ -2091,7 +2063,7 @@ export default function NewRequestStepper() {
                           title={appliedPromo.code}
                           sub={`${t('stepper.promo_applied') || 'Offre appliquée'} · −${stripEuro(formatEURCents(appliedPromo.discountCents))} €`}
                           right={(
-                            <TouchableOpacity
+                            <PressScale
                               onPress={removePromo}
                               disabled={promoApplying}
                               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -2100,7 +2072,7 @@ export default function NewRequestStepper() {
                               {promoApplying
                                 ? <ActivityIndicator size="small" color={theme.textMuted as string} />
                                 : <Feather name="x" size={18} color={theme.textMuted as string} />}
-                            </TouchableOpacity>
+                            </PressScale>
                           )}
                         />
                       ) : (
@@ -2171,14 +2143,14 @@ export default function NewRequestStepper() {
           <Text style={[s.preferredBannerText, { color: theme.text, fontFamily: FONTS.sans }]}>
             {t('stepper.request_priority_prefix')}<Text style={{ fontFamily: FONTS.sansMedium }}>{preferred.name}</Text>
           </Text>
-          <TouchableOpacity
+          <PressScale
             onPress={() => setPreferred(null)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t('stepper.remove_preference_a11y')}
           >
             <Feather name="x" size={16} color={theme.textMuted as string} />
-          </TouchableOpacity>
+          </PressScale>
         </View>
       )}
       </View>

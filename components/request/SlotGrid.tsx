@@ -3,9 +3,10 @@
 // quatre colonnes égales, l'étiquette en première colonne. Les cases
 // manquantes restent vides. Les créneaux inertes (passés) sont grisés.
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { feedback } from '@/lib/feedback/feedback';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Group = { label: string; slots: string[] };
 type Props = {
@@ -29,7 +30,7 @@ export function SlotGrid({ groups, selected, onSelect, isDisabled, columns = 4 }
             const active = slot === selected;
             const off = isDisabled(slot);
             return (
-              <Pressable
+              <PressScale
                 key={slot}
                 disabled={off}
                 onPress={() => { if (!active) { feedback.haptic('selection'); onSelect(slot); } }}
@@ -39,7 +40,7 @@ export function SlotGrid({ groups, selected, onSelect, isDisabled, columns = 4 }
                 style={[s.cell, s.cellFilled, { backgroundColor: theme.surface }, active && { backgroundColor: theme.accent }, off && s.cellOff]}
               >
                 <Text style={[s.time, { color: active ? theme.accentText : off ? theme.textMuted : theme.textSub }]} maxFontSizeMultiplier={1.2}>{slot}</Text>
-              </Pressable>
+              </PressScale>
             );
           })}
         </View>

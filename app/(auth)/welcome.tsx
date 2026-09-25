@@ -7,8 +7,7 @@ import {
   View,
   Text,
   StyleSheet,
-  Pressable,
-} from "react-native";
+  } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useAppTheme, FONTS, alpha } from "@/hooks/use-app-theme";
@@ -21,6 +20,7 @@ import {
 } from "@/components/auth";
 import Animated from 'react-native-reanimated';
 import { useEntrance } from '@/lib/motion/useEntrance';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function Welcome() {
   const { t } = useTranslation();
@@ -89,7 +89,7 @@ export default function Welcome() {
           />
         </View>
 
-        <Pressable
+        <PressScale
           onPress={handleProLink}
           style={s.proRow}
           hitSlop={12}
@@ -102,7 +102,7 @@ export default function Welcome() {
               {t('auth.welcome_pro_link')}
             </Text>
           </Text>
-        </Pressable>
+        </PressScale>
       </Animated.View>
     </AuthScreen>
   );

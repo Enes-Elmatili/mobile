@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  StatusBar,
+  View, Text, StyleSheet, ActivityIndicator, RefreshControl, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,6 +11,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 export default function ProvidersListScreen() {
   const router = useRouter();
@@ -59,7 +54,7 @@ export default function ProvidersListScreen() {
     const avgRating = Number(item.avgRating) || 0;
 
     return (
-      <TouchableOpacity accessibilityRole="button"
+      <PressScale accessibilityRole="button"
         style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
         onPress={() => {
           router.push({
@@ -86,7 +81,7 @@ export default function ProvidersListScreen() {
           )}
         </View>
         <Feather name="chevron-right" size={24} color={theme.textMuted} />
-      </TouchableOpacity>
+      </PressScale>
     );
   };
 
@@ -103,7 +98,7 @@ export default function ProvidersListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity
+        <PressScale
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
           style={[styles.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -111,7 +106,7 @@ export default function ProvidersListScreen() {
           accessibilityLabel="Retour"
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>Prestataires</Text>
         <View style={{ width: 36 }} />
       </View>
@@ -122,16 +117,15 @@ export default function ProvidersListScreen() {
           <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             Impossible de charger les prestataires.
           </Text>
-          <TouchableOpacity
+          <PressScale
             style={[styles.retryBtn, { backgroundColor: theme.accent }]}
             onPress={() => { setLoading(true); loadProviders(); }}
-            activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Réessayer"
           >
             <Feather name="refresh-cw" size={15} color={theme.accentText} />
             <Text style={[styles.retryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       ) : (
         <>

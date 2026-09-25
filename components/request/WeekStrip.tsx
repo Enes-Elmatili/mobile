@@ -4,12 +4,13 @@
 // rangée latéralement (StepPager). Jours passés grisés et inertes, aujourd'hui
 // porte un point. Sélection : fond accent, haptique selection.
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { feedback } from '@/lib/feedback/feedback';
 import { StepPager, type PagerDirection } from './StepPager';
 import type { Week, WeekDay } from '@/lib/scheduling/weeks';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   weeks: Week[];
@@ -49,12 +50,12 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
       <View style={s.head}>
         <Text style={[s.range, { color: theme.text }]} maxFontSizeMultiplier={1.3}>{rangeLabel(week, monthLabel)}</Text>
         <View style={s.arrows}>
-          <Pressable onPress={() => go(-1)} disabled={!canPrev} hitSlop={8} accessibilityRole="button" accessibilityLabel={prevLabel} style={!canPrev && s.arrowOff}>
+          <PressScale onPress={() => go(-1)} disabled={!canPrev} hitSlop={8} accessibilityRole="button" accessibilityLabel={prevLabel} style={!canPrev && s.arrowOff}>
             <Feather name="chevron-left" size={20} color={theme.textSub as string} />
-          </Pressable>
-          <Pressable onPress={() => go(1)} disabled={!canNext} hitSlop={8} accessibilityRole="button" accessibilityLabel={nextLabel} style={!canNext && s.arrowOff}>
+          </PressScale>
+          <PressScale onPress={() => go(1)} disabled={!canNext} hitSlop={8} accessibilityRole="button" accessibilityLabel={nextLabel} style={!canNext && s.arrowOff}>
             <Feather name="chevron-right" size={20} color={theme.textSub as string} />
-          </Pressable>
+          </PressScale>
         </View>
       </View>
       <StepPager page={index} direction={dirRef.current} style={s.pager} render={() => (
@@ -62,7 +63,7 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
           {week.days.map((d) => {
             const selected = d.iso === selectedIso;
             return (
-              <Pressable
+              <PressScale
                 key={d.iso}
                 disabled={d.isPast}
                 onPress={() => { if (!selected) { feedback.haptic('selection'); onSelect(d.iso); } }}
@@ -74,7 +75,7 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
                 <Text style={[s.dayName, { color: selected ? theme.accentText : theme.textMuted }]} maxFontSizeMultiplier={1.2}>{dayLabel(d).toUpperCase()}</Text>
                 <Text style={[s.dayNum, { color: selected ? theme.accentText : d.isPast ? theme.textMuted : theme.text }]} maxFontSizeMultiplier={1.2}>{d.date}</Text>
                 <View style={[s.todayDot, d.isToday && { backgroundColor: selected ? theme.accentText : theme.text }]} />
-              </Pressable>
+              </PressScale>
             );
           })}
         </View>

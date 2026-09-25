@@ -4,9 +4,7 @@
 // l'app »). Succès animé avant la bascule vers le dashboard.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  StatusBar, ScrollView, Platform,
-  KeyboardAvoidingView,
+  View, Text, TextInput, StyleSheet, StatusBar, ScrollView, Platform, KeyboardAvoidingView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
@@ -36,6 +34,7 @@ import {
 } from "@/lib/providerOnboarding";
 import { cleanName } from "@/lib/displayName";
 import { useLayoutClass } from "@/lib/layout";
+import { PressScale } from '@/components/ui/PressScale';
 
 // Libellés traduits des documents (au lieu de la clé technique « id_front »)
 const DOC_LABELS: Record<string, string> = Object.fromEntries(
@@ -484,15 +483,14 @@ export default function PendingValidation() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity
+              <PressScale
                 style={s.docsFixBtn}
                 onPress={resumeOnboarding}
-                activeOpacity={0.8}
                 accessibilityRole="button"
               >
                 <Feather name="upload" size={13} color={C.white} />
                 <Text style={s.docsFixText}>{t('onboarding.pending_incomplete_cta')}</Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
           )}
 
@@ -510,25 +508,23 @@ export default function PendingValidation() {
                   <Text style={[s.docStatus, { color: C.red }]}>{t('onboarding.pending_doc_refused')}</Text>
                 </View>
               ))}
-              <TouchableOpacity accessibilityRole="button"
+              <PressScale accessibilityRole="button"
                 style={s.docsFixBtn}
                 onPress={() => { feedback.haptic('medium'); router.push("/onboarding/documents"); }}
-                activeOpacity={0.8}
               >
                 <Feather name="upload" size={13} color={C.white} />
                 <Text style={s.docsFixText}>{t('onboarding.rejected_cta')}</Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
           )}
 
           {/* En attendant : complétez votre profil */}
           <Text style={s.prepTitle}>{t('onboarding.pending_prep_title')}</Text>
           <View style={s.prepList}>
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.prepRow}
               onPress={handleAddPhoto}
               disabled={photoBusy || hasPhoto}
-              activeOpacity={0.7}
             >
               <Feather name="camera" size={16} color={hasPhoto ? C.green : C.white} />
               <Text style={s.prepLabel}>{t('onboarding.pending_prep_photo')}</Text>
@@ -537,13 +533,12 @@ export default function PendingValidation() {
               ) : (
                 <Feather name={hasPhoto ? "check" : "chevron-right"} size={14} color={hasPhoto ? C.green : C.faint} />
               )}
-            </TouchableOpacity>
+            </PressScale>
 
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.prepRow}
               onPress={() => { feedback.haptic('light'); setBioOpen(o => !o); }}
               disabled={hasBio && !bioOpen}
-              activeOpacity={0.7}
             >
               <Feather name="file-text" size={16} color={hasBio ? C.green : C.white} />
               <Text style={s.prepLabel}>{t('onboarding.pending_prep_bio')}</Text>
@@ -552,7 +547,7 @@ export default function PendingValidation() {
                 size={14}
                 color={hasBio ? C.green : C.faint}
               />
-            </TouchableOpacity>
+            </PressScale>
 
             {bioOpen && !hasBio && (
               <View style={s.bioCard}>
@@ -565,17 +560,16 @@ export default function PendingValidation() {
                   multiline
                   maxLength={500}
                 />
-                <TouchableOpacity accessibilityRole="button"
+                <PressScale accessibilityRole="button"
                   style={[s.bioSave, bioSaving && { opacity: 0.5 }]}
                   onPress={handleSaveBio}
                   disabled={bioSaving}
-                  activeOpacity={0.8}
                   hitSlop={{ top: 6, bottom: 6 }}
                 >
                   <Text style={s.bioSaveText}>
                     {bioSaving ? t('common.loading') : t('common.save')}
                   </Text>
-                </TouchableOpacity>
+                </PressScale>
               </View>
             )}
           </View>
@@ -589,47 +583,44 @@ export default function PendingValidation() {
         {/* Footer */}
         <View style={s.footer}>
           {fileIncomplete ? (
-            <TouchableOpacity
+            <PressScale
               style={s.stripeCta}
               onPress={resumeOnboarding}
-              activeOpacity={0.9}
               accessibilityRole="button"
             >
               <Text style={s.stripeCtaText}>{t('onboarding.pending_incomplete_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           ) : !stripeConnected ? (
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
                 router.push("/onboarding/provider/stripe-connect");
               }}
-              activeOpacity={0.9}
             >
               <Text style={s.stripeCtaText}>{t('onboarding.stripe_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           ) : null}
 
           {/* Stripe reste accessible en second rang tant qu'il manque des pièces :
               on ne retire rien, on ne fait que remettre l'ordre. */}
           {fileIncomplete && !stripeConnected && (
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.secondaryLink}
               onPress={() => {
                 feedback.haptic('light');
                 router.push("/onboarding/provider/stripe-connect");
               }}
-              activeOpacity={0.6}
               hitSlop={{ top: 8, bottom: 8 }}
             >
               <Text style={s.secondaryLinkText}>{t('onboarding.stripe_cta')}</Text>
-            </TouchableOpacity>
+            </PressScale>
           )}
 
           <View style={s.notifRow}>
@@ -637,17 +628,16 @@ export default function PendingValidation() {
             <Text style={s.notifText}>{t('onboarding.pending_notification')}</Text>
           </View>
 
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.logoutBtn, { paddingBottom: insets.bottom + 16 }]}
             onPress={() => {
               feedback.haptic('light');
               signOut();
             }}
-            activeOpacity={0.6}
           >
             <Feather name="log-out" size={16} color={C.grey} />
             <Text style={s.logoutText}>{t('onboarding.signout')}</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </View>
     );
@@ -679,19 +669,18 @@ export default function PendingValidation() {
               <Text style={s.titleOutline}>{t('onboarding.approved_title_l2')}</Text>
             </Text>
             <Text style={s.subtitle}>{t('onboarding.approved_sub')}</Text>
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
                 goLive();
               }}
-              activeOpacity={0.9}
             >
               <Text style={s.stripeCtaText}>{t('onboarding.approved_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           </>
         )}
 
@@ -711,19 +700,18 @@ export default function PendingValidation() {
                 <Text style={s.reasonText}>{rejectionReason}</Text>
               </View>
             )}
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
                 router.push("/onboarding/documents");
               }}
-              activeOpacity={0.9}
             >
               <Text style={s.stripeCtaText}>{t('onboarding.rejected_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           </>
         )}
 
@@ -743,19 +731,18 @@ export default function PendingValidation() {
                 <Text style={s.reasonText}>{rejectionReason}</Text>
               </View>
             )}
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
                 router.push("/support");
               }}
-              activeOpacity={0.9}
             >
               <Text style={s.stripeCtaText}>{t('onboarding.suspended_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           </>
         )}
 
@@ -775,35 +762,33 @@ export default function PendingValidation() {
                 <Text style={s.reasonText}>{rejectionReason}</Text>
               </View>
             )}
-            <TouchableOpacity accessibilityRole="button"
+            <PressScale accessibilityRole="button"
               style={s.stripeCta}
               onPress={() => {
                 feedback.haptic('medium');
                 router.push("/support");
               }}
-              activeOpacity={0.9}
             >
               <Text style={s.stripeCtaText}>{t('onboarding.banned_cta')}</Text>
               <View style={s.arrowPill}>
                 <Feather name="arrow-right" size={14} color={C.white} />
               </View>
-            </TouchableOpacity>
+            </PressScale>
           </>
         )}
       </View>
 
       <View style={s.footer}>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.logoutBtn, { paddingBottom: insets.bottom + 16 }]}
           onPress={() => {
             feedback.haptic('light');
             signOut();
           }}
-          activeOpacity={0.6}
         >
           <Feather name="log-out" size={16} color={C.grey} />
           <Text style={s.logoutText}>{t('onboarding.signout')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </View>
     </View>
   );

@@ -6,7 +6,7 @@
 // L'enveloppe (glissé depuis le bas, poignée, fondu sur la carte) reste dans
 // components/provider/ProviderDashboard.tsx.
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
@@ -14,6 +14,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import type { MissionBrief } from '@/lib/mission/brief';
 import { CountdownRing, EarnRow, MissionFacts, MissionTitle } from './blocks';
 import { PhotoThumbs } from './photos';
+import { PressScale } from '@/components/ui/PressScale';
 
 type Props = {
   brief: MissionBrief;
@@ -41,9 +42,9 @@ export function IncomingMissionCard({ brief, timeLeft, total, expired, accepted 
       <View style={s.slide}>
         <SlideToConfirm label={t('mission.slide_accept')} onConfirm={onAccept} done={accepted} />
       </View>
-      <Pressable onPress={() => { feedback.haptic('light'); onDecline(); }} disabled={accepted} style={[s.refuse, accepted && { opacity: 0 }]} accessibilityRole="button" accessibilityLabel={expired ? t('missions.cancel') : t('provider.decline')} accessibilityElementsHidden={accepted}>
+      <PressScale onPress={() => { feedback.haptic('light'); onDecline(); }} disabled={accepted} style={[s.refuse, accepted && { opacity: 0 }]} accessibilityRole="button" accessibilityLabel={expired ? t('missions.cancel') : t('provider.decline')} accessibilityElementsHidden={accepted}>
         <Text style={[s.refuseText, { color: expired ? COLORS.red : theme.textMuted }]}>{expired ? t('missions.cancel') : t('mission.refuse')}</Text>
-      </Pressable>
+      </PressScale>
     </View>
   );
 }

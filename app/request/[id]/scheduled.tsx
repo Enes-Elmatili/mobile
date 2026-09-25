@@ -11,8 +11,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, StatusBar, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -30,6 +29,7 @@ import { devError } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 import { spring } from '@/lib/motion/springs';
+import { PressScale } from '@/components/ui/PressScale';
 
 // Format "Mer 8 à 19:00"
 function formatScheduled(iso?: string | null): string {
@@ -332,24 +332,22 @@ export default function ScheduledConfirmation() {
 
       {/* Bottom CTAs */}
       <View style={st.bottom}>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[st.btn, { backgroundColor: theme.accent }]}
           onPress={() => {
             feedback.haptic('light');
             router.replace('/(tabs)/dashboard');
           }}
-          activeOpacity={0.85}
         >
           <Text style={[st.btnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('ext.scheduled_back_home')}</Text>
           <Feather name="arrow-right" size={18} color={theme.accentText} />
-        </TouchableOpacity>
+        </PressScale>
 
         {isRecapMode ? (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[st.btnSecondary, { borderColor: COLORS.red }]}
             onPress={handleCancel}
             disabled={cancelling}
-            activeOpacity={0.85}
           >
             {cancelling ? (
               <ActivityIndicator size="small" color={COLORS.red} />
@@ -358,9 +356,9 @@ export default function ScheduledConfirmation() {
                 {t('missions.cancel')}
               </Text>
             )}
-          </TouchableOpacity>
+          </PressScale>
         ) : (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[st.btnSecondary, { borderColor: theme.border }]}
             onPress={() => {
               feedback.haptic('light');
@@ -373,10 +371,9 @@ export default function ScheduledConfirmation() {
                 params: { id, mode: 'recap' },
               });
             }}
-            activeOpacity={0.85}
           >
             <Text style={[st.btnSecondaryText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('dashboard.track_request')}</Text>
-          </TouchableOpacity>
+          </PressScale>
         )}
       </View>
     </SafeAreaView>

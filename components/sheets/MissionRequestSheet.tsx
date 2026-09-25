@@ -7,13 +7,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-  Vibration,
-  Pressable,
+  View, Text, StyleSheet, Platform, Vibration, Pressable,
 } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SHEET_SPRING } from '@/lib/motion/sheet';
@@ -24,6 +18,7 @@ import { cleanName } from '@/lib/displayName';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { PressScale } from '@/components/ui/PressScale';
 
 const SHEET_HEIGHT      = 360;
 const COUNTDOWN_SECONDS = 25;
@@ -264,9 +259,9 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
         {/* Actions */}
         <View style={styles.actions}>
-          <TouchableOpacity style={[styles.declineBtn, { backgroundColor: theme.surfaceAlt }]} onPress={handleDecline} activeOpacity={0.7} accessibilityLabel={t('mission_sheet.decline')} accessibilityRole="button">
+          <PressScale style={[styles.declineBtn, { backgroundColor: theme.surfaceAlt }]} onPress={handleDecline} accessibilityLabel={t('mission_sheet.decline')} accessibilityRole="button">
             <Text style={[styles.declineTxt, { color: theme.textMuted, fontFamily: FONTS.sansMedium }]}>{t('mission_sheet.decline')}</Text>
-          </TouchableOpacity>
+          </PressScale>
 
           {/* Moment 6 : accepter est un geste — glisser, pas taper. */}
           <View style={styles.acceptWrap}>

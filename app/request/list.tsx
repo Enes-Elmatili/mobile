@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  RefreshControl,
+  View, Text, StyleSheet, ActivityIndicator, StatusBar, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { devError } from '@/lib/logger';
@@ -20,6 +14,7 @@ import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { formatEUR } from '@/lib/format';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 // Clés i18n des statuts bruts de l'enum backend (traduits au rendu).
 const STATUS_KEYS: Record<string, string> = {
@@ -80,7 +75,7 @@ export default function RequestsListScreen() {
   };
 
   const renderRequest = ({ item }: any) => (
-    <TouchableOpacity accessibilityRole="button"
+    <PressScale accessibilityRole="button"
       style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
       onPress={() => {
         router.push({
@@ -103,7 +98,7 @@ export default function RequestsListScreen() {
               : '—'}
         </Text>
       </View>
-    </TouchableOpacity>
+    </PressScale>
   );
 
   if (loading) {
@@ -119,9 +114,9 @@ export default function RequestsListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
+        <PressScale onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={24} color={theme.textAlt} />
-        </TouchableOpacity>
+        </PressScale>
         <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.list_all_requests')}</Text>
         <View style={{ width: 24 }} />
       </View>
@@ -130,14 +125,13 @@ export default function RequestsListScreen() {
         <View style={styles.empty}>
           <Feather name="alert-circle" size={56} color={theme.textMuted} />
           <Text style={[styles.emptyText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('ext.reqlist_load_error')}</Text>
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[styles.retryBtn, { backgroundColor: theme.accent }]}
             onPress={() => { setLoading(true); loadRequests(); }}
-            activeOpacity={0.85}
           >
             <Feather name="refresh-cw" size={16} color={theme.accentText} />
             <Text style={[styles.retryText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       ) : (
         <>

@@ -24,6 +24,7 @@ import { minutesSince } from '@/lib/mission/stage';
 import Avatar from '@/components/ui/Avatar';
 import { PhotoViewer, photoUri } from '@/components/mission/photos';
 import { providerName } from './ProviderRow';
+import { PressScale } from '@/components/ui/PressScale';
 
 // ─── Puces ───────────────────────────────────────────────────────────────────
 type Chip = { id: string; icon: React.ComponentProps<typeof Feather>['name']; label: string };
@@ -70,9 +71,9 @@ function Star({ index, rating, onPress, label, muted }: { index: number; rating:
   }, [rating]);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <Pressable onPress={onPress} accessibilityLabel={label} accessibilityRole="button" hitSlop={4}>
+    <PressScale onPress={onPress} accessibilityLabel={label} accessibilityRole="button" hitSlop={4}>
       <Reanimated.View style={style}><Feather name="star" size={38} color={filled ? COLORS.amber : muted} /></Reanimated.View>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -157,16 +158,16 @@ export function DoneContent({ request, topInset = 0 }: Props) {
             {shots.length ? (
               <View style={s.compare}>
                 {work.beforePhotoUrl ? (
-                  <Pressable style={[s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.before')}>
+                  <PressScale style={[s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.before')}>
                     <Image source={{ uri: photoUri(work.beforePhotoUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                     <Text style={[s.shotTag, { color: theme.text, backgroundColor: theme.cardBg }]}>{t('tracking.before')}</Text>
-                  </Pressable>
+                  </PressScale>
                 ) : null}
                 {work.afterPhotoUrl ? (
-                  <Pressable style={[s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(work.beforePhotoUrl ? 1 : 0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.after')}>
+                  <PressScale style={[s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(work.beforePhotoUrl ? 1 : 0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.after')}>
                     <Image source={{ uri: photoUri(work.afterPhotoUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                     <Text style={[s.shotTag, { color: theme.text, backgroundColor: theme.cardBg }]}>{t('tracking.after')}</Text>
-                  </Pressable>
+                  </PressScale>
                 ) : null}
               </View>
             ) : null}
@@ -178,10 +179,10 @@ export function DoneContent({ request, topInset = 0 }: Props) {
               {amount != null ? (
                 <View style={[s.fact, { backgroundColor: theme.surface }]}><Text style={[s.factValue, { color: theme.text }]}>{formatEUR(amount, 0)}</Text><Text style={[s.factLabel, { color: theme.textMuted }]}>{t('tracking.fact_paid').toUpperCase()}</Text></View>
               ) : null}
-              <Pressable style={[s.fact, { backgroundColor: theme.surface }]} onPress={() => router.push({ pathname: '/(tabs)/documents', params: { openRequestId: String(request.id) } })} accessibilityRole="button" accessibilityLabel={`${t('tracking.fact_receipt')} · ${t('tracking.fact_receipt_where')}`}>
+              <PressScale style={[s.fact, { backgroundColor: theme.surface }]} onPress={() => router.push({ pathname: '/(tabs)/documents', params: { openRequestId: String(request.id) } })} accessibilityRole="button" accessibilityLabel={`${t('tracking.fact_receipt')} · ${t('tracking.fact_receipt_where')}`}>
                 <Text style={[s.factValue, { color: theme.text }]}>{t('tracking.fact_receipt')}</Text>
                 <Text style={[s.factLabel, { color: theme.textMuted }]}>{t('tracking.fact_receipt_where').toUpperCase()}</Text>
-              </Pressable>
+              </PressScale>
             </View>
 
             <View style={s.rateHead}>
@@ -199,10 +200,10 @@ export function DoneContent({ request, topInset = 0 }: Props) {
                 <View style={s.chips}>
                   {pool.map((c) => <ChipButton key={c.id} chip={c} selected={chips.includes(c.id)} onPress={() => { feedback.haptic('selection'); toggle(c.id); }} />)}
                 </View>
-                <Pressable onPress={() => setNoteOpen((v) => !v)} style={s.noteToggle} accessibilityRole="button" accessibilityState={{ expanded: noteOpen }}>
+                <PressScale onPress={() => setNoteOpen((v) => !v)} style={s.noteToggle} accessibilityRole="button" accessibilityState={{ expanded: noteOpen }}>
                   <Text style={[s.noteToggleText, { color: theme.textSub }]}>{t('rating.add_comment')}</Text>
                   <Feather name={noteOpen ? 'chevron-up' : 'chevron-down'} size={14} color={theme.textSub as string} />
-                </Pressable>
+                </PressScale>
                 {noteOpen ? (
                   <TextInput
                     style={[s.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
@@ -216,16 +217,16 @@ export function DoneContent({ request, topInset = 0 }: Props) {
         </ScrollView>
 
         <View style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight, paddingBottom: insets.bottom + 12 }]}>
-          <Pressable
+          <PressScale
             style={[s.cta, { backgroundColor: rating === 0 || submitting ? theme.textDisabled : theme.accent }]}
             onPress={submit} disabled={rating === 0 || submitting}
             accessibilityRole="button" accessibilityLabel={rating === 0 ? t('rating.rate_first') : t('rating.submit_review')}
           >
             {submitting ? <ActivityIndicator color={theme.accentText as string} /> : <Text style={[s.ctaText, { color: theme.accentText }]}>{(rating === 0 ? t('rating.rate_first') : t('rating.submit_review')).toUpperCase()}</Text>}
-          </Pressable>
-          <Pressable onPress={() => router.replace('/(tabs)/dashboard')} style={s.later} accessibilityRole="button" accessibilityLabel={t('tracking.later')}>
+          </PressScale>
+          <PressScale onPress={() => router.replace('/(tabs)/dashboard')} style={s.later} accessibilityRole="button" accessibilityLabel={t('tracking.later')}>
             <Text style={[s.laterText, { color: theme.textMuted }]}>{t('tracking.later')}</Text>
-          </Pressable>
+          </PressScale>
         </View>
       </KeyboardAvoidingView>
 

@@ -4,9 +4,7 @@
 // Affiche : récap, timeline d'avancement (basée sur status), actions disponibles.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, StatusBar, Linking,
-  TextInput, KeyboardAvoidingView, 
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, StatusBar, Linking, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -19,6 +17,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 import { goBack } from '@/lib/nav/back';
+import { PressScale } from '@/components/ui/PressScale';
 
 const WHATSAPP_URL = 'https://wa.me/message/SXNKDKILPEFMO1';
 
@@ -268,12 +267,12 @@ export default function TicketDetailScreen() {
         <Feather name="alert-circle" size={36} color={theme.textMuted} />
         <Text style={[s.errText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.ticket_not_found')}</Text>
         <View style={s.errBtnRow}>
-          <TouchableOpacity accessibilityRole="button" onPress={() => { setLoading(true); load(); }} style={[s.errBtn, { backgroundColor: theme.accent }]}>
+          <PressScale accessibilityRole="button" onPress={() => { setLoading(true); load(); }} style={[s.errBtn, { backgroundColor: theme.accent }]}>
             <Text style={[s.errBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.retry')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" onPress={() => { goBack(router, '/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
+          </PressScale>
+          <PressScale accessibilityRole="button" onPress={() => { goBack(router, '/settings/help'); }} style={[s.errBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }]}>
             <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </SafeAreaView>
     );
@@ -288,15 +287,14 @@ export default function TicketDetailScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity accessibilityRole="button"
+        <PressScale accessibilityRole="button"
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/settings/help'); }}
-          activeOpacity={0.75}
           accessibilityLabel={t('common.back')}
           hitSlop={8}
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
-        </TouchableOpacity>
+        </PressScale>
         <View style={[s.refPill, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <Text style={[s.refText, { color: theme.text, fontFamily: FONTS.monoMedium }]}>{ref}</Text>
         </View>
@@ -337,17 +335,16 @@ export default function TicketDetailScreen() {
 
         {/* ── Mission link (si rattaché) ─────────────────────────────────── */}
         {ticket.requestId && (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.missionLink, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={() => router.push({ pathname: '/request/[id]/missionview', params: { id: String(ticket.requestId) } })}
-            activeOpacity={0.75}
           >
             <Feather name="link" size={14} color={theme.textSub} />
             <Text style={[s.missionLinkText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
               {t('ext.ticket_open_mission', { id: ticket.requestId })}
             </Text>
             <Feather name="arrow-up-right" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
+          </PressScale>
         )}
 
         {/* ── Description ─────────────────────────────────────────────── */}
@@ -437,11 +434,10 @@ export default function TicketDetailScreen() {
             maxLength={2000}
             editable={!sending}
           />
-          <TouchableOpacity
+          <PressScale
             style={[s.replyBtn, { backgroundColor: theme.accent }, (!message.trim() || sending) && { opacity: 0.4 }]}
             onPress={sendMessage}
             disabled={!message.trim() || sending}
-            activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={t('common.send')}
             hitSlop={8}
@@ -451,7 +447,7 @@ export default function TicketDetailScreen() {
             ) : (
               <Feather name="arrow-up" size={16} color={theme.accentText} />
             )}
-          </TouchableOpacity>
+          </PressScale>
         </View>
 
         {/* ── Quick actions ───────────────────────────────────────────── */}
@@ -461,7 +457,7 @@ export default function TicketDetailScreen() {
         </Text>
 
         <View style={s.actionsCol}>
-          <TouchableOpacity accessibilityRole="button" style={s.actionRow} onPress={openWhatsApp} activeOpacity={0.75}>
+          <PressScale accessibilityRole="button" style={s.actionRow} onPress={openWhatsApp}>
             <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
             <View style={{ flex: 1 }}>
               <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
@@ -472,9 +468,9 @@ export default function TicketDetailScreen() {
               </Text>
             </View>
             <Feather name="arrow-up-right" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
+          </PressScale>
 
-          <TouchableOpacity accessibilityRole="button" style={s.actionRow} onPress={openEmail} activeOpacity={0.75}>
+          <PressScale accessibilityRole="button" style={s.actionRow} onPress={openEmail}>
             <Feather name="mail" size={16} color={theme.textSub} />
             <View style={{ flex: 1 }}>
               <Text style={[s.actionTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
@@ -485,18 +481,17 @@ export default function TicketDetailScreen() {
               </Text>
             </View>
             <Feather name="external-link" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </ScrollView>
 
       {/* ── Footer CTA ─────────────────────────────────────────────────── */}
       <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
         {isClosed ? (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.ctaBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight, borderWidth: 1 }, updating && { opacity: 0.5 }]}
             onPress={reopen}
             disabled={updating}
-            activeOpacity={0.8}
           >
             {updating ? <ActivityIndicator color={theme.text} /> : (
               <>
@@ -506,13 +501,12 @@ export default function TicketDetailScreen() {
                 </Text>
               </>
             )}
-          </TouchableOpacity>
+          </PressScale>
         ) : (
-          <TouchableOpacity accessibilityRole="button"
+          <PressScale accessibilityRole="button"
             style={[s.ctaBtn, { backgroundColor: theme.accent }, updating && { opacity: 0.6 }]}
             onPress={markResolved}
             disabled={updating}
-            activeOpacity={0.85}
           >
             {updating ? <ActivityIndicator color={theme.accentText} /> : (
               <>
@@ -522,7 +516,7 @@ export default function TicketDetailScreen() {
                 </Text>
               </>
             )}
-          </TouchableOpacity>
+          </PressScale>
         )}
       </View>
       </KeyboardAvoidingView>
