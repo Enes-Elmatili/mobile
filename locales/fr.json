@@ -2545,5 +2545,22 @@
     "view_sent": "Voir la pièce envoyée",
     "open_error": "Impossible d'ouvrir la pièce.",
     "note": "Une pièce validée ne se remplace pas ici : si elle change (nouvelle assurance, nouvel extrait BCE), écrivez au support depuis Réglages › Aide."
+  },
+  "call": {
+    "rejected": "Appel refusé",
+    "busy": "Occupé",
+    "failed": "La connexion n'a pas pu s'établir",
+    "timeout": "Sans réponse",
+    "unavailable": "Injoignable dans l'app pour le moment",
+    "not_allowed": "L'appel n'est possible que pendant une mission",
+    "unreachable": "Cette personne ne peut pas être appelée.",
+    "no_connection": "Connexion au serveur en cours. Réessayez dans un instant.",
+    "fallback_hint": "Laissez un message : il arrivera en notification.",
+    "send_message": "Envoyer un message",
+    "close": "Fermer",
+    "mute_a11y": "Couper le micro",
+    "unmute_a11y": "Réactiver le micro",
+    "hangup_a11y": "Raccrocher",
+    "mission_n": "Mission #{{id}}"
   }
 }

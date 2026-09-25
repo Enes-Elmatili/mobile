@@ -20,6 +20,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
+import { useCallParty } from '@/lib/webrtc/CallContext';
 
 interface MissionData {
   id: number;
@@ -31,7 +32,8 @@ interface MissionData {
   price: number | null;
   preferredTimeStart: string;
   status: string;
-  client?: { name?: string; phone?: string; floor?: number | null; hasElevator?: boolean | null; buildingType?: string | null; accessNotes?: string | null };
+  clientId?: string;
+  client?: { id?: string; name?: string; phone?: string; floor?: number | null; hasElevator?: boolean | null; buildingType?: string | null; accessNotes?: string | null };
   category?: { name: string };
 }
 
@@ -39,6 +41,7 @@ const ACTIVATION_WINDOW_MIN = 30;
 
 export default function EarlyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const callParty = useCallParty();
   const router = useRouter();
   const theme = useAppTheme();
   const { t } = useTranslation();
@@ -118,14 +121,10 @@ export default function EarlyScreen() {
     Linking.openURL(url).catch(() => feedback.error('ext.early_navigation_failed'));
   }, [mission]);
 
+  // Dans l'app, jamais par le réseau téléphonique : aucun numéro client ne sort (RGPD).
   const handleCallClient = useCallback(() => {
-    const phone = mission?.client?.phone;
-    if (!phone) {
-      feedback.error('ext.early_no_phone_sub');
-      return;
-    }
-    Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() => {});
-  }, [mission?.client?.phone]);
+    callParty({ userId: mission?.client?.id ?? mission?.clientId, name: mission?.client?.name, requestId: id });
+  }, [callParty, mission?.client?.id, mission?.clientId, mission?.client?.name, id]);
 
   if (loading) {
     return (

@@ -14,7 +14,7 @@ import { SlideToConfirm } from '@/components/ui/SlideToConfirm';
 import { AccessBlock, ClientBlock, EarnRow, MissionTitle } from '@/components/mission/blocks';
 import { PhotoGallery } from '@/components/mission/photos';
 import { useTabBarPadding } from '@/app/(tabs)/_layout';
-import { useCall } from '@/lib/webrtc/CallContext';
+import { useCallParty } from '@/lib/webrtc/CallContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
@@ -119,7 +119,7 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
   const t = useAppTheme();
   const { t: tr } = useTranslation();
   const router = useRouter();
-  const { initiateCall } = useCall();
+  const callParty = useCallParty();
   const tabBarPadding = useTabBarPadding();
   const cfg         = STATUS_CFG[mission.status] ?? STATUS_CFG.PUBLISHED;
   const canComplete = mission.status === 'ONGOING';
@@ -184,8 +184,7 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
           <ClientBlock
             brief={mission.brief}
             onMessage={mission.client?.id ? () => router.push({ pathname: '/messages/[userId]', params: { userId: mission.client!.id!, name: mission.client!.name, requestId: String(mission.id) } }) : undefined}
-            onCall={mission.client?.id ? () => initiateCall({ targetUserId: mission.client!.id!, targetName: mission.client!.name, requestId: String(mission.id) }) : undefined}
-            phone={mission.client?.phone ?? null}
+            onCall={mission.client?.id ? () => callParty({ userId: mission.client!.id, name: mission.client!.name, requestId: mission.id }) : undefined}
           />
           <View style={sd.earnWrap}><EarnRow brief={mission.brief} /></View>
         </View>

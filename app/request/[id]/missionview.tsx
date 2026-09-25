@@ -8,7 +8,7 @@
 // change de contenu, la carte suit puis se réduit en bandeau, et à la fin la
 // feuille monte jusqu'en haut avec le bilan. Aucun changement d'écran.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Polyline } from 'react-native-maps';
@@ -25,7 +25,7 @@ import { api } from '@/lib/api';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useCall } from '@/lib/webrtc/CallContext';
+import { useCallParty } from '@/lib/webrtc/CallContext';
 import { useConversationUnread } from '@/lib/useConversationUnread';
 import { markCompletionHandled } from '@/lib/navDedup';
 import { formatClock } from '@/lib/format';
@@ -75,7 +75,7 @@ export default function MissionView() {
   const paramIsScheduled = params.isScheduled === '1';
   const { socket, joinRoom, leaveRoom } = useSocket();
   const { user: authUser } = useAuth();
-  const { initiateCall } = useCall();
+  const callParty = useCallParty();
   const reduced = useReduceMotion();
   const mapRef = useRef<MapView>(null);
 
@@ -380,15 +380,8 @@ export default function MissionView() {
 
   const call = useCallback(() => {
     if (!provider) return;
-    const name = providerName(provider);
-    if (provider.userId && socket) {
-      initiateCall({ targetUserId: String(provider.userId), targetName: name, requestId: String(id) });
-    } else if (provider.phone) {
-      Linking.openURL(`tel:${String(provider.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
-    } else {
-      feedback.error('mission_view.phone_unavailable');
-    }
-  }, [provider, socket, initiateCall, id]);
+    callParty({ userId: provider.userId, name: providerName(provider), requestId: id });
+  }, [provider, callParty, id]);
 
   const message = useCallback(() => {
     const uid = provider?.userId || provider?.id;

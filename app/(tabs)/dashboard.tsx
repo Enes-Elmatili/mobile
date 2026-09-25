@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   RefreshControl,
     StatusBar,
-  Linking,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { runWhenIdle } from '@/lib/idle';
@@ -26,7 +25,7 @@ import { translateRequestServiceRaw, translateCategoryRaw } from '@/lib/category
 import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
-import { useCall } from '../../lib/webrtc/CallContext';
+import { useCallParty } from '../../lib/webrtc/CallContext';
 import { api } from '../../lib/api';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
@@ -794,7 +793,7 @@ function ClientDashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const { socket, unreadCount, unreadMessages } = useSocket();
-  const { initiateCall } = useCall();
+  const callParty = useCallParty();
   const theme = useAppTheme();
   const { width: windowWidth, height: windowHeight } = useLayoutClass();
 
@@ -1183,16 +1182,8 @@ function ClientDashboard() {
                 onCallProvider={() => {
                   const provider = activeMission?.provider;
                   if (!provider) return;
-                  const providerUserId = (provider as any).userId || provider.id;
-                  if (providerUserId) {
-                    initiateCall({
-                      targetUserId: String(providerUserId),
-                      targetName: provider.name || 'Prestataire',
-                      requestId: String(activeMission.id),
-                    });
-                  } else if ((provider as any).phone) {
-                    Linking.openURL(`tel:${String((provider as any).phone).replace(/\s+/g, '')}`);
-                  }
+                  // provider.id est l'id Provider, pas un userId : on n'appelle que le userId.
+                  callParty({ userId: (provider as any).userId, name: provider.name, requestId: activeMission.id });
                 }}
                 onMessageProvider={() => {
                   const provider = activeMission?.provider;

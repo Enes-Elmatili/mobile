@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, StatusBar, Platform,
   TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Modal, Linking,
+  KeyboardAvoidingView, Modal,
 } from "react-native";
 import Animated, {
   Easing, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle,
@@ -30,7 +30,7 @@ import Avatar from "@/components/ui/Avatar";
 import { ProviderRow } from "@/components/tracking";
 import { PhotoGallery } from "@/components/mission/photos";
 import { briefOf } from "@/lib/mission/brief";
-import { useCall } from "@/lib/webrtc/CallContext";
+import { useCallParty } from "@/lib/webrtc/CallContext";
 import { RaisedButton } from "@/components/ui/RaisedButton";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { useAndroidBackClose } from "@/hooks/use-android-back-close";
@@ -127,7 +127,7 @@ export default function QuoteReview() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { user } = useAuth();
   const { socket } = useSocket();
-  const { initiateCall } = useCall();
+  const callParty = useCallParty();
 
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<any>(null);
@@ -639,11 +639,7 @@ export default function QuoteReview() {
               <ProviderRow
                 provider={provider}
                 onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(provider.userId || provider.id), name: providerName, requestId: String(id) } })}
-                onCall={() => {
-                  if (provider.userId && socket) initiateCall({ targetUserId: String(provider.userId), targetName: providerName, requestId: String(id) });
-                  else if (provider.phone) Linking.openURL(`tel:${String(provider.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
-                  else feedback.error('mission_view.phone_unavailable');
-                }}
+                onCall={() => callParty({ userId: provider.userId, name: providerName, requestId: id })}
               />
             </View>
           </Reveal>

@@ -16,8 +16,13 @@ import { feedback } from '../feedback/feedback';
 
 export type CallState = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended';
 
-/** Raison de fin d'appel — affichée par app/call/active.tsx (getStatusLabel). */
-export type CallEndReason = 'hangup' | 'rejected' | 'busy' | 'failed' | 'timeout';
+/** Raison de fin d'appel — affichée par app/call/active.tsx (getStatusLabel).
+ *  unavailable : l'autre n'a pas l'app ouverte ; not_allowed : aucune mission
+ *  en cours entre vous (le serveur refuse — services/callPolicy.js). */
+export type CallEndReason = 'hangup' | 'rejected' | 'busy' | 'failed' | 'timeout' | 'unavailable' | 'not_allowed';
+
+/** Fins où l'appelant n'a pas pu parler : l'écran d'appel reste et propose un message. */
+export const MESSAGE_FALLBACK_REASONS: CallEndReason[] = ['rejected', 'busy', 'failed', 'timeout', 'unavailable', 'not_allowed'];
 
 /** Délai avant de considérer un appel sans réponse (appelant ET appelé). */
 const RING_TIMEOUT_MS = 40000;
@@ -43,6 +48,8 @@ interface CallContextType {
   hangup: () => void;
   toggleMute: () => void;
   toggleSpeaker: () => void;
+  /** Referme l'écran de fin d'appel (resté ouvert pour proposer un message). */
+  dismissEnded: () => void;
 }
 
 const CallContext = createContext<CallContextType>({
@@ -58,9 +65,22 @@ const CallContext = createContext<CallContextType>({
   hangup: () => {},
   toggleMute: () => {},
   toggleSpeaker: () => {},
+  dismissEnded: () => {},
 });
 
 export const useCall = () => useContext(CallContext);
+
+/**
+ * Appeler l'autre partie d'une mission — le seul chemin d'appel de l'app.
+ * Aucun numéro ne circule (RGPD) : sans userId, on le dit au lieu de composer.
+ */
+export function useCallParty() {
+  const { initiateCall } = useCall();
+  return useCallback((p: { userId?: string | number | null; name?: string | null; requestId?: string | number | null }) => {
+    if (!p.userId) { feedback.error('call.unreachable'); return; }
+    initiateCall({ targetUserId: String(p.userId), targetName: p.name || '', requestId: p.requestId != null ? String(p.requestId) : undefined });
+  }, [initiateCall]);
+}
 
 // ─── Incoming call emitter (for overlay) ─────────────────────────────────────
 
@@ -172,6 +192,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     stopDurationTimer();
     callServiceRef.current?.destroy();
     callServiceRef.current = null;
+    if (endCallTimerRef.current) { clearTimeout(endCallTimerRef.current); endCallTimerRef.current = null; }
+    // L'appelant qui n'a pas pu parler garde l'écran : il propose d'écrire.
+    // Il se referme par dismissEnded (bouton), pas par une minuterie.
+    if (callInfoRef.current?.isCaller && MESSAGE_FALLBACK_REASONS.includes(reason)) return;
     // Auto-cleanup after brief display — un peu plus long quand il y a une
     // raison à lire ("Sans réponse", "Appel refusé", "Échec de connexion").
     if (endCallTimerRef.current) clearTimeout(endCallTimerRef.current);
@@ -224,7 +248,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initiateCall = useCallback(({ targetUserId, targetName, requestId }: {
     targetUserId: string; targetName: string; requestId?: string;
   }) => {
-    if (callState !== 'idle' || !socket) return;
+    if (callState !== 'idle') return;
+    if (!socket) { feedback.error('call.no_connection'); return; }
 
     if (!isWebRTCAvailable()) {
       feedback.error('common.voip_unavailable');
@@ -415,7 +440,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // masquer l'overlay d'appel entrant.
       incomingCallEmitter.listeners.forEach(fn => fn(null));
       const r = payload?.reason;
-      endCall(r === 'rejected' || r === 'busy' || r === 'failed' || r === 'timeout' ? r : 'hangup');
+      endCall(r === 'rejected' || r === 'busy' || r === 'failed' || r === 'timeout' || r === 'unavailable' || r === 'not_allowed' ? r : 'hangup');
     };
 
     socket.on('call:incoming', handleIncoming);
@@ -442,7 +467,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <CallContext.Provider value={{
       callState, callInfo, endReason, isMuted, isSpeaker, callDuration,
-      initiateCall, acceptCall, rejectCall, hangup, toggleMute, toggleSpeaker,
+      initiateCall, acceptCall, rejectCall, hangup, toggleMute, toggleSpeaker, dismissEnded: cleanup,
     }}>
       {children}
     </CallContext.Provider>

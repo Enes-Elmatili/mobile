@@ -4,7 +4,7 @@
 // (quand, où, accès, client, phrase), ligne de gain, bloc accès, bloc client,
 // bloc prestataire (côté client), anneau du compte à rebours.
 import React, { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
@@ -262,7 +262,8 @@ function RoundBtn({ icon, onPress, label, primary }: { icon: FeatherName; onPres
   );
 }
 
-export function ClientBlock({ brief, onMessage, onCall, phone }: { brief: MissionBrief; onMessage?: () => void; onCall?: () => void; phone?: string | null }) {
+// Aucun numéro affiché ni composé : on se parle dans l'app (message, appel in-app).
+export function ClientBlock({ brief, onMessage, onCall }: { brief: MissionBrief; onMessage?: () => void; onCall?: () => void }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   if (!brief.client?.name) return null;
@@ -283,14 +284,14 @@ export function ClientBlock({ brief, onMessage, onCall, phone }: { brief: Missio
           {meta ? <Text style={[bl.sub, { color: theme.textSub }]} numberOfLines={1}>{meta}</Text> : null}
           {brief.description ? <Text style={[bl.sub, { color: theme.textSub }]} numberOfLines={2}>« {brief.description.trim()} »</Text> : null}
         </View>
-        <RoundBtn icon="message-circle" onPress={onMessage} label={t('ext.missions_message_client_a11y')} />
-        <RoundBtn icon="phone" onPress={onCall ?? (phone ? () => Linking.openURL(`tel:${phone}`) : undefined)} label={t('missions.call_client_a11y')} primary />
+        {onMessage ? <RoundBtn icon="message-circle" onPress={onMessage} label={t('ext.missions_message_client_a11y')} /> : null}
+        {onCall ? <RoundBtn icon="phone" onPress={onCall} label={t('missions.call_client_a11y')} primary /> : null}
       </View>
     </View>
   );
 }
 
-export function ProviderBlock({ brief, onMessage, onCall, phone }: { brief: MissionBrief; onMessage?: () => void; onCall?: () => void; phone?: string | null }) {
+export function ProviderBlock({ brief, onMessage, onCall }: { brief: MissionBrief; onMessage?: () => void; onCall?: () => void }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const p = brief.provider;
@@ -305,8 +306,8 @@ export function ProviderBlock({ brief, onMessage, onCall, phone }: { brief: Miss
           <Text style={[bl.main, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>{cleanName(p.name)}</Text>
           {meta ? <Text style={[bl.sub, { color: theme.textSub }]} numberOfLines={1}>{meta}</Text> : null}
         </View>
-        <RoundBtn icon="message-circle" onPress={onMessage} label={t('ext.missions_message_client_a11y')} />
-        <RoundBtn icon="phone" onPress={onCall ?? (phone ? () => Linking.openURL(`tel:${phone}`) : undefined)} label={t('missions.call_client_a11y')} primary />
+        {onMessage ? <RoundBtn icon="message-circle" onPress={onMessage} label={t('ext.missions_message_client_a11y')} /> : null}
+        {onCall ? <RoundBtn icon="phone" onPress={onCall} label={t('missions.call_client_a11y')} primary /> : null}
       </View>
     </View>
   );

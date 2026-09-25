@@ -2663,5 +2663,22 @@
     "view_sent": "View the sent document",
     "open_error": "Couldn't open the document.",
     "note": "An approved document can't be replaced here: if it changes (new insurance, new CBE extract), contact support from Settings › Help."
+  },
+  "call": {
+    "rejected": "Call declined",
+    "busy": "Busy",
+    "failed": "The connection couldn't be established",
+    "timeout": "No answer",
+    "unavailable": "Can't be reached in the app right now",
+    "not_allowed": "Calls are only possible during a mission",
+    "unreachable": "This person can't be called.",
+    "no_connection": "Connecting to the server. Try again in a moment.",
+    "fallback_hint": "Leave a message: it will arrive as a notification.",
+    "send_message": "Send a message",
+    "close": "Close",
+    "mute_a11y": "Mute microphone",
+    "unmute_a11y": "Unmute microphone",
+    "hangup_a11y": "Hang up",
+    "mission_n": "Job #{{id}}"
   }
 }

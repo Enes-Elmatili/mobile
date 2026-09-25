@@ -2663,5 +2663,22 @@
     "view_sent": "Verzonden document bekijken",
     "open_error": "Kan het document niet openen.",
     "note": "Een goedgekeurd document kan hier niet worden vervangen: verandert het (nieuwe verzekering, nieuw KBO-uittreksel), neem dan contact op met support via Instellingen › Hulp."
+  },
+  "call": {
+    "rejected": "Oproep geweigerd",
+    "busy": "In gesprek",
+    "failed": "De verbinding kon niet tot stand komen",
+    "timeout": "Geen antwoord",
+    "unavailable": "Momenteel niet bereikbaar in de app",
+    "not_allowed": "Bellen kan alleen tijdens een opdracht",
+    "unreachable": "Deze persoon kan niet worden gebeld.",
+    "no_connection": "Verbinding met de server wordt gemaakt. Probeer het zo opnieuw.",
+    "fallback_hint": "Laat een bericht achter: het komt binnen als melding.",
+    "send_message": "Bericht sturen",
+    "close": "Sluiten",
+    "mute_a11y": "Microfoon dempen",
+    "unmute_a11y": "Microfoon aanzetten",
+    "hangup_a11y": "Ophangen",
+    "mission_n": "Opdracht #{{id}}"
   }
 }

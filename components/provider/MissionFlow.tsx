@@ -35,6 +35,7 @@ import { serviceName, modeLabel } from '@/components/mission/blocks';
 import { PhotoGallery, PhotoViewer } from '@/components/mission/photos';
 import { DigitReel } from '@/components/ui/DigitReel';
 import { AccessChips, CodeEntry, Cta, EtaHero, NetLine, PhotoCard, ProviderRow, Rail, StageHeader, StageSheet, TimerHero, type RailRow, type SheetLevel } from '@/components/tracking';
+import { useCallParty } from '@/lib/webrtc/CallContext';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const RETRY_MAX = 6;
@@ -127,6 +128,7 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   useEffect(() => { if (myLocation) setGpsAt(Date.now()); }, [myLocation?.latitude, myLocation?.longitude]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clientUserId = request?.client?.id || request?.clientId || null;
+  const callParty = useCallParty();
   const { count: unread, reset: resetUnread } = useConversationUnread(clientUserId, authUser?.id);
 
   // L'accueil suit : stade, mode caméra, porte, hauteur de feuille.
@@ -252,10 +254,10 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   }, [socket, id, joinRoom, leaveRoom, loadRequest, onExit]);
 
   // ─── Actions ─────────────────────────────────────────────────────────────
+  // Dans l'app, jamais par le réseau téléphonique : aucun numéro client ne sort (RGPD).
   const call = useCallback(() => {
-    if (request?.client?.phone) Linking.openURL(`tel:${String(request.client.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
-    else feedback.error('mission_view.phone_unavailable');
-  }, [request?.client?.phone]);
+    callParty({ userId: clientUserId, name: clientName, requestId: id });
+  }, [callParty, clientUserId, clientName, id]);
   const message = useCallback(() => {
     if (!clientUserId) return;
     resetUnread();

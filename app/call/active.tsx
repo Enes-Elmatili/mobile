@@ -1,14 +1,16 @@
 // app/call/active.tsx — Full-screen VoIP call UI
 import React, { useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar,
+  View, Text, StyleSheet, Platform, StatusBar,
 } from 'react-native';
-import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { useCall, type CallEndReason } from '@/lib/webrtc/CallContext';
+import { useCall, MESSAGE_FALLBACK_REASONS, type CallEndReason } from '@/lib/webrtc/CallContext';
+import { usePulse } from '@/lib/motion/useLoops';
+import { PressScale } from '@/components/ui/PressScale';
 import { cleanName } from '@/lib/displayName';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 
@@ -23,11 +25,13 @@ function formatDuration(seconds: number): string {
 function getStatusLabel(state: string, endReason: CallEndReason | null, t: (k: string) => string): string {
   if (state === 'ended') {
     switch (endReason) {
-      case 'rejected': return 'Appel refusé';
-      case 'busy':     return 'Occupé';
-      case 'failed':   return 'Échec de connexion';
-      case 'timeout':  return 'Sans réponse';
-      default:         return t('ext.call_ended');
+      case 'rejected':    return t('call.rejected');
+      case 'busy':        return t('call.busy');
+      case 'failed':      return t('call.failed');
+      case 'timeout':     return t('call.timeout');
+      case 'unavailable': return t('call.unavailable');
+      case 'not_allowed': return t('call.not_allowed');
+      default:            return t('ext.call_ended');
     }
   }
   switch (state) {
@@ -39,26 +43,6 @@ function getStatusLabel(state: string, endReason: CallEndReason | null, t: (k: s
   }
 }
 
-// ─── Pulsing ring animation ──────────────────────────────────────────────────
-
-function PulseRing() {
-  const theme = useAppTheme();
-  // Une onde : 1 → 1,8 en s'effaçant, relancée du départ (withRepeat sans reverse).
-  const p = useSharedValue(0);
-  useEffect(() => {
-    p.value = withRepeat(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), -1, false);
-    return () => cancelAnimation(p);
-  }, [p]);
-  const ring = useAnimatedStyle(() => ({
-    opacity: 0.6 * (1 - p.value),
-    transform: [{ scale: 1 + 0.8 * p.value }],
-  }));
-
-  return (
-    <Animated.View style={[cs.pulseRing, { borderColor: theme.heroSub }, ring]} />
-  );
-}
-
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 export default function ActiveCallScreen() {
@@ -68,8 +52,11 @@ export default function ActiveCallScreen() {
   const { t } = useTranslation();
   const {
     callState, callInfo, endReason, isMuted, callDuration,
-    hangup, toggleMute,
+    hangup, toggleMute, dismissEnded,
   } = useCall();
+  // Pendant que ça sonne, l'avatar respire en opacité (pas d'onde autour : zéro halo).
+  const ringing = usePulse(callState === 'outgoing' || callState === 'connecting', { min: 0.55, duration: 900 });
+  const leavingRef = useRef(false);
 
   // Auto-dismiss when call ends.
   // We must track whether a non-idle state was ever observed, otherwise the
@@ -82,7 +69,7 @@ export default function ActiveCallScreen() {
       hasSeenActiveRef.current = true;
       return;
     }
-    if (hasSeenActiveRef.current) {
+    if (hasSeenActiveRef.current && !leavingRef.current) {
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/dashboard');
     }
@@ -91,6 +78,16 @@ export default function ActiveCallScreen() {
   const isRinging = callState === 'outgoing' || callState === 'connecting';
   const isConnected = callState === 'connected';
   const isEnded = callState === 'ended';
+  // Personne n'a décroché (ou l'app de l'autre est fermée) : on propose d'écrire.
+  const offerMessage = isEnded && !!callInfo?.isCaller && !!endReason && MESSAGE_FALLBACK_REASONS.includes(endReason);
+  const sendMessage = () => {
+    if (!callInfo) return;
+    leavingRef.current = true;
+    const params: Record<string, string> = { userId: callInfo.remoteUserId, name: callInfo.remoteName };
+    if (callInfo.requestId) params.requestId = String(callInfo.requestId);
+    router.replace({ pathname: '/messages/[userId]', params });
+    dismissEnded();
+  };
 
   const initials = cleanName(callInfo?.remoteName, { fallback: '?' })
     .split(' ')
@@ -107,10 +104,9 @@ export default function ActiveCallScreen() {
       {/* ── Top section: Avatar + Name + Status ── */}
       <View style={cs.topSection}>
         <View style={cs.avatarContainer}>
-          {isRinging && <PulseRing />}
-          <View style={[cs.avatar, { backgroundColor: theme.surface, shadowOpacity: theme.shadowOpacity }]}>
+          <Animated.View style={[cs.avatar, { backgroundColor: theme.surface, shadowOpacity: theme.shadowOpacity }, isRinging && ringing]}>
             <Text style={[cs.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{initials}</Text>
-          </View>
+          </Animated.View>
         </View>
 
         <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{cleanName(callInfo?.remoteName, { fallback: t('ext.call_unknown') })}</Text>
@@ -121,7 +117,7 @@ export default function ActiveCallScreen() {
         {callInfo?.requestId && (
           <View style={[cs.requestBadge, { backgroundColor: theme.surface }]}>
             <Text style={[cs.requestBadgeText, { fontFamily: FONTS.mono, color: theme.heroSub }]}>
-              Mission #{String(callInfo.requestId).slice(-6).toUpperCase()}
+              {t('call.mission_n', { id: String(callInfo.requestId).slice(-6).toUpperCase() })}
             </Text>
           </View>
         )}
@@ -131,12 +127,11 @@ export default function ActiveCallScreen() {
       {!isEnded && (
         <View style={cs.controls}>
           {/* Mute */}
-          <TouchableOpacity
+          <PressScale
             style={[cs.controlBtn, isMuted && [cs.controlBtnActive, { backgroundColor: theme.cardBg }]]}
             onPress={toggleMute}
-            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={isMuted ? 'Réactiver le micro' : 'Couper le micro'}
+            accessibilityLabel={isMuted ? t('call.unmute_a11y') : t('call.mute_a11y')}
             accessibilityState={{ selected: isMuted }}
           >
             <Feather
@@ -147,25 +142,38 @@ export default function ActiveCallScreen() {
             <Text style={[cs.controlLabel, { fontFamily: FONTS.sansMedium, color: theme.heroSub }, isMuted && { color: theme.heroBg }]}>
               {isMuted ? t('ext.call_mute') : t('ext.call_mic')}
             </Text>
-          </TouchableOpacity>
+          </PressScale>
 
           {/* Hangup */}
-          <TouchableOpacity
+          <PressScale
             style={cs.hangupBtn}
             onPress={hangup}
-            activeOpacity={0.8}
+            scale={0.94}
             accessibilityRole="button"
-            accessibilityLabel="Raccrocher"
+            accessibilityLabel={t('call.hangup_a11y')}
           >
             <Feather name="phone-off" size={32} color={theme.heroText} />
-          </TouchableOpacity>
+          </PressScale>
 
           {/* Note: bouton haut-parleur retiré — aucun routage audio natif
               implémenté (toggleSpeaker était purement cosmétique). */}
         </View>
       )}
 
-      {isEnded && (
+      {offerMessage && (
+        <View style={cs.fallback}>
+          <Text style={[cs.fallbackHint, { color: theme.heroSub, fontFamily: FONTS.sans }]} maxFontSizeMultiplier={1.3}>{t('call.fallback_hint')}</Text>
+          <PressScale onPress={sendMessage} style={[cs.fallbackBtn, { backgroundColor: theme.heroText }]} accessibilityRole="button">
+            <Feather name="message-circle" size={18} color={theme.heroBg as string} />
+            <Text style={[cs.fallbackBtnText, { color: theme.heroBg, fontFamily: FONTS.sansBold }]}>{t('call.send_message')}</Text>
+          </PressScale>
+          <PressScale onPress={dismissEnded} style={cs.fallbackClose} accessibilityRole="button">
+            <Text style={[cs.fallbackCloseText, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>{t('call.close')}</Text>
+          </PressScale>
+        </View>
+      )}
+
+      {isEnded && !offerMessage && (
         <View style={cs.endedSection}>
           <Feather
             name={!endReason || endReason === 'hangup' ? 'check-circle' : endReason === 'timeout' ? 'phone-missed' : 'x-circle'}
@@ -198,11 +206,6 @@ const cs = StyleSheet.create({
     width: 120, height: 120,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 16,
-  },
-  pulseRing: {
-    position: 'absolute',
-    width: 120, height: 120, borderRadius: 60,
-    borderWidth: 2,
   },
   avatar: {
     width: 100, height: 100, borderRadius: 50,
@@ -261,6 +264,14 @@ const cs = StyleSheet.create({
       android: { elevation: 10 },
     }),
   },
+
+  // ── Fin sans conversation : écrire ────
+  fallback: { alignSelf: 'stretch', paddingHorizontal: 24, paddingBottom: 24, alignItems: 'center', gap: 12 },
+  fallbackHint: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  fallbackBtn: { alignSelf: 'stretch', height: 54, borderRadius: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  fallbackBtnText: { fontSize: 16 },
+  fallbackClose: { paddingVertical: 10, paddingHorizontal: 20 },
+  fallbackCloseText: { fontSize: 15 },
 
   // ── Ended ────
   endedSection: {

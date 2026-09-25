@@ -17,14 +17,13 @@ type Props = {
   onOpenRequest?: () => void;
   onMessageProvider?: () => void;
   onCallProvider?: () => void;
-  providerPhone?: string | null;
   /** Masquer le bloc prestataire (déjà affiché au-dessus par l'écran). */
   hideProvider?: boolean;
   /** Padding horizontal du conteneur parent, compensé pour aligner les blocs à 24 pt. */
   inset?: number;
 };
 
-export function ClientRequestSummary({ brief, onOpenRequest, onMessageProvider, onCallProvider, providerPhone, hideProvider = false, inset = 20 }: Props) {
+export function ClientRequestSummary({ brief, onOpenRequest, onMessageProvider, onCallProvider, hideProvider = false, inset = 20 }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   return (
@@ -32,7 +31,7 @@ export function ClientRequestSummary({ brief, onOpenRequest, onMessageProvider, 
       <Text style={[s.label, { color: theme.textMuted }]}>{t('mission.your_request').toUpperCase()}</Text>
       <MissionRow brief={brief} amountMode="gross" standalone onPress={onOpenRequest ?? (() => {})} />
       <PhotoGallery photos={brief.photos} title={t('mission.your_photos')} />
-      {!hideProvider ? <ProviderBlock brief={brief} onMessage={onMessageProvider} onCall={onCallProvider} phone={providerPhone} /> : null}
+      {!hideProvider ? <ProviderBlock brief={brief} onMessage={onMessageProvider} onCall={onCallProvider} /> : null}
     </View>
   );
 }

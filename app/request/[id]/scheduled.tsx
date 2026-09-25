@@ -12,7 +12,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
-  TouchableOpacity, ActivityIndicator, Linking,
+  TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -21,7 +21,7 @@ import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { ProviderRow } from '@/components/tracking';
 import { PhotoGallery } from '@/components/mission/photos';
 import { briefOf } from '@/lib/mission/brief';
-import { useCall } from '@/lib/webrtc/CallContext';
+import { useCallParty } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -59,7 +59,7 @@ export default function ScheduledConfirmation() {
   const router = useRouter();
   const theme = useAppTheme();
   const { socket } = useSocket();
-  const { initiateCall } = useCall();
+  const callParty = useCallParty();
   const { t } = useTranslation();
 
   // État local alimenté par params puis écrasé par l'API quand disponible
@@ -307,12 +307,7 @@ export default function ScheduledConfirmation() {
                     provider={requestData.provider}
                     onOpenProfile={() => router.push(`/providers/${requestData.provider.id}`)}
                     onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(requestData.provider.userId || requestData.provider.id), name: providerName, requestId: String(id) } })}
-                    onCall={() => {
-                      const p = requestData.provider;
-                      if (p.userId && socket) initiateCall({ targetUserId: String(p.userId), targetName: providerName, requestId: String(id) });
-                      else if (p.phone) Linking.openURL(`tel:${String(p.phone).replace(/\s+/g, '')}`).catch(() => feedback.error('mission_view.call_failed'));
-                      else feedback.error('mission_view.phone_unavailable');
-                    }}
+                    onCall={() => callParty({ userId: requestData.provider.userId, name: providerName, requestId: id })}
                   />
                 </View>
               ) : null}
