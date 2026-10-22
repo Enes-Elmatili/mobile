@@ -35,7 +35,7 @@ const {
   withGradleProperties,
   withAppBuildGradle,
   withDangerousMod,
-} = require('@expo/config-plugins');
+} = require('expo/config-plugins');
 
 /** Interrupteur unique. false → le plugin devient un no-op, build non optimisé. */
 const ENABLED = true;

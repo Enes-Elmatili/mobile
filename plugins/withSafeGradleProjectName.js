@@ -21,7 +21,7 @@
 // d'être de ce plugin.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { withSettingsGradle } = require('@expo/config-plugins');
+const { withSettingsGradle } = require('expo/config-plugins');
 
 /** Nom sûr pour Gradle : pas de point en tête ni en fin. */
 const SAFE_NAME = 'fixed';
