@@ -17,7 +17,7 @@ export const MAP_PROVIDER = Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_
 /** Props d'apparence à étaler sur une `MapView`. */
 export function mapAppearance(isDark: boolean): Partial<MapViewProps> {
   if (Platform.OS === 'ios') {
-    return { userInterfaceStyle: isDark ? 'dark' : 'light', mapType: 'mutedStandard', showsPointsOfInterest: false, showsBuildings: false, showsTraffic: false };
+    return { userInterfaceStyle: isDark ? 'dark' : 'light', mapType: 'mutedStandard', showsPointsOfInterests: false, showsBuildings: false, showsTraffic: false };
   }
-  return { customMapStyle: isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT, showsPointsOfInterest: false };
+  return { customMapStyle: isDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT, showsPointsOfInterests: false };
 }

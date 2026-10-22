@@ -1309,7 +1309,7 @@ export default function NewRequestStepper() {
               {...mapAppearance(theme.isDark)}
               showsUserLocation
               showsMyLocationButton={false}
-              showsPointsOfInterest={false}
+              showsPointsOfInterests={false}
               showsBuildings={false}
             >
               {location && (

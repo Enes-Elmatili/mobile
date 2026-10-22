@@ -7,7 +7,7 @@
 // activable sans intervention en base. L'étape s'insère entre les métiers et
 // les pièces, et s'efface d'elle-même si tout est déjà fourni.
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TextInput } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import type { TextInputInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";

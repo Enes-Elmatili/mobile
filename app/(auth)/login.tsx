@@ -1,7 +1,7 @@
 // app/(auth)/login.tsx — login (flat theme-aware, v2 éditorial)
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View, Text, TextInput, StyleSheet, StatusBar, Platform,
+  View, Text, StyleSheet, StatusBar, Platform,
 } from "react-native";
 import type { TextInputInstance } from "react-native";
 import Svg, { Path } from "react-native-svg";

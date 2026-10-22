@@ -2,13 +2,14 @@
 // Texte animé sans re-render React : un TextInput non éditable dont la prop
 // `text` est écrite depuis le thread UI (useAnimatedProps).
 import React from 'react';
-import { TextInput, type TextInputProps, type TextStyle } from 'react-native';
-import Animated, { type AnimatedProps } from 'react-native-reanimated';
+import { TextInput, type TextStyle } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 type Props = {
-  animatedProps: Partial<AnimatedProps<TextInputProps>>;
+  // Dérivé du composant animé : Reanimated 4.7 type `animatedProps` plus finement que AnimatedProps<TextInputProps>.
+  animatedProps: React.ComponentProps<typeof AnimatedTextInput>['animatedProps'];
   style?: TextStyle | TextStyle[];
   accessibilityLabel?: string;
 };

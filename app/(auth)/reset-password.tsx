@@ -2,7 +2,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
-  TextInput,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";

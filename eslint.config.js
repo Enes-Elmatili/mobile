@@ -65,6 +65,24 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  // Règles du React Compiler, arrivées avec eslint-config-expo 58 (22/10/2026).
+  // Le compilateur n'est pas activé (pas d'experiments.reactCompiler) : elles ne
+  // signalent pas de bug d'exécution, elles préparent son activation. Stock au
+  // 22/10 : 141 erreurs — set-state-in-effect 48, immutability 34 (surtout les
+  // `sharedValue.value =` de Reanimated → passer à .set()), static-components 19,
+  // preserve-manual-memoization 15, refs 14, purity 10, globals 1. Comme les
+  // allowlists ci-dessus : on réactive une règle dans le commit qui écoule son stock.
+  {
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/globals': 'off',
+    },
+  },
   {
     files: SOURCE,
     ignores: EXCEPTION_GLOBS,

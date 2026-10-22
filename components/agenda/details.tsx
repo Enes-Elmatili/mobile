@@ -151,7 +151,7 @@ export function MissionDetail({ mission, onNavigate, onComplete, onViewFull, inP
             style={sd.map}
             initialRegion={{ latitude: lat!, longitude: lng!, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
-            showsPointsOfInterest={false} showsBuildings={false}
+            showsPointsOfInterests={false} showsBuildings={false}
           >
             <MapPin coordinate={{ latitude: lat!, longitude: lng! }}>
               <DotPin size={16} color={t.accent as string} />
@@ -316,7 +316,7 @@ export function OpportunityDetail({ opportunity, onAccept, onDecline, accepting,
             style={sd.map}
             initialRegion={{ latitude: lat, longitude: lng, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
             scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
-            showsPointsOfInterest={false} showsBuildings={false}
+            showsPointsOfInterests={false} showsBuildings={false}
           >
             <MapPin coordinate={{ latitude: lat, longitude: lng }}>
               <DotPin size={16} color={t.accent as string} />

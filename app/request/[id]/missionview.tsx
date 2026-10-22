@@ -517,7 +517,7 @@ export default function MissionView() {
               pitchEnabled={false}
               rotateEnabled={false}
               showsUserLocation={false}
-              showsPointsOfInterest={false}
+              showsPointsOfInterests={false}
               showsBuildings={false}
               showsCompass={false}
               toolbarEnabled={false}

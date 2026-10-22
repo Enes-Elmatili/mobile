@@ -1,7 +1,7 @@
 // app/(auth)/signup.tsx — signup multi-phase (flat theme-aware, v2 éditorial)
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View, Text, TextInput, StyleSheet, StatusBar, ActivityIndicator, Platform, BackHandler,
+  View, Text, StyleSheet, StatusBar, ActivityIndicator, Platform, BackHandler,
 } from "react-native";
 import type { TextInputInstance } from "react-native";
 import Svg, { Path } from "react-native-svg";
