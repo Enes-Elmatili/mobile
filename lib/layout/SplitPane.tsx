@@ -43,21 +43,23 @@ export function SplitPane({ master, detail, ratio = 0.42, placeholder = null, st
   const hasDetail = detail != null;
   const detailPresence = usePresence(hasDetail, { from: 'hinge', preset: MOTION.pane });
 
-  if (!isRegular) {
-    return <View style={[s.fill, style]}>{master}</View>;
-  }
-
+  // Le master reste le PREMIER enfant de la même View dans les deux classes :
+  // React le réconcilie au lieu de le remonter quand le Duo se plie ou se déplie.
   return (
-    <View style={[s.row, style]}>
-      <View style={[s.master, { flex: ratio, paddingLeft: insets.left }]}>{master}</View>
-      <View style={[s.separator, { backgroundColor: theme.border }]} />
-      <View style={[s.detail, { flex: 1 - ratio, paddingRight: insets.right, paddingLeft: HINGE_GUTTER }]}>
-        {hasDetail ? (
-          <Animated.View style={[s.fill, detailPresence.style]}>{detail}</Animated.View>
-        ) : (
-          placeholder
-        )}
-      </View>
+    <View style={[isRegular ? s.row : s.fill, style]}>
+      <View style={isRegular ? [s.master, { flex: ratio, paddingLeft: insets.left }] : s.fill}>{master}</View>
+      {isRegular && (
+        <>
+          <View style={[s.separator, { backgroundColor: theme.border }]} />
+          <View style={[s.detail, { flex: 1 - ratio, paddingRight: insets.right, paddingLeft: HINGE_GUTTER }]}>
+            {hasDetail ? (
+              <Animated.View style={[s.fill, detailPresence.style]}>{detail}</Animated.View>
+            ) : (
+              placeholder
+            )}
+          </View>
+        </>
+      )}
     </View>
   );
 }
