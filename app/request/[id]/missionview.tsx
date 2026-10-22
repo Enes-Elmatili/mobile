@@ -548,7 +548,7 @@ export default function MissionView() {
 
           {tracking ? (
             <Animated.View style={topBarEntrance.style}>
-              <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
+              <SafeAreaView style={s.topBar} edges={['top', 'left', 'right']} pointerEvents="box-none">
                 <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
                   <Feather name="arrow-left" size={20} color={theme.text as string} />
                 </PressScale>

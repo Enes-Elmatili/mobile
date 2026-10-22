@@ -12,7 +12,7 @@ import BottomSheet, { BottomSheetFooter, BottomSheetScrollView, type BottomSheet
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
 import { useSheetMotion } from '@/lib/motion/sheet';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, horizontalPadding } from '@/lib/layout';
 
 export type SheetLevel = 'peek' | 'half' | 'full' | 'page';
 export const SHEET_RATIOS: Record<Exclude<SheetLevel, 'page'>, number> = { peek: 0.24, half: 0.54, full: 0.9 };
@@ -71,10 +71,10 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   const renderFooter = useCallback((props: BottomSheetFooterProps) => (
     footer ? (
       <BottomSheetFooter {...props} bottomInset={0}>
-        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: bg, borderTopColor: hairline }]}>{footer}</View>
+        <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: bg, borderTopColor: hairline }, horizontalPadding(insets, 20)]}>{footer}</View>
       </BottomSheetFooter>
     ) : null
-  ), [footer, insets.bottom, bg, hairline]);
+  ), [footer, insets, bg, hairline]);
 
   return (
     <BottomSheet
@@ -101,7 +101,7 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       <BottomSheetScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.content, { paddingTop: isPage ? insets.top + 12 : 4, paddingBottom: (footer ? footerH + 8 : 20 + insets.bottom) }]}
+        contentContainerStyle={[s.content, horizontalPadding(insets, 20), { paddingTop: isPage ? insets.top + 12 : 4, paddingBottom: (footer ? footerH + 8 : 20 + insets.bottom) }]}
       >
         {children}
       </BottomSheetScrollView>

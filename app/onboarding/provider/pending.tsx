@@ -33,7 +33,7 @@ import {
   type ProviderTrades,
 } from "@/lib/providerOnboarding";
 import { cleanName } from "@/lib/displayName";
-import { useLayoutClass } from "@/lib/layout";
+import { useLayoutClass, horizontalPadding } from "@/lib/layout";
 import { PressScale } from '@/components/ui/PressScale';
 
 // Libellés traduits des documents (au lieu de la clé technique « id_front »)
@@ -391,7 +391,7 @@ export default function PendingValidation() {
   // ── PENDING : attente active ────────────────────────────────────────────────
   if (status === "pending") {
     return (
-      <View style={s.root}>
+      <View style={[s.root, horizontalPadding(insets, 0)]}>
         <StatusBar barStyle="light-content" />
         <GridLines />
         <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2 }, glowStyle]}>
@@ -645,7 +645,7 @@ export default function PendingValidation() {
 
   // ── APPROVED / REJECTED / SUSPENDED : layouts centrés ──────────────────────
   return (
-    <View style={s.root}>
+    <View style={[s.root, horizontalPadding(insets, 0)]}>
       <StatusBar barStyle="light-content" />
       <GridLines />
       <Animated.View style={[s.glowWrap, { left: (SCREEN_W - 420) / 2 }, glowStyle]}>

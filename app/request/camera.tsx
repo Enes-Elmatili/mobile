@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { horizontalPadding } from '@/lib/layout';
 import Animated from 'react-native-reanimated';
 import { FONTS, COLORS } from '@/hooks/use-app-theme';
 import { usePressScale } from '@/lib/motion/press';
@@ -117,8 +118,8 @@ export default function GuidedCamera() {
   // ── Permission refusée ────────────────────────────────────────────────
   if (permission && !permission.granted && !permission.canAskAgain) {
     return (
-      <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
-        <PressScale onPress={close} style={[s.close, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+      <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }, horizontalPadding(insets, 0)]}>
+        <PressScale onPress={close} style={[s.close, { top: insets.top + 12, left: 20 + insets.left }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
           <Feather name="x" size={20} color="#FFFFFF" />
         </PressScale>
         <View style={s.denied}>
@@ -150,15 +151,15 @@ export default function GuidedCamera() {
       )}
 
       {/* File de prises */}
-      <View style={[s.steps, { top: insets.top + 12 }]} accessibilityLabel={t('camera.shot_of', { n: index + 1, total: queue.length })}>
+      <View style={[s.steps, { top: insets.top + 12, left: 24 + insets.left, right: 24 + insets.right }]} accessibilityLabel={t('camera.shot_of', { n: index + 1, total: queue.length })}>
         {queue.map((q, i) => <View key={`${q.key ?? 'free'}-${i}`} style={[s.step, i <= index && s.stepOn]} />)}
       </View>
-      <PressScale onPress={close} style={[s.close, { top: insets.top + 28 }]} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+      <PressScale onPress={close} style={[s.close, { top: insets.top + 28, left: 20 + insets.left }]} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
         <Feather name="x" size={20} color="#FFFFFF" />
       </PressScale>
 
       {/* Consigne */}
-      <Animated.View style={[s.caption, { top: insets.top + 84 }, entrance.style]} key={`cap-${index}`}>
+      <Animated.View style={[s.caption, { top: insets.top + 84, left: 24 + insets.left, right: 24 + insets.right }, entrance.style]} key={`cap-${index}`}>
         <Text style={s.captionTitle} maxFontSizeMultiplier={1.2}>{label}</Text>
         <Text style={s.captionHint} numberOfLines={2} maxFontSizeMultiplier={1.3}>{hint}</Text>
       </Animated.View>
@@ -172,7 +173,7 @@ export default function GuidedCamera() {
       ) : null}
 
       {/* Commandes */}
-      <View style={[s.controls, { paddingBottom: insets.bottom + 28 }]}>
+      <View style={[s.controls, { paddingBottom: insets.bottom + 28 }, horizontalPadding(insets, 24)]}>
         {preview ? (
           <View style={s.previewBar}>
             <Btn label={t('camera.retake')} onPress={() => setPreview(null)} icon="rotate-ccw" />

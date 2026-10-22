@@ -17,6 +17,7 @@ import Animated, {
 import Svg, { Path } from "react-native-svg";
 import { MOTION, usePresence, useTraceStroke } from "@/lib/motion";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { horizontalPadding } from "@/lib/layout";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -350,7 +351,7 @@ export default function QuoteReview() {
   // Loading — squelette plutôt que spinner : la page se dessine avant d'arriver.
   if (loading) {
     return (
-      <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <View style={[s.root, { backgroundColor: theme.bg }, horizontalPadding(insets, 0)]}>
         <StatusBar barStyle={theme.statusBar} />
         {Header}
         <QuoteSkeleton theme={theme} />
@@ -361,7 +362,7 @@ export default function QuoteReview() {
   // Empty
   if (!quote) {
     return (
-      <View style={[s.root, { backgroundColor: theme.bg }]}>
+      <View style={[s.root, { backgroundColor: theme.bg }, horizontalPadding(insets, 0)]}>
         <StatusBar barStyle={theme.statusBar} />
         {Header}
         <View style={[s.center, { flex: 1, paddingHorizontal: 32 }]}>
@@ -428,7 +429,7 @@ export default function QuoteReview() {
   };
 
   return (
-    <View style={[s.root, { backgroundColor: theme.bg }]}>
+    <View style={[s.root, { backgroundColor: theme.bg }, horizontalPadding(insets, 0)]}>
       <StatusBar barStyle={theme.statusBar} />
       {Header}
 

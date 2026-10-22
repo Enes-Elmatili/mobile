@@ -56,7 +56,7 @@ export function AuthScreen({
     : variant === "inverted" ? "light-content" : "dark-content";
 
   const Inner = (
-    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+    <SafeAreaView style={s.safe} edges={["top", "bottom", "left", "right"]}>
       <View style={[s.content, contentStyle]}>{children}</View>
     </SafeAreaView>
   );

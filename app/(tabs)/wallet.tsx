@@ -220,7 +220,7 @@ export default function WalletTab() {
     : t('gains.setup_sub');
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={theme.statusBar} />
       <View style={s.header}>
         <View style={{ flex: 1, minWidth: 0 }}>

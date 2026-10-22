@@ -14,7 +14,7 @@ import { feedback } from "@/lib/feedback/feedback";
 import { useTranslation } from "react-i18next";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
-import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
+import { useLayoutClass, READING_MAX_WIDTH, horizontalPadding } from "@/lib/layout";
 import { PressScale } from '@/components/ui/PressScale';
 
 const GRID_SIZE = 40;
@@ -116,7 +116,7 @@ export function OnboardingLayout({
   const glowStyle = useGlow();
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, horizontalPadding(insets, 0)]}>
       <StatusBar barStyle="light-content" />
 
       <GridLines />

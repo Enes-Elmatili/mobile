@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { horizontalPadding } from '@/lib/layout';
 import { Image } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -149,7 +150,7 @@ export function DoneContent({ request, topInset = 0 }: Props) {
   return (
     <View style={[s.root, { backgroundColor: theme.cardBg }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topInset + 16, paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topInset + 16, paddingBottom: insets.bottom + 120 }, horizontalPadding(insets, 20)]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Reanimated.View style={entrance.style}>
             <Text style={[s.kicker, { color: theme.textMuted }]}>{t('tracking.done_kicker', { time: formatClock(completedAt ?? Date.now()) })}</Text>
             <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('tracking.done_title')}</Text>
@@ -216,7 +217,7 @@ export function DoneContent({ request, topInset = 0 }: Props) {
           </Reanimated.View>
         </ScrollView>
 
-        <View style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight, paddingBottom: insets.bottom + 12 }]}>
+        <View style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight, paddingBottom: insets.bottom + 12 }, horizontalPadding(insets, 20)]}>
           <PressScale
             style={[s.cta, { backgroundColor: rating === 0 || submitting ? theme.textDisabled : theme.accent }]}
             onPress={submit} disabled={rating === 0 || submitting}

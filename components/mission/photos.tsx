@@ -56,14 +56,14 @@ export function PhotoViewer({ photos, index, onClose }: { photos: BriefPhoto[]; 
             </PressScale>
           )}
         />
-        <View style={[v.top, { top: insets.top + 12 }]} pointerEvents="box-none">
+        <View style={[v.top, { top: insets.top + 12, left: 20 + insets.left, right: 20 + insets.right }]} pointerEvents="box-none">
           <Text style={v.counter} accessibilityLabel={t('mission.photo_a11y', { n: current + 1, total: photos.length })}>{current + 1} / {photos.length}</Text>
           <PressScale onPress={onClose} hitSlop={10} style={v.close} accessibilityRole="button" accessibilityLabel={t('mission.close')}>
             <Feather name="x" size={20} color="#FFFFFF" />
           </PressScale>
         </View>
         {shotCaption(photos[current]?.shotKey ?? null, t) ? (
-          <Text style={[v.caption, { bottom: insets.bottom + 24 }]}>{shotCaption(photos[current]?.shotKey ?? null, t)}</Text>
+          <Text style={[v.caption, { bottom: insets.bottom + 24, left: 24 + insets.left, right: 24 + insets.right }]}>{shotCaption(photos[current]?.shotKey ?? null, t)}</Text>
         ) : null}
       </View>
     </Modal>

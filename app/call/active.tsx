@@ -7,6 +7,7 @@ import Animated from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { horizontalPadding } from '@/lib/layout';
 import { useTranslation } from 'react-i18next';
 import { useCall, MESSAGE_FALLBACK_REASONS, type CallEndReason } from '@/lib/webrtc/CallContext';
 import { usePulse } from '@/lib/motion/useLoops';
@@ -98,7 +99,7 @@ export default function ActiveCallScreen() {
 
   // Call screen always uses dark background
   return (
-    <View style={[cs.root, { backgroundColor: theme.heroBg, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+    <View style={[cs.root, { backgroundColor: theme.heroBg, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }, horizontalPadding(insets, 0)]}>
       <StatusBar barStyle="light-content" />
 
       {/* ── Top section: Avatar + Name + Status ── */}

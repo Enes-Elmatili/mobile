@@ -11,6 +11,7 @@ import { MOTION } from '@/lib/motion/springs';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { horizontalPadding } from '@/lib/layout';
 import { useCall, onIncomingCall, type IncomingCallData } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { cleanName } from '@/lib/displayName';
@@ -103,7 +104,7 @@ export default function IncomingCallOverlay() {
     .toUpperCase();
 
   return (
-    <Animated.View style={[s.overlay, { paddingTop: insets.top + 12 }, slideStyle]}>
+    <Animated.View style={[s.overlay, { paddingTop: insets.top + 12 }, horizontalPadding(insets, 12), slideStyle]}>
       <View style={[s.card, { backgroundColor: theme.cardBg }]}>
         {/* Avatar */}
         <Animated.View style={[s.avatar, { backgroundColor: theme.surface }, pulseStyle]}>

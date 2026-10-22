@@ -7,6 +7,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 
 import { SHEET_SPRING } from '@/lib/motion/sheet';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { horizontalPadding } from '@/lib/layout';
 import { useNetwork } from '../lib/NetworkContext';
 import { useOfflineQueue } from '../lib/OfflineQueueContext';
 import { useSocket } from '../lib/SocketContext';
@@ -102,7 +103,7 @@ export function OfflineBanner() {
         <Animated.View
           style={[
             styles.offlineBanner,
-            { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent },
+            { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent }, horizontalPadding(insets, 0),
             slideStyle,
           ]}
           accessibilityRole="alert"
@@ -120,7 +121,7 @@ export function OfflineBanner() {
       {/* Bandeau fugace "Connexion rétablie" */}
       {restoredVisible && !offlineVisible && (
         <View
-          style={[styles.offlineBanner, { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent }]}
+          style={[styles.offlineBanner, { paddingTop: insets.top + 10, backgroundColor: theme.isDark ? theme.surface : theme.accent }, horizontalPadding(insets, 0)]}
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
           pointerEvents="none"

@@ -17,7 +17,7 @@ import { FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 import { formatEUR } from '@/lib/format';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, horizontalPadding } from '@/lib/layout';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
 
@@ -232,7 +232,7 @@ export default function ResumePayment() {
   const price = request?.price ? formatEUR(parseFloat(request.price)) : null;
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, horizontalPadding(insets, 0)]}>
       <StatusBar barStyle="light-content" />
       <GridLines />
 

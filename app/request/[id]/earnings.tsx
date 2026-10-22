@@ -88,7 +88,7 @@ export default function EarningsScreen() {
   const rating = formatRating(request.provider?.avgRating);
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={theme.statusBar} />
       <ScrollView contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
         <Animated.View style={[s.check, { backgroundColor: theme.greenText }, checkStyle]}>

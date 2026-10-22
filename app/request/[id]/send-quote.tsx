@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import Animated from "react-native-reanimated";
 import { MOTION, useCountingValue, usePresence } from "@/lib/motion";
 import { ReText } from "@/components/ui/ReText";
-import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
+import { useLayoutClass, READING_MAX_WIDTH, useAsymmetricInsets, horizontalPadding } from "@/lib/layout";
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
 
@@ -94,6 +94,7 @@ export default function SendQuote() {
   // (useCountingValue) au lieu de sauter — moment 8. Décimales et devise
   // restent fixes, seul l'entier roule.
   const { isRegular } = useLayoutClass();
+  const insets = useAsymmetricInsets();
   const totalPresence = usePresence(totalCents > 0, { from: "bottom", preset: MOTION.pane });
   const totalCounter = useCountingValue(Math.floor(totalCents / 100), { preset: MOTION.count });
   const totalDec = `,${(totalCents / 100).toFixed(2).split(".")[1]} €`;
@@ -121,7 +122,7 @@ export default function SendQuote() {
   // Vérification en cours (guard ownership/statut) → loader plein écran.
   if (checking) {
     return (
-      <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }]}>
+      <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }, horizontalPadding(insets, 32)]}>
         <StatusBar barStyle={theme.statusBar} />
         <ActivityIndicator size="large" color={theme.accent} />
       </View>
@@ -131,7 +132,7 @@ export default function SendQuote() {
   // Erreur du fetch initial → état dédié avec bouton réessayer.
   if (loadError) {
     return (
-      <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }]}>
+      <View style={[s.root, s.centerFill, { backgroundColor: theme.bg }, horizontalPadding(insets, 32)]}>
         <StatusBar barStyle={theme.statusBar} />
         <Feather name="alert-circle" size={40} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textSub }]}>Impossible de charger cette demande.</Text>
@@ -147,7 +148,7 @@ export default function SendQuote() {
   }
 
   return (
-    <View style={[s.root, { backgroundColor: theme.bg }]}>
+    <View style={[s.root, { backgroundColor: theme.bg }, horizontalPadding(insets, 0)]}>
       <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
