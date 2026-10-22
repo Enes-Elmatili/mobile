@@ -13,7 +13,7 @@
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from 'expo-router/tabs';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { useLayoutClass } from '@/lib/layout/useLayoutClass';
 import { MOTION } from '@/lib/motion/springs';

@@ -7,7 +7,7 @@
 
 import { Redirect, Tabs } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from 'expo-router/tabs';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
