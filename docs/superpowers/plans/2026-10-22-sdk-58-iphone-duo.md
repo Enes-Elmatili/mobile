@@ -10,6 +10,37 @@
 
 ---
 
+## État d'avancement — 22/10/2026 (branche `feat/sdk-58`)
+
+| Tâche | Statut | Commit |
+|---|---|---|
+| A1 Dépendances | ✅ expo-doctor 20/20 | `0081bba` |
+| A2 Tests | ✅ 39 suites / 845 tests | `3b7716a` |
+| A3 expo-audio | ✅ | `9b37871` |
+| A4 Types onglets | ✅ | `263d7c7` |
+| A5 Natif (prebuild) | ✅ SceneDelegate, manifeste de scènes, R8 | `82eb19a` |
+| A6 tsc / lint | ✅ 0 / 0 | `bbfeb89`, `419cb6f` |
+| B0 SplitPane (défaut trouvé à l'audit) | ✅ plus de remontage au pliage | `8ca42c8` |
+| B1 Duo plié en paysage | ✅ | `fd05896` |
+| A7 Recette appareil | ⏳ à toi : backend arrêté | — |
+| A8 Paiements réels | ⛔ feu vert + TestFlight | — |
+| A9 Publication | ⏳ après A7, A8 et B3 | — |
+| B2, B3 Simulateur Duo | ⏳ Xcode 27.1 à installer | — |
+| B4 App Store Connect | ⏳ après B3 | — |
+
+**Écarts par rapport au plan, découverts pendant l'exécution :**
+- `npx expo install --check` réclamait aussi **jest 30, @types/jest 30 et TypeScript 6.0**. Il a fallu ajouter `@react-native/jest-preset`, désormais séparé de react-native, et `expo-asset`, peer d'expo-audio.
+- Après la montée, `@expo/config-plugins` n'était plus remonté à la racine de `node_modules` : `npm dedupe` a corrigé. Les plugins maison importent désormais `expo/config-plugins`.
+- **Trois défauts d'exécution que tsc et Jest ne voyaient pas, corrigés :**
+  - **appui sur un onglet** qui plantait : expo-router 58 passe `emitter` et `navigateToTab` à la tab bar, plus `navigation` ;
+  - **`StyleSheet.absoluteFillObject`** retiré de RN 0.88, à l'exécution aussi : 14 occurrences ;
+  - **`showsPointsOfInterest`** renommé `showsPointsOfInterests` dans react-native-maps 1.29 : sans renommage, les points d'intérêt seraient revenus sur toutes les cartes.
+- **Garde `workletClosure` : elle passait à vide** avec le nouveau format de Worklets 0.13. Elle est adaptée, échoue désormais sur un format inconnu, et sa détection a été prouvée avec un worklet fautif temporaire.
+- eslint-config-expo 58 active les **règles du React Compiler**, soit 141 erreurs, sans impact à l'exécution puisque le compilateur n'est pas activé. Elles sont mises en pause dans `eslint.config.js`, avec leur inventaire, et sont à écouler dans un chantier dédié.
+- Les 5 `tabBarIcon` du layout des onglets étaient du code mort : `FixedTabBar` dessine ses propres icônes. Ils sont retirés.
+
+---
+
 ## Ce que le SDK 58 change pour nous (vérifié le 22/10/2026)
 
 Sources : [changelog SDK 58](https://expo.dev/changelog/sdk-58), [migration router 57→58](https://docs.expo.dev/router/migrate/sdk-57-to-58/), [Apple — iPhone Duo](https://developer.apple.com/iphone-duo/prepare/), [images EAS](https://docs.expo.dev/build-reference/infrastructure/). Les API ont été vérifiées directement dans les tarballs npm.
@@ -510,6 +541,33 @@ Poses à couvrir pour chaque écran : **plié**, **déplié**, **déplié tourn�
 ---
 
 ## Annexe — constats de l'audit Duo (B3)
+
+**Pré-audit fait dans le code le 22/10 : les écrans à regarder en premier.** Sur iPhone en portrait, les marges de sécurité gauche et droite valent 0 ; sur le Duo déplié, le rail vertical des barres système les rend non nulles. Les écrans ci-dessous ne protègent pas les côtés :
+- soit `SafeAreaView` limité à `top` ou `bottom` ;
+- soit `insets.top` lu sans `insets.left`/`insets.right`.
+
+Les 36 autres écrans utilisent `SafeAreaView` sur tous les bords. `FixedTabBar` gère déjà la gauche et la droite. La correction dépend de chaque écran : un **contenu** prend `horizontalPadding(insets, base)` ou les bords `left`/`right`, une **carte ou un fond plein écran** reste bord à bord.
+
+| Fichier | Cause |
+|---|---|
+| `app/(tabs)/wallet.tsx` | SafeAreaView sans les côtés + insets.top seul |
+| `app/call/active.tsx` | insets.top seul |
+| `app/messages/[userId].tsx` | insets.top seul |
+| `app/onboarding/provider/pending.tsx` | insets.top seul |
+| `app/request/NewRequestStepper.tsx` | insets.top seul |
+| `app/request/[id]/earnings.tsx` | SafeAreaView sans les côtés |
+| `app/request/[id]/missionview.tsx` | SafeAreaView sans les côtés + insets.top seul (carte plein écran) |
+| `app/request/[id]/quote-review.tsx` | SafeAreaView sans les côtés |
+| `app/request/[id]/rating.tsx` | insets.top seul |
+| `app/request/[id]/resume-payment.tsx` | insets.top seul |
+| `app/request/[id]/send-quote.tsx` | SafeAreaView sans les côtés |
+| `app/request/camera.tsx` | insets.top seul (plein écran) |
+| `components/IncomingCallOverlay.tsx` | insets.top seul ; île latérale sur le Duo déplié |
+| `components/OfflineBanner.tsx` | insets.top seul |
+| `components/auth/AuthScreen.tsx` | SafeAreaView sans les côtés |
+| `components/mission/photos.tsx` | insets.top seul |
+| `components/onboarding/OnboardingLayout.tsx` | insets.top seul |
+| `components/tracking/StageSheet.tsx` | insets.top seul |
 
 | # | Écran | Pose | Capture | Défaut | Correctif proposé | Commit |
 |---|---|---|---|---|---|---|
