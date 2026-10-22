@@ -5,7 +5,7 @@
 import React from 'react';
 import { render, act } from '@testing-library/react-native';
 import { fireGestureHandler, getByGestureTestId } from 'react-native-gesture-handler/jest-utils';
-import { State } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, State } from 'react-native-gesture-handler';
 
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k) => k }), initReactI18next: { type: '3rdParty', init: () => {} } }));
 jest.mock('@expo/vector-icons', () => { const { Text } = require('react-native'); return { Feather: (p) => <Text>{p.name}</Text> }; });
@@ -17,7 +17,8 @@ const { SlideToConfirm } = require('@/components/ui/SlideToConfirm');
 const flush = () => new Promise((r) => setImmediate(r));
 
 async function mount(onConfirm, width = 350) {
-  const r = render(<SlideToConfirm onConfirm={onConfirm} />);
+  // Gesture Handler 3 exige un GestureHandlerRootView au-dessus du détecteur, comme dans app/_layout.tsx.
+  const r = await render(<SlideToConfirm onConfirm={onConfirm} />, { wrapper: GestureHandlerRootView });
   const track = r.getByLabelText('common.slide_to_accept');
   await act(async () => {
     track.props.onLayout({ nativeEvent: { layout: { width, height: 58, x: 0, y: 0 } } });

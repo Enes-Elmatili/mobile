@@ -34,18 +34,18 @@ function makeProps({ hidden, active }) {
 }
 
 describe('FixedTabBar — onglets par rôle', () => {
-  it('client : Accueil, Documents, Profil seulement', () => {
-    const { queryAllByRole } = render(React.createElement(FixedTabBar, makeProps({ hidden: ['missions', 'wallet', 'provider-dashboard'], active: 'dashboard' })));
+  it('client : Accueil, Documents, Profil seulement', async () => {
+    const { queryAllByRole } = await render(React.createElement(FixedTabBar, makeProps({ hidden: ['missions', 'wallet', 'provider-dashboard'], active: 'dashboard' })));
     const tabs = queryAllByRole('tab').map((t) => t.props.accessibilityLabel);
     expect(tabs).toEqual(['dashboard', 'documents', 'profile']);
   });
-  it('prestataire : Accueil, Missions, Gains, Profil seulement', () => {
-    const { queryAllByRole } = render(React.createElement(FixedTabBar, makeProps({ hidden: ['documents', 'provider-dashboard'], active: 'provider-dashboard' })));
+  it('prestataire : Accueil, Missions, Gains, Profil seulement', async () => {
+    const { queryAllByRole } = await render(React.createElement(FixedTabBar, makeProps({ hidden: ['documents', 'provider-dashboard'], active: 'provider-dashboard' })));
     const tabs = queryAllByRole('tab').map((t) => t.props.accessibilityLabel);
     expect(tabs).toEqual(['dashboard', 'missions', 'wallet', 'profile']);
   });
-  it('prestataire sur provider-dashboard (route cachée) : Accueil est marqué sélectionné', () => {
-    const { queryAllByRole } = render(React.createElement(FixedTabBar, makeProps({ hidden: ['documents', 'provider-dashboard'], active: 'provider-dashboard' })));
+  it('prestataire sur provider-dashboard (route cachée) : Accueil est marqué sélectionné', async () => {
+    const { queryAllByRole } = await render(React.createElement(FixedTabBar, makeProps({ hidden: ['documents', 'provider-dashboard'], active: 'provider-dashboard' })));
     const selected = queryAllByRole('tab').filter((t) => t.props.accessibilityState?.selected).map((t) => t.props.accessibilityLabel);
     expect(selected).toEqual(['dashboard']);
   });

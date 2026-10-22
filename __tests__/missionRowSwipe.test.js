@@ -3,11 +3,21 @@
 // le sens du glissé à onSwipeableOpen ('right' quand le volet gauche s'ouvre).
 import React from 'react';
 import { render, act } from '@testing-library/react-native';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k) => k }), initReactI18next: { type: '3rdParty', init: () => {} } }));
 jest.mock('@expo/vector-icons', () => { const { Text } = require('react-native'); return { Feather: (p) => <Text>{p.name}</Text> }; });
 jest.mock('expo-image', () => { const { View } = require('react-native'); return { Image: (p) => <View {...p} /> }; });
+// RNTL 14 (test-renderer) n'expose que les éléments hôtes : le Swipeable est
+// remplacé par une View qui porte onSwipeableOpen, pour le déclencher à la main.
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const Swipeable = React.forwardRef(({ onSwipeableOpen, children }, ref) => {
+    React.useImperativeHandle(ref, () => ({ close: () => {}, reset: () => {}, openLeft: () => {}, openRight: () => {} }));
+    return <View testID="swipeable" onSwipeableOpen={onSwipeableOpen}>{children}</View>;
+  });
+  return { __esModule: true, default: Swipeable };
+});
 
 const { MissionRow } = require('@/components/mission/MissionRow');
 
@@ -22,8 +32,8 @@ const brief = {
 };
 
 async function open(direction, accept, refuse) {
-  const r = render(<MissionRow brief={brief} onPress={() => {}} onSwipeAccept={accept} onSwipeRefuse={refuse} />);
-  const swipeable = r.UNSAFE_getByType(ReanimatedSwipeable);
+  const r = await render(<MissionRow brief={brief} onPress={() => {}} onSwipeAccept={accept} onSwipeRefuse={refuse} />);
+  const swipeable = r.getByTestId('swipeable');
   await act(async () => {
     swipeable.props.onSwipeableOpen(direction);
     await new Promise((res) => setTimeout(res, 5));

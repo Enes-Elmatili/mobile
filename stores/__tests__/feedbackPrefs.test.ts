@@ -4,7 +4,7 @@ import { useFeedbackPrefs, FEEDBACK_PREFS_KEY } from '../feedbackPrefs';
 
 beforeEach(async () => {
   await AsyncStorage.clear();
-  act(() => useFeedbackPrefs.setState({ sound: true, haptics: true, animations: true, reduceMotion: false, hydrated: false }));
+  await act(() => useFeedbackPrefs.setState({ sound: true, haptics: true, animations: true, reduceMotion: false, hydrated: false }));
 });
 
 test('defaults are all-on', () => {

@@ -34,14 +34,17 @@ function emittedWorklets(file) {
   });
   const re = /_worklet_\d+_init_data=\{code:"((?:[^"\\]|\\.)*)"/g;
   const found = []; let m;
-  while ((m = re.exec(code))) found.push(JSON.parse(`"${m[1]}"`));
+  // Worklets 0.13 émet le code entre parenthèses : « (function nom_fichierTs1(…){…}) ».
+  while ((m = re.exec(code))) found.push(JSON.parse(`"${m[1]}"`).replace(/^\(([\s\S]*)\)$/, '$1'));
   return found;
 }
 
 function closureRefsInDefaults(code) {
   const head = code.match(/^function\s+\w*\(([^)]*)\)/);
-  if (!head) return [];
-  const closure = (code.match(/const\{([^}]*)\}=this\.__closure/) || [, ''])[1].split(',').map((s) => s.trim()).filter(Boolean);
+  // Format inconnu = garde aveugle : on échoue plutôt que de passer sans rien vérifier.
+  if (!head) return ['<format de worklet non reconnu>'];
+  // Fermeture déballée en objet (worklets ≤ 0.5 : const{a,b}=this.__closure) ou en tableau (0.13 : const[a,b]=this.__closure).
+  const closure = (code.match(/const[{[]([^}\]]*)[}\]]=this\.__closure/) || [, ''])[1].split(',').map((s) => s.trim()).filter(Boolean);
   const defaults = [...head[1].matchAll(/=\s*([A-Za-z_$][\w$]*)/g)].map((x) => x[1]);
   return defaults.filter((d) => closure.includes(d));
 }
@@ -127,7 +130,7 @@ describe('rubberBand sur le thread UI', () => {
     expect(code).toBeDefined();
     // Le runtime UI reconstruit le worklet depuis la chaîne et le lie à son
     // objet fermeture (react-native-worklets, valueUnpacker.ts).
-    const ui = eval(`(${code})`).bind({ __closure: { SHEET_OVER_DRAG_RESISTANCE: 3.5 } });
+    const ui = eval(`(${code})`).bind({ __closure: [3.5] }); // [SHEET_OVER_DRAG_RESISTANCE]
     expect(ui(150, 0, 300)).toBe(150);
     expect(ui(400, 0, 300)).toBeCloseTo(300 + 100 / 3.5, 5);
     expect(ui(-70, 0, 300)).toBeCloseTo(-20, 5);
