@@ -58,6 +58,16 @@ export function stageOf(request: { status?: string | null; preferredTimeStart?: 
   }
 }
 
+/**
+ * Cadence du sondage de secours de missionview (le socket reste la source).
+ * `null` sur un stade terminal : plus rien ne change côté serveur, on ne sonde
+ * plus (règle « polling stoppé sur statuts terminaux »).
+ */
+export function pollIntervalMs(stage: Stage, searching: boolean): number | null {
+  if (stage === 'done' || stage === 'terminal') return null;
+  return searching || stage === 'loading' ? 15_000 : 45_000;
+}
+
 /** Les stades qui se rendent sur la carte de suivi (par opposition aux redirections). */
 export const TRACKING_STAGES: Stage[] = ['accepted', 'en_route', 'at_door', 'ongoing', 'quote_pending'];
 

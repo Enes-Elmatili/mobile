@@ -30,7 +30,7 @@ import { useConversationUnread } from '@/lib/useConversationUnread';
 import { markCompletionHandled } from '@/lib/navDedup';
 import { formatClock } from '@/lib/format';
 import { briefOf, isQuoteMode, workOf, type MissionBrief } from '@/lib/mission/brief';
-import { ARRIVAL_RADIUS_M, isFutureScheduled, metersBetween, plannedEnd, stageOf, type Stage } from '@/lib/mission/stage';
+import { ARRIVAL_RADIUS_M, isFutureScheduled, metersBetween, plannedEnd, pollIntervalMs, stageOf, type Stage } from '@/lib/mission/stage';
 import { distanceKm, fetchRoute, type LatLng } from '@/lib/mission/route';
 import { SearchingOverlay } from '@/components/searching/SearchingOverlay';
 import { SearchingSheet } from '@/components/searching/SearchingSheet';
@@ -169,10 +169,12 @@ export default function MissionView() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Sondage : 15 s en recherche, 45 s en suivi (filet si le socket rate un fait).
+  // Sondage : 15 s en recherche, 45 s en suivi (filet si le socket rate un fait),
+  // aucun sur un stade terminal (bilan affiché ou redirection en cours).
   useEffect(() => {
     if (!id) return;
-    const every = searchingLayer || stage === 'loading' ? 15_000 : 45_000;
+    const every = pollIntervalMs(stage, searchingLayer);
+    if (every == null) return;
     const iv = setInterval(load, every);
     return () => clearInterval(iv);
   }, [id, searchingLayer, stage, load]);

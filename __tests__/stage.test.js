@@ -1,5 +1,5 @@
 // Table de vérité du stade de suivi (lib/mission/stage.ts).
-const { stageOf, isFutureScheduled, plannedEnd, minutesSince, metersBetween, ARRIVAL_RADIUS_M } = require('@/lib/mission/stage');
+const { stageOf, isFutureScheduled, plannedEnd, minutesSince, metersBetween, ARRIVAL_RADIUS_M, pollIntervalMs } = require('@/lib/mission/stage');
 
 const NOW = Date.parse('2026-09-14T10:00:00Z');
 const inMinutes = (m) => new Date(NOW + m * 60000).toISOString();
@@ -54,5 +54,22 @@ describe('helpers', () => {
     expect(metersBetween(50.8, 4.35, 50.801, 4.35)).toBeGreaterThan(100);
     expect(metersBetween(50.8, 4.35, 50.801, 4.35)).toBeLessThan(120);
     expect(ARRIVAL_RADIUS_M).toBe(60);
+  });
+});
+
+// Règle « polling stoppé sur statuts terminaux » (CLAUDE.md, bugs résolus) :
+// missionview sondait encore toutes les 45 s sur le bilan (stade done).
+describe('pollIntervalMs', () => {
+  it('stades terminaux : aucun sondage', () => {
+    expect(pollIntervalMs('done', false)).toBeNull();
+    expect(pollIntervalMs('terminal', false)).toBeNull();
+  });
+  it('recherche ou chargement : 15 s', () => {
+    expect(pollIntervalMs('searching', true)).toBe(15_000);
+    expect(pollIntervalMs('loading', false)).toBe(15_000);
+  });
+  it('suivi : 45 s (filet si le socket rate un fait)', () => {
+    expect(pollIntervalMs('ongoing', false)).toBe(45_000);
+    expect(pollIntervalMs('en_route', false)).toBe(45_000);
   });
 });

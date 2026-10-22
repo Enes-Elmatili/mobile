@@ -167,9 +167,10 @@ export default function TicketDetailScreen() {
   useEffect(() => { load(); }, [load]);
 
   // Polling léger toutes les 30s pour récupérer les nouvelles réponses admin
-  // (en attendant un canal socket dédié aux tickets).
+  // (en attendant un canal socket dédié aux tickets). Arrêté sur un ticket fermé :
+  // s'il est rouvert, le rechargement change `ticket` et l'effet repart.
   useEffect(() => {
-    if (!id) return;
+    if (!id || ticket?.status === 'CLOSED') return;
     const t = setInterval(() => {
       api.tickets.events(id).then((res: any) => {
         const events = res?.data || res;
