@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
-import { TabIcon } from '@/components/ui/TabIcon';
 import { FixedTabBar, SIDEBAR_WIDTH, TAB_BAR_HEIGHT as BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
 import { useLayoutClass } from '@/lib/layout';
 
@@ -60,41 +59,32 @@ export default function TabLayout() {
   }), [theme.bg, theme.accent, theme.textMuted, isRegular]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
+  // Les icônes sont dessinées par FixedTabBar (TAB_ICONS) : pas de tabBarIcon ici.
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect
   // interne. Si l'objet options est recréé à chaque render (tabBarIcon inline),
   // l'effet re-dispatche → boucle. useMemo garantit une référence stable.
 
   const dashboardOptions = useMemo(() => ({
     title: t('ext.tabs_home'),
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="home" color={color} focused={focused} />,
   }), [t]);
 
   const missionsOptions = useMemo(() => ({
     title: t('ext.tabs_missions'),
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="zap" color={color} focused={focused} />,
   }), [isProvider, t]);
 
   const documentsOptions = useMemo(() => ({
     title: t('ext.tabs_documents'),
     href: isProvider ? null : undefined,
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="file-text" color={color} focused={focused} />,
   }), [isProvider, t]);
 
   const walletOptions = useMemo(() => ({
     title: t('ext.tabs_earnings'),
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="credit-card" color={color} focused={focused} />,
   }), [isProvider, t]);
 
   const profileOptions = useMemo(() => ({
     title: t('ext.tabs_profile'),
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="user" color={color} focused={focused} />,
   }), [t]);
 
   const hiddenOptions = useMemo(() => ({ href: null as null }), []);

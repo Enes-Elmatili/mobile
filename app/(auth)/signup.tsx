@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, StyleSheet, StatusBar, ActivityIndicator, Platform, BackHandler,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { useEntrance } from "@/lib/motion/useEntrance";
@@ -312,8 +313,8 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
-  const emailRef = useRef<TextInput>(null);
-  const pwdRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInputInstance>(null);
+  const pwdRef = useRef<TextInputInstance>(null);
 
   // Mémorise que api.auth.signup a réussi : si providers.register échoue ensuite,
   // le retry ne rejoue QUE l'enregistrement provider (sinon 409 « email déjà utilisé »).

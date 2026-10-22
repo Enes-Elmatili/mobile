@@ -118,7 +118,7 @@ const s = StyleSheet.create({
   tileWrap:  { width: '23%', flexGrow: 1, maxWidth: '31%' },
   tile:      { aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 6, overflow: 'hidden' },
   tileDone:  { borderStyle: 'solid', justifyContent: 'flex-end', alignItems: 'flex-start', padding: 8 },
-  shade:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
+  shade:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.25)' },
   check:     { position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   doneLabel: { fontFamily: FONTS.sansMedium, fontSize: 11, color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
   req:       { position: 'absolute', top: 6, right: 8, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1 },

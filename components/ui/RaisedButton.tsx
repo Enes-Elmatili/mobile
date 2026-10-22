@@ -161,7 +161,7 @@ export function RaisedButton({
           {/* Press dim overlay — assombrit légèrement la surface au press */}
           <Animated.View
             pointerEvents="none"
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000' }, dimStyle]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }, dimStyle]}
           />
 
           {loading ? (

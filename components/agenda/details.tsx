@@ -391,7 +391,7 @@ const opp = StyleSheet.create({
 const sd = StyleSheet.create({
   scroll: { paddingBottom: 80 },
   mapContainer: { height: 150, marginTop: 8, overflow: 'hidden', position: 'relative' },
-  map:          { ...StyleSheet.absoluteFillObject },
+  map:          { ...StyleSheet.absoluteFill },
   mapOverlay:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 12, paddingBottom: 10, paddingTop: 24, backgroundColor: 'rgba(0,0,0,0.15)' },
   mapAddrBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
   mapAddrText:  { fontSize: 12, fontFamily: FONTS.sansMedium, maxWidth: 260 },

@@ -28,7 +28,8 @@ function makeProps({ hidden, active }) {
   return {
     state: { index: names.indexOf(active), routes },
     descriptors,
-    navigation: { emit: () => ({ defaultPrevented: false }), navigate: () => {} },
+    emitter: { emit: () => ({ defaultPrevented: false }) },
+    navigateToTab: () => {},
     insets: { top: 0, bottom: 0, left: 0, right: 0 },
   };
 }

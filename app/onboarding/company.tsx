@@ -8,6 +8,7 @@
 // les pièces, et s'efface d'elle-même si tout est déjà fourni.
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, TextInput } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -46,7 +47,7 @@ export default function OnboardingCompany() {
   /** BCE enregistré mais VIES injoignable : le serveur rejoue la vérification. */
   const [viesPending, setViesPending] = useState(false);
   const [ibanSaved, setIbanSaved] = useState(false);
-  const ibanRef = useRef<TextInput>(null);
+  const ibanRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     let cancelled = false;

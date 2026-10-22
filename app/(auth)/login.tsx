@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, StyleSheet, StatusBar, Platform,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { useEntrance } from "@/lib/motion/useEntrance";
@@ -99,7 +100,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
   const [showPwd, setShowPwd] = useState(false);
-  const pwdRef = useRef<TextInput>(null);
+  const pwdRef = useRef<TextInputInstance>(null);
 
   const showToast = useCallback((message: string, type: ToastType = "error") => {
     feedback.toast(message, type);

@@ -222,7 +222,7 @@ export default function ExploreScreen() {
         {location ? (
           <MapView
             ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             initialRegion={{
               latitude: location.lat,
               longitude: location.lng,

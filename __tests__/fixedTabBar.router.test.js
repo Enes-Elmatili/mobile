@@ -5,6 +5,7 @@
  */
 const React = require('react');
 const { renderRouter } = require('expo-router/testing-library');
+const { fireEvent } = require('@testing-library/react-native');
 const { Text } = require('react-native');
 
 jest.mock('expo-blur', () => ({ BlurView: ({ children }) => children ?? null }));
@@ -67,6 +68,14 @@ describe('FixedTabBar dans le vrai Expo Router', () => {
     const r = await renderRouter(routes('provider'), { initialUrl: '/dashboard' });
     expect(await r.findByText('dashboard-page')).toBeTruthy();
     expect(tabLabels(r)).toEqual(['Accueil', 'Missions', 'Gains', 'Profil']);
+  });
+
+  it('appuyer sur un onglet ouvre sa page (expo-router 58 : emitter + navigateToTab)', async () => {
+    const r = await renderRouter(routes('client'), { initialUrl: '/dashboard' });
+    expect(await r.findByText('dashboard-page')).toBeTruthy();
+    const profil = r.getAllByRole('tab').find((t) => t.props.accessibilityLabel === 'Profil');
+    await fireEvent.press(profil);
+    expect(await r.findByText('profile-page')).toBeTruthy();
   });
 
   it('prestataire arrivé par /provider-dashboard : Accueil, mêmes onglets, Accueil sélectionné', async () => {
