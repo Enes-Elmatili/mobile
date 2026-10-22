@@ -9,6 +9,7 @@ describe('resolveLayoutClass', () => {
     ['iPhone SE', 375, 667, 'compact'],
     ['iPhone 15 Pro', 393, 852, 'compact'],
     ['iPhone Duo fermé', 466, 678, 'compact'],
+    ['iPhone Duo fermé, paysage', 678, 466, 'compact'],
     ['iPhone Duo ouvert, paysage naturel', 951, 669, 'regular'],
     ['iPhone Duo ouvert, portrait', 669, 951, 'regular'],
     ['Galaxy Z Fold ouvert', 780, 860, 'regular'],
