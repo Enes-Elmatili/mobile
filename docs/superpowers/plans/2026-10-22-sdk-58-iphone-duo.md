@@ -22,6 +22,7 @@
 | A6 tsc / lint | ✅ 0 / 0 | `bbfeb89`, `419cb6f` |
 | B0 SplitPane (défaut trouvé à l'audit) | ✅ plus de remontage au pliage | `8ca42c8` |
 | B1 Duo plié en paysage | ✅ | `fd05896` |
+| B0 bis Marges latérales (16 écrans) | ✅ protection posée, aucun changement sur téléphone ; **à valider au simulateur** | `800e038` |
 | A7 Recette appareil | ⏳ à toi : backend arrêté | — |
 | A8 Paiements réels | ⛔ feu vert + TestFlight | — |
 | A9 Publication | ⏳ après A7, A8 et B3 | — |
@@ -541,6 +542,8 @@ Poses à couvrir pour chaque écran : **plié**, **déplié**, **déplié tourn�
 ---
 
 ## Annexe — constats de l'audit Duo (B3)
+
+**Mise à jour du 22/10 (`800e038`) : protection posée sur les 16 écrans réellement exposés.** `messages/[userId]` et `NewRequestStepper` étaient de faux positifs : leur racine est un `SafeAreaView` sur tous les bords. Reste à confirmer au simulateur Duo que le rendu est juste, surtout pour la barre du haut de `missionview` et pour la caméra.
 
 **Pré-audit fait dans le code le 22/10 : les écrans à regarder en premier.** Sur iPhone en portrait, les marges de sécurité gauche et droite valent 0 ; sur le Duo déplié, le rail vertical des barres système les rend non nulles. Les écrans ci-dessous ne protègent pas les côtés :
 - soit `SafeAreaView` limité à `top` ou `bottom` ;
