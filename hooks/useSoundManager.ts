@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { useEffect, useRef, useCallback } from 'react';
 
 export type SoundKey = 'newMission' | 'missionAccepted' | 'paymentReceived' | 'providerFound';
@@ -16,37 +16,28 @@ const SOUND_FILES: Record<SoundKey, any> = {
 export const RINGTONE_SOUND = SOUND_FILES.newMission;
 
 export function useSoundManager() {
-  const soundsRef = useRef<Partial<Record<SoundKey, Audio.Sound>>>({});
+  const playersRef = useRef<Partial<Record<SoundKey, AudioPlayer>>>({});
 
   useEffect(() => {
-    let mounted = true;
-
-    const preload = async () => {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: false,
-        shouldDuckAndroid: true,
-      });
-      for (const [key, file] of Object.entries(SOUND_FILES)) {
-        if (!mounted) return;
-        const { sound } = await Audio.Sound.createAsync(file, { shouldPlay: false });
-        soundsRef.current[key as SoundKey] = sound;
-      }
-    };
-    preload();
+    // Même intention qu'avec expo-av : silencieux si l'iPhone est en mode
+    // silencieux, et on baisse la musique des autres apps sur Android.
+    setAudioModeAsync({ playsInSilentMode: false, interruptionModeAndroid: 'duckOthers' }).catch(() => {});
+    for (const [key, file] of Object.entries(SOUND_FILES)) {
+      playersRef.current[key as SoundKey] = createAudioPlayer(file);
+    }
 
     return () => {
-      mounted = false;
-      Object.values(soundsRef.current).forEach(s => s?.unloadAsync());
-      soundsRef.current = {};
+      Object.values(playersRef.current).forEach(p => p?.remove());
+      playersRef.current = {};
     };
   }, []);
 
   const play = useCallback(async (key: SoundKey) => {
     try {
-      const sound = soundsRef.current[key];
-      if (sound) {
-        await sound.setPositionAsync(0);
-        await sound.playAsync();
+      const player = playersRef.current[key];
+      if (player) {
+        await player.seekTo(0);
+        player.play();
       }
     } catch {
       // Never block UX for a sound failure
