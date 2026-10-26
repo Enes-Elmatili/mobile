@@ -2,7 +2,10 @@ export { resolveLayoutClass, REGULAR_MIN_WIDTH, REGULAR_MIN_HEIGHT } from './res
 export type { LayoutClass } from './resolveLayoutClass';
 export { useLayoutClass } from './useLayoutClass';
 export type { Layout } from './useLayoutClass';
-export { SplitPane, useSplitPane, HINGE_GUTTER } from './SplitPane';
+export { SplitPane, PanePlaceholder, useSplitPane, HINGE_GUTTER } from './SplitPane';
+export { useHinge, useHingeAngle, HINGE_SUPPORTED } from './hinge';
+export { foldLayoutFor, splitRatioFor, creaseFor } from './posture';
+export type { FoldLayout, FoldRect, HingePosture, HingeState } from './posture';
 export { AdaptiveScroll, READING_MAX_WIDTH } from './AdaptiveScroll';
 export { useAsymmetricInsets, horizontalPadding } from './insets';
 export type { AsymmetricInsets } from './insets';

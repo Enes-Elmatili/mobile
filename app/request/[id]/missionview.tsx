@@ -40,7 +40,8 @@ import { DoneContent, EtaHero, MoneyLine, PhotoCard, PinCard, ProviderRow, Quote
 import { useMapCamera, type CameraMode } from '@/lib/mission/useMapCamera';
 import { usePresence } from '@/lib/motion/usePresence';
 import { PressScale } from '@/components/ui/PressScale';
-import { useLayoutClass } from '@/lib/layout';
+import { foldLayoutFor, useHinge, useLayoutClass } from '@/lib/layout';
+import { useBreathe } from '@/lib/motion/useBreathe';
 import { ConversationThread } from '@/components/messages/ConversationThread';
 
 const ACCEPTED_MOMENT_MS = 2400;
@@ -138,7 +139,12 @@ export default function MissionView() {
   const sheetLevel: SheetLevel = done ? 'page' : 'half';
   // Écran déplié : la feuille devient le volet droit, la carte a sa colonne
   // et n'a plus rien à rembourrer (maquette « Le suivi qui se déplie »).
-  const { isRegular: isSplit, insets: layoutInsets } = useLayoutClass();
+  const { isRegular: isSplit, insets: layoutInsets, width: winW, height: winH } = useLayoutClass();
+  // iOS 27.1 — entrouvert en « table » (pli horizontal) : la carte au-dessus
+  // du pli, le fil et les actions en dessous, rien à cheval sur la pliure.
+  const hinge = useHinge();
+  const fold = isSplit ? foldLayoutFor(hinge, { x: 0, y: 0, width: winW, height: winH }) : null;
+  const tabletop = fold?.kind === 'tabletop' ? fold : null;
   const sheetVisibleH = isSplit ? 0 : sheetHeight;
   const mapOpacity = useSharedValue(1);
   useEffect(() => { mapOpacity.value = reduced ? withTiming(mapMode === 'gone' ? 0 : 1, { duration: 150 }) : withSpring(mapMode === 'gone' ? 0 : 1, MOTION.pane); }, [mapMode, reduced, mapOpacity]);
@@ -406,7 +412,38 @@ export default function MissionView() {
     setChatOpen(false);
     router.push({ pathname: '/messages/[userId]', params: { userId: String(chatUid), name: providerName(provider), requestId: String(id) } });
   }, [isSplit, chatOpen, chatUid, provider, id, router]);
-  const chatPresence = usePresence(isSplit && chatOpen, { from: 'hinge', preset: MOTION.pane });
+  // Moment 20 — la conversation entre depuis la charnière ; fermée, elle se
+  // RANGE (descend, rétrécit, s'efface) dans le fil qui respire une fois.
+  // Démontée une fois rangée : caché, le fil marquerait lus des messages
+  // que personne ne voit.
+  const [chatMounted, setChatMounted] = useState(false);
+  useEffect(() => {
+    if (chatOpen) { setChatMounted(true); return; }
+    const t = setTimeout(() => setChatMounted(false), 450);
+    return () => clearTimeout(t);
+  }, [chatOpen]);
+  const chatP = useSharedValue(0);
+  const chatEntering = useSharedValue(1);
+  const sheetBreathe = useBreathe(1.015);
+  const wasChatOpen = useRef(false);
+  useEffect(() => {
+    const open = isSplit && chatOpen;
+    chatEntering.value = open ? 1 : 0;
+    chatP.value = reduced ? withTiming(open ? 1 : 0, { duration: 200 }) : withSpring(open ? 1 : 0, open ? MOTION.pane : MOTION.island);
+    if (wasChatOpen.current && !open) sheetBreathe.pulse();
+    wasChatOpen.current = open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sheetBreathe.pulse est stable
+  }, [isSplit, chatOpen, reduced, chatP, chatEntering]);
+  const chatStyle = useAnimatedStyle(() => {
+    const p = chatP.value;
+    if (reduced) return { opacity: p };
+    return {
+      opacity: p,
+      transform: chatEntering.value
+        ? [{ translateX: -40 * (1 - p) }]
+        : [{ translateY: 28 * (1 - p) }, { scale: 0.94 + 0.06 * p }],
+    };
+  });
 
   const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
   const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
@@ -517,10 +554,10 @@ export default function MissionView() {
       )}
 
       {showMap && (
-        <View style={[StyleSheet.absoluteFill, isSplit && s.splitRow]} pointerEvents="box-none">
+        <View style={[StyleSheet.absoluteFill, isSplit && (tabletop ? s.splitColumn : s.splitRow)]} pointerEvents="box-none">
           {/* Volet carte : tout l'écran sur compact, la colonne gauche une fois déplié.
               Même arbre dans les deux cas : ouvrir le téléphone ne recharge pas la carte. */}
-          <View style={isSplit ? s.mapPane : StyleSheet.absoluteFill} pointerEvents="box-none">
+          <View style={isSplit ? (tabletop ? [s.mapPaneTop, { height: tabletop.start }] : s.mapPane) : StyleSheet.absoluteFill} pointerEvents="box-none">
             {/* La carte, unique du premier au dernier stade. */}
             <Animated.View style={[StyleSheet.absoluteFill, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
               <MapView
@@ -585,21 +622,26 @@ export default function MissionView() {
             ) : null}
           </View>
 
-          {isSplit && !done ? <View style={[s.splitLine, { backgroundColor: theme.border }]} /> : null}
+          {isSplit && !done ? (
+            tabletop
+              ? <View style={{ height: tabletop.end - tabletop.start }} />
+              : <View style={[s.splitLine, { backgroundColor: theme.border }]} />
+          ) : null}
 
           {/* La feuille, unique : son contenu change, on la tient au doigt.
               Déplié, elle devient le volet droit (fil, prestataire, actions). */}
           {!done ? (
-            <View style={isSplit ? [s.sheetPane, { paddingRight: layoutInsets.right }] : StyleSheet.absoluteFill} pointerEvents="box-none">
-              {isSplit && chatOpen && chatUid ? (
-                <Animated.View style={[s.chatPane, { backgroundColor: theme.bg }, chatPresence.style]}>
-                  <ConversationThread userId={String(chatUid)} name={providerName(provider)} requestId={String(id)} inPane onClose={closeChat} />
-                </Animated.View>
-              ) : (
-                <StageSheet levels={sheetLevels} level={sheetLevel} onHeightChange={setSheetHeight} inPane={isSplit}>
+            <View style={isSplit ? [tabletop ? s.fill : s.sheetPane, { paddingRight: layoutInsets.right }] : StyleSheet.absoluteFill} pointerEvents="box-none">
+              <Animated.View style={[s.fill, isSplit && sheetBreathe.style]} pointerEvents="box-none">
+                <StageSheet levels={sheetLevels} level={sheetLevel} onHeightChange={setSheetHeight} inPane={isSplit} topInset={tabletop ? 16 : undefined}>
                   {sheet}
                 </StageSheet>
-              )}
+              </Animated.View>
+              {isSplit && chatMounted && chatUid ? (
+                <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg }, chatStyle]} pointerEvents={chatOpen ? 'auto' : 'none'}>
+                  <ConversationThread userId={String(chatUid)} name={providerName(provider)} requestId={String(id)} inPane onClose={closeChat} />
+                </Animated.View>
+              ) : null}
             </View>
           ) : (
             <Animated.View style={[StyleSheet.absoluteFill, donePresence.style]}>
@@ -618,10 +660,12 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   // Déplié : la carte à gauche (0,42, comme SplitPane), le fil à droite.
   splitRow: { flexDirection: 'row' },
+  splitColumn: { flexDirection: 'column' },
   mapPane: { flex: 0.42, overflow: 'hidden' },
+  mapPaneTop: { overflow: 'hidden' },
   splitLine: { width: StyleSheet.hairlineWidth },
   sheetPane: { flex: 0.58 },
-  chatPane: { flex: 1 },
+  fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   notFound: { fontFamily: FONTS.sans, fontSize: 14 },
   topBar: { position: 'absolute', left: 16, right: 16, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 },

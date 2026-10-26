@@ -22,7 +22,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { briefOf } from '@/lib/mission/brief';
 import { fetchRoute } from '@/lib/mission/route';
-import { SplitPane, useSplitPane, useLayoutClass } from '@/lib/layout';
+import { PanePlaceholder, SplitPane, useSplitPane, useLayoutClass } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { useSocket } from '@/lib/SocketContext';
@@ -61,6 +61,9 @@ export default function Missions() {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { width, height: windowHeight } = useLayoutClass();
+  // La semaine se pagine à la largeur de SA colonne : déplié, c'est le volet
+  // gauche, pas la fenêtre.
+  const [listWidth, setListWidth] = useState<number | null>(null);
   const tabBarPadding = useTabBarPadding();
   const brandRefresh = useBrandRefresh();
   const isSplit = useSplitPane();
@@ -306,6 +309,7 @@ export default function Missions() {
           <>
             <BrandRefreshHeader style={brandRefresh.headerStyle} />
             <Reanimated.ScrollView
+              onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setListWidth((p) => (p === w ? p : w)); }}
               onScroll={brandRefresh.onScroll}
               scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
@@ -329,7 +333,7 @@ export default function Missions() {
               </View>
 
               {/* -- La semaine -- */}
-              <AgendaWeek weeks={weeks} selectedKey={selectedKey} onSelect={setSelectedKey} width={width} dayLabel={dayLabel} initialIndex={WEEKS_BEFORE} jump={jump} onWeekChange={setWeekIndex} />
+              <AgendaWeek weeks={weeks} selectedKey={selectedKey} onSelect={setSelectedKey} width={listWidth ?? width} dayLabel={dayLabel} initialIndex={WEEKS_BEFORE} jump={jump} onWeekChange={setWeekIndex} />
 
               {error ? (
                 <PressScale onPress={loadMissions} style={[s.error, { backgroundColor: theme.surface }]} accessibilityRole="button">
@@ -383,11 +387,8 @@ export default function Missions() {
           </>
         )}
         detail={isSplit && detailOpen ? detail : null}
-        placeholder={(
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.4, color: theme.textMuted, textTransform: 'uppercase' }}>{t('missions.select_hint')}</Text>
-          </View>
-        )}
+        detailKey={selectedMission ? `m${selectedMission.id}` : selectedOpportunity ? `o${selectedOpportunity.id}` : null}
+        placeholder={<PanePlaceholder icon="calendar" label={t('missions.select_hint')} />}
       />
       {detailOpen && !isSplit ? (
         <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailOpen(false)} {...sheetMotion} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: theme.cardBg }} handleIndicatorStyle={{ backgroundColor: theme.border }} maxDynamicContentSize={windowHeight * 0.85}>

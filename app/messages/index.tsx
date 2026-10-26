@@ -18,7 +18,7 @@ import i18nInstance from '@/lib/i18n';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
-import { SplitPane, useSplitPane } from '@/lib/layout';
+import { PanePlaceholder, SplitPane, useSplitPane } from '@/lib/layout';
 import { ConversationThread } from '@/components/messages/ConversationThread';
 import { contactNameCacheGet, contactNameCacheHas, contactNameCacheSet } from '@/lib/messages/contactNameCache';
 
@@ -282,11 +282,8 @@ export default function MessagesInbox() {
         detail={isSplit && selected ? (
           <ConversationThread key={selected.userId} userId={selected.userId} name={selected.displayName} inPane />
         ) : null}
-        placeholder={(
-          <View style={s.centered}>
-            <Text style={[s.paneHint, { color: theme.textMuted }]}>{t('messages.select_hint')}</Text>
-          </View>
-        )}
+        detailKey={selected?.userId ?? null}
+        placeholder={<PanePlaceholder icon="message-circle" label={t('messages.select_hint')} />}
       />
     </SafeAreaView>
   );
@@ -318,7 +315,6 @@ const s = StyleSheet.create({
   emptyBtnText: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 1 },
 
   list: { paddingVertical: 8 },
-  paneHint: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase' },
 
   row: {
     flexDirection: 'row', alignItems: 'center',

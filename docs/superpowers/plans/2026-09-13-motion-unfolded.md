@@ -46,5 +46,13 @@ jest, eslint 0 erreur, tsc ; simulateur iPad 11" (regular) : sidebar, missions e
 - Suivi déplié : « Message » ouvre la conversation dans le volet droit, une croix la referme ; replier pendant la conversation la poursuit en plein écran.
 - `ios.requireFullScreen` retiré (commit séparé, réversible seul).
 
+### iOS 27.1 : la charnière (26/10/2026)
+- `modules/fixed-hinge` (module Expo local, Swift) : posture (`UIHingeInteraction`), pli (`reservedRegions(kind: .division)`), angle. Lecture seule. **Compile uniquement avec Xcode 27.1+** : les builds EAS iOS prennent `image: latest`.
+- `lib/layout/hinge` : pont optionnel (`requireOptionalNativeModule`) — sans le module (Android, Expo Go, jest), aucune charnière, rien ne change.
+- `lib/layout/posture` (pur, testé) : à plat → nos proportions ; « livre » (pli vertical qui sépare) → `SplitPane` se coupe sur le pli et le volet droit commence après lui ; « table » (pli horizontal) → suivi : carte au-dessus, fil en dessous.
+- L'angle ne pilote que des effets : ombre de pliure au milieu du livre.
+- Animations : entrée depuis la charnière à chaque nouvelle sélection (`detailKey`), `PanePlaceholder`, séparateur qui suit le dépliage, conversation du suivi qui se range dans le fil (moment 20).
+- Android : pas encore de posture native (Jetpack WindowManager à brancher) ; le layout pliable continue de marcher par les dimensions.
+
 ### Reste après ce plan (plan 5)
 Moments 4 et 20 (continuité à l'ouverture, bulle qui se range) — ils demandent le SDK 27.1 pour être vus sur Duo ; sur Fold ils découlent de `SplitPane`. Migration des 27 fichiers `Animated` legacy restants. Moment 12 quand une UI de remboursement existera.

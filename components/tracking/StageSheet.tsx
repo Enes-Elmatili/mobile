@@ -32,7 +32,8 @@ type Props = {
   tone?: 'default' | 'green';
   /** Haut de la zone où la feuille peut monter (défaut : barre de statut + rangée des boutons). */
   topInset?: number;
-  /** Écran déplié : la feuille devient le volet droit, fixe, à côté de la carte (pas de paliers). */
+  /** Écran déplié : la feuille devient le volet droit, fixe, à côté de la carte (pas de paliers).
+   *  `topInset` y est alors le retrait du haut du volet (sous le pli en posture « table »). */
   inPane?: boolean;
 };
 
@@ -88,7 +89,7 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: footer ? footerH + 8 : 20 + insets.bottom }]}
+          contentContainerStyle={[s.content, { paddingTop: topInsetProp ?? insets.top + 16, paddingBottom: footer ? footerH + 8 : 20 + insets.bottom }]}
         >
           {children}
         </ScrollView>
