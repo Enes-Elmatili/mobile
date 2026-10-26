@@ -40,5 +40,11 @@ Règle `no-restricted-syntax` : `Property[key.name='paddingHorizontal'] > Member
 ### Tâche 7 : vérification
 jest, eslint 0 erreur, tsc ; simulateur iPad 11" (regular) : sidebar, missions en deux volets, largeur de lecture ; iPhone : strictement inchangé ; émulateur Foldable : plier pendant une sélection, le détail reste.
 
+### Suite livrée le 26/10/2026 (branche `feat/duo-deplie`, sur SDK 58)
+- Moment 4 : `SplitPane` garde un seul arbre (le master n'est plus remonté au pliage), le volet droit s'élargit sur `MOTION.unfold`. Test `__tests__/splitPane.test.js`.
+- Deux volets sur les écrans restants des maquettes « FIXED déplié » : revue de devis (problème / devis), suivi de mission (carte / fil — `StageSheet inPane`), conversations (inbox / fil — `components/messages/ConversationThread`), stepper (récap vivant à droite).
+- Suivi déplié : « Message » ouvre la conversation dans le volet droit, une croix la referme ; replier pendant la conversation la poursuit en plein écran.
+- `ios.requireFullScreen` retiré (commit séparé, réversible seul).
+
 ### Reste après ce plan (plan 5)
 Moments 4 et 20 (continuité à l'ouverture, bulle qui se range) — ils demandent le SDK 27.1 pour être vus sur Duo ; sur Fold ils découlent de `SplitPane`. Migration des 27 fichiers `Animated` legacy restants. Moment 12 quand une UI de remboursement existera.

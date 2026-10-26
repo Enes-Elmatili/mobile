@@ -18,6 +18,9 @@ import i18nInstance from '@/lib/i18n';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { SplitPane, useSplitPane } from '@/lib/layout';
+import { ConversationThread } from '@/components/messages/ConversationThread';
+import { contactNameCacheGet, contactNameCacheHas, contactNameCacheSet } from '@/lib/messages/contactNameCache';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -36,11 +39,6 @@ interface Conversation {
   lastAt: string;
   unread: boolean;
 }
-
-// ── Contact name cache (module-level, survives unmount, shared with [userId].tsx) ──
-const contactNameCache = new Map<string, string>();
-export const contactNameCacheGet = (id: string) => contactNameCache.get(id);
-export const contactNameCacheSet = (id: string, name: string) => { contactNameCache.set(id, name); };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -117,13 +115,13 @@ export default function MessagesInbox() {
 
       // Résoudre les vrais noms AVANT le premier rendu pour éviter le flash
       // "Contact #XXXXXX" — cache module-level pour éviter N appels par ouverture
-      const uncachedConvos = convos.filter(c => !contactNameCache.has(c.userId));
+      const uncachedConvos = convos.filter(c => !contactNameCacheHas(c.userId));
       if (uncachedConvos.length > 0) {
         const namePromises = uncachedConvos.map(async (c) => {
           try {
             const res = await api.messages.contactInfo(c.userId);
             const n = res?.data?.name;
-            if (n) { contactNameCache.set(c.userId, n); }
+            if (n) { contactNameCacheSet(c.userId, n); }
           } catch {}
         });
         await Promise.all(namePromises);
@@ -131,7 +129,7 @@ export default function MessagesInbox() {
 
       setConversations(convos.map(c => ({
         ...c,
-        displayName: cleanName(contactNameCache.get(c.userId), { fallback: c.displayName }),
+        displayName: cleanName(contactNameCacheGet(c.userId), { fallback: c.displayName }),
       })));
       setLoadError(false);
     } catch {
@@ -161,12 +159,31 @@ export default function MessagesInbox() {
     fetchInbox();
   };
 
+  // Écran déplié : la liste à gauche, le fil à droite — toucher une
+  // conversation l'ouvre à côté au lieu de changer d'écran.
+  const isSplit = useSplitPane();
+  const [selected, setSelected] = useState<Conversation | null>(null);
+  // Replié pendant une conversation : le fil continue en plein écran.
+  useEffect(() => {
+    if (isSplit || !selected) return;
+    router.push({ pathname: '/messages/[userId]', params: { userId: selected.userId, name: selected.displayName } });
+    setSelected(null);
+  }, [isSplit, selected, router]);
+
+  const openConversation = useCallback((item: Conversation) => {
+    if (isSplit) {
+      setSelected(item);
+      setConversations(prev => prev.map(c => (c.userId === item.userId && c.unread ? { ...c, unread: false } : c)));
+      return;
+    }
+    router.push({ pathname: '/messages/[userId]', params: { userId: item.userId, name: item.displayName } });
+  }, [isSplit, router]);
+
   const renderItem = useCallback(({ item }: { item: Conversation }) => (
     <PressScale accessibilityRole="button"
-      style={[s.row, { backgroundColor: theme.cardBg }]}
-      onPress={() =>
-        router.push({ pathname: '/messages/[userId]', params: { userId: item.userId, name: item.displayName } })
-      }
+      style={[s.row, { backgroundColor: isSplit && selected?.userId === item.userId ? theme.surface : theme.cardBg }]}
+      onPress={() => openConversation(item)}
+      accessibilityState={{ selected: isSplit && selected?.userId === item.userId }}
     >
       <Avatar name={item.displayName} size={46} />
       <View style={s.rowContent}>
@@ -183,7 +200,7 @@ export default function MessagesInbox() {
       </View>
       {item.unread && <View style={[s.unreadDot, { backgroundColor: theme.accent }]} />}
     </PressScale>
-  ), [router, theme, t]);
+  ), [theme, t, isSplit, selected, openConversation]);
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
@@ -204,59 +221,73 @@ export default function MessagesInbox() {
         <View style={{ width: 38 }} />
       </View>
 
-      {loading ? (
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color={theme.accent} />
-        </View>
-      ) : loadError && conversations.length === 0 ? (
-        <View style={s.centered}>
-          <Feather name="wifi-off" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
-          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>{t('messages.load_error_title')}</Text>
-          <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
-            {t('messages.load_error_sub')}
-          </Text>
-          <PressScale
-            style={[s.emptyBtn, { backgroundColor: theme.accent }]}
-            onPress={() => { setLoading(true); fetchInbox(); }}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.retry')}
-          >
-            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('common.retry').toUpperCase()}</Text>
-            <Feather name="refresh-cw" size={15} color={theme.accentText} />
-          </PressScale>
-        </View>
-      ) : conversations.length === 0 ? (
-        <View style={s.centered}>
-          <Feather name="message-circle" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
-          <Text style={[s.emptyTitle, { color: theme.textAlt }]}>{t('messages.empty_title')}</Text>
-          <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
-            {t('messages.empty_sub_client')}
-          </Text>
-          <PressScale accessibilityRole="button"
-            style={[s.emptyBtn, { backgroundColor: theme.accent }]}
-            onPress={() => router.replace('/(tabs)/dashboard')}
-          >
-            <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('messages.find_pro').toUpperCase()}</Text>
-            <Feather name="arrow-right" size={15} color={theme.accentText} />
-          </PressScale>
-        </View>
-      ) : (
-        <>
-        <BrandRefreshHeader style={brandRefresh.headerStyle} />
-        <Animated.FlatList
-          onScroll={brandRefresh.onScroll}
-          scrollEventThrottle={16}
-          data={conversations}
-          keyExtractor={item => item.userId}
-          renderItem={renderItem}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
-          }
-          contentContainerStyle={s.list}
-          ItemSeparatorComponent={() => <View style={[s.separator, { backgroundColor: theme.border }]} />}
-        />
-        </>
-      )}
+      <SplitPane
+        master={(
+          <>
+            {loading ? (
+              <View style={s.centered}>
+                <ActivityIndicator size="large" color={theme.accent} />
+              </View>
+            ) : loadError && conversations.length === 0 ? (
+              <View style={s.centered}>
+                <Feather name="wifi-off" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
+                <Text style={[s.emptyTitle, { color: theme.textAlt }]}>{t('messages.load_error_title')}</Text>
+                <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
+                  {t('messages.load_error_sub')}
+                </Text>
+                <PressScale
+                  style={[s.emptyBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => { setLoading(true); fetchInbox(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.retry')}
+                >
+                  <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('common.retry').toUpperCase()}</Text>
+                  <Feather name="refresh-cw" size={15} color={theme.accentText} />
+                </PressScale>
+              </View>
+            ) : conversations.length === 0 ? (
+              <View style={s.centered}>
+                <Feather name="message-circle" size={56} color={theme.textDisabled} style={{ marginBottom: 14 }} />
+                <Text style={[s.emptyTitle, { color: theme.textAlt }]}>{t('messages.empty_title')}</Text>
+                <Text style={[s.emptyTitle, { color: theme.textMuted, fontSize: 13, marginTop: 6, marginBottom: 18 }]}>
+                  {t('messages.empty_sub_client')}
+                </Text>
+                <PressScale accessibilityRole="button"
+                  style={[s.emptyBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => router.replace('/(tabs)/dashboard')}
+                >
+                  <Text style={[s.emptyBtnText, { color: theme.accentText }]}>{t('messages.find_pro').toUpperCase()}</Text>
+                  <Feather name="arrow-right" size={15} color={theme.accentText} />
+                </PressScale>
+              </View>
+            ) : (
+              <>
+              <BrandRefreshHeader style={brandRefresh.headerStyle} />
+              <Animated.FlatList
+                onScroll={brandRefresh.onScroll}
+                scrollEventThrottle={16}
+                data={conversations}
+                keyExtractor={item => item.userId}
+                renderItem={renderItem}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
+                }
+                contentContainerStyle={s.list}
+                ItemSeparatorComponent={() => <View style={[s.separator, { backgroundColor: theme.border }]} />}
+              />
+              </>
+            )}
+          </>
+        )}
+        detail={isSplit && selected ? (
+          <ConversationThread key={selected.userId} userId={selected.userId} name={selected.displayName} inPane />
+        ) : null}
+        placeholder={(
+          <View style={s.centered}>
+            <Text style={[s.paneHint, { color: theme.textMuted }]}>{t('messages.select_hint')}</Text>
+          </View>
+        )}
+      />
     </SafeAreaView>
   );
 }
@@ -287,6 +318,7 @@ const s = StyleSheet.create({
   emptyBtnText: { fontSize: 13, fontFamily: FONTS.sansMedium, letterSpacing: 1 },
 
   list: { paddingVertical: 8 },
+  paneHint: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase' },
 
   row: {
     flexDirection: 'row', alignItems: 'center',

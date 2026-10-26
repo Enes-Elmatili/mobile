@@ -385,7 +385,7 @@ export default function Missions() {
         detail={isSplit && detailOpen ? detail : null}
         placeholder={(
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.4, color: theme.textMuted, textTransform: 'uppercase' }}>{t('missions.select_hint', { defaultValue: 'Sélectionnez une mission' })}</Text>
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 1.4, color: theme.textMuted, textTransform: 'uppercase' }}>{t('missions.select_hint')}</Text>
           </View>
         )}
       />

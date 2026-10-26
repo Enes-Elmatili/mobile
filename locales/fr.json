@@ -579,7 +579,8 @@
     "status_closure": "CLÔTURE",
     "status_en_route": "EN ROUTE",
     "status_quote_sent_short": "DEVIS ENVOYÉ",
-    "status_quote_accepted_short": "DEVIS ACCEPTÉ"
+    "status_quote_accepted_short": "DEVIS ACCEPTÉ",
+    "select_hint": "Sélectionnez une mission"
   },
   "mission_view": {
     "label_service": "SERVICE",
@@ -876,7 +877,8 @@
     "minutes_short": "{{n}} min",
     "hours_short": "{{n}} h",
     "days_short": "{{n}} j",
-    "empty_sub_client": "Vos échanges avec les prestataires apparaîtront ici."
+    "empty_sub_client": "Vos échanges avec les prestataires apparaîtront ici.",
+    "select_hint": "Sélectionnez une conversation"
   },
   "wallet": {
     "title": "Portefeuille",

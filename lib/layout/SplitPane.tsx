@@ -10,11 +10,15 @@
 //     droit, dans une gouttière de 24 pt — jamais sous un contrôle
 //   - au changement de classe (pliage), rien ne se démonte : les deux enfants
 //     gardent leur clé React, seul l'arrangement change
-import React from 'react';
+//   - moment 4 : ouvrir le téléphone ÉLARGIT l'écran — le master cède sa place
+//     sur MOTION.unfold, le volet droit grandit depuis la charnière ; fermer
+//     le range. Un seul arbre dans les deux classes : rien ne se recharge.
+import React, { useEffect } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { MOTION } from '@/lib/motion/springs';
+import { useReduceMotion } from '@/lib/motion/sheet';
 import { usePresence } from '@/lib/motion/usePresence';
 import { useLayoutClass } from './useLayoutClass';
 
@@ -40,24 +44,37 @@ export function useSplitPane(): boolean {
 export function SplitPane({ master, detail, ratio = 0.42, placeholder = null, style }: Props) {
   const theme = useAppTheme();
   const { isRegular, insets } = useLayoutClass();
+  const reduced = useReduceMotion();
   const hasDetail = detail != null;
   const detailPresence = usePresence(hasDetail, { from: 'hinge', preset: MOTION.pane });
 
-  if (!isRegular) {
-    return <View style={[s.fill, style]}>{master}</View>;
-  }
+  // 0 = une colonne, 1 = deux volets. Part du bon état au montage : pas
+  // d'animation à l'ouverture d'un écran, seulement au pliage.
+  const unfold = useSharedValue(isRegular ? 1 : 0);
+  useEffect(() => {
+    const target = isRegular ? 1 : 0;
+    unfold.value = reduced ? withTiming(target, { duration: 200 }) : withSpring(target, MOTION.unfold);
+  }, [isRegular, reduced, unfold]);
+
+  const masterStyle = useAnimatedStyle(() => ({ flex: 1 - (1 - ratio) * unfold.value }));
+  const detailStyle = useAnimatedStyle(() => ({ flex: (1 - ratio) * unfold.value, opacity: unfold.value }));
 
   return (
     <View style={[s.row, style]}>
-      <View style={[s.master, { flex: ratio, paddingLeft: insets.left }]}>{master}</View>
-      <View style={[s.separator, { backgroundColor: theme.border }]} />
-      <View style={[s.detail, { flex: 1 - ratio, paddingRight: insets.right, paddingLeft: HINGE_GUTTER }]}>
+      <Animated.View style={[s.master, masterStyle, { paddingLeft: isRegular ? insets.left : 0 }]}>{master}</Animated.View>
+      {isRegular ? <View style={[s.separator, { backgroundColor: theme.border }]} /> : null}
+      <Animated.View
+        style={[s.detail, detailStyle, { paddingRight: isRegular ? insets.right : 0, paddingLeft: isRegular ? HINGE_GUTTER : 0 }]}
+        pointerEvents={isRegular ? 'auto' : 'none'}
+        importantForAccessibility={isRegular ? 'auto' : 'no-hide-descendants'}
+        accessibilityElementsHidden={!isRegular}
+      >
         {hasDetail ? (
           <Animated.View style={[s.fill, detailPresence.style]}>{detail}</Animated.View>
         ) : (
           placeholder
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -67,5 +84,5 @@ const s = StyleSheet.create({
   row: { flex: 1, flexDirection: 'row' },
   master: { minWidth: 0 },
   separator: { width: StyleSheet.hairlineWidth },
-  detail: { minWidth: 0 },
+  detail: { minWidth: 0, overflow: 'hidden' },
 });

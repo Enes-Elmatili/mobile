@@ -579,7 +579,8 @@
     "status_closure": "AFRONDING",
     "status_en_route": "ONDERWEG",
     "status_quote_sent_short": "OFFERTE VERSTUURD",
-    "status_quote_accepted_short": "OFFERTE GEACCEPTEERD"
+    "status_quote_accepted_short": "OFFERTE GEACCEPTEERD",
+    "select_hint": "Kies een opdracht"
   },
   "mission_view": {
     "label_service": "DIENST",
@@ -876,7 +877,8 @@
     "minutes_short": "{{n}} min",
     "hours_short": "{{n}} u",
     "days_short": "{{n}} d",
-    "empty_sub_client": "Uw gesprekken met vakmensen verschijnen hier."
+    "empty_sub_client": "Uw gesprekken met vakmensen verschijnen hier.",
+    "select_hint": "Kies een gesprek"
   },
   "wallet": {
     "title": "Portefeuille",

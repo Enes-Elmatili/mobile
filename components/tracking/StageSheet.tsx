@@ -7,7 +7,7 @@
 // voir la carte ; « page » prend tout l'écran. Le pied (CTA) reste collé en
 // bas et le contenu défile au-dessus, jamais dessous.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView, type BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
@@ -32,9 +32,11 @@ type Props = {
   tone?: 'default' | 'green';
   /** Haut de la zone où la feuille peut monter (défaut : barre de statut + rangée des boutons). */
   topInset?: number;
+  /** Écran déplié : la feuille devient le volet droit, fixe, à côté de la carte (pas de paliers). */
+  inPane?: boolean;
 };
 
-export function StageSheet({ levels, level, onHeightChange, footer, children, keyboard = false, tone = 'default', topInset: topInsetProp }: Props) {
+export function StageSheet({ levels, level, onHeightChange, footer, children, keyboard = false, tone = 'default', topInset: topInsetProp, inPane = false }: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useLayoutClass();
@@ -55,7 +57,9 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   const snapPoints = useMemo(() => (isPage ? [windowHeight] : hasPeek ? [Math.max(Math.round(windowHeight * SHEET_RATIOS.peek), peekMin)] : undefined), [isPage, hasPeek, windowHeight, peekMin]);
   const targetIndex = isPage ? 0 : level === 'peek' && hasPeek ? 0 : hasPeek ? 1 : 0;
 
-  useEffect(() => { ref.current?.snapToIndex(targetIndex); }, [targetIndex, level]);
+  useEffect(() => { if (!inPane) ref.current?.snapToIndex(targetIndex); }, [targetIndex, level, inPane]);
+  // En volet, la feuille ne recouvre plus la carte : elle ne la rembourre pas.
+  useEffect(() => { if (inPane) onHeightChange?.(0); }, [inPane, onHeightChange]);
 
   const onChange = useCallback((_index: number, position: number) => {
     // `position` = distance du bord haut de la feuille au haut de l'écran.
@@ -75,6 +79,25 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
       </BottomSheetFooter>
     ) : null
   ), [footer, insets.bottom, bg, hairline]);
+
+  // Volet droit (Duo ouvert, Fold, iPad) : le même contenu, défilant, le pied
+  // épinglé en bas du volet — rien à tirer, la carte a sa propre colonne.
+  if (inPane) {
+    return (
+      <KeyboardAvoidingView style={[s.pane, { backgroundColor: bg }]} behavior={keyboard && Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: footer ? footerH + 8 : 20 + insets.bottom }]}
+        >
+          {children}
+        </ScrollView>
+        {footer ? (
+          <View onLayout={(e) => setFooterH(e.nativeEvent.layout.height)} style={[s.footer, s.paneFooter, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: bg, borderTopColor: hairline }]}>{footer}</View>
+        ) : null}
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <BottomSheet
@@ -120,4 +143,6 @@ function mix(a: string, b: string, t: number): string {
 const s = StyleSheet.create({
   content: { paddingHorizontal: 20 },
   footer: { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1 },
+  pane: { flex: 1 },
+  paneFooter: { position: 'absolute', left: 0, right: 0, bottom: 0 },
 });

@@ -40,6 +40,8 @@ import { DoneContent, EtaHero, MoneyLine, PhotoCard, PinCard, ProviderRow, Quote
 import { useMapCamera, type CameraMode } from '@/lib/mission/useMapCamera';
 import { usePresence } from '@/lib/motion/usePresence';
 import { PressScale } from '@/components/ui/PressScale';
+import { useLayoutClass } from '@/lib/layout';
+import { ConversationThread } from '@/components/messages/ConversationThread';
 
 const ACCEPTED_MOMENT_MS = 2400;
 
@@ -134,7 +136,10 @@ export default function MissionView() {
   const [sheetHeight, setSheetHeight] = useState(0);
   const sheetLevels: SheetLevel[] = done ? ['page'] : stage === 'at_door' || stage === 'ongoing' ? ['half', 'full'] : ['peek', 'half', 'full'];
   const sheetLevel: SheetLevel = done ? 'page' : 'half';
-  const sheetVisibleH = sheetHeight;
+  // Écran déplié : la feuille devient le volet droit, la carte a sa colonne
+  // et n'a plus rien à rembourrer (maquette « Le suivi qui se déplie »).
+  const { isRegular: isSplit, insets: layoutInsets } = useLayoutClass();
+  const sheetVisibleH = isSplit ? 0 : sheetHeight;
   const mapOpacity = useSharedValue(1);
   useEffect(() => { mapOpacity.value = reduced ? withTiming(mapMode === 'gone' ? 0 : 1, { duration: 150 }) : withSpring(mapMode === 'gone' ? 0 : 1, MOTION.pane); }, [mapMode, reduced, mapOpacity]);
   const mapStyle = useAnimatedStyle(() => ({ opacity: mapOpacity.value }));
@@ -384,12 +389,24 @@ export default function MissionView() {
     callParty({ userId: provider.userId, name: providerName(provider), requestId: id });
   }, [provider, callParty, id]);
 
+  // Déplié, la conversation s'ouvre dans le volet droit, à côté de la carte
+  // (maquette « Le suivi qui se déplie ») ; replié, c'est un écran.
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatUid = provider?.userId || provider?.id;
   const message = useCallback(() => {
-    const uid = provider?.userId || provider?.id;
-    if (!uid) { feedback.error('mission_view.provider_not_found'); return; }
+    if (!chatUid) { feedback.error('mission_view.provider_not_found'); return; }
     resetUnread();
-    router.push({ pathname: '/messages/[userId]', params: { userId: String(uid), name: providerName(provider), requestId: String(id) } });
-  }, [provider, id, router, resetUnread]);
+    if (isSplit) { setChatOpen(true); return; }
+    router.push({ pathname: '/messages/[userId]', params: { userId: String(chatUid), name: providerName(provider), requestId: String(id) } });
+  }, [chatUid, provider, id, router, resetUnread, isSplit]);
+  const closeChat = useCallback(() => { resetUnread(); setChatOpen(false); }, [resetUnread]);
+  // Replié pendant la conversation : elle continue en plein écran.
+  useEffect(() => {
+    if (isSplit || !chatOpen || !chatUid) return;
+    setChatOpen(false);
+    router.push({ pathname: '/messages/[userId]', params: { userId: String(chatUid), name: providerName(provider), requestId: String(id) } });
+  }, [isSplit, chatOpen, chatUid, provider, id, router]);
+  const chatPresence = usePresence(isSplit && chatOpen, { from: 'hinge', preset: MOTION.pane });
 
   const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
   const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
@@ -500,81 +517,96 @@ export default function MissionView() {
       )}
 
       {showMap && (
-        <>
-          {/* La carte, unique du premier au dernier stade. */}
-          <Animated.View style={[StyleSheet.absoluteFill, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
-            <MapView
-              ref={mapRef}
-              style={StyleSheet.absoluteFill}
-              provider={MAP_PROVIDER}
-              {...mapAppearance(theme.isDark)}
-              initialRegion={{ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
-              onMapReady={() => setMapReady(true)}
-              onRegionChangeComplete={() => setRegionKey((k) => k + 1)}
-              mapPadding={searchingLayer ? { top: 0, right: 0, bottom: sheetVisibleH, left: 0 } : undefined}
-              scrollEnabled={tracking && !bandMode}
-              zoomEnabled={tracking && !bandMode}
-              pitchEnabled={false}
-              rotateEnabled={false}
-              showsUserLocation={false}
-              showsPointsOfInterests={false}
-              showsBuildings={false}
-              showsCompass={false}
-              toolbarEnabled={false}
-            >
-              {tracking ? <MapPin coordinate={clientCoord} trackKey={(authUser as any)?.avatarUrl ?? ''}><ClientMarker name={(authUser as any)?.name} avatarUrl={(authUser as any)?.avatarUrl} /></MapPin> : null}
-              {tracking && visibleRoute.length > 1 && !bandMode ? (
-                <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
-              ) : null}
-              {tracking && providerLocation && !bandMode ? (
-                <MapPin coordinate={providerLocation} anchor={{ x: 0.5, y: 1 }} trackKey={`${provider?.avatarUrl ?? ''}-${hasLiveGps ? etaMin : 'x'}`} trackMs={1600}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} etaMin={hasLiveGps ? etaMin : null} /></MapPin>
-              ) : null}
-            </MapView>
+        <View style={[StyleSheet.absoluteFill, isSplit && s.splitRow]} pointerEvents="box-none">
+          {/* Volet carte : tout l'écran sur compact, la colonne gauche une fois déplié.
+              Même arbre dans les deux cas : ouvrir le téléphone ne recharge pas la carte. */}
+          <View style={isSplit ? s.mapPane : StyleSheet.absoluteFill} pointerEvents="box-none">
+            {/* La carte, unique du premier au dernier stade. */}
+            <Animated.View style={[StyleSheet.absoluteFill, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
+              <MapView
+                ref={mapRef}
+                style={StyleSheet.absoluteFill}
+                provider={MAP_PROVIDER}
+                {...mapAppearance(theme.isDark)}
+                initialRegion={{ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
+                onMapReady={() => setMapReady(true)}
+                onRegionChangeComplete={() => setRegionKey((k) => k + 1)}
+                mapPadding={searchingLayer ? { top: 0, right: 0, bottom: sheetVisibleH, left: 0 } : undefined}
+                scrollEnabled={tracking && !bandMode}
+                zoomEnabled={tracking && !bandMode}
+                pitchEnabled={false}
+                rotateEnabled={false}
+                showsUserLocation={false}
+                showsPointsOfInterests={false}
+                showsBuildings={false}
+                showsCompass={false}
+                toolbarEnabled={false}
+              >
+                {tracking ? <MapPin coordinate={clientCoord} trackKey={(authUser as any)?.avatarUrl ?? ''}><ClientMarker name={(authUser as any)?.name} avatarUrl={(authUser as any)?.avatarUrl} /></MapPin> : null}
+                {tracking && visibleRoute.length > 1 && !bandMode ? (
+                  <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
+                ) : null}
+                {tracking && providerLocation && !bandMode ? (
+                  <MapPin coordinate={providerLocation} anchor={{ x: 0.5, y: 1 }} trackKey={`${provider?.avatarUrl ?? ''}-${hasLiveGps ? etaMin : 'x'}`} trackMs={1600}><ProviderMarker name={providerName(provider)} avatarUrl={provider?.avatarUrl} etaMin={hasLiveGps ? etaMin : null} /></MapPin>
+                ) : null}
+              </MapView>
 
-            {/* Le calque de recherche : pastilles et traits, puis fondu. */}
-            {(searchingLayer || search.pros.length > 0) && !bandMode && !done ? (
-              <SearchingOverlay
-                pros={search.pros}
-                mapRef={mapRef}
-                mapReady={mapReady}
-                missionCoord={clientCoord}
-                sheetHeight={sheetVisibleH}
-                acceptedProviderId={justAccepted ? (acceptedProviderId ?? (provider?.id != null ? String(provider.id) : null)) : null}
-                visible={searchingLayer}
-                regionKey={regionKey}
-              />
-            ) : null}
-          </Animated.View>
-
-          {tracking ? (
-            <Animated.View style={topBarEntrance.style}>
-              <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
-                <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
-                  <Feather name="arrow-left" size={20} color={theme.text as string} />
-                </PressScale>
-                <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
-                  <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
-                  <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
-                  <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
-                </View>
-                <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
-                  <Feather name="more-horizontal" size={22} color={theme.text as string} />
-                </PressScale>
-              </SafeAreaView>
+              {/* Le calque de recherche : pastilles et traits, puis fondu. */}
+              {(searchingLayer || search.pros.length > 0) && !bandMode && !done ? (
+                <SearchingOverlay
+                  pros={search.pros}
+                  mapRef={mapRef}
+                  mapReady={mapReady}
+                  missionCoord={clientCoord}
+                  sheetHeight={sheetVisibleH}
+                  acceptedProviderId={justAccepted ? (acceptedProviderId ?? (provider?.id != null ? String(provider.id) : null)) : null}
+                  visible={searchingLayer}
+                  regionKey={regionKey}
+                />
+              ) : null}
             </Animated.View>
-          ) : null}
 
-          {/* La feuille, unique : son contenu change, on la tient au doigt. */}
+            {tracking ? (
+              <Animated.View style={topBarEntrance.style}>
+                <SafeAreaView style={s.topBar} edges={['top']} pointerEvents="box-none">
+                  <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={back} accessibilityLabel={t('common.back')} accessibilityRole="button" hitSlop={8}>
+                    <Feather name="arrow-left" size={20} color={theme.text as string} />
+                  </PressScale>
+                  <View style={[s.badge, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+                    <Text style={[s.badgeText, { color: theme.text }]}>FIXED</Text>
+                    <Text style={[s.badgeText, { color: theme.textMuted }]}>·</Text>
+                    <Text style={[s.badgeText, { color: theme.textSub }]}>#{id}</Text>
+                  </View>
+                  <PressScale style={[s.roundBtn, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]} onPress={openMenu} accessibilityLabel={t('missions.options')} accessibilityRole="button" hitSlop={8}>
+                    <Feather name="more-horizontal" size={22} color={theme.text as string} />
+                  </PressScale>
+                </SafeAreaView>
+              </Animated.View>
+            ) : null}
+          </View>
+
+          {isSplit && !done ? <View style={[s.splitLine, { backgroundColor: theme.border }]} /> : null}
+
+          {/* La feuille, unique : son contenu change, on la tient au doigt.
+              Déplié, elle devient le volet droit (fil, prestataire, actions). */}
           {!done ? (
-            <StageSheet levels={sheetLevels} level={sheetLevel} onHeightChange={setSheetHeight}>
-              {sheet}
-            </StageSheet>
+            <View style={isSplit ? [s.sheetPane, { paddingRight: layoutInsets.right }] : StyleSheet.absoluteFill} pointerEvents="box-none">
+              {isSplit && chatOpen && chatUid ? (
+                <Animated.View style={[s.chatPane, { backgroundColor: theme.bg }, chatPresence.style]}>
+                  <ConversationThread userId={String(chatUid)} name={providerName(provider)} requestId={String(id)} inPane onClose={closeChat} />
+                </Animated.View>
+              ) : (
+                <StageSheet levels={sheetLevels} level={sheetLevel} onHeightChange={setSheetHeight} inPane={isSplit}>
+                  {sheet}
+                </StageSheet>
+              )}
+            </View>
           ) : (
             <Animated.View style={[StyleSheet.absoluteFill, donePresence.style]}>
               <DoneContent request={request} topInset={insets.top} />
             </Animated.View>
           )}
-        </>
+        </View>
       )}
 
       <PhotoViewer photos={viewerPhotos} index={viewer ? 0 : null} onClose={() => setViewer(null)} />
@@ -584,6 +616,12 @@ export default function MissionView() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+  // Déplié : la carte à gauche (0,42, comme SplitPane), le fil à droite.
+  splitRow: { flexDirection: 'row' },
+  mapPane: { flex: 0.42, overflow: 'hidden' },
+  splitLine: { width: StyleSheet.hairlineWidth },
+  sheetPane: { flex: 0.58 },
+  chatPane: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   notFound: { fontFamily: FONTS.sans, fontSize: 14 },
   topBar: { position: 'absolute', left: 16, right: 16, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 },
