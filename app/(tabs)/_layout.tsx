@@ -5,9 +5,10 @@
 // CLIENT  : Accueil · Documents · Profil
 // PROVIDER: Accueil · Missions (avec onglet Opportunités interne) · Gains · Profil
 
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect } from 'expo-router';
+import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { useCallback, useMemo } from 'react';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { ColorValue } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -66,35 +67,35 @@ export default function TabLayout() {
 
   const dashboardOptions = useMemo(() => ({
     title: t('ext.tabs_home'),
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="home" color={color} focused={focused} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: ColorValue }) =>
+      <TabIcon name="home" color={color as string} focused={focused} />,
   }), [t]);
 
   const missionsOptions = useMemo(() => ({
     title: t('ext.tabs_missions'),
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="zap" color={color} focused={focused} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: ColorValue }) =>
+      <TabIcon name="zap" color={color as string} focused={focused} />,
   }), [isProvider, t]);
 
   const documentsOptions = useMemo(() => ({
     title: t('ext.tabs_documents'),
     href: isProvider ? null : undefined,
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="file-text" color={color} focused={focused} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: ColorValue }) =>
+      <TabIcon name="file-text" color={color as string} focused={focused} />,
   }), [isProvider, t]);
 
   const walletOptions = useMemo(() => ({
     title: t('ext.tabs_earnings'),
     href: isProvider ? undefined : null,
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="credit-card" color={color} focused={focused} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: ColorValue }) =>
+      <TabIcon name="credit-card" color={color as string} focused={focused} />,
   }), [isProvider, t]);
 
   const profileOptions = useMemo(() => ({
     title: t('ext.tabs_profile'),
-    tabBarIcon: ({ color, focused }: { focused: boolean; color: string }) =>
-      <TabIcon name="user" color={color} focused={focused} />,
+    tabBarIcon: ({ color, focused }: { focused: boolean; color: ColorValue }) =>
+      <TabIcon name="user" color={color as string} focused={focused} />,
   }), [t]);
 
   const hiddenOptions = useMemo(() => ({ href: null as null }), []);

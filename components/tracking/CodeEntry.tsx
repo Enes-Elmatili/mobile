@@ -2,13 +2,14 @@
 // cases en grand, clavier numérique, champ invisible par-dessus (tappable).
 import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 
 type Props = { value: string; onChange: (v: string) => void; onSubmit?: () => void; autoFocus?: boolean; hint?: string | null; error?: boolean };
 
 export function CodeEntry({ value, onChange, onSubmit, autoFocus = true, hint, error = false }: Props) {
   const theme = useAppTheme();
-  const ref = useRef<TextInput>(null);
+  const ref = useRef<TextInputInstance>(null);
   useEffect(() => { if (autoFocus) { const tm = setTimeout(() => ref.current?.focus(), 450); return () => clearTimeout(tm); } }, [autoFocus]);
   const digits = [0, 1, 2, 3].map((i) => value[i] ?? '');
   return (

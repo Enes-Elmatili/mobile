@@ -60,10 +60,22 @@ const perFile = (file) => ({
 const EXCEPTIONS = [...new Set(LEGACY_ALERT_ALLOWLIST)];
 const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 
+// Règles « React Compiler » arrivées avec eslint-config-expo 58
+// (eslint-plugin-react-hooks 7). Coupées le temps de la migration SDK 58 :
+// beaucoup signalent à tort les écritures de shared values Reanimated
+// (`sv.value = …`). À réactiver une par une, chacune dans son propre commit.
+const REACT_COMPILER_RULES_OFF = Object.fromEntries([
+  'globals', 'immutability', 'preserve-manual-memoization', 'purity',
+  'refs', 'set-state-in-effect', 'static-components',
+].map((r) => [`react-hooks/${r}`, 'off']));
+
 module.exports = defineConfig([
   expoConfig,
   {
     ignores: ['dist/*'],
+  },
+  {
+    rules: REACT_COMPILER_RULES_OFF,
   },
   {
     files: SOURCE,

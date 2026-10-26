@@ -13,7 +13,7 @@
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { useLayoutClass } from '@/lib/layout/useLayoutClass';
 import { MOTION } from '@/lib/motion/springs';
@@ -93,7 +93,7 @@ function TabItem({ label, icon, focused, color, onPress, onLongPress, vertical, 
   );
 }
 
-export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const theme = useAppTheme();
   const { isRegular } = useLayoutClass();
   const reduced = useReduceMotion();
@@ -158,13 +158,13 @@ export function FixedTabBar({ state, descriptors, navigation, insets }: BottomTa
     const label = typeof options.title === 'string' ? options.title : route.name;
     const color = focused ? (theme.text as string) : (theme.textMuted as string);
     const onPress = () => {
-      const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+      const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
       if (!focused && !event.defaultPrevented) {
         feedback.haptic('selection');
-        navigation.navigate(route.name, route.params);
+        navigateToTab(route.key);
       }
     };
-    const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
+    const onLongPress = () => emitter.emit({ type: 'tabLongPress', target: route.key });
     return (
       <TabItem
         key={route.key}

@@ -287,12 +287,12 @@ function DetailRow({ icon, value, textColor }: { icon: FeatherName; value: strin
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   wrapper: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'flex-end',
     zIndex: 8000,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#000',
   },
   sheet: {

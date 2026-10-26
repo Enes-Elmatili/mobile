@@ -34,14 +34,23 @@ function emittedWorklets(file) {
   });
   const re = /_worklet_\d+_init_data=\{code:"((?:[^"\\]|\\.)*)"/g;
   const found = []; let m;
-  while ((m = re.exec(code))) found.push(JSON.parse(`"${m[1]}"`));
+  // Worklets ≥ 0.13 entoure le code de parenthèses : « (function f(){…}) ».
+  while ((m = re.exec(code))) found.push(JSON.parse(`"${m[1]}"`).replace(/^\(([\s\S]*)\)$/, '$1'));
   return found;
+}
+
+// La fermeture est déballée en tête du corps : `const{a,b}=this.__closure`
+// (objet) ou, depuis Worklets 0.13, `const[a,b]=this.__closure` (tableau).
+const CLOSURE_RE = /const(?:\{([^}]*)\}|\[([^\]]*)\])=this\.__closure;?/;
+function closureNames(code) {
+  const m = code.match(CLOSURE_RE);
+  return ((m && (m[1] ?? m[2])) || '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 function closureRefsInDefaults(code) {
   const head = code.match(/^function\s+\w*\(([^)]*)\)/);
   if (!head) return [];
-  const closure = (code.match(/const\{([^}]*)\}=this\.__closure/) || [, ''])[1].split(',').map((s) => s.trim()).filter(Boolean);
+  const closure = closureNames(code);
   const defaults = [...head[1].matchAll(/=\s*([A-Za-z_$][\w$]*)/g)].map((x) => x[1]);
   return defaults.filter((d) => closure.includes(d));
 }
@@ -88,8 +97,8 @@ function localWorkletNames(src) {
 }
 function calledNonWorklets(code, file) {
   const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
-  const closure = (code.match(/const\{([^}]*)\}=this\.__closure/) || [, ''])[1].split(',').map((s) => s.trim()).filter(Boolean);
-  const body = code.replace(/const\{[^}]*\}=this\.__closure;?/, '');
+  const closure = closureNames(code);
+  const body = code.replace(CLOSURE_RE, '');
   const imports = importMapOf(src);
   const locals = localWorkletNames(src);
   const bad = [];
@@ -126,8 +135,8 @@ describe('rubberBand sur le thread UI', () => {
     const code = emittedWorklets('lib/motion/gestures.ts').find((c) => /^function rubberBand/.test(c));
     expect(code).toBeDefined();
     // Le runtime UI reconstruit le worklet depuis la chaîne et le lie à son
-    // objet fermeture (react-native-worklets, valueUnpacker.ts).
-    const ui = eval(`(${code})`).bind({ __closure: { SHEET_OVER_DRAG_RESISTANCE: 3.5 } });
+    // tableau fermeture (react-native-worklets, valueUnpacker.ts).
+    const ui = eval(`(${code})`).bind({ __closure: [3.5] });
     expect(ui(150, 0, 300)).toBe(150);
     expect(ui(400, 0, 300)).toBeCloseTo(300 + 100 / 3.5, 5);
     expect(ui(-70, 0, 300)).toBeCloseTo(-20, 5);

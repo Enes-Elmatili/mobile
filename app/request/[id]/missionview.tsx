@@ -494,7 +494,7 @@ export default function MissionView() {
       <StatusBar barStyle={theme.statusBar} />
 
       {stage === 'loading' && (
-        <View style={[StyleSheet.absoluteFillObject, s.center]}>
+        <View style={[StyleSheet.absoluteFill, s.center]}>
           <ActivityIndicator size="large" color={theme.accent as string} />
         </View>
       )}
@@ -502,10 +502,10 @@ export default function MissionView() {
       {showMap && (
         <>
           {/* La carte, unique du premier au dernier stade. */}
-          <Animated.View style={[StyleSheet.absoluteFillObject, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
+          <Animated.View style={[StyleSheet.absoluteFill, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
             <MapView
               ref={mapRef}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               provider={MAP_PROVIDER}
               {...mapAppearance(theme.isDark)}
               initialRegion={{ ...clientCoord, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
@@ -517,7 +517,7 @@ export default function MissionView() {
               pitchEnabled={false}
               rotateEnabled={false}
               showsUserLocation={false}
-              showsPointsOfInterest={false}
+              showsPointsOfInterests={false}
               showsBuildings={false}
               showsCompass={false}
               toolbarEnabled={false}
@@ -570,7 +570,7 @@ export default function MissionView() {
               {sheet}
             </StageSheet>
           ) : (
-            <Animated.View style={[StyleSheet.absoluteFillObject, donePresence.style]}>
+            <Animated.View style={[StyleSheet.absoluteFill, donePresence.style]}>
               <DoneContent request={request} topInset={insets.top} />
             </Animated.View>
           )}

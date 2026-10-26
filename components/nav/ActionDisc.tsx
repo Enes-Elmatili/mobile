@@ -89,7 +89,7 @@ const s = StyleSheet.create({
   disc: { flex: 1 },
   shadow: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 10 }, elevation: 10 },
   round: { borderRadius: DISC_SIZE / 2, borderWidth: StyleSheet.hairlineWidth },
-  center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   go: { fontFamily: FONTS.bebas, fontSize: 24, letterSpacing: 1.5, color: '#0A0A0A', includeFontPadding: false },
   square: { width: 16, height: 16, borderRadius: 4 },
 });

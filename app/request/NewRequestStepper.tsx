@@ -1304,12 +1304,12 @@ export default function NewRequestStepper() {
             <MapView
               ref={mapRef}
               provider={MAP_PROVIDER}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               initialRegion={DEFAULT_REGION}
               {...mapAppearance(theme.isDark)}
               showsUserLocation
               showsMyLocationButton={false}
-              showsPointsOfInterest={false}
+              showsPointsOfInterests={false}
               showsBuildings={false}
             >
               {location && (
