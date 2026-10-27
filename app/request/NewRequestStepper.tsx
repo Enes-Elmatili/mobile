@@ -1980,6 +1980,7 @@ export default function NewRequestStepper() {
                         { key: 'fr', label: 'Français' },
                         { key: 'nl', label: 'Nederlands' },
                         { key: 'en', label: 'English' },
+                        { key: 'pl', label: 'Polski' },
                       ] as const).map(lang => (
                         <PressScale accessibilityRole="button"
                           key={lang.key}

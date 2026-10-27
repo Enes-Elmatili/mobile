@@ -1,5 +1,5 @@
 // stores/prefs.ts — les réglages de l'app qui étaient introuvables : le thème
-// (système / clair / sombre) et la langue (FR / NL / EN). Persistés, appliqués
+// (système / clair / sombre) et la langue (FR / NL / EN / PL). Persistés, appliqués
 // sur place : use-app-theme lit le thème, i18n reçoit la langue.
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,9 +7,9 @@ import i18n from '@/lib/i18n';
 
 export const PREFS_KEY = '@fixed:prefs';
 export type ThemePref = 'system' | 'light' | 'dark';
-export type LanguagePref = 'fr' | 'nl' | 'en';
+export type LanguagePref = 'fr' | 'nl' | 'en' | 'pl';
 export const THEME_PREFS: ThemePref[] = ['system', 'light', 'dark'];
-export const LANGUAGE_PREFS: LanguagePref[] = ['fr', 'nl', 'en'];
+export const LANGUAGE_PREFS: LanguagePref[] = ['fr', 'nl', 'en', 'pl'];
 
 type PrefsState = {
   theme: ThemePref;

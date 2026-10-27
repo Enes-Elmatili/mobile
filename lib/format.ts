@@ -31,8 +31,11 @@ export function formatClock(value: string | number | Date | null | undefined): s
   return d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
 }
 
-const LANG_LOCALE: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB' };
-const localeFor = (lang?: string) => LANG_LOCALE[(lang || 'fr').split('-')[0]] ?? 'fr-BE';
+// La seule table langue de l'app → format de date/heure. Belgique d'abord ;
+// le polonais garde ses formats (« 13 wrz », 24 h).
+const LANG_LOCALE: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB', pl: 'pl-PL' };
+/** Balise de format (`toLocaleDateString`…) pour une langue de l'app ; fr-BE par défaut. */
+export const localeFor = (lang?: string | null) => LANG_LOCALE[(lang || 'fr').split('-')[0].toLowerCase()] ?? 'fr-BE';
 
 /** « sam. 13 sept. » dans la langue de l'app. */
 export function formatDay(value: string | number | Date | null | undefined, lang?: string): string {

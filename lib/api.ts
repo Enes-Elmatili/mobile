@@ -3,6 +3,9 @@ import { devLog, devWarn, devError } from './logger';
 import i18nInstance from './i18n';
 import { feedback } from './feedback/feedback';
 
+/** Langues des modèles de facture PDF côté serveur. */
+const PDF_LANGS = ['fr', 'nl', 'en'];
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 if (!API_BASE_URL) {
   throw new Error('EXPO_PUBLIC_API_URL environment variable is required');
@@ -523,7 +526,10 @@ class ApiClient {
       // Passe la langue active en query param : FileSystem.downloadAsync n'utilise
       // pas les défauts ApiClient (c'est un download direct), donc on inline.
       const lang = (i18nInstance.language || 'fr').split('-')[0].toLowerCase();
-      return `${base}/api/invoices/${id}/pdf?lang=${encodeURIComponent(lang)}`;
+      // Le PDF est rendu par le serveur, qui n'a de modèles qu'en fr/nl/en :
+      // une facture polonaise sort en anglais plutôt qu'en erreur.
+      const pdfLang = PDF_LANGS.includes(lang) ? lang : 'en';
+      return `${base}/api/invoices/${id}/pdf?lang=${encodeURIComponent(pdfLang)}`;
     },
   };
 

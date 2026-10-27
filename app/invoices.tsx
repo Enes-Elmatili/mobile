@@ -16,15 +16,14 @@ import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefres
 import { useAuth } from '@/lib/auth/AuthContext';
 import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import type { Invoice } from '@/hooks/useInvoice';
-import { formatEUR as formatEuros } from '@/lib/format';
+import { formatEUR as formatEuros, localeFor } from '@/lib/format';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
 
 // Reanimated n'expose pas Animated.SectionList : on l'anime nous-mêmes.
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 
-const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
-const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
+const getLocale = () => localeFor(i18n.language);
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString(getLocale(), {

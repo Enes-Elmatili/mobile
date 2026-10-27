@@ -55,10 +55,15 @@ export function translateCategoryRaw(cat: CategoryLike): string {
 // directement la bonne traduction sans table de mapping locale.
 //
 // Fallback chain : nameI18n[lang] → nameI18n.fr → name (legacy DB row sans i18n)
+//
+// Polonais : le serveur ne porte pas encore `nameI18n.pl`. Le nom vient alors
+// de locales/pl.json (`services.<slug>.name`), sinon de l'anglais — un
+// prestataire polonais lit plus volontiers l'anglais que le français.
 
 type SubcategoryLike =
   | {
       name?: string | null;
+      slug?: string | null;
       nameI18n?: Record<string, string | null> | null;
     }
   | null
@@ -70,10 +75,16 @@ export function translateSubcategory(
 ): string {
   if (!sub) return '';
   const fallback = sub.name || '';
-  const i18nMap = sub.nameI18n;
-  if (!i18nMap || typeof i18nMap !== 'object') return fallback;
   const langKey = (lang || 'fr').split('-')[0].toLowerCase();
-  return i18nMap[langKey] || i18nMap.fr || fallback;
+  const i18nMap = sub.nameI18n && typeof sub.nameI18n === 'object' ? sub.nameI18n : null;
+  if (i18nMap?.[langKey]) return i18nMap[langKey] as string;
+  if (langKey === 'pl') {
+    const local = sub.slug ? i18nInstance.t(`services.${sub.slug}.name`, { lng: 'pl', defaultValue: '' }) : '';
+    if (local) return local;
+    if (i18nMap?.en) return i18nMap.en;
+  }
+  if (!i18nMap) return fallback;
+  return i18nMap.fr || fallback;
 }
 
 /**

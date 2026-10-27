@@ -17,12 +17,15 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { usePrefs, currentLanguage, type LanguagePref, type ThemePref } from '@/stores/prefs';
+import { usePrefs, currentLanguage, LANGUAGE_PREFS, type LanguagePref, type ThemePref } from '@/stores/prefs';
 import { Group, Row, SectionHead, SwitchRow } from '@/components/settings/rows';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { LAYOUT } from '@/lib/motion/layout';
 import { PressScale } from '@/components/ui/PressScale';
+
+// Codes courts, toujours dans leur propre langue : FR · NL · EN · PL.
+const LANGUAGE_OPTIONS = LANGUAGE_PREFS.map((value) => ({ value, label: value.toUpperCase() }));
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
 const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true, quiet: { enabled: false, from: '22:00', to: '07:00' } };
@@ -101,7 +104,7 @@ export default function Settings() {
             <View style={s.segWrap}><SegmentedControl<ThemePref> options={[{ value: 'system', label: t('settings.theme_system') }, { value: 'light', label: t('settings.theme_light') }, { value: 'dark', label: t('settings.theme_dark') }]} value={themePref} onChange={(v) => { feedback.haptic('selection'); setTheme(v); }} /></View>
           } />
           <Row glyph="Aa" title={t('settings.language')} chevron={false} right={
-            <View style={s.segWrap}><SegmentedControl<LanguagePref> options={[{ value: 'fr', label: 'FR' }, { value: 'nl', label: 'NL' }, { value: 'en', label: 'EN' }]} value={language} onChange={(v) => { feedback.haptic('selection'); setLanguage(v); }} /></View>
+            <View style={s.segWrap}><SegmentedControl<LanguagePref> options={LANGUAGE_OPTIONS} value={language} onChange={(v) => { feedback.haptic('selection'); setLanguage(v); }} /></View>
           } />
         </Group>
         </CascadeItem>
@@ -172,7 +175,7 @@ const s = StyleSheet.create({
   head: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
-  segWrap: { width: 190 },
+  segWrap: { width: 208 },
   out: { alignItems: 'center', paddingVertical: 14, marginTop: 10 },
   outText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
   version: { textAlign: 'center', fontFamily: FONTS.monoMedium, fontSize: 10.5, letterSpacing: 1.5, marginTop: 2 },
