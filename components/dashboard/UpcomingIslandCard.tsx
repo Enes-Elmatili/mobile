@@ -17,7 +17,7 @@ import { requestServiceName } from './ActivityItem';
 
 // Live countdown: "2J 14H", "3H 45M", "45M", "< 1M"
 function useCountdown(targetDate: Date | null) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!targetDate) return;
     const iv = setInterval(() => setNow(Date.now()), 60_000); // tick every minute

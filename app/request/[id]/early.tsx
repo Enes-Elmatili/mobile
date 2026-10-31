@@ -49,11 +49,12 @@ export default function EarlyScreen() {
 
   const [mission, setMission] = useState<MissionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tick, setTick] = useState(0);
+  // Horloge rafraîchie chaque 30s (et à chaque chargement) : recalcule le
+  // compte à rebours et relance l'auto-redirect, sans Date.now() en plein rendu.
+  const [now, setNow] = useState(() => Date.now());
 
-  // Refresh tick chaque 30s pour recalculer le compte à rebours et auto-redirect.
   useEffect(() => {
-    const iv = setInterval(() => setTick(t => t + 1), 30_000);
+    const iv = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(iv);
   }, []);
 
@@ -63,6 +64,7 @@ export default function EarlyScreen() {
       const res = await api.get<Enveloped<MissionData>>(`/requests/${id}`);
       const data = res?.data || res;
       setMission(data);
+      setNow(Date.now());
     } catch (e) {
       devError('[early] load mission failed:', e);
     } finally {
@@ -80,12 +82,11 @@ export default function EarlyScreen() {
     if (minsUntil <= ACTIVATION_WINDOW_MIN) {
       router.replace({ pathname: '/request/[id]/ongoing', params: { id: String(mission.id) } });
     }
-  }, [mission?.preferredTimeStart, mission?.id, router, tick]);
+  }, [mission?.preferredTimeStart, mission?.id, router, now]);
 
   const countdown = useMemo(() => {
     if (!mission?.preferredTimeStart) return null;
     const target = new Date(mission.preferredTimeStart).getTime();
-    const now = Date.now();
     const diffMs = target - now;
     if (diffMs <= 0) return null;
     const totalMin = Math.floor(diffMs / 60_000);
@@ -93,8 +94,7 @@ export default function EarlyScreen() {
     const hours = Math.floor((totalMin % (60 * 24)) / 60);
     const mins = totalMin % 60;
     return { days, hours, mins, totalMin };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick force le recalcul chaque minute
-  }, [mission?.preferredTimeStart, tick]);
+  }, [mission?.preferredTimeStart, now]);
 
   const formattedDate = useMemo(() => {
     if (!mission?.preferredTimeStart) return '—';

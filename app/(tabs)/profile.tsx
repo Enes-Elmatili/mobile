@@ -51,7 +51,9 @@ export default function Profile() {
   const displayName = cleanName(user?.name, { email: user?.email, fallback: isProvider ? t('profile.provider') : t('profile.client') });
   const email = cleanEmail(user?.email);
   const city = user?.city || null;
-  const since = new Date(user?.createdAt || Date.now()).getFullYear();
+  // Repli (compte sans date de création) : instant du montage, pas Date.now() en plein rendu.
+  const [mountedAt] = useState(() => Date.now());
+  const since = new Date(user?.createdAt || mountedAt).getFullYear();
 
   // ─── Données ─────────────────────────────────────────────────────────────
   const [prov, setProv] = useState<ProviderInfo | null>(null);

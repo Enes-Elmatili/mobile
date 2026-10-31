@@ -65,7 +65,7 @@ const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 // beaucoup signalent à tort les écritures de shared values Reanimated
 // (`sv.value = …`). À réactiver une par une, chacune dans son propre commit.
 const REACT_COMPILER_RULES_OFF = Object.fromEntries([
-  'immutability', 'preserve-manual-memoization', 'purity',
+  'immutability', 'preserve-manual-memoization',
   'refs', 'set-state-in-effect', 'static-components',
 ].map((r) => [`react-hooks/${r}`, 'off']));
 

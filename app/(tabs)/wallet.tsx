@@ -81,10 +81,13 @@ export default function WalletTab() {
   const [openMonths, setOpenMonths] = useState<Set<string> | null>(null);
   const [selected, setSelected] = useState<GainLine | null>(null);
   const [stripeBusy, setStripeBusy] = useState(false);
-  const now = Date.now();
+  // Instant de référence des lignes (en attente / disponible) : celui du
+  // dernier chargement, pas Date.now() relu à chaque rendu.
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     const [tx, status, bal] = await Promise.allSettled([api.wallet.transactions(100), api.connect.status(), api.connect.balance()]);
+    setNow(Date.now());
     if (tx.status === 'fulfilled') {
       const raw = tx.value;
       setTxs(Array.isArray(raw) ? raw : (raw?.transactions ?? raw?.data ?? []));

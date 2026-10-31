@@ -33,6 +33,12 @@ function toSlug(name: string): string {
   return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
 }
 
+// Nom de repli quand le sélecteur ne fournit pas de nom de fichier. Hors
+// composant : Date.now() n'a rien à faire dans le corps d'un rendu.
+function fallbackFileName(docType: string, ext: "jpg" | "pdf"): string {
+  return `${docType}_${Date.now()}.${ext}`;
+}
+
 interface UploadState {
   [type: string]: { uri: string | null; uploading: boolean };
 }
@@ -150,7 +156,7 @@ export default function OnboardingDocuments() {
         Sentry.addBreadcrumb({ category: "kyc-upload", message: `recovered:${docType}`, level: "info" });
         await doUpload(docType, {
           uri: asset.uri,
-          name: asset.fileName || `${docType}_${Date.now()}.jpg`,
+          name: asset.fileName || fallbackFileName(docType, "jpg"),
           type: asset.mimeType || "image/jpeg",
           isImage: true,
         });
@@ -219,7 +225,7 @@ export default function OnboardingDocuments() {
     const asset = result.assets[0];
     await doUpload(docType, {
       uri: asset.uri,
-      name: asset.fileName || `${docType}_${Date.now()}.jpg`,
+      name: asset.fileName || fallbackFileName(docType, "jpg"),
       type: asset.mimeType || "image/jpeg",
       isImage: true,
     });
@@ -238,7 +244,7 @@ export default function OnboardingDocuments() {
     const asset = result.assets[0];
     await doUpload(docType, {
       uri: asset.uri,
-      name: asset.name || `${docType}_${Date.now()}.pdf`,
+      name: asset.name || fallbackFileName(docType, "pdf"),
       type: asset.mimeType || "application/pdf",
       isImage: false,
     });

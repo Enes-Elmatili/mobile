@@ -32,6 +32,9 @@ type Company = { vatNumber?: string | null; vatVerifiedAt?: string | null; vatLe
 
 const SERVER_BASE = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/api\/?$/, '');
 const fileHref = (url: string) => (/^https?:\/\//.test(url) ? url : `${SERVER_BASE}${url}`);
+// Nom de repli quand le sélecteur ne fournit pas de nom de fichier (hors
+// composant : Date.now() n'a rien à faire dans le corps d'un rendu).
+const fallbackFileName = (key: string, ext: 'jpg' | 'pdf') => `${key}_${Date.now()}.${ext}`;
 
 /** BE68 5390 0754 7034 → BE68 •••• •••• 7034 : assez pour se reconnaître, pas pour recopier. */
 export function maskIban(iban?: string | null): string | null {
@@ -109,11 +112,11 @@ export default function CompanyScreen() {
     if (idx === 0) {
       const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
       const a = !res.canceled ? res.assets?.[0] : null;
-      if (a) await upload(key, { uri: a.uri, name: a.fileName || `${key}_${Date.now()}.jpg`, type: a.mimeType || 'image/jpeg' });
+      if (a) await upload(key, { uri: a.uri, name: a.fileName || fallbackFileName(key, 'jpg'), type: a.mimeType || 'image/jpeg' });
     } else if (idx === 1) {
       const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true, multiple: false });
       const a = !res.canceled ? res.assets?.[0] : null;
-      if (a) await upload(key, { uri: a.uri, name: a.name || `${key}_${Date.now()}.pdf`, type: a.mimeType || 'application/pdf' });
+      if (a) await upload(key, { uri: a.uri, name: a.name || fallbackFileName(key, 'pdf'), type: a.mimeType || 'application/pdf' });
     } else if (idx === 2 && doc) {
       view(doc);
     }
