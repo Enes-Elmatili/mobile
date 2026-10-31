@@ -8,12 +8,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import type { AppTheme } from '@/hooks/use-app-theme';
 
 export function DashboardSkeleton({ theme }: { theme: AppTheme }) {
-  // Moment 18 : les blocs respirent (composant partagé) ; le contenu réel
-  // arrive ensuite en cascade dans la même géométrie.
-  const Block = ({ w, h, style }: { w: number | `${number}%`; h: number; style?: object }) => (
-    <Skeleton w={w} h={h} style={style} />
-  );
-
+  // Moment 18 : les blocs respirent (composant partagé <Skeleton />) ; le contenu
+  // réel arrive ensuite en cascade dans la même géométrie.
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
@@ -21,45 +17,45 @@ export function DashboardSkeleton({ theme }: { theme: AppTheme }) {
         {/* Topbar */}
         <View style={s.topbar}>
           <View>
-            <Block w={100} h={10} style={{ marginBottom: 8 }} />
-            <Block w={160} h={28} />
+            <Skeleton w={100} h={10} style={{ marginBottom: 8 }} />
+            <Skeleton w={160} h={28} />
           </View>
           <View style={s.topbarActions}>
-            <Block w={36} h={36} style={{ borderRadius: 10 }} />
-            <Block w={36} h={36} style={{ borderRadius: 10 }} />
+            <Skeleton w={36} h={36} style={{ borderRadius: 10 }} />
+            <Skeleton w={36} h={36} style={{ borderRadius: 10 }} />
           </View>
         </View>
 
         {/* Hero CTA */}
         <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-          <Block w="100%" h={200} style={{ borderRadius: 20 }} />
+          <Skeleton w="100%" h={200} style={{ borderRadius: 20 }} />
         </View>
 
         {/* Mission island */}
         <View style={[s.sectionHead, { paddingTop: 24 }]}>
-          <Block w={80} h={10} />
+          <Skeleton w={80} h={10} />
         </View>
         <View style={{ paddingHorizontal: 16 }}>
-          <Block w="100%" h={70} style={{ borderRadius: 12 }} />
+          <Skeleton w="100%" h={70} style={{ borderRadius: 12 }} />
         </View>
 
         {/* Services grid */}
         <View style={[s.sectionHead, { paddingTop: 24 }]}>
-          <Block w={70} h={10} />
+          <Skeleton w={70} h={10} />
         </View>
         <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10 }}>
-          <Block w="48%" h={100} style={{ borderRadius: 18 }} />
-          <Block w="48%" h={100} style={{ borderRadius: 18 }} />
+          <Skeleton w="48%" h={100} style={{ borderRadius: 18 }} />
+          <Skeleton w="48%" h={100} style={{ borderRadius: 18 }} />
         </View>
 
         {/* Activity */}
         <View style={[s.sectionHead, { paddingTop: 24 }]}>
-          <Block w={100} h={10} />
+          <Skeleton w={100} h={10} />
         </View>
         <View style={{ paddingHorizontal: 16, gap: 8 }}>
-          <Block w="100%" h={68} style={{ borderRadius: 18 }} />
-          <Block w="100%" h={68} style={{ borderRadius: 18 }} />
-          <Block w="100%" h={68} style={{ borderRadius: 18 }} />
+          <Skeleton w="100%" h={68} style={{ borderRadius: 18 }} />
+          <Skeleton w="100%" h={68} style={{ borderRadius: 18 }} />
+          <Skeleton w="100%" h={68} style={{ borderRadius: 18 }} />
         </View>
       </View>
     </SafeAreaView>

@@ -91,6 +91,14 @@ function SealCheck({ color }: { color: string }) {
   );
 }
 
+/** Bloc du squelette — au niveau module : déclaré dans le rendu, il serait
+ *  recréé (donc remonté) à chaque passage. */
+function SkeletonBlock({ h, w = "100%", r = 14, mt = 0, color, pulseStyle }: {
+  h: number; w?: any; r?: number; mt?: number; color: string; pulseStyle: ReturnType<typeof useAnimatedStyle>;
+}) {
+  return <Animated.View style={[{ height: h, width: w, borderRadius: r, marginTop: mt, backgroundColor: color }, pulseStyle]} />;
+}
+
 /** Squelette de chargement — reprend la silhouette réelle de la page (héro + ledger). */
 function QuoteSkeleton({ theme }: { theme: any }) {
   const pulse = useSharedValue(0.45);
@@ -105,16 +113,14 @@ function QuoteSkeleton({ theme }: { theme: any }) {
     );
   }, [pulse]);
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-  const Block = ({ h, w = "100%", r = 14, mt = 0 }: { h: number; w?: any; r?: number; mt?: number }) => (
-    <Animated.View style={[{ height: h, width: w, borderRadius: r, marginTop: mt, backgroundColor: theme.surface }, pulseStyle]} />
-  );
+  const block = { color: theme.surface, pulseStyle };
   return (
     <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
-      <Block h={16} w={140} r={8} />
-      <Block h={30} w={220} r={8} mt={14} />
-      <Block h={168} r={26} mt={18} />
-      <Block h={150} r={20} mt={12} />
-      <Block h={76} r={20} mt={12} />
+      <SkeletonBlock {...block} h={16} w={140} r={8} />
+      <SkeletonBlock {...block} h={30} w={220} r={8} mt={14} />
+      <SkeletonBlock {...block} h={168} r={26} mt={18} />
+      <SkeletonBlock {...block} h={150} r={20} mt={12} />
+      <SkeletonBlock {...block} h={76} r={20} mt={12} />
     </View>
   );
 }

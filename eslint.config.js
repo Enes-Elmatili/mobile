@@ -66,7 +66,7 @@ const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 // (`sv.value = …`). À réactiver une par une, chacune dans son propre commit.
 const REACT_COMPILER_RULES_OFF = Object.fromEntries([
   'immutability', 'preserve-manual-memoization',
-  'refs', 'set-state-in-effect', 'static-components',
+  'refs', 'set-state-in-effect',
 ].map((r) => [`react-hooks/${r}`, 'off']));
 
 module.exports = defineConfig([
