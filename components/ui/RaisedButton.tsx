@@ -98,12 +98,12 @@ export function RaisedButton({
 
   const onPressIn = useCallback(() => {
     press.onPressIn();
-    dim.value = withTiming(1, { duration: 80 });
+    dim.set(withTiming(1, { duration: 80 }));
   }, [press, dim]);
 
   const onPressOut = useCallback(() => {
     press.onPressOut();
-    dim.value = withTiming(0, { duration: 140 });
+    dim.set(withTiming(0, { duration: 140 }));
   }, [press, dim]);
 
   const dimMax = theme.isDark ? 0.18 : 0.08;

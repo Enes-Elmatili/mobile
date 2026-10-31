@@ -133,25 +133,25 @@ function IncomingJobCard({
   const accept = useCallback(() => {
     if (accepted) return;
     setAccepted(true);
-    tint.value = withTiming(1, { duration: reduced ? 200 : 520, easing: Easing.out(Easing.cubic) });
+    tint.set(withTiming(1, { duration: reduced ? 200 : 520, easing: Easing.out(Easing.cubic) }));
     onAccept();
   }, [accepted, reduced, tint, onAccept]);
   useEffect(() => {
     if (!leaving) return;
     // Repli : la fiche descend et s'efface, en partant de sa position courante.
-    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withSpring(Math.max(size.h, 400) + 80, MOTION.pane);
-    fade.value = withTiming(0, { duration: reduced ? 200 : 380 });
+    slideUp.set(reduced ? withTiming(0, { duration: 1 }) : withSpring(Math.max(size.h, 400) + 80, MOTION.pane));
+    fade.set(withTiming(0, { duration: reduced ? 200 : 380 }));
   }, [leaving, reduced, slideUp, fade, size.h]);
   const tintStyle = useAnimatedStyle(() => ({ opacity: tint.value }));
 
   useEffect(() => {
     if (reduced) {
       // Règle 8 : pas de course, on pose l'état final.
-      slideUp.value = 0;
+      slideUp.set(0);
       return;
     }
     // Entrée : spring critique (ζ = 1.0) — arrive vite, ne dépasse pas.
-    slideUp.value = withSpring(0, CARD_ENTER_SPRING);
+    slideUp.set(withSpring(0, CARD_ENTER_SPRING));
     return () => { cancelAnimation(slideUp); };
   }, [reduced, slideUp]);
 

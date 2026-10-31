@@ -24,8 +24,8 @@ export function PressScale({ style, scale = PRESS_SCALE, onPressIn, onPressOut, 
   return (
     <AnimatedPressable
       {...rest}
-      onPressIn={(e: GestureResponderEvent) => { press.onPressIn(); if (reduced) dim.value = 0.6; onPressIn?.(e); }}
-      onPressOut={(e: GestureResponderEvent) => { press.onPressOut(); dim.value = 1; onPressOut?.(e); }}
+      onPressIn={(e: GestureResponderEvent) => { press.onPressIn(); if (reduced) dim.set(0.6); onPressIn?.(e); }}
+      onPressOut={(e: GestureResponderEvent) => { press.onPressOut(); dim.set(1); onPressOut?.(e); }}
       style={[style, press.style, reduced && dimStyle]}
     >
       {children}

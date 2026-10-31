@@ -88,19 +88,6 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     queueRef.current = queue;
   }, [queue]);
 
-  // Charger la queue depuis AsyncStorage au démarrage
-  useEffect(() => {
-    loadQueue();
-  }, []);
-
-  // Rejouer automatiquement dès le retour en ligne
-  useEffect(() => {
-    if (isOnline && wasOffline && queueRef.current.length > 0) {
-      processQueue();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rejoue au retour en ligne seulement, pas à chaque changement de file
-  }, [isOnline, wasOffline]);
-
   async function loadQueue() {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
@@ -170,6 +157,19 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     isProcessingRef.current = false;
     setIsProcessing(false);
   }, []);
+
+  // Charger la queue depuis AsyncStorage au démarrage
+  useEffect(() => {
+    loadQueue();
+  }, []);
+
+  // Rejouer automatiquement dès le retour en ligne
+  useEffect(() => {
+    if (isOnline && wasOffline && queueRef.current.length > 0) {
+      processQueue();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rejoue au retour en ligne seulement, pas à chaque changement de file
+  }, [isOnline, wasOffline]);
 
   const clearQueue = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);

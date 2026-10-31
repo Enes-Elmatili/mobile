@@ -50,11 +50,6 @@ export default function RequestsListScreen() {
   const brandRefresh = useBrandRefresh();
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    loadRequests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul chargement au montage ; le focus rattrape
-  }, []);
-
   const loadRequests = async () => {
     try {
       setError(false);
@@ -69,6 +64,11 @@ export default function RequestsListScreen() {
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul chargement au montage ; le focus rattrape
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

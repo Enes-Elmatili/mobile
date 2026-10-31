@@ -18,7 +18,7 @@ export function useRubberPull(opts: { threshold?: number; holdAt?: number; onRef
     try {
       await onRefresh();
     } finally {
-      y.value = withSpring(0, MOTION.pull);
+      y.set(withSpring(0, MOTION.pull));
     }
   }, [onRefresh, y]);
 
@@ -27,23 +27,23 @@ export function useRubberPull(opts: { threshold?: number; holdAt?: number; onRef
       Gesture.Pan()
         .activeOffsetY(8)
         .onBegin(() => {
-          armed.value = 0;
+          armed.set(0);
         })
         .onUpdate((e) => {
           const d = Math.max(0, e.translationY);
           // Résistance croissante : 80 pt de tirage réel ≈ 60 pt affichés.
-          y.value = reduced ? Math.min(d, threshold) : 80 * (1 - Math.exp(-d / 96)) * 1.6;
+          y.set(reduced ? Math.min(d, threshold) : 80 * (1 - Math.exp(-d / 96)) * 1.6);
           if (!armed.value && y.value >= threshold) {
-            armed.value = 1;
+            armed.set(1);
             hapticOnFrame('light');
           }
         })
         .onEnd((e) => {
           if (armed.value) {
-            y.value = withSpring(holdAt, { ...MOTION.pull, velocity: e.velocityY });
+            y.set(withSpring(holdAt, { ...MOTION.pull, velocity: e.velocityY }));
             runOnJS(refresh)();
           } else {
-            y.value = withSpring(0, { ...MOTION.pull, velocity: e.velocityY });
+            y.set(withSpring(0, { ...MOTION.pull, velocity: e.velocityY }));
           }
         }),
     [reduced, threshold, holdAt, y, armed, refresh],

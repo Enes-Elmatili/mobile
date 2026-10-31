@@ -165,9 +165,9 @@ export default function ScheduledConfirmation() {
     if (isRecapMode) return; // skip animation en recap
     feedback.haptic('success');
     // L'icône « prend » (MOTION.take, léger dépassement) ; sous réduction, l'état final posé.
-    if (reduced) { iconScale.value = 1; contentFade.value = withTiming(1, { duration: 150 }); return; }
-    iconScale.value = withSpring(1, MOTION.take);
-    contentFade.value = withDelay(400, withTiming(1, { duration: 300 }));
+    if (reduced) { iconScale.set(1); contentFade.set(withTiming(1, { duration: 150 })); return; }
+    iconScale.set(withSpring(1, MOTION.take));
+    contentFade.set(withDelay(400, withTiming(1, { duration: 300 })));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- séquence jouée à l'arrivée
   }, [isRecapMode]);
 

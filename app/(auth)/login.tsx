@@ -123,21 +123,6 @@ export default function Login() {
     }
   }, [googleRequest]);
 
-  useEffect(() => {
-    if (!googleResponse) return;
-    if (__DEV__) console.log("[Google Auth] response type:", googleResponse.type);
-    if (googleResponse.type === "success") {
-      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
-      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
-      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
-    } else if (googleResponse.type === "error") {
-      // Échec OAuth Google — sans feedback l'utilisateur ne voit rien
-      showToast(t("auth.login_google_failed"));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement ; les handlers sont stables dans la pratique
-  }, [googleResponse]);
-
-
   // Le bouton reste actif même si la requête n'est pas prête : un appui doit
   // toujours produire une réponse. Sans ça, un échec de construction rendait le
   // bouton totalement inerte — ni navigateur, ni message, ni log.
@@ -187,6 +172,20 @@ export default function Login() {
       setSocialLoading(null);
     }
   };
+
+  useEffect(() => {
+    if (!googleResponse) return;
+    if (__DEV__) console.log("[Google Auth] response type:", googleResponse.type);
+    if (googleResponse.type === "success") {
+      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
+      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
+    } else if (googleResponse.type === "error") {
+      // Échec OAuth Google — sans feedback l'utilisateur ne voit rien
+      showToast(t("auth.login_google_failed"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement ; les handlers sont stables dans la pratique
+  }, [googleResponse]);
 
   const handleAppleSignIn = async () => {
     setSocialLoading("apple");

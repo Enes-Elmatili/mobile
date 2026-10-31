@@ -16,8 +16,8 @@ export function useEntrance(distance = 16, preset: SpringConfig = MOTION.pane) {
   const p = useSharedValue(0);
 
   const replay = useCallback(() => {
-    p.value = 0;
-    p.value = reduced ? withTiming(1, { duration: 200 }) : withSpring(1, preset);
+    p.set(0);
+    p.set(reduced ? withTiming(1, { duration: 200 }) : withSpring(1, preset));
   }, [p, preset, reduced]);
 
   useEffect(() => { replay(); }, [replay]);

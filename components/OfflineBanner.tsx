@@ -59,12 +59,12 @@ export function OfflineBanner() {
   useEffect(() => {
     if (bannerActive) {
       setOfflineVisible(true);
-      slideY.value = withSpring(0, SHEET_SPRING);
+      slideY.set(withSpring(0, SHEET_SPRING));
     } else {
       // Sortie sur le même ressort que l'entrée, depuis la position courante.
-      slideY.value = withSpring(-120, SHEET_SPRING, (finished) => {
+      slideY.set(withSpring(-120, SHEET_SPRING, (finished) => {
         if (finished) runOnJS(setOfflineVisible)(false);
-      });
+      }));
     }
   }, [bannerActive, slideY]);
 

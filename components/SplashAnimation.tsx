@@ -111,7 +111,7 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   // celle de l'app en 320 ms : pas de flash au passage de témoin.
   const nativeBg = Appearance.getColorScheme() === 'dark' ? '#0A0A0A' : '#F4F4F2';
   const bgMix = useSharedValue(0);
-  useEffect(() => { bgMix.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) }); }, [bgMix]);
+  useEffect(() => { bgMix.set(withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) })); }, [bgMix]);
 
   const finishedRef = useRef(false);
   const onDoneRef = useRef(onDone);
@@ -122,13 +122,70 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    rootOp.value = withTiming(0, { duration: FADE, easing: Easing.in(Easing.cubic) }, () => {
+    rootOp.set(withTiming(0, { duration: FADE, easing: Easing.in(Easing.cubic) }, () => {
       runOnJS(done)();
-    });
+    }));
   };
   // Appelé depuis le thread UI à la fin de la respiration du point.
   const scheduleFinish = () => {
     if (!finishedRef.current) setTimeout(finish, HOLD);
+  };
+
+  const runSequence = (variant: 'full' | 'short') => {
+    if (variant === 'short') { runShort(); return; }
+    // Scène 1 — Ouverture (0 → 1400). La hairline apparaît (308 ms dès 112 ms)
+    // puis s'efface à l'ouverture de la scène 2 : une seule séquence par valeur.
+    hairlineOp.set(withSequence(
+      withDelay(112, withTiming(1, { duration: 308, easing: Easing.out(Easing.cubic) })),
+      withDelay(P2_START - (112 + 308), withTiming(0, { duration: 572, easing: Easing.in(Easing.quad) })),
+    ));
+    hairline.set(withDelay(112, withTiming(1, { duration: 658, easing: Easing.inOut(Easing.poly(4)) })));
+    dotScale.set(withDelay(364, withTiming(1, { duration: 504, easing: Easing.out(Easing.exp) })));
+    ring.set(withDelay(868, withTiming(1, { duration: 476, easing: Easing.out(Easing.cubic) })));
+
+    // Scène 2 — Le mot (1400 → 4000)
+    dotSlide.set(withDelay(P2_START + 156, withTiming(1, { duration: 1456, easing: Easing.inOut(Easing.poly(4)) })));
+    cols.forEach((c, i) => {
+      c.set(withDelay(RISE_BASE + i * RISE_STAGGER, withTiming(1, { duration: RISE_DUR, easing: Easing.out(Easing.poly(4)) })));
+    });
+
+    // Scène 3 — Signature (4000 → 5800)
+    tagOp.set(withDelay(P3_START + 72, withTiming(1, { duration: 676, easing: Easing.out(Easing.cubic) })));
+    tagY.set(withDelay(P3_START + 72, withTiming(0, { duration: 780, easing: Easing.out(Easing.cubic) })));
+    // Respiration du point pendant la signature ; sa fin pilote le retrait.
+    dotBreath.set(withDelay(
+      P3_START + 450,
+      withSequence(
+        withTiming(1.035, { duration: 620, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 550, easing: Easing.inOut(Easing.sin) }, (finished) => {
+          if (finished) runOnJS(scheduleFinish)();
+        }),
+      ),
+    ));
+  };
+
+  // La version courte : mêmes gestes, tempo serré, sans respiration.
+  const runShort = () => {
+    const { S1: s1, RISE_BASE: rb, RISE_DUR: rd, RISE_STAGGER: rs } = SHORT;
+    hairlineOp.set(withSequence(
+      withDelay(40, withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) })),
+      withDelay(s1 - 200, withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) })),
+    ));
+    hairline.set(withDelay(40, withTiming(1, { duration: 320, easing: Easing.inOut(Easing.poly(4)) })));
+    dotScale.set(withDelay(120, withTiming(1, { duration: 300, easing: Easing.out(Easing.exp) })));
+    ring.set(withDelay(300, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) })));
+    dotSlide.set(withDelay(s1 + 40, withTiming(1, { duration: 520, easing: Easing.inOut(Easing.poly(4)) })));
+    cols.forEach((c, i) => {
+      c.set(withDelay(rb + i * rs, withTiming(1, { duration: rd, easing: Easing.out(Easing.poly(4)) })));
+    });
+    const p3 = s1 + SHORT.S2;
+    tagOp.set(withDelay(p3, withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) })));
+    tagY.set(withDelay(p3, withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) }, (finished) => {
+      if (finished) runOnJS(scheduleShortFinish)();
+    })));
+  };
+  const scheduleShortFinish = () => {
+    if (!finishedRef.current) setTimeout(finish, SHORT.HOLD);
   };
 
   useEffect(() => {
@@ -138,9 +195,9 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
       if (cancelled) return;
       if (reduced) {
         // Accessibilité : pas d'animation, état final direct.
-        dotScale.value = 1; dotSlide.value = 1; hairlineOp.value = 0;
-        cols.forEach((c) => { c.value = 1; });
-        tagOp.value = 1; tagY.value = 0;
+        dotScale.set(1); dotSlide.set(1); hairlineOp.set(0);
+        cols.forEach((c) => { c.set(1); });
+        tagOp.set(1); tagY.set(0);
         holdTimer = setTimeout(finish, 1100);
         return;
       }
@@ -152,63 +209,6 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
     return () => { cancelled = true; if (holdTimer) clearTimeout(holdTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const runSequence = (variant: 'full' | 'short') => {
-    if (variant === 'short') { runShort(); return; }
-    // Scène 1 — Ouverture (0 → 1400). La hairline apparaît (308 ms dès 112 ms)
-    // puis s'efface à l'ouverture de la scène 2 : une seule séquence par valeur.
-    hairlineOp.value = withSequence(
-      withDelay(112, withTiming(1, { duration: 308, easing: Easing.out(Easing.cubic) })),
-      withDelay(P2_START - (112 + 308), withTiming(0, { duration: 572, easing: Easing.in(Easing.quad) })),
-    );
-    hairline.value = withDelay(112, withTiming(1, { duration: 658, easing: Easing.inOut(Easing.poly(4)) }));
-    dotScale.value = withDelay(364, withTiming(1, { duration: 504, easing: Easing.out(Easing.exp) }));
-    ring.value = withDelay(868, withTiming(1, { duration: 476, easing: Easing.out(Easing.cubic) }));
-
-    // Scène 2 — Le mot (1400 → 4000)
-    dotSlide.value = withDelay(P2_START + 156, withTiming(1, { duration: 1456, easing: Easing.inOut(Easing.poly(4)) }));
-    cols.forEach((c, i) => {
-      c.value = withDelay(RISE_BASE + i * RISE_STAGGER, withTiming(1, { duration: RISE_DUR, easing: Easing.out(Easing.poly(4)) }));
-    });
-
-    // Scène 3 — Signature (4000 → 5800)
-    tagOp.value = withDelay(P3_START + 72, withTiming(1, { duration: 676, easing: Easing.out(Easing.cubic) }));
-    tagY.value = withDelay(P3_START + 72, withTiming(0, { duration: 780, easing: Easing.out(Easing.cubic) }));
-    // Respiration du point pendant la signature ; sa fin pilote le retrait.
-    dotBreath.value = withDelay(
-      P3_START + 450,
-      withSequence(
-        withTiming(1.035, { duration: 620, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 550, easing: Easing.inOut(Easing.sin) }, (finished) => {
-          if (finished) runOnJS(scheduleFinish)();
-        }),
-      ),
-    );
-  };
-
-  // La version courte : mêmes gestes, tempo serré, sans respiration.
-  const runShort = () => {
-    const { S1: s1, RISE_BASE: rb, RISE_DUR: rd, RISE_STAGGER: rs } = SHORT;
-    hairlineOp.value = withSequence(
-      withDelay(40, withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) })),
-      withDelay(s1 - 200, withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) })),
-    );
-    hairline.value = withDelay(40, withTiming(1, { duration: 320, easing: Easing.inOut(Easing.poly(4)) }));
-    dotScale.value = withDelay(120, withTiming(1, { duration: 300, easing: Easing.out(Easing.exp) }));
-    ring.value = withDelay(300, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
-    dotSlide.value = withDelay(s1 + 40, withTiming(1, { duration: 520, easing: Easing.inOut(Easing.poly(4)) }));
-    cols.forEach((c, i) => {
-      c.value = withDelay(rb + i * rs, withTiming(1, { duration: rd, easing: Easing.out(Easing.poly(4)) }));
-    });
-    const p3 = s1 + SHORT.S2;
-    tagOp.value = withDelay(p3, withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
-    tagY.value = withDelay(p3, withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) }, (finished) => {
-      if (finished) runOnJS(scheduleShortFinish)();
-    }));
-  };
-  const scheduleShortFinish = () => {
-    if (!finishedRef.current) setTimeout(finish, SHORT.HOLD);
-  };
 
   // ── Styles ───────────────────────────────────────────────────────────────
   const themeBg = theme.bg as string;

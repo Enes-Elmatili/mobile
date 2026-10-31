@@ -178,19 +178,6 @@ export default function Signup() {
   // dit jamais rien (cf. lib/useGoogleAuthDiagnostic.ts).
   const googleUnavailable = useGoogleAuthDiagnostic(googleRequest);
 
-  useEffect(() => {
-    if (!googleResponse) return;
-    if (googleResponse.type === "success") {
-      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
-      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
-      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
-    } else if (googleResponse.type === "error") {
-      // Échec OAuth Google — sans ce feedback le bouton redevenait juste actif
-      showToast(t('auth.su_err_social'));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement
-  }, [googleResponse]);
-
   // ── Routage post-authentification sociale ──────────────────────────────────
   // Le rôle choisi à l'étape 1 (role-select) est mémorisé dans AsyncStorage.
   // Faute de le relire ici, une inscription sociale repartait de zéro : le
@@ -348,11 +335,25 @@ export default function Signup() {
     feedback.toast(message, type);
   }, []);
 
+  useEffect(() => {
+    if (!googleResponse) return;
+    if (googleResponse.type === "success") {
+      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
+      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
+    } else if (googleResponse.type === "error") {
+      // Échec OAuth Google — sans ce feedback le bouton redevenait juste actif
+      showToast(t('auth.su_err_social'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement
+  }, [googleResponse]);
+
   // Entrée : jouée au montage, rejouée à chaque changement de phase.
   const entrance = useEntrance(16);
   const animateIn = entrance.replay;
 
-  // Categories loader
+  // Categories loader. Les setters (stables) sont cités en dépendances : le
+  // compilateur les infère comme tels et ne préserverait pas le mémo sinon.
   const loadCategories = useCallback(() => {
     setCatsLoading(true);
     setCatsError(false);
@@ -364,7 +365,7 @@ export default function Signup() {
         showToast(t('auth.su_err_cats_load'));
       })
       .finally(() => setCatsLoading(false));
-  }, [showToast, t]);
+  }, [showToast, t, setCategories, setCatsError, setCatsLoading]);
 
   useEffect(() => {
     if (phase === "zone" && isProvider && categories.length === 0) loadCategories();

@@ -73,20 +73,20 @@ export default function IncomingCallOverlay() {
   useEffect(() => {
     if (incoming) {
       feedback.haptic('warning');
-      slideY.value = withSpring(0, MOTION.island);
+      slideY.set(withSpring(0, MOTION.island));
       // Sous « Réduire les animations », l'avatar ne pulse pas : la sonnerie et l'haptique suffisent.
-      if (!reduced) pulse.value = withRepeat(
+      if (!reduced) pulse.set(withRepeat(
         withSequence(
           withTiming(1.2, { duration: 600, easing: Easing.inOut(Easing.ease) }),
           withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
         false,
-      );
+      ));
     } else {
-      slideY.value = -200; // le composant se démonte aussitôt : pas de sortie à animer
+      slideY.set(-200); // le composant se démonte aussitôt : pas de sortie à animer
       cancelAnimation(pulse);
-      pulse.value = 1;
+      pulse.set(1);
     }
     return () => cancelAnimation(pulse);
   }, [incoming, pulse, slideY, reduced]);

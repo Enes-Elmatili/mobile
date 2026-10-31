@@ -143,43 +143,48 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   }, [stage, mapMode, door, sheetHeight, request?.startedAt, onFacts]);
 
   // ─── Charger ─────────────────────────────────────────────────────────────
-  const loadRequest = useCallback(async (attempt = 0) => {
-    try {
-      const response = await api.requests.get(String(id));
-      const data = response?.data || response;
-      const st = (data?.status || '').toUpperCase();
-      if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
-        if (attempt < RETRY_MAX) { await sleep(RETRY_DELAY); return loadRequest(attempt + 1); }
+  const loadRequest = useCallback(async () => {
+    // Fonction interne récursive : un useCallback ne peut pas se citer lui-même
+    // (il serait lu avant d'être déclaré).
+    const attemptLoad = async (attempt: number): Promise<void> => {
+      try {
+        const response = await api.requests.get(String(id));
+        const data = response?.data || response;
+        const st = (data?.status || '').toUpperCase();
+        if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
+          if (attempt < RETRY_MAX) { await sleep(RETRY_DELAY); return attemptLoad(attempt + 1); }
+          feedback.error('missions.load_error');
+          onExit('gone');
+          return;
+        }
+        if (!['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(st)) {
+          if (st === 'DONE' || st === 'COMPLETED') router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id) } });
+          onExit('gone');
+          return;
+        }
+        // Mission planifiée hors fenêtre (> 30 min avant) → écran d'attente dédié.
+        if (st === 'ACCEPTED' && data?.preferredTimeStart) {
+          const minutesUntilStart = Math.round((new Date(data.preferredTimeStart).getTime() - Date.now()) / 60_000);
+          if (minutesUntilStart > 30) { router.push({ pathname: '/request/[id]/early', params: { id: String(id) } }); onExit('gone'); return; }
+        }
+        const { beforePhotoUrl, afterPhotoUrl } = data;
+        if (beforePhotoUrl) setBeforeUri((cur) => cur ?? beforePhotoUrl);
+        if (afterPhotoUrl) setAfterUri((cur) => cur ?? afterPhotoUrl);
+        if (data.pinVerified) setPinVerified(true);
+        setRequest(data);
+        if (isQuoteMode(data.pricingMode)) {
+          try {
+            const qRes = await api.quotes.forRequest(id);
+            const q = qRes?.quotes?.[0];
+            if (q) { setHasQuote(true); setQuoteAmount(q.totalAmount != null ? q.totalAmount / 100 : null); }
+          } catch { /* pas encore de devis */ }
+        }
+      } catch {
         feedback.error('missions.load_error');
         onExit('gone');
-        return;
       }
-      if (!['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'].includes(st)) {
-        if (st === 'DONE' || st === 'COMPLETED') router.replace({ pathname: '/request/[id]/earnings', params: { id: String(id) } });
-        onExit('gone');
-        return;
-      }
-      // Mission planifiée hors fenêtre (> 30 min avant) → écran d'attente dédié.
-      if (st === 'ACCEPTED' && data?.preferredTimeStart) {
-        const minutesUntilStart = Math.round((new Date(data.preferredTimeStart).getTime() - Date.now()) / 60_000);
-        if (minutesUntilStart > 30) { router.push({ pathname: '/request/[id]/early', params: { id: String(id) } }); onExit('gone'); return; }
-      }
-      const { beforePhotoUrl, afterPhotoUrl } = data;
-      if (beforePhotoUrl) setBeforeUri((cur) => cur ?? beforePhotoUrl);
-      if (afterPhotoUrl) setAfterUri((cur) => cur ?? afterPhotoUrl);
-      if (data.pinVerified) setPinVerified(true);
-      setRequest(data);
-      if (isQuoteMode(data.pricingMode)) {
-        try {
-          const qRes = await api.quotes.forRequest(id);
-          const q = qRes?.quotes?.[0];
-          if (q) { setHasQuote(true); setQuoteAmount(q.totalAmount != null ? q.totalAmount / 100 : null); }
-        } catch { /* pas encore de devis */ }
-      }
-    } catch {
-      feedback.error('missions.load_error');
-      onExit('gone');
-    }
+    };
+    return attemptLoad(0);
   }, [id, router, onExit]);
 
   useEffect(() => { loadRequest(); }, [loadRequest]);
