@@ -25,14 +25,14 @@ const LIFE_MS = 1600;
 export function CelebrationOverlay({ item }: { item: CelebrationItem }) {
   const clear = useFeedbackStore((s) => s.clearCelebration);
   const reduced = useReduceMotion();
-  const [checkDrawn, setCheckDrawn] = useState(false);
+  // Sous reduce-motion la coche est posée d'emblée (useTraceStroke la pose sans ressort).
+  const [checkDrawn, setCheckDrawn] = useState(reduced);
   const ring = useSharedValue(reduced ? 0 : RING_LENGTH);
   const title = useSharedValue(0);
   const out = useSharedValue(1);
 
   useEffect(() => {
     if (reduced) {
-      setCheckDrawn(true);
       title.value = withTiming(1, { duration: 200 });
       return;
     }

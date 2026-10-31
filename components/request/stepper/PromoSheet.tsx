@@ -1,5 +1,5 @@
 // components/request/stepper/PromoSheet.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ActivityIndicator, TextInput, KeyboardAvoidingView, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -21,8 +21,12 @@ export function PromoSheet({
   const { t } = useTranslation();
   const [code, setCode] = useState('');
 
-  // Reset le champ à chaque ouverture.
-  useEffect(() => { if (visible) setCode(''); }, [visible]);
+  // Reset le champ à chaque ouverture (détectée au rendu, pas dans un effet).
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setCode('');
+  }
 
   const canApply = code.trim().length >= 3 && !applying;
 

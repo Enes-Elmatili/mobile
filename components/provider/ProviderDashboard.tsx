@@ -119,7 +119,6 @@ function IncomingJobCard({
   const slideUp    = useSharedValue(400);
   const fade       = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
-  const [expired, setExpired] = useState(false);
   // Le moment de l'acceptation, en UN mouvement, sur le même écran, et
   // discret : la fiche se teinte du vert pâle des pastilles (rien ne se
   // superpose, tout reste lisible), l'anneau du compte à rebours s'efface, le
@@ -168,9 +167,8 @@ function IncomingJobCard({
   }, []);
 
   // When countdown reaches 0, switch to "last chance" mode instead of dismissing
-  useEffect(() => {
-    if (timeLeft === 0) setExpired(true);
-  }, [timeLeft]);
+  // (dérivé : le compte à rebours s'arrête à 0 et n'est jamais relancé).
+  const expired = timeLeft === 0;
 
   const sheetBg = theme.bg;
 
@@ -760,10 +758,10 @@ export default function ProviderDashboard() {
   // La caméra ne suit « moi » que par pas de 25 m : une position qui tremble
   // sur place ne relance pas un recadrage toutes les 3 s.
   const [camDoor, setCamDoor] = useState<LatLng | null>(null);
-  useEffect(() => {
-    if (!location) return;
-    setCamDoor((prev) => (!prev || metersBetween(prev.latitude, prev.longitude, location.latitude, location.longitude) > 25 ? location : prev));
-  }, [location?.latitude, location?.longitude]);
+  // Ajusté au rendu : ne bouge qu'au-delà de 25 m (ou à la première position).
+  if (location && (!camDoor || metersBetween(camDoor.latitude, camDoor.longitude, location.latitude, location.longitude) > 25)) {
+    setCamDoor(location);
+  }
   // Le rembourrage du cadrage est donné à la caméra (edgePadding), pas à la
   // MapView : Apple Maps ignore `mapPadding` pour cadrer, et un padding qui
   // saute fait sauter la carte. La journée en bas est toujours couverte ; la

@@ -1,7 +1,7 @@
 // components/settings/FieldSheet.tsx — une feuille, un champ.
 // Le clavier est déjà ouvert, une phrase dit à quoi sert le champ, un bouton
 // enregistre. Montée seulement quand elle est ouverte (gorhom + Android).
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type KeyboardTypeOptions } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,7 +42,12 @@ export function FieldSheet({ field, onClose, onSave }: Props) {
   const ref = useRef<BottomSheet>(null);
   const [value, setValue] = useState(field?.value ?? '');
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setValue(field?.value ?? ''); }, [field?.key, field?.value]);
+  // Nouveau champ (ou valeur) : la saisie repart de la valeur reçue, au rendu.
+  const [syncedFrom, setSyncedFrom] = useState({ key: field?.key, value: field?.value });
+  if (syncedFrom.key !== field?.key || syncedFrom.value !== field?.value) {
+    setSyncedFrom({ key: field?.key, value: field?.value });
+    setValue(field?.value ?? '');
+  }
   const close = useCallback(() => { ref.current?.close(); }, []);
   useAndroidBackClose(!!field, close);
   const renderBackdrop = useCallback((p: BottomSheetBackdropProps) => <BottomSheetBackdrop {...p} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />, []);

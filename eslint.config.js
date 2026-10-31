@@ -61,16 +61,23 @@ const EXCEPTIONS = [...new Set(LEGACY_ALERT_ALLOWLIST)];
 const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 
 // Règles « React Compiler » arrivées avec eslint-config-expo 58
-// (eslint-plugin-react-hooks 7). Coupées le temps de la migration SDK 58 :
-// beaucoup signalent à tort les écritures de shared values Reanimated
-// (`sv.value = …`). À réactiver une par une, chacune dans son propre commit.
+// (eslint-plugin-react-hooks 7). Toutes réactivées, sauf une :
+// `set-state-in-effect` (7.1.1) ne modélise pas `await` — tout chargement
+// `useEffect(() => { load(); }, [load])` dont le setState suit l'await est
+// signalé (une trentaine de faux positifs, le motif de chargement documenté
+// par React). La réactiver imposerait ~45 eslint-disable, qui deviendraient
+// un réflexe et videraient la règle de son sens. Les vrais cas (état dérivé,
+// remise à zéro sur changement de prop, magasin externe) ont été corrigés ;
+// à réévaluer quand le plugin saura distinguer le setState asynchrone.
 const REACT_COMPILER_RULES_OFF = Object.fromEntries([
   'set-state-in-effect',
 ].map((r) => [`react-hooks/${r}`, 'off']));
 
 // SocketContext ne se modifie pas sans validation explicite (CLAUDE.md) : ses
 // écarts aux règles React Compiler (refs recopiées au rendu) restent en l'état
-// et seules ces règles-là y sont coupées, pour ce seul fichier.
+// et seules ces règles-là y sont coupées, pour ce seul fichier. Il a aussi
+// trois setState d'effet : y ajouter `set-state-in-effect` le jour où elle
+// sera réactivée ailleurs.
 const SOCKET_CONTEXT_RULES_OFF = Object.fromEntries([
   'refs',
 ].map((r) => [`react-hooks/${r}`, 'off']));

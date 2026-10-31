@@ -39,6 +39,8 @@ export function OfflineBanner() {
     (connectionStatus === 'disconnected' || connectionStatus === 'reconnecting');
   // Coupure socket confirmée (a duré plus de SOCKET_DOWN_DELAY_MS).
   const [socketDown, setSocketDown] = useState(false);
+  // Socket revenu : la coupure n'est plus confirmée (remise à zéro au rendu).
+  if (!socketDownRaw && socketDown) setSocketDown(false);
   const socketTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (socketDownRaw) {
@@ -47,18 +49,18 @@ export function OfflineBanner() {
       }
     } else {
       if (socketTimerRef.current) { clearTimeout(socketTimerRef.current); socketTimerRef.current = null; }
-      setSocketDown(false);
     }
     return () => { if (socketTimerRef.current) { clearTimeout(socketTimerRef.current); socketTimerRef.current = null; } };
   }, [socketDownRaw]);
   const prevSocketDownRef = useRef(false);
 
   const bannerActive = !isOnline || socketDown;
+  // Monté dès que le bandeau doit paraître (au rendu) ; démonté en fin de sortie.
+  if (bannerActive && !offlineVisible) setOfflineVisible(true);
 
   // Slide down quand offline / socket down, unmount quand tout est rétabli
   useEffect(() => {
     if (bannerActive) {
-      setOfflineVisible(true);
       slideY.set(withSpring(0, SHEET_SPRING));
     } else {
       // Sortie sur le même ressort que l'entrée, depuis la position courante.

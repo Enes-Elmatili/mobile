@@ -25,12 +25,11 @@ const GRACE_MS = 2500;
  */
 export function useGoogleAuthDiagnostic(googleRequest: unknown): string | null {
   const [error, setError] = useState<string | null>(null);
+  // La requête est là : plus rien à diagnostiquer (remise à zéro au rendu).
+  if (googleRequest && error !== null) setError(null);
 
   useEffect(() => {
-    if (googleRequest) {
-      setError(null);
-      return;
-    }
+    if (googleRequest) return;
     let cancelled = false;
 
     const timer = setTimeout(async () => {

@@ -34,17 +34,16 @@ export default function ResetPassword() {
   const [confirm, setConfirm] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [validating, setValidating] = useState(true);
+  const [checking, setChecking] = useState(true);
+  // Sans jeton il n'y a rien à valider : dérivé au rendu plutôt que posé par l'effet.
+  const validating = !!token && checking;
   const [tokenValid, setTokenValid] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const confirmRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
-    if (!token) {
-      setValidating(false);
-      return;
-    }
+    if (!token) return;
     (async () => {
       try {
         const res = await api.auth.validateResetToken(token);
@@ -52,7 +51,7 @@ export default function ResetPassword() {
       } catch {
         setTokenValid(false);
       } finally {
-        setValidating(false);
+        setChecking(false);
       }
     })();
   }, [token]);

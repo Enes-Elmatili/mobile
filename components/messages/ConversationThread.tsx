@@ -94,7 +94,8 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
   // Auto-scroll uniquement si l'utilisateur est déjà proche du bas de la liste
   const isNearBottomRef = useRef(true);
 
-  const [contactName, setContactName] = useState<string | null>(name || null);
+  // Nom fourni, sinon cache module partagé avec la boîte de réception (lu au montage).
+  const [contactName, setContactName] = useState<string | null>(() => name || (userId ? contactNameCacheGet(userId) : null) || null);
   const headerName = cleanName(contactName, { fallback: displayLabel(userId ?? '') });
 
   // ── Conversation open/closed state (tied to an active Request between users)
@@ -106,9 +107,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
   // Contact name — use module-level cache shared with inbox
   useEffect(() => {
     if (contactName || !userId) return;
-    // Check inbox's module-level cache first (imported from index)
-    const cached = contactNameCacheGet(userId);
-    if (cached) { setContactName(cached); return; }
+    // Cache module déjà consulté à l'initialisation de l'état : reste le réseau.
     api.messages.contactInfo(userId).then((res) => {
       const n = res?.data?.name;
       if (n) { setContactName(n); contactNameCacheSet(userId, n); }

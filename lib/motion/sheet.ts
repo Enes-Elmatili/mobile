@@ -11,7 +11,7 @@
 // spring du tout, et aucun handoff possible.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { feedback } from '@/lib/feedback/feedback';
 
@@ -79,16 +79,15 @@ const setReducedNow = (v: boolean) => {
 AccessibilityInfo.isReduceMotionEnabled?.().then(setReducedNow).catch(() => {});
 AccessibilityInfo.addEventListener?.('reduceMotionChanged', setReducedNow);
 
-/** État OS du réglage « Réduire les animations ». */
+const subscribeReduced = (onChange: () => void) => {
+  reducedListeners.add(onChange);
+  return () => { reducedListeners.delete(onChange); };
+};
+const getReduced = () => reducedNow;
+
+/** État OS du réglage « Réduire les animations » (magasin externe au module). */
 export function useReduceMotion(): boolean {
-  const [reduced, setReduced] = useState(reducedNow);
-  useEffect(() => {
-    reducedListeners.add(setReduced);
-    if (reduced !== reducedNow) setReduced(reducedNow);
-    return () => { reducedListeners.delete(setReduced); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- abonnement unique au montage
-  }, []);
-  return reduced;
+  return useSyncExternalStore(subscribeReduced, getReduced, getReduced);
 }
 
 export type SpringConfig = { damping: number; stiffness: number; mass: number };

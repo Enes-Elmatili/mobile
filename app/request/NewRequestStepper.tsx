@@ -272,10 +272,10 @@ export default function NewRequestStepper() {
 
   // Le rail est toujours posé sur une catégorie : celle demandée par le
   // paramètre `selectedCategory` (CTA « Demander » depuis une fiche), sinon la première.
-  useEffect(() => {
-    if (categories.length === 0 || categoryId !== null) return;
+  // Posé au rendu dès que les catégories arrivent (pas d'effet en cascade).
+  if (categories.length > 0 && categoryId === null) {
     setCategoryId(pickInitialCategory(categories, preselectedCategory).id);
-  }, [categories, categoryId, preselectedCategory]);
+  }
 
   const goNext = () => {
     feedback.haptic('medium');

@@ -419,8 +419,10 @@ export default function MissionView() {
   // Démontée une fois rangée : caché, le fil marquerait lus des messages
   // que personne ne voit.
   const [chatMounted, setChatMounted] = useState(false);
+  // Montée dès l'ouverture (au rendu) ; démontée 450 ms après la fermeture.
+  if (chatOpen && !chatMounted) setChatMounted(true);
   useEffect(() => {
-    if (chatOpen) { setChatMounted(true); return; }
+    if (chatOpen) return;
     const t = setTimeout(() => setChatMounted(false), 450);
     return () => clearTimeout(t);
   }, [chatOpen]);

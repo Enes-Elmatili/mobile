@@ -35,13 +35,12 @@ export function useConversationUnread(
 ) {
   const [count, setCount] = useState(0);
   const { socket } = useSocket();
+  // Sans les deux interlocuteurs, pas de compteur (remise à zéro au rendu).
+  if ((!peerUserId || !currentUserId) && count !== 0) setCount(0);
 
   // ── Initial fetch ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!peerUserId || !currentUserId) {
-      setCount(0);
-      return;
-    }
+    if (!peerUserId || !currentUserId) return;
     let cancelled = false;
     (async () => {
       try {
