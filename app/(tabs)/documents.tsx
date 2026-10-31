@@ -112,7 +112,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
 
   const number = invoice.number ? `#${invoice.number}` : `#INV-${String(invoice.id).slice(-4).toUpperCase()}`;
   const date = new Date(invoice.issuedAt).toLocaleDateString(i18n.language || 'fr-FR', { day: 'numeric', month: 'short' });
-  const service = (invoice as any).request?.serviceType || t('ext.invoice_service_default');
+  const service = invoice.request?.serviceType || t('ext.invoice_service_default');
 
   return (
     <PressScale accessibilityRole="button" style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress}>

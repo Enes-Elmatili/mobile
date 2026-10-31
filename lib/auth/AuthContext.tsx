@@ -11,22 +11,10 @@ import React, {
 import { api, tokenStorage } from '../api';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 
-type Role = 'ADMIN' | 'PROVIDER' | 'CLIENT';
+import type { AuthUser } from '../types';
 
-type UserData = {
-  id: string;
-  email: string;
-  name?: string;
-  phone?: string;
-  address?: string;
-  postalCode?: string;
-  city?: string;
-  bio?: string;
-  authProvider?: string; // "email" | "apple" | "google"
-  emailVerified?: boolean;
-  roles: Role[];
-  providerStatus?: string; // PENDING | ACTIVE | REJECTED | SUSPENDED
-};
+/** Profil de /auth/me (lib/types/user.ts). */
+type UserData = AuthUser;
 
 type AuthState = {
   isBooting: boolean;
@@ -96,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userData && userData.email && userData.id && Array.isArray(userData.roles)) {
         setUser(userData);
         devLog('✅ USER LOADED:', userData.email, 'Roles:', userData.roles);
-        return userData as UserData;
+        return userData;
       } else {
         devWarn('⚠️ ME response sans user valide. userData:', userData);
         await signOutRef.current();

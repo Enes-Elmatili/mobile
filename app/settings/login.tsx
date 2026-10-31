@@ -22,7 +22,7 @@ export default function LoginSettings() {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const provider = (user as any)?.authProvider as string | undefined;
+  const provider = user?.authProvider;
   const isEmail = !provider || provider === 'email';
   const [pwd, setPwd] = useState<{ current: string; next: string; confirm: string }>({ current: '', next: '', confirm: '' });
   const [field, setField] = useState<FieldSpec | null>(null);
@@ -64,7 +64,7 @@ export default function LoginSettings() {
         <CascadeItem index={0}>
         <SectionHead title={t('account.login_method')} />
         <Group>
-          <Row first icon={provider === 'apple' ? 'smartphone' : provider === 'google' ? 'globe' : 'mail'} title={provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : t('account.login_email')} sub={(user as any)?.email || ''} chevron={false} />
+          <Row first icon={provider === 'apple' ? 'smartphone' : provider === 'google' ? 'globe' : 'mail'} title={provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : t('account.login_email')} sub={user?.email || ''} chevron={false} />
         </Group>
         </CascadeItem>
         {isEmail ? (

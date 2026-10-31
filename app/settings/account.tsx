@@ -28,10 +28,10 @@ export default function AccountSettings() {
   const [prov, setProv] = useState<{ description?: string | null; vatNumber?: string | null } | null>(null);
   useEffect(() => {
     if (!isProvider) return;
-    api.providers.me().then((res: any) => { const p = res?.provider ?? res?.data?.provider ?? res?.data ?? res; if (p) setProv({ description: p.description ?? null, vatNumber: p.vatNumber ?? null }); }).catch(() => {});
+    api.providers.me().then((res) => { const p = res?.provider ?? res?.data?.provider ?? res?.data ?? res; if (p) setProv({ description: p.description ?? null, vatNumber: p.vatNumber ?? null }); }).catch(() => {});
   }, [isProvider]);
 
-  const u = user as any;
+  const u = user;
   const values: Record<Key, string> = {
     name: u?.name || '', phone: u?.phone || '', city: u?.city || '',
     description: prov?.description || '', vatNumber: prov?.vatNumber || '',

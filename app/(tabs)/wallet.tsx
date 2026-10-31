@@ -14,6 +14,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
 import { useTabBarPadding } from './_layout';
 import { api } from '@/lib/api';
+import type { ConnectBalance } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -27,7 +28,6 @@ import { MoneySheet } from '@/components/gains/MoneySheet';
 import { PressScale } from '@/components/ui/PressScale';
 
 type Segment = 'missions' | 'payouts';
-type ConnectBalance = { needsOnboarding?: boolean; payoutsEnabled?: boolean; available?: number; pending?: number; lastPayout?: Payout | null; payouts?: Payout[]; payoutSchedule?: { interval: string; delayDays: number } | null; bank?: { last4: string; bankName?: string | null } | null };
 
 // ─── Cartes banque ───────────────────────────────────────────────────────────
 function BankCard({ icon, title, sub, onPress, accent }: { icon: React.ComponentProps<typeof Feather>['name']; title: string; sub?: string | null; onPress?: () => void; accent?: boolean }) {
@@ -86,15 +86,15 @@ export default function WalletTab() {
   const load = useCallback(async () => {
     const [tx, status, bal] = await Promise.allSettled([api.wallet.transactions(100), api.connect.status(), api.connect.balance()]);
     if (tx.status === 'fulfilled') {
-      const raw = tx.value as any;
+      const raw = tx.value;
       setTxs(Array.isArray(raw) ? raw : (raw?.transactions ?? raw?.data ?? []));
       setError(false);
     } else {
       devError('[Gains] txs', tx.reason);
       setError(true);
     }
-    if (status.status === 'fulfilled') setStripeReady(!!(status.value as any)?.isStripeReady);
-    if (bal.status === 'fulfilled') setConnect(bal.value as ConnectBalance);
+    if (status.status === 'fulfilled') setStripeReady(!!status.value?.isStripeReady);
+    if (bal.status === 'fulfilled') setConnect(bal.value);
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -110,12 +110,12 @@ export default function WalletTab() {
     setStripeBusy(true);
     const onboard = async () => {
       const Linking = await import('expo-linking');
-      const onb: any = await api.connect.onboarding(Linking.createURL('connect/success'), Linking.createURL('connect/reauth'));
+      const onb = await api.connect.onboarding(Linking.createURL('connect/success'), Linking.createURL('connect/reauth'));
       if (onb?.url) await WebBrowser.openBrowserAsync(onb.url);
       else feedback.error('ext.wallet_stripe_setup_failed');
     };
     try {
-      const res: any = await api.connect.dashboard();
+      const res = await api.connect.dashboard();
       if (res?.url && !res?.needsOnboarding) await WebBrowser.openBrowserAsync(res.url);
       else if (res?.url) await WebBrowser.openBrowserAsync(res.url);
       else await onboard();

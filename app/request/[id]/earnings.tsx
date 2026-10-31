@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { MOTION, useReduceMotion } from '@/lib/motion';
 import { DigitReel } from '@/components/ui/DigitReel';
 import { api } from '@/lib/api';
+import type { ServiceRequest, WalletBalance } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { feedback } from '@/lib/feedback/feedback';
 import { useInvoice } from '@/hooks/useInvoice';
@@ -31,8 +32,8 @@ export default function EarningsScreen() {
   const insets = useSafeAreaInsets();
   const reduced = useReduceMotion();
   const [loading, setLoading] = useState(true);
-  const [request, setRequest] = useState<any>(null);
-  const [wallet, setWallet] = useState<any>(null);
+  const [request, setRequest] = useState<ServiceRequest | null>(null);
+  const [wallet, setWallet] = useState<WalletBalance | null>(null);
   const [delayDays, setDelayDays] = useState(DEFAULT_PAYOUT_DELAY_DAYS);
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const { invoice } = useInvoice(id ? Number(id) : null);
@@ -50,10 +51,10 @@ export default function EarningsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [r, w, b] = await Promise.allSettled([api.get(`/requests/${id}`), api.wallet.balance(), api.connect.balance()]);
-      if (r.status === 'fulfilled') setRequest((r.value as any)?.data ?? r.value);
+      const [r, w, b] = await Promise.allSettled([api.requests.get(String(id)), api.wallet.balance(), api.connect.balance()]);
+      if (r.status === 'fulfilled') setRequest(r.value?.data ?? r.value);
       if (w.status === 'fulfilled') setWallet(w.value);
-      if (b.status === 'fulfilled' && (b.value as any)?.payoutSchedule?.delayDays != null) setDelayDays(Number((b.value as any).payoutSchedule.delayDays));
+      if (b.status === 'fulfilled' && b.value?.payoutSchedule?.delayDays != null) setDelayDays(Number(b.value.payoutSchedule.delayDays));
     } catch (e) {
       devError('[Earnings] load', e);
     } finally {

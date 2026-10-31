@@ -43,7 +43,7 @@ export default function NotificationsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res: any = await api.notifications.list();
+      const res = await api.notifications.list();
       setItems(res?.data ?? []);
       setNow(new Date());
     } catch (e) {

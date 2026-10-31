@@ -30,7 +30,7 @@ export const walletService = {
    * @param limit Nombre max de transactions à retourner (défaut : 50)
    */
   getTransactions: async (limit = 50): Promise<WalletTransaction[]> => {
-    const { data } = await apiClient.get<any>(`/wallet/txs?limit=${limit}`);
+    const { data } = await apiClient.get<WalletTransaction[] | { transactions?: WalletTransaction[] }>(`/wallet/txs?limit=${limit}`);
     return Array.isArray(data) ? data : data?.transactions ?? [];
   },
 
@@ -38,7 +38,7 @@ export const walletService = {
 
   /** GET /wallet/withdraws — historique des demandes de retrait */
   getWithdrawHistory: async (): Promise<WithdrawRequest[]> => {
-    const { data } = await apiClient.get<any>('/wallet/withdraws');
+    const { data } = await apiClient.get<WithdrawRequest[] | { withdraws?: WithdrawRequest[] }>('/wallet/withdraws');
     return Array.isArray(data) ? data : data?.withdraws ?? [];
   },
 };

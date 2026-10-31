@@ -9,7 +9,9 @@
 
 export type ProviderDocStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ProviderStatus    = 'ONLINE' | 'READY' | 'OFFLINE' | 'BUSY';
-export type RequestStatus     = 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE' | 'CANCELLED' | 'PENDING_PAYMENT';
+// Statuts de demande : une seule source, lib/types/request.ts.
+export type { RequestStatus } from '../types/request';
+import type { RequestStatus } from '../types/request';
 export type WalletTxType      = 'CREDIT' | 'DEBIT' | 'HOLD' | 'RELEASE';
 export type WithdrawStatus    = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
 export type TicketStatus      = 'OPEN' | 'IN_PROGRESS' | 'CLOSED';

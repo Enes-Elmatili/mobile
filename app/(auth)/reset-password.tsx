@@ -47,7 +47,7 @@ export default function ResetPassword() {
     }
     (async () => {
       try {
-        const res: any = await api.auth.validateResetToken(token);
+        const res = await api.auth.validateResetToken(token);
         setTokenValid(!!res?.valid);
       } catch {
         setTokenValid(false);

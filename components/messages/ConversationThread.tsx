@@ -109,7 +109,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
     // Check inbox's module-level cache first (imported from index)
     const cached = contactNameCacheGet(userId);
     if (cached) { setContactName(cached); return; }
-    api.messages.contactInfo(userId).then((res: any) => {
+    api.messages.contactInfo(userId).then((res) => {
       const n = res?.data?.name;
       if (n) { setContactName(n); contactNameCacheSet(userId, n); }
     }).catch((e: any) => devError('[Chat] contactInfo failed:', e?.message));

@@ -69,7 +69,7 @@ export default function OnboardingDocuments() {
           categoryNames.map(async (name) => {
             const slug = toSlug(name);
             try {
-              const res: any = await api.providerDocs.config(slug);
+              const res = await api.providerDocs.config(slug);
               const requiredDocs: { key: string; label: string; mandatory: boolean }[] = res?.requiredDocs ?? [];
               for (const doc of requiredDocs) {
                 if (!seenKeys.has(doc.key)) {
@@ -84,7 +84,7 @@ export default function OnboardingDocuments() {
 
       // Pièces déjà envoyées (retour sur l'écran, rejet admin…) — statut serveur
       try {
-        const res: any = await api.providerDocs.list();
+        const res = await api.providerDocs.list();
         const docs: { docKey: string; status: string; rejectionReason?: string | null }[] = res?.documents ?? [];
         const byKey: ServerDocState = {};
         for (const d of docs) {

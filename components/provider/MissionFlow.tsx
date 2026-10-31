@@ -19,6 +19,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { tokenStorage } from '@/lib/storage';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
@@ -59,7 +60,7 @@ export type MissionFacts = {
 type Props = {
   requestId: string;
   /** La demande déjà connue (fiche acceptée) : la feuille se pose sans attendre le serveur. */
-  seed?: any | null;
+  seed?: ServiceRequest | null;
   /** Haut de la zone libre sous la rangée du haut et l'étiquette : la feuille ne monte pas au-delà. */
   topInset: number;
   myLocation: LatLng | null;
@@ -83,7 +84,7 @@ async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', i
   if (coords) { formData.append('latitude', String(coords.latitude)); formData.append('longitude', String(coords.longitude)); }
   const response = await fetch(url, { method: 'POST', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(__DEV__ ? { 'ngrok-skip-browser-warning': 'true' } : {}) }, body: formData });
   const text = await response.text();
-  let data: any;
+  let data: { photoUrl: string; code?: string; message?: string; error?: { message?: string } };
   try { data = JSON.parse(text); } catch { throw Object.assign(new Error('INVALID_RESPONSE'), { status: response.status, code: 'INVALID_RESPONSE' }); }
   if (!response.ok) throw Object.assign(new Error(data?.error?.message || data?.message || `HTTP ${response.status}`), { status: response.status, data, code: data?.code });
   return data.photoUrl;
@@ -97,7 +98,7 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   const { user: authUser } = useAuth();
 
   // ─── La demande et les faits du terrain ──────────────────────────────────
-  const [request, setRequest] = useState<any>(seed);
+  const [request, setRequest] = useState<ServiceRequest | null>(seed);
   const [gpsAt, setGpsAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [beforeUri, setBeforeUri] = useState<string | null>(null);
@@ -140,7 +141,7 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   // ─── Charger ─────────────────────────────────────────────────────────────
   const loadRequest = useCallback(async (attempt = 0) => {
     try {
-      const response: any = await api.get(`/requests/${id}`);
+      const response = await api.requests.get(String(id));
       const data = response?.data || response;
       const st = (data?.status || '').toUpperCase();
       if (['PUBLISHED', 'PENDING', 'QUOTE_PENDING'].includes(st)) {
@@ -159,13 +160,14 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
         const minutesUntilStart = Math.round((new Date(data.preferredTimeStart).getTime() - Date.now()) / 60_000);
         if (minutesUntilStart > 30) { router.push({ pathname: '/request/[id]/early', params: { id: String(id) } }); onExit('gone'); return; }
       }
-      if (data.beforePhotoUrl) setBeforeUri((cur) => cur ?? data.beforePhotoUrl);
-      if (data.afterPhotoUrl) setAfterUri((cur) => cur ?? data.afterPhotoUrl);
+      const { beforePhotoUrl, afterPhotoUrl } = data;
+      if (beforePhotoUrl) setBeforeUri((cur) => cur ?? beforePhotoUrl);
+      if (afterPhotoUrl) setAfterUri((cur) => cur ?? afterPhotoUrl);
       if (data.pinVerified) setPinVerified(true);
       setRequest(data);
       if (isQuoteMode(data.pricingMode)) {
         try {
-          const qRes: any = await api.get(`/quotes/request/${id}`);
+          const qRes = await api.quotes.forRequest(id);
           const q = qRes?.quotes?.[0];
           if (q) { setHasQuote(true); setQuoteAmount(q.totalAmount != null ? q.totalAmount / 100 : null); }
         } catch { /* pas encore de devis */ }
@@ -312,7 +314,7 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
     try {
       await api.post(`/requests/${id}/verify-pin`, { pin });
       setPinVerified(true);
-      setRequest((p: any) => (p ? { ...p, status: 'ONGOING', startedAt: p.startedAt ?? new Date().toISOString() } : p));
+      setRequest((p) => (p ? { ...p, status: 'ONGOING', startedAt: p.startedAt ?? new Date().toISOString() } : p));
       feedback.haptic('success');
     } catch (error: any) {
       const code = error?.data?.code;
@@ -381,7 +383,8 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
 
   let content: React.ReactNode = null;
   let footer: React.ReactNode = null;
-  if (brief) {
+  // `brief` vient de `request` (useMemo) : les deux sont posés ensemble.
+  if (brief && request) {
     switch (stage) {
       case 'en_route':
         content = (

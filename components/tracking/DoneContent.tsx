@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Reanimated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
 import { feedback } from '@/lib/feedback/feedback';
@@ -92,7 +93,7 @@ function ChipButton({ chip, selected, onPress }: { chip: Chip; selected: boolean
 
 
 type Props = {
-  request: any;
+  request: ServiceRequest;
   /** Sous la barre de statut quand le bloc occupe tout l'écran. */
   topInset?: number;
 };

@@ -37,7 +37,7 @@ export default function RequestDispatcher() {
     }
     setError(false);
     try {
-      const res: any = await api.requests.get(String(id));
+      const res = await api.requests.get(String(id));
       const req = res?.data ?? res;
       // Client de la demande → résolution client ; sinon prestataire assigné/candidat.
       const asProvider = !!user?.roles?.includes('PROVIDER') && req?.clientId !== user?.id;

@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { SavedAddress } from '@/lib/types';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
@@ -20,8 +21,8 @@ export default function AddressesSettings() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { t } = useTranslation();
-  const [addresses, setAddresses] = useState<any[]>([]);
-  useEffect(() => { api.addresses.list().then((res: any) => setAddresses(Array.isArray(res) ? res : res?.data || [])).catch(() => {}); }, []);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  useEffect(() => { api.addresses.list().then((res) => setAddresses(Array.isArray(res) ? res : res?.data || [])).catch(() => {}); }, []);
   const remove = useCallback(async (id: number) => {
     const ok = await feedback.confirm({ titleKey: 'addresses.delete_confirm', confirmKey: 'common.delete', cancelKey: 'common.cancel', destructive: true });
     if (!ok) return;

@@ -4,48 +4,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { devLog, devWarn } from '@/lib/logger';
+import type { Invoice } from '@/lib/types';
 
-export interface InvoiceItem {
-  label: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
-
-export interface Invoice {
-  id: string;
-  number: string;
-  amount: number;
-  currency: string;
-  status: 'PENDING' | 'PAID' | 'CANCELLED';
-  issuedAt: string;
-  requestId: number;
-  userId: string;
-  contractId?: string;
-  breakdown?: {
-    items?: InvoiceItem[];
-    subtotal?: number;
-    taxRate?: number;
-    taxAmount?: number;
-    total?: number;
-    paymentMethod?: 'card' | 'cash';
-    providerEarnings?: number;
-    platformFee?: number;
-    estimatedPayout?: string;
-  };
-  request?: {
-    id: number;
-    serviceType?: string;
-    description?: string;
-    price?: number;
-    address?: string;
-    createdAt?: string;
-    completedAt?: string;
-    client?: { id: string; name?: string; email?: string };
-    provider?: { id: string; name?: string };
-  };
-  file?: { url: string } | null;
-}
+// Les formes vivent dans lib/types (contrat serveur) ; ré-exportées pour les appelants.
+export type { Invoice, InvoiceItem } from '@/lib/types';
 
 interface UseInvoiceReturn {
   invoice: Invoice | null;

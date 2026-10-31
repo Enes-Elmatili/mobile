@@ -9,13 +9,14 @@ import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { tokenStorage } from '@/lib/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { showSocketToast } from '@/lib/SocketContext';
+import type { AuthUser } from '@/lib/types';
 
 const avatarKey = (userId: string) => `@fixed:profile:avatarUri:${userId}`;
 
-export function useAvatar(user: any, refreshMe: () => Promise<unknown>) {
+export function useAvatar(user: Pick<AuthUser, 'id' | 'avatarUrl'> | null, refreshMe: () => Promise<unknown>) {
   const { t } = useTranslation();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
-  const avatarUrlProp: string | undefined = (user as any)?.avatarUrl;
+  const avatarUrlProp: string | null | undefined = user?.avatarUrl;
 
   // ── Chargement avatar : URL serveur en priorité (source de vérité) ──
   // Stratégie : on privilégie l'URL serveur car les `file://` locaux cachés peuvent
@@ -24,7 +25,7 @@ export function useAvatar(user: any, refreshMe: () => Promise<unknown>) {
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
-      const rawApiUrl = (user as any)?.avatarUrl;
+      const rawApiUrl = user?.avatarUrl;
       const apiUri = resolveAvatarUrl(rawApiUrl);
       devLog('[Avatar] Init useEffect — user.avatarUrl:', rawApiUrl, '→ resolved:', apiUri);
       if (apiUri) {

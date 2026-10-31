@@ -13,6 +13,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { ProviderSummary } from '@/lib/types';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
@@ -20,19 +21,7 @@ import { PressScale } from '@/components/ui/PressScale';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Provider {
-  id: string;
-  name?: string;
-  avatarUrl?: string | null;
-  city?: string;
-  avgRating?: number;
-  jobsCompleted?: number;
-  status?: string;
-  lat?: number;
-  lng?: number;
-  categories?: { id: number; name: string }[];
-  distance?: number;
-}
+type Provider = ProviderSummary;
 
 // ── Radius options (in km / meters) ──────────────────────────────────────────
 
@@ -148,7 +137,7 @@ export default function ExploreScreen() {
     setLoading(true);
     try {
       // /providers/nearby lit un rayon en km (plafonné à 50 côté serveur).
-      const res: any = await api.providers.nearby(lat, lng, radiusM / 1000);
+      const res = await api.providers.nearby(lat, lng, radiusM / 1000);
       // La route renvoie { success, providers } — `data` n'a jamais existé ici.
       const list = res?.providers ?? res?.data ?? res;
       setProviders(Array.isArray(list) ? list : []);

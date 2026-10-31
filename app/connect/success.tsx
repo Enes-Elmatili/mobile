@@ -13,7 +13,7 @@ export default function StripeConnectSuccess() {
   useEffect(() => {
     async function checkStatus() {
       try {
-        const res: any = await api.connect.status();
+        const res = await api.connect.status();
         if (res?.isStripeReady) {
           router.replace('/(tabs)/dashboard');
         } else {

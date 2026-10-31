@@ -23,6 +23,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useStripe } from "@stripe/stripe-react-native";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
+import type { Quote, ServiceRequest } from '@/lib/types';
 import { useAppTheme, FONTS, COLORS, alpha } from "@/hooks/use-app-theme";
 import Avatar from "@/components/ui/Avatar";
 import { ProviderRow } from "@/components/tracking";
@@ -131,8 +132,8 @@ export default function QuoteReview() {
   const callParty = useCallParty();
 
   const [loading, setLoading] = useState(true);
-  const [quote, setQuote] = useState<any>(null);
-  const [request, setRequest] = useState<any>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [requestStatus, setRequestStatus] = useState<string>("");
   const [accepting, setAccepting] = useState(false);
   const [refusing, setRefusing] = useState(false);
@@ -183,7 +184,7 @@ export default function QuoteReview() {
   const load = useCallback(async (opts?: { silent?: boolean }): Promise<string | null> => {
     if (!id) return null;
     try {
-      const reqRes: any = await api.requests.get(String(id));
+      const reqRes = await api.requests.get(String(id));
       const request = reqRes?.data || reqRes;
       if (!request || request.clientId !== user?.id) {
         if (!opts?.silent) {
@@ -201,7 +202,7 @@ export default function QuoteReview() {
         return status;
       }
 
-      const res: any = await api.get(`/quotes/request/${id}`);
+      const res = await api.quotes.forRequest(id);
       const latest = res?.quotes?.[0];
       if (latest) setQuote(latest);
       return status;
@@ -257,7 +258,7 @@ export default function QuoteReview() {
         return;
       }
 
-      const res: any = await api.quotes.accept(quote.id);
+      const res = await api.quotes.accept(quote.id);
 
       if (res.paymentIntent) {
         const { error: initError } = await initPaymentSheet({
@@ -312,7 +313,7 @@ export default function QuoteReview() {
     feedback.haptic('medium');
     setRefusing(true);
     try {
-      await api.post(`/quotes/${quote.id}/refuse`, { reason: refuseReason || undefined });
+      await api.quotes.refuse(quote.id, refuseReason || undefined);
       feedback.haptic('warning');
       setShowRefuseInput(false);
       router.replace("/(tabs)/dashboard");
@@ -619,7 +620,7 @@ export default function QuoteReview() {
             <View style={s.providerMeta}>
               <Feather name="star" size={11} color={theme.textSub} />
               <Text style={[s.providerMetaText, { color: theme.textSub }]}>
-                {provider.avgRating > 0 ? Number(provider.avgRating).toFixed(1) : '—'}
+                {(provider.avgRating ?? 0) > 0 ? Number(provider.avgRating).toFixed(1) : '—'}
               </Text>
               <Text style={[s.providerMetaText, { color: theme.textVeryMuted }]}>·</Text>
               <Text style={[s.providerMetaText, { color: theme.textSub }]} numberOfLines={1}>

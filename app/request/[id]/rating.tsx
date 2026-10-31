@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { resolveRequestDestination, navigateToDestination } from '@/lib/requestDestination';
 import { showSocketToast } from '@/lib/SocketContext';
@@ -22,14 +23,14 @@ export default function DoneScreen() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [request, setRequest] = useState<any>(null);
+  const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError(false);
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.requests.get(String(id));
       const req = res?.data || res;
       // On ne note que si la mission est terminée et pas encore notée : une
       // notif tardive ne doit jamais rouvrir un formulaire vierge.

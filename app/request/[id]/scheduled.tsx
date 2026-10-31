@@ -24,6 +24,7 @@ import { useCallParty } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useSocket } from '@/lib/SocketContext';
 import { devError } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
@@ -72,7 +73,7 @@ export default function ScheduledConfirmation() {
   const [calloutFee, setCalloutFee] = useState<string>(params.calloutFee || '');
   const [providerName, setProviderName] = useState<string>('');
   // La demande complète : bloc prestataire (message, appel) et photos du récap.
-  const [requestData, setRequestData] = useState<any>(null);
+  const [requestData, setRequestData] = useState<ServiceRequest | null>(null);
   const [isAccepted, setIsAccepted] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(isRecapMode);
   const [cancelling, setCancelling] = useState<boolean>(false);
@@ -88,7 +89,7 @@ export default function ScheduledConfirmation() {
   const fetchRequest = useCallback(async () => {
     if (!id) return;
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.requests.get(String(id));
       const r = res?.data || res;
       if (!r) return;
 
@@ -231,6 +232,9 @@ export default function ScheduledConfirmation() {
     );
   }
 
+  // Le prestataire engagé, s'il est connu (lu une fois pour les rappels ci-dessous).
+  const engaged = requestData?.provider;
+
   return (
     <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
@@ -305,13 +309,13 @@ export default function ScheduledConfirmation() {
                 </Text>
               </View>
               {/* Le prestataire engagé : on peut lui écrire ou l'appeler avant le jour J. */}
-              {requestData?.provider ? (
+              {engaged ? (
                 <View style={{ marginTop: 12 }}>
                   <ProviderRow
-                    provider={requestData.provider}
-                    onOpenProfile={() => router.push(`/providers/${requestData.provider.id}`)}
-                    onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(requestData.provider.userId || requestData.provider.id), name: providerName, requestId: String(id) } })}
-                    onCall={() => callParty({ userId: requestData.provider.userId, name: providerName, requestId: id })}
+                    provider={engaged}
+                    onOpenProfile={() => router.push(`/providers/${engaged.id}`)}
+                    onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(engaged.userId || engaged.id), name: providerName, requestId: String(id) } })}
+                    onCall={() => callParty({ userId: engaged.userId, name: providerName, requestId: id })}
                   />
                 </View>
               ) : null}

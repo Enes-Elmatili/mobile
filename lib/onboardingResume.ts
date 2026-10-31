@@ -9,7 +9,7 @@ import { fetchProviderTrades } from './providerOnboarding';
 import { firstIncompleteStep, STEP_ROUTES, type OnboardingStep } from './onboardingSteps';
 
 export async function loadOnboardingState() {
-  const [trades, meRes, docsRes, stripeRes]: any[] = await Promise.all([
+  const [trades, meRes, docsRes, stripeRes] = await Promise.all([
     fetchProviderTrades().catch(() => ({ names: [], city: null, known: false })),
     api.providers.me().catch(() => null),
     api.providerDocs.list().catch(() => null),

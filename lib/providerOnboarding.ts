@@ -69,13 +69,13 @@ export async function fetchProviderTrades(): Promise<ProviderTrades> {
   let city: string | null = null;
 
   try {
-    const res: any = await api.providers.me();
+    const res = await api.providers.me();
     const provider = res?.provider;
     if (provider?.city) city = String(provider.city);
     const cats = provider?.categories;
     if (Array.isArray(cats)) {
       return {
-        names: cats.map((c: any) => c?.name).filter(Boolean),
+        names: cats.map((c) => c?.name).filter(Boolean),
         city,
         known: true,
       };

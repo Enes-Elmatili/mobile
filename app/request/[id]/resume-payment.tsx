@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
@@ -69,7 +70,7 @@ export default function ResumePayment() {
   const { user } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
-  const [request, setRequest] = useState<any>(null);
+  const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentReady, setPaymentReady] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -81,7 +82,7 @@ export default function ResumePayment() {
     if (!id || !user?.id) return;
     (async () => {
       try {
-        const res: any = await api.requests.get(String(id));
+        const res = await api.requests.get(String(id));
         const req = res?.data || res;
 
         // Guard: ownership + status
@@ -110,24 +111,26 @@ export default function ResumePayment() {
         let initOptions: Parameters<typeof initPaymentSheet>[0];
 
         if (isQuoteFlow) {
-          const calloutRes = await api.post('/quotes/callout-payment', { requestId: String(id) });
+          const calloutRes = await api.quotes.calloutPayment(String(id));
           if (!mountedRef.current) return;
           initOptions = {
             merchantDisplayName: 'Fixed',
-            paymentIntentClientSecret: calloutRes.clientSecret,
+            // Pas de code promo sur cet écran : jamais « covered », le secret est posé.
+            paymentIntentClientSecret: calloutRes.clientSecret as string,
             applePay: { merchantCountryCode: 'BE' },
             googlePay: { merchantCountryCode: 'BE', testEnv: false },
             paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
           };
         } else {
-          const setupRes: any = await api.payments.setup(String(id));
+          const setupRes = await api.payments.setup(String(id));
           if (!mountedRef.current) return;
           // Backend returns paymentIntentClientSecret (new) with legacy alias
           // setupIntentClientSecret during rollout — read whichever is present.
           const clientSecret = setupRes.paymentIntentClientSecret || setupRes.setupIntentClientSecret;
           initOptions = {
             merchantDisplayName: 'Fixed',
-            paymentIntentClientSecret: clientSecret,
+            // Le serveur pose toujours l'un des deux secrets (l'alias pendant la migration).
+            paymentIntentClientSecret: clientSecret as string,
             customerEphemeralKeySecret: setupRes.ephemeralKey,
             customerId: setupRes.customer,
             applePay: { merchantCountryCode: 'BE' },
@@ -229,7 +232,7 @@ export default function ResumePayment() {
   };
 
   const serviceName = request?.serviceType || request?.category?.name || t('common.service');
-  const price = request?.price ? formatEUR(parseFloat(request.price)) : null;
+  const price = request?.price ? formatEUR(parseFloat(String(request.price))) : null;
 
   return (
     <View style={s.root}>

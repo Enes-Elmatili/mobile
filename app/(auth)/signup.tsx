@@ -15,6 +15,7 @@ import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
+import type { AuthResponse, Category as CatalogCategory, Role } from '@/lib/types';
 import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
 import { useGoogleAuthDiagnostic } from "@/lib/useGoogleAuthDiagnostic";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -147,11 +148,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const CITY_OPTIONS = [{ value: "Bruxelles", label: "Bruxelles" }];
 
-interface Category {
-  id: number;
-  name: string;
-  icon?: string;
-}
+type Category = Pick<CatalogCategory, 'id' | 'name' | 'icon'>;
 
 type Phase = "identity" | "billing" | "zone" | "creating";
 
@@ -199,9 +196,9 @@ export default function Signup() {
   // Faute de le relire ici, une inscription sociale repartait de zéro : le
   // backend ne pose AUCUN rôle sur un compte social, l'app renvoyait donc sur
   // role-select et le prestataire devait re-choisir ce qu'il venait de choisir.
-  const routeAfterSocial = async (res: any) => {
-    let payload: any = res;
-    let roles: string[] = res?.roles ?? [];
+  const routeAfterSocial = async (res: AuthResponse) => {
+    let payload: AuthResponse = res;
+    let roles: Role[] = res?.roles ?? [];
 
     if (roles.length === 0) {
       const intent = await AsyncStorage.getItem(ROLE_INTENT_KEY).catch(() => null);
@@ -210,7 +207,7 @@ export default function Signup() {
         return;
       }
       try {
-        const assigned: any = await api.auth.assignRole(intent);
+        const assigned = await api.auth.assignRole(intent);
         if (assigned?.token) {
           await signIn(assigned.token, assigned.missingFields ?? []);
           await refreshMe();
@@ -359,9 +356,9 @@ export default function Signup() {
   const loadCategories = useCallback(() => {
     setCatsLoading(true);
     setCatsError(false);
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000));
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000));
     Promise.race([api.taxonomies.list(), timeout])
-      .then((res: any) => setCategories(res?.data ?? res ?? []))
+      .then((res) => setCategories(res?.data ?? res ?? []))
       .catch(() => {
         setCatsError(true);
         showToast(t('auth.su_err_cats_load'));

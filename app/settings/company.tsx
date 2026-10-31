@@ -53,9 +53,9 @@ export default function CompanyScreen() {
 
   const load = useCallback(async () => {
     const [me, list] = await Promise.all([api.providers.me().catch(() => null), api.providerDocs.list().catch(() => null)]);
-    const p = (me as any)?.provider ?? (me as any)?.data?.provider ?? (me as any)?.data ?? me;
+    const p = me?.provider ?? me?.data?.provider ?? me?.data ?? me;
     if (p) setCompany(p);
-    const d = (list as any)?.documents ?? (list as any)?.data ?? list;
+    const d = list?.documents ?? list?.data ?? list;
     if (Array.isArray(d)) setDocs(d);
     setLoading(false);
     setRefreshing(false);

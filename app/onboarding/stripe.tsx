@@ -98,7 +98,7 @@ export default function OnboardingStripe() {
     setLoading(true);
     try {
       // 1. S'assurer que le profil prestataire existe (peut manquer si signup classique)
-      const statusCheck: any = await api.connect.status().catch(() => null);
+      const statusCheck = await api.connect.status().catch(() => null);
       if (!statusCheck?.isProvider) {
         const raw = await AsyncStorage.getItem("onboarding_data");
         const data = raw ? JSON.parse(raw) : {};
@@ -106,7 +106,7 @@ export default function OnboardingStripe() {
         let userName = data.name || data.displayName || '';
         if (!userName) {
           try {
-            const me: any = await api.user.me();
+            const me = await api.user.me();
             userName = me?.name || me?.data?.name || me?.email || 'Prestataire';
           } catch { userName = 'Prestataire'; }
         }
@@ -129,15 +129,15 @@ export default function OnboardingStripe() {
       // 2. Ouvrir Stripe Connect onboarding
       const returnUrl = Linking.createURL("onboarding/provider/stripe-return");
       const refreshUrl = Linking.createURL("onboarding/provider/stripe-refresh");
-      const res: any = await api.connect.onboarding(returnUrl, refreshUrl);
-      const url: string = res?.url;
+      const res = await api.connect.onboarding(returnUrl, refreshUrl);
+      const url = res?.url;
       if (!url) throw new Error(t('onboarding.st_no_url'));
 
       const result = await WebBrowser.openAuthSessionAsync(url, returnUrl);
       if (__DEV__) console.log("AUTH SESSION RESULT:", JSON.stringify(result));
 
       // 3. Vérifier le statut après retour
-      const status: any = await api.connect.status();
+      const status = await api.connect.status();
       if (status?.isStripeReady) {
         feedback.success(t('onboarding.st_success'));
         AsyncStorage.removeItem("onboarding_data").catch(() => {});

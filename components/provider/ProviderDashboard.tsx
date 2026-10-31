@@ -26,6 +26,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, COLORS, alpha } from '@/hooks/use-app-theme';
@@ -84,7 +85,7 @@ interface IncomingRequest {
 }
 
 type CurrentMission = {
-  id: number; serviceType: string | null; status: string; address: string | null;
+  id: number; serviceType?: string | null; status: string; address?: string | null;
   clientName: string | null; lat: number | null; lng: number | null;
 };
 
@@ -254,7 +255,7 @@ export default function ProviderDashboard() {
   // Ce que la feuille de mission dit à l'accueil (stade, caméra, porte, hauteur).
   const [missionFacts, setMissionFacts] = useState<MissionFacts | null>(null);
   // L'amorce de la feuille de mission à l'acceptation : la demande reçue + la réponse du serveur.
-  const [missionSeed, setMissionSeed] = useState<any>(null);
+  const [missionSeed, setMissionSeed] = useState<ServiceRequest | null>(null);
   const [etaMin, setEtaMin] = useState<number | null>(null);
   const currentMissionRef = useRef<CurrentMission | null>(null);
   useEffect(() => { currentMissionRef.current = currentMission; }, [currentMission]);
@@ -361,25 +362,25 @@ export default function ProviderDashboard() {
       api.connect.balance(),
     ]);
 
-    const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
+    const dashData = results[2].status === 'fulfilled' ? results[2].value : null;
     setToday(dashData?.stats?.todayEarnings?.total || 0);
 
     if (results[0].status === 'rejected') devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
     if (results[2].status === 'rejected') devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
 
     if (results[4].status === 'fulfilled') {
-      const c = results[4].value as any;
+      const c = results[4].value;
       setConnect({ needsOnboarding: c?.needsOnboarding, payoutsEnabled: c?.payoutsEnabled });
     }
 
     // Mission active : ACCEPTED/ONGOING/QUOTE_SENT/QUOTE_ACCEPTED, non planifiée future.
     // On ouvre le re-entry dans la mission pour le provider qui revient sur le dashboard.
     if (results[3].status === 'fulfilled') {
-      const m = (results[3].value as any)?.items || [];
+      const m = results[3].value?.items || [];
       setMissions(m);
       const ACTIVE = ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
       const wanted = wantedMissionRef.current;
-      const found = (wanted ? m.find((r: any) => String(r.id) === wanted && ACTIVE.includes(r.status)) : null) || m.find((r: any) => {
+      const found = (wanted ? m.find((r) => String(r.id) === wanted && ACTIVE.includes(r.status)) : null) || m.find((r) => {
         if (!ACTIVE.includes(r.status)) return false;
         if (r.preferredTimeStart) {
           const startTs = new Date(r.preferredTimeStart).getTime();
@@ -391,7 +392,7 @@ export default function ProviderDashboard() {
       // pas encore reste en place : la retirer ferait clignoter la feuille.
       setCurrentMission((prev) => {
         if (found) return { id: found.id, serviceType: found.serviceType, status: found.status, address: found.address, clientName: found.client?.name ?? null, lat: found.lat ?? null, lng: found.lng ?? null };
-        if (prev && !m.some((r: any) => Number(r.id) === Number(prev.id))) return prev;
+        if (prev && !m.some((r) => Number(r.id) === Number(prev.id))) return prev;
         return null;
       });
     }
@@ -651,7 +652,7 @@ export default function ProviderDashboard() {
     (async () => {
       let available = false;
       try {
-        const res: any = await api.get(`/requests/${rid}`);
+        const res = await api.requests.get(rid);
         const r = res?.data ?? res;
         available = (r?.status === 'PUBLISHED' || r?.status === 'QUOTE_PENDING') && !r?.providerId;
       } catch { available = false; }
@@ -800,7 +801,7 @@ export default function ProviderDashboard() {
   const goMessages = useCallback(() => router.push('/messages'), [router]);
   const goNotifs = useCallback(() => router.push('/notifications'), [router]);
   // Ma photo sur ma carte : on se reconnaît. Stable tant que le profil ne change pas.
-  const meName = (user as any)?.name ?? null, meAvatar = (user as any)?.avatarUrl ?? null;
+  const meName = user?.name ?? null, meAvatar = user?.avatarUrl ?? null;
   const me = useMemo(() => ({ name: meName, avatarUrl: meAvatar }), [meName, meAvatar]);
 
   // ─── Le disque de la barre flottante : GO · stop · flèche vers la mission ──

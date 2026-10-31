@@ -49,7 +49,7 @@ export default function SendQuote() {
     setChecking(true);
     setLoadError(false);
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.requests.get(String(id));
       const data = res?.data || res;
       if (!data) { setLoadError(true); return; }
 

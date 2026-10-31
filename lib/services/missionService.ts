@@ -43,7 +43,7 @@ export const missionService = {
    * Le backend détecte le rôle via le JWT.
    */
   getMyRequests: async (): Promise<Request[]> => {
-    const { data } = await apiClient.get<any>('/requests');
+    const { data } = await apiClient.get<Request[] | { requests?: Request[] }>('/requests');
     return Array.isArray(data) ? data : data?.requests ?? [];
   },
 
@@ -87,7 +87,7 @@ export const missionService = {
 
   /** GET /providers/missions — missions actives du prestataire connecté */
   getMyMissions: async (): Promise<Request[]> => {
-    const { data } = await apiClient.get<any>('/providers/missions');
+    const { data } = await apiClient.get<Request[] | { missions?: Request[] }>('/providers/missions');
     return Array.isArray(data) ? data : data?.missions ?? [];
   },
 
@@ -100,7 +100,7 @@ export const missionService = {
    * @param radius Rayon en mètres (défaut : 5000 m)
    */
   getNearbyProviders: async (lat: number, lng: number, radius = 5000): Promise<Provider[]> => {
-    const { data } = await apiClient.get<any>(
+    const { data } = await apiClient.get<Provider[] | { providers?: Provider[] }>(
       `/providers/nearby?lat=${lat}&lng=${lng}&radius=${radius}`,
     );
     return Array.isArray(data) ? data : data?.providers ?? [];

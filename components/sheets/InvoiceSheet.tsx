@@ -46,7 +46,7 @@ interface InvoiceSheetProps {
   /** Provider name to display on the invoice */
   providerName?: string;
   /** Service type / title */
-  serviceTitle?: string;
+  serviceTitle?: string | null;
   /** Mission date */
   missionDate?: string;
   /** Mission duration (e.g. "2h30") */

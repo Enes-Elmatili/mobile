@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
@@ -43,7 +44,7 @@ export default function RequestsListScreen() {
     const key = STATUS_KEYS[(status || '').toUpperCase()];
     return key ? t(key) : (status || '');
   };
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const brandRefresh = useBrandRefresh();
@@ -74,7 +75,7 @@ export default function RequestsListScreen() {
     loadRequests();
   };
 
-  const renderRequest = ({ item }: any) => (
+  const renderRequest = ({ item }: { item: ServiceRequest }) => (
     <PressScale accessibilityRole="button"
       style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
       onPress={() => {
@@ -93,7 +94,7 @@ export default function RequestsListScreen() {
         <Text style={[styles.price, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
           {item.price && item.price > 0
             ? formatEUR(item.price)
-            : ((item as any).pricingMode === 'estimate' || (item as any).pricingMode === 'diagnostic')
+            : (item.pricingMode === 'estimate' || item.pricingMode === 'diagnostic')
               ? t('dashboard.badge_quote')
               : '—'}
         </Text>

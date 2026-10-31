@@ -14,6 +14,7 @@ import axios, {
 } from 'axios';
 import { tokenStorage } from '../storage';
 import { devLog, devWarn } from '../logger';
+import type { ApiError } from './types';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 if (!API_BASE_URL) {
@@ -50,7 +51,7 @@ apiClient.interceptors.response.use(
     devLog(`✅ ${response.config.method?.toUpperCase()} ${response.config.url}`);
     return response;
   },
-  async (error: AxiosError<any>) => {
+  async (error: AxiosError<{ error?: string; message?: string }>) => {
     const status  = error.response?.status;
     const payload = error.response?.data;
 
@@ -67,7 +68,7 @@ apiClient.interceptors.response.use(
       await tokenStorage.removeToken();
     }
 
-    const apiError: any = new Error(message);
+    const apiError: ApiError = new Error(message);
     apiError.status = status;
     apiError.data   = payload;
     throw apiError;

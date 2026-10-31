@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { Enveloped } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR } from '@/lib/format';
@@ -59,7 +60,7 @@ export default function EarlyScreen() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.get<Enveloped<MissionData>>(`/requests/${id}`);
       const data = res?.data || res;
       setMission(data);
     } catch (e) {

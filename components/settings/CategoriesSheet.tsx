@@ -26,7 +26,7 @@ async function loadCategories(): Promise<Cat[]> {
     const cached = await AsyncStorage.getItem('taxonomies_cache');
     if (cached) { const { data, ts } = JSON.parse(cached); if (Date.now() - ts < 24 * 60 * 60 * 1000) return data; }
   } catch { /* cache absent */ }
-  const res: any = await api.taxonomies.list();
+  const res = await api.taxonomies.list();
   const cats = res?.data ?? res ?? [];
   const arr = Array.isArray(cats) ? cats : [];
   AsyncStorage.setItem('taxonomies_cache', JSON.stringify({ data: arr, ts: Date.now() })).catch(() => {});

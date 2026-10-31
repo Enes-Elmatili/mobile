@@ -14,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
+import type { AuthResponse } from '@/lib/types';
 import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
 import { useGoogleAuthDiagnostic } from "@/lib/useGoogleAuthDiagnostic";
 import { routeAfterLogin } from "@/lib/providerGate";
@@ -159,7 +160,7 @@ export default function Login() {
   // dashboard complet. La règle vit dans lib/providerGate.ts (testée) ; ici on
   // ne fait que réunir les données — la réponse de login ne porte pas
   // providerStatus, /auth/me si.
-  const routeAfterAuth = async (res: any) => {
+  const routeAfterAuth = async (res: AuthResponse) => {
     const me = await refreshMe();
     const roles: string[] | undefined = Array.isArray(res?.roles) ? res.roles : me?.roles;
     router.replace(

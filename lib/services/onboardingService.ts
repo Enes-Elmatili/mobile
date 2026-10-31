@@ -16,7 +16,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from './apiClient';
-import type { Provider, CategoryDocConfig, QuizConfig, QuizSubmitResult } from './types';
+import type { Category, Provider, CategoryDocConfig, QuizConfig, QuizSubmitResult } from './types';
 
 // ── AsyncStorage key ──────────────────────────────────────────────────────────
 
@@ -112,8 +112,8 @@ export const onboardingService = {
   // ── Dynamic config (JSON-driven forms) ───────────────────────────────────────
 
   /** GET /categories — liste complète des catégories disponibles */
-  getCategories: async () => {
-    const { data } = await apiClient.get<any>('/categories');
+  getCategories: async (): Promise<Category[]> => {
+    const { data } = await apiClient.get<Category[] | { categories?: Category[] }>('/categories');
     return Array.isArray(data) ? data : data?.categories ?? [];
   },
 

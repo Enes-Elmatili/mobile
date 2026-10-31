@@ -140,7 +140,7 @@ export default function HelpScreen() {
 
   const loadTickets = async () => {
     try {
-      const res: any = await api.tickets.list();
+      const res = await api.tickets.list();
       const list = res?.data || res?.tickets || res;
       setTickets(Array.isArray(list) ? list : []);
       setTicketsError(false);

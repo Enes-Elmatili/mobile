@@ -45,7 +45,8 @@ export function useConversationUnread(
     let cancelled = false;
     (async () => {
       try {
-        const res: any = await api.messages.conversation(peerUserId, 1);
+        // Élargi aux formes enveloppées seules, pour que le test de tableau les garde.
+        const res: AnyMessage[] | { data?: AnyMessage[]; messages?: AnyMessage[] } = await api.messages.conversation(peerUserId, 1);
         if (cancelled) return;
         const list: AnyMessage[] = Array.isArray(res) ? res : (res?.data || res?.messages || []);
         const unread = list.filter(

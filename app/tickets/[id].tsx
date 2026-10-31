@@ -13,6 +13,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { api } from '@/lib/api';
+import type { Ticket, TicketEvent, TicketPriority, TicketStatus } from '@/lib/types';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
@@ -21,33 +22,7 @@ import { PressScale } from '@/components/ui/PressScale';
 
 const WHATSAPP_URL = 'https://wa.me/message/SXNKDKILPEFMO1';
 
-type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'CLOSED';
-type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH';
-
-type EventType = 'CREATED' | 'STATUS_CHANGED' | 'PRIORITY_CHANGED' | 'MESSAGE' | 'ASSIGNED' | 'RESOLVED' | 'REOPENED';
-
-interface TicketEvent {
-  id: string;
-  ticketId: string;
-  type: EventType;
-  payload?: any;
-  authorId?: string | null;
-  visibility?: string;
-  createdAt: string;
-}
-
-interface Ticket {
-  id: string;
-  userId: string;
-  requestId?: number | null;
-  title: string;
-  description: string;
-  status: TicketStatus;
-  priority: TicketPriority;
-  createdAt: string;
-  updatedAt?: string;
-  events?: TicketEvent[];
-}
+// Formes du contrat serveur : lib/types/ticket.ts.
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -154,7 +129,7 @@ export default function TicketDetailScreen() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const res: any = await api.tickets.get(id);
+      const res = await api.tickets.get(id);
       setTicket(res?.data || res);
     } catch (err) {
       devError('[ticket detail]', err);
@@ -171,7 +146,7 @@ export default function TicketDetailScreen() {
   useEffect(() => {
     if (!id) return;
     const t = setInterval(() => {
-      api.tickets.events(id).then((res: any) => {
+      api.tickets.events(id).then((res) => {
         const events = res?.data || res;
         if (Array.isArray(events) && ticket && events.length !== (ticket.events?.length ?? 0)) {
           load();

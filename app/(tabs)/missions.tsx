@@ -17,6 +17,7 @@ import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from 
 import Reanimated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { Enveloped, ServiceRequest } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
@@ -39,7 +40,7 @@ const WEEKS_BEFORE = 4;
 const WEEKS_AFTER = 8;
 
 /** Un item d'agenda depuis une demande brute de l'API. */
-function itemOf(r: any): AgendaItem {
+function itemOf(r: ServiceRequest): AgendaItem {
   const brief = briefOf(r);
   const at = new Date(r.preferredTimeStart || r.scheduledAt || r.createdAt || Date.now()).getTime();
   return { id: String(r.id), status: String(r.status || '').toUpperCase(), at, durationMin: brief.service.durationMinutes ?? 60, lat: r.lat ?? null, lng: r.lng ?? null, brief };
@@ -70,7 +71,7 @@ export default function Missions() {
   const setToTake = useNavStore((st) => st.setToTake);
 
   // ─── Données ─────────────────────────────────────────────────────────────
-  const [raw, setRaw] = useState<any[]>([]);
+  const [raw, setRaw] = useState<ServiceRequest[]>([]);
   const [items, setItems] = useState<AgendaItem[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,8 +84,9 @@ export default function Missions() {
   const loadMissions = useCallback(async () => {
     try {
       setError(null);
-      const response = await api.requests.list();
-      const list: any[] = Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+      // Élargi à la forme enveloppée seule, pour que le test de tableau la garde.
+      const response: Enveloped<ServiceRequest[]> | { data?: ServiceRequest[] } = await api.requests.list();
+      const list: ServiceRequest[] = Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
       setRaw(list);
       setItems(list.map(itemOf));
     } catch (e) {

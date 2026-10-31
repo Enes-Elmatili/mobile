@@ -82,9 +82,9 @@ export function useSearching(missionId: string | number, coord: { latitude: numb
     let cancelled = false;
     (async () => {
       try {
-        const res: any = await api.providers.nearby(coord.latitude, coord.longitude, NEARBY_RADIUS_KM);
+        const res = await api.providers.nearby(coord.latitude, coord.longitude, NEARBY_RADIUS_KM);
         const list: Pro[] = (res?.providers ?? [])
-          .map((p: any) => ({ id: String(p.id), name: p.name ?? null, avatarUrl: p.avatarUrl ?? null, lat: Number(p.lat), lng: Number(p.lng), etaMin: null, wave: 0, declined: false }))
+          .map((p) => ({ id: String(p.id), name: p.name ?? null, avatarUrl: p.avatarUrl ?? null, lat: Number(p.lat), lng: Number(p.lng), etaMin: null, wave: 0, declined: false }))
           .filter((p: Pro) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
           .slice(0, 8);
         if (!cancelled) {
