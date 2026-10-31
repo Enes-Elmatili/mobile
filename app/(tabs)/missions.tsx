@@ -100,9 +100,10 @@ export default function Missions() {
 
   const fetchOpportunities = useCallback(async (): Promise<Opportunity[] | null> => {
     try {
-      const res = await api.get('/requests/opportunities');
-      const data = res?.data ?? res;
-      const list: any[] = Array.isArray(data) ? data : data?.data ?? [];
+      // Trois formes selon les versions du serveur : [..], { data: [..] }, { data: { data: [..] } }.
+      const res = await api.get<unknown>('/requests/opportunities');
+      const data = (res as { data?: unknown } | null)?.data ?? res;
+      const list: any[] = Array.isArray(data) ? data : ((data as { data?: unknown[] } | null)?.data ?? []);
       const mapped = list.map((o) => ({ ...o, brief: briefOf(o) }));
       setOpportunities(mapped);
       return mapped;
@@ -235,7 +236,7 @@ export default function Missions() {
     const known = raw.find((r) => String(r.id) === item.id);
     if (known) setSelectedMission(missionOf(known, t('missions.mission')));
     try {
-      const res = await api.get(`/requests/${item.id}`);
+      const res = await api.get<Enveloped<ServiceRequest>>(`/requests/${item.id}`);
       setSelectedMission(missionOf(res?.data || res, t('missions.mission')));
     } catch { devError('Error loading mission details'); }
     finally { setLoadingDetails(false); }

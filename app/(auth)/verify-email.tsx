@@ -14,6 +14,7 @@ import { useBlink, usePulse, useShake } from "@/lib/motion/useLoops";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/lib/api";
+import type { MeResponse } from "@/lib/types";
 import { feedback } from "@/lib/feedback/feedback";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useTranslation } from "react-i18next";
@@ -63,7 +64,7 @@ export default function VerifyEmail() {
     let detectedRole = await AsyncStorage.getItem(ROLE_INTENT_KEY);
     if (!detectedRole) {
       try {
-        const res = await api.get("/auth/me");
+        const res = await api.get<MeResponse>("/auth/me");
         if (res?.user?.roles?.includes("PROVIDER")) detectedRole = "PROVIDER";
       } catch {}
     }
@@ -94,7 +95,7 @@ export default function VerifyEmail() {
     pollRef.current = setInterval(async () => {
       if (cancelled || verifiedRef.current) return;
       try {
-        const res = await api.get("/auth/me");
+        const res = await api.get<MeResponse>("/auth/me");
         if (res?.user?.emailVerified && !cancelled) markVerified();
       } catch {}
     }, 4000);

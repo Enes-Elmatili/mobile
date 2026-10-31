@@ -242,22 +242,20 @@ class ApiClient {
   }
 
   // 🆕 PUBLIC HTTP METHODS
-  // Verbes bruts pour les routes sans méthode dédiée. Le défaut `any` est
-  // volontaire et provisoire : NewRequestStepper et l'accueil client lisent
-  // encore ces réponses sans type. Passer T (`api.get<ServiceRequest>(…)`)
-  // partout ailleurs.
-  get = <T = any>(endpoint: string): Promise<T> => this.request<T>(endpoint, { method: 'GET' });
+  // Verbes bruts pour les routes sans méthode dédiée. Sans T, la réponse est
+  // `unknown` : passer le type attendu (`api.get<ServiceRequest>(…)`).
+  get = <T = unknown>(endpoint: string): Promise<T> => this.request<T>(endpoint, { method: 'GET' });
 
-  post = <T = any>(endpoint: string, body?: unknown): Promise<T> =>
+  post = <T = unknown>(endpoint: string, body?: unknown): Promise<T> =>
     this.request<T>(endpoint, { method: 'POST', body });
 
-  put = <T = any>(endpoint: string, body?: unknown): Promise<T> =>
+  put = <T = unknown>(endpoint: string, body?: unknown): Promise<T> =>
     this.request<T>(endpoint, { method: 'PUT', body });
 
-  patch = <T = any>(endpoint: string, body?: unknown): Promise<T> =>
+  patch = <T = unknown>(endpoint: string, body?: unknown): Promise<T> =>
     this.request<T>(endpoint, { method: 'PATCH', body });
 
-  delete = <T = any>(endpoint: string): Promise<T> =>
+  delete = <T = unknown>(endpoint: string): Promise<T> =>
     this.request<T>(endpoint, { method: 'DELETE' });
 
   // ==================== AUTH ====================
