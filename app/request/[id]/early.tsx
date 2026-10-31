@@ -84,9 +84,11 @@ export default function EarlyScreen() {
     }
   }, [mission?.preferredTimeStart, mission?.id, router, now]);
 
+  // Lu une fois : les mémos ci-dessous dépendent de ce seul champ.
+  const startAt = mission?.preferredTimeStart;
   const countdown = useMemo(() => {
-    if (!mission?.preferredTimeStart) return null;
-    const target = new Date(mission.preferredTimeStart).getTime();
+    if (!startAt) return null;
+    const target = new Date(startAt).getTime();
     const diffMs = target - now;
     if (diffMs <= 0) return null;
     const totalMin = Math.floor(diffMs / 60_000);
@@ -94,21 +96,21 @@ export default function EarlyScreen() {
     const hours = Math.floor((totalMin % (60 * 24)) / 60);
     const mins = totalMin % 60;
     return { days, hours, mins, totalMin };
-  }, [mission?.preferredTimeStart, now]);
+  }, [startAt, now]);
 
   const formattedDate = useMemo(() => {
-    if (!mission?.preferredTimeStart) return '—';
-    return new Date(mission.preferredTimeStart).toLocaleDateString(undefined, {
+    if (!startAt) return '—';
+    return new Date(startAt).toLocaleDateString(undefined, {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
-  }, [mission?.preferredTimeStart]);
+  }, [startAt]);
 
   const formattedTime = useMemo(() => {
-    if (!mission?.preferredTimeStart) return '';
-    return new Date(mission.preferredTimeStart).toLocaleTimeString(undefined, {
+    if (!startAt) return '';
+    return new Date(startAt).toLocaleTimeString(undefined, {
       hour: '2-digit', minute: '2-digit',
     });
-  }, [mission?.preferredTimeStart]);
+  }, [startAt]);
 
   const handleNavigate = useCallback(() => {
     if (!mission?.lat || !mission?.lng) {

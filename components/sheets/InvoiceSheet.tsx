@@ -216,8 +216,11 @@ export default function InvoiceSheet({
     }
   }, []);
 
+  // Lus hors callback : le téléchargement dépend de l'id et du numéro, pas de toute la facture.
+  const invoiceId = invoice?.id;
+  const invoiceNo = invoice?.number;
   const handleDownloadPDF = useCallback(async () => {
-    if (!invoice?.id || downloadingRef.current) return;
+    if (!invoiceId || downloadingRef.current) return;
     downloadingRef.current = true;
     setDownloading(true);
 
@@ -228,9 +231,9 @@ export default function InvoiceSheet({
     }, 15000);
 
     try {
-      const url = api.invoices.getPdfUrl(invoice.id);
+      const url = api.invoices.getPdfUrl(invoiceId);
       const token = await tokenStorage.getToken();
-      const fileName = invoice.number ? `${invoice.number}.pdf` : `facture-${invoice.id.slice(-6)}.pdf`;
+      const fileName = invoiceNo ? `${invoiceNo}.pdf` : `facture-${invoiceId.slice(-6)}.pdf`;
       const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
 
       devLog('📄 Downloading PDF:', url);
@@ -277,7 +280,7 @@ export default function InvoiceSheet({
       downloadingRef.current = false;
       setDownloading(false);
     }
-  }, [invoice?.id, invoice?.number, t]);
+  }, [invoiceId, invoiceNo, t]);
 
   if (!isVisible || !invoice) return null;
 

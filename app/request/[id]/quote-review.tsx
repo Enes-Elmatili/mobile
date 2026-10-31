@@ -185,6 +185,8 @@ export default function QuoteReview() {
     return () => clearInterval(i);
   }, []);
 
+  // L'id seul, lu hors callback : c'est lui la dépendance, pas tout `user`.
+  const userId = user?.id;
   // Charge la demande + le devis. Réutilisable (mount + rafraîchissement socket).
   // Retourne le statut courant de la demande (ou null si accès refusé/erreur).
   const load = useCallback(async (opts?: { silent?: boolean }): Promise<string | null> => {
@@ -192,7 +194,7 @@ export default function QuoteReview() {
     try {
       const reqRes = await api.requests.get(String(id));
       const request = reqRes?.data || reqRes;
-      if (!request || request.clientId !== user?.id) {
+      if (!request || request.clientId !== userId) {
         if (!opts?.silent) {
           feedback.error(t('quote.access_denied'));
           router.replace("/(tabs)/documents");
@@ -218,7 +220,7 @@ export default function QuoteReview() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [id, user?.id, router, t]);
+  }, [id, userId, router, t]);
 
   useEffect(() => { load(); }, [load]);
 

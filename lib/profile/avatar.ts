@@ -17,6 +17,8 @@ export function useAvatar(user: Pick<AuthUser, 'id' | 'avatarUrl'> | null, refre
   const { t } = useTranslation();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const avatarUrlProp: string | null | undefined = user?.avatarUrl;
+  // Lu une fois ici : le callback dépend de l'id, pas de tout l'objet `user`.
+  const userId = user?.id;
 
   // ── Chargement avatar : URL serveur en priorité (source de vérité) ──
   // Stratégie : on privilégie l'URL serveur car les `file://` locaux cachés peuvent
@@ -66,7 +68,7 @@ export function useAvatar(user: Pick<AuthUser, 'id' | 'avatarUrl'> | null, refre
       ? `data:image/jpeg;base64,${asset.base64}`
       : asset.uri;
     setAvatarUri(localUri);
-    if (user?.id) await AsyncStorage.setItem(avatarKey(user.id), localUri);
+    if (userId) await AsyncStorage.setItem(avatarKey(userId), localUri);
 
     // Upload vers /api/me/avatar → met à jour avatarUrl en DB (User + Provider)
     try {
@@ -94,8 +96,8 @@ export function useAvatar(user: Pick<AuthUser, 'id' | 'avatarUrl'> | null, refre
       const baseUri = resolveAvatarUrl(data?.avatarUrl);
       const serverUri = baseUri ? `${baseUri}?t=${Date.now()}` : null;
       devLog('[Avatar] Upload OK — server URL:', baseUri, '→ display URI:', serverUri);
-      if (serverUri && user?.id) {
-        await AsyncStorage.setItem(avatarKey(user.id), serverUri).catch(() => {});
+      if (serverUri && userId) {
+        await AsyncStorage.setItem(avatarKey(userId), serverUri).catch(() => {});
         setAvatarUri(serverUri);
       }
       await refreshMe();
@@ -103,7 +105,7 @@ export function useAvatar(user: Pick<AuthUser, 'id' | 'avatarUrl'> | null, refre
     } catch {
       showSocketToast(t('profile.upload_error'), 'error');
     }
-  }, [t, user?.id, refreshMe]);
+  }, [t, userId, refreshMe]);
 
 
   return { avatarUri, pick: handlePickPhoto };

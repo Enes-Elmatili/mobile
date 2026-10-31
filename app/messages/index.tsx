@@ -78,6 +78,8 @@ export default function MessagesInbox() {
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const brandRefresh = useBrandRefresh();
+  // Lu hors callback : la boîte dépend de l'id, pas de tout l'objet `user`.
+  const meId = user?.id;
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -91,12 +93,12 @@ export default function MessagesInbox() {
       const map = new Map<string, Message>();
       const unreadByContact = new Map<string, boolean>();
       for (const msg of messages) {
-        const otherId = msg.senderId === user?.id ? msg.recipientId : msg.senderId;
+        const otherId = msg.senderId === meId ? msg.recipientId : msg.senderId;
         const existing = map.get(otherId);
         if (!existing || new Date(msg.createdAt) > new Date(existing.createdAt)) {
           map.set(otherId, msg);
         }
-        if (!msg.readAt && msg.recipientId === user?.id) {
+        if (!msg.readAt && msg.recipientId === meId) {
           unreadByContact.set(otherId, true);
         }
       }
@@ -138,7 +140,7 @@ export default function MessagesInbox() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id]);
+  }, [meId]);
 
   // Rafraîchir à chaque focus (retour depuis une conversation : points "non lu"
   // et aperçus à jour) + resynchroniser le badge global depuis le serveur.

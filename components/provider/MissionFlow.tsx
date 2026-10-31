@@ -119,12 +119,16 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
 
   const brief: MissionBrief | null = useMemo(() => (request ? briefOf(request) : null), [request]);
   const isQuote = isQuoteMode(request?.pricingMode);
-  const door: LatLng | null = useMemo(() => (request?.lat != null && request?.lng != null ? { latitude: request.lat, longitude: request.lng } : null), [request?.lat, request?.lng]);
+  // Coordonnées lues hors mémo : la porte ne dépend que d'elles, pas de toute la demande.
+  const doorLat = request?.lat, doorLng = request?.lng;
+  const door: LatLng | null = useMemo(() => (doorLat != null && doorLng != null ? { latitude: doorLat, longitude: doorLng } : null), [doorLat, doorLng]);
   const near = !!myLocation && !!door && metersBetween(myLocation.latitude, myLocation.longitude, door.latitude, door.longitude) <= ARRIVAL_RADIUS_M;
   const stage: ProviderStage = doneAt ? 'done' : providerStageOf(request, { near, arrivedTapped, beforePhoto: !!beforeUri, pinVerified, afterPhoto: !!afterUri, isQuote, hasQuote });
   const mapMode = stage === 'done' ? 'me' : providerMapMode(stage);
   const clientName = cleanName(request?.client?.name, { fallback: t('provider.client') });
-  const clientFirst = clientName.split(/\s+/)[0];
+  // String(…) : le compilateur ignore que cleanName rend une chaîne et prendrait
+  // `.split` pour une mutation de clientName, cassant les mémos call/message.
+  const clientFirst = String(clientName).split(/\s+/)[0];
   const gpsLost = !gpsDenied && gpsAt != null && now - gpsAt > GPS_STALE_MS;
   const distance = myLocation && door ? distanceKm(myLocation, door) : null;
   useEffect(() => { if (myLocation) setGpsAt(Date.now()); }, [myLocation?.latitude, myLocation?.longitude]); // eslint-disable-line react-hooks/exhaustive-deps

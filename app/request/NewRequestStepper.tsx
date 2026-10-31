@@ -223,9 +223,11 @@ export default function NewRequestStepper() {
   const railDirection = rail.dir;
 
   // TVA service : 6% / 21% — règle dans lib/request/pricing.ts (resolveServiceVat).
-  const { vatEligible, privateUse, vatRate } = resolveServiceVat({
+  // Mémoïsée : sans ça le compilateur tient vatRate pour mutable et ne peut
+  // préserver le mémo de priceDetails qui en dépend.
+  const { vatEligible, privateUse, vatRate } = useMemo(() => resolveServiceVat({
     category: selectedCategory, subcategory: selectedSubcategory, buildingType, buildingOver10y,
-  });
+  }), [selectedCategory, selectedSubcategory, buildingType, buildingOver10y]);
   // serviceName est passé en param URL aux écrans suivants (missionview, tracking).
   // On le génère dans la langue active i18n via translateSubcategory + translateCategory
   // pour que le titre s'affiche traduit (ex: "Druk bijvullen" en NL au lieu de

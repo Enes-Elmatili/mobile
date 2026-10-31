@@ -751,8 +751,11 @@ export default function ProviderDashboard() {
   const { stripBottom, topRowTop, marginLeft, contentWidth } = g;
 
   // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
-  const jobCoord = useMemo<LatLng | null>(() => (activeJob?.latitude && activeJob?.longitude ? { latitude: activeJob.latitude, longitude: activeJob.longitude } : null), [activeJob?.latitude, activeJob?.longitude]);
-  const doorCoord = useMemo<LatLng | null>(() => (currentMission?.lat != null && currentMission?.lng != null ? { latitude: currentMission.lat, longitude: currentMission.lng } : null), [currentMission?.lat, currentMission?.lng]);
+  // Coordonnées lues hors mémo : chaque point ne dépend que d'elles, pas de tout l'objet.
+  const jobLat = activeJob?.latitude, jobLng = activeJob?.longitude;
+  const doorLat = currentMission?.lat, doorLng = currentMission?.lng;
+  const jobCoord = useMemo<LatLng | null>(() => (jobLat && jobLng ? { latitude: jobLat, longitude: jobLng } : null), [jobLat, jobLng]);
+  const doorCoord = useMemo<LatLng | null>(() => (doorLat != null && doorLng != null ? { latitude: doorLat, longitude: doorLng } : null), [doorLat, doorLng]);
   const other = stage === 'incoming' ? jobCoord : stage === 'busy' ? doorCoord : null;
   // La caméra ne suit « moi » que par pas de 25 m : une position qui tremble
   // sur place ne relance pas un recadrage toutes les 3 s.

@@ -447,7 +447,8 @@ export default function MissionView() {
     };
   });
 
-  const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
+  const profileId = provider?.id;
+  const openProfile = useCallback(() => { if (profileId) router.push(`/providers/${profileId}`); }, [profileId, router]);
   const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
 
   // ─── Contenu de la feuille par stade ────────────────────────────────────
