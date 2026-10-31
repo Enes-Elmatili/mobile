@@ -157,6 +157,20 @@ describe('processQueue', () => {
     expect(q.pendingCount).toBe(0);
   });
 
+  it('une action ajoutée pendant un rejeu n’est pas perdue', async () => {
+    let release;
+    mockPost.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    await mount();
+    await act(async () => { await q.enqueue('CREATE_REQUEST', { title: 'A' }); });
+    let first;
+    await act(async () => { first = q.processQueue(); });
+    await act(async () => { await q.enqueue('SUBMIT_RATING', { rating: 5 }); });
+    expect(q.pendingCount).toBe(2);
+    await act(async () => { release({}); await first; });
+    expect(q.pendingCount).toBe(1);
+    expect((await stored()).map((a) => a.type)).toEqual(['SUBMIT_RATING']);
+  });
+
   it('file vide : rien ne part', async () => {
     await mount();
     await act(async () => { await q.processQueue(); });

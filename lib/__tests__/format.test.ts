@@ -27,6 +27,13 @@ describe('formatEUR', () => {
     expect(plain(formatEUR(1234567.891))).toBe('1 234 567,89 €');
   });
 
+  it('un montant qui s’arrondit à zéro n’a jamais de signe', () => {
+    expect(plain(formatEUR(-0))).toBe('0,00 €');
+    expect(plain(formatEUR(-0.004))).toBe('0,00 €');
+    expect(plain(formatEUR(-0.4, 0))).toBe('0 €');
+    expect(plain(formatEUR(-0.005))).toBe('-0,01 €');
+  });
+
   it('décimales choisies', () => {
     expect(plain(formatEUR(12, 0))).toBe('12 €');
     expect(plain(formatEUR(12.3456, 3))).toBe('12,346 €');

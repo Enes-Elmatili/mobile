@@ -6,7 +6,9 @@ const NBSP = ' ';
 
 /** Formats a number of euros as "1 234,50 €". */
 export function formatEUR(amount: number, decimals: number = 2): string {
-  const safe = Number.isFinite(amount) ? amount : 0;
+  const finite = Number.isFinite(amount) ? amount : 0;
+  // Ce qui s'affiche « 0,00 » n'a pas de signe : -0,004 € ne devient pas « -0,00 € ».
+  const safe = Math.abs(finite) < 0.5 / 10 ** decimals ? 0 : finite;
   return safe.toLocaleString(LOCALE, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,

@@ -163,7 +163,10 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       }
     }
 
-    await persistQueue(failedActions);
+    // Ce qui a été mis en file PENDANT le rejeu (queueRef a bougé) reste en file.
+    const replayed = new Set(currentQueue.map((a) => a.id));
+    const addedMeanwhile = queueRef.current.filter((a) => !replayed.has(a.id));
+    await persistQueue([...failedActions, ...addedMeanwhile]);
     isProcessingRef.current = false;
     setIsProcessing(false);
   }, []);
