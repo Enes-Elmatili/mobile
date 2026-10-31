@@ -1,0 +1,33 @@
+# Les trois garde-fous de l'app sur chaque PR et chaque push sur main :
+# lint (règles maison : motion, insets, alertes), TypeScript, tests jest.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Tests
+        run: npx jest --ci
