@@ -1,5 +1,7 @@
 module.exports = {
   preset: 'jest-expo',
+  // Copies de travail des agents (git worktree) : pas des tests de l'app.
+  modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   // Reanimated 4 / Worklets : écarte les implémentations .native en test.
   resolver: 'react-native-reanimated/jest/resolver',

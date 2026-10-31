@@ -72,7 +72,7 @@ const REACT_COMPILER_RULES_OFF = Object.fromEntries([
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    ignores: ['dist/*', '.claude/**'],
   },
   {
     rules: REACT_COMPILER_RULES_OFF,

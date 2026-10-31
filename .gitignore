@@ -54,3 +54,6 @@ app-example
 *.bak
 
 .superpowers/
+
+# Copies de travail des agents (git worktree)
+.claude/worktrees/
