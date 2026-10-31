@@ -54,13 +54,5 @@ export type PricingLockResponse = { price: PriceDetails; pricingToken: string };
 /** Réponse de POST /quotes/callout-payment. `demo` : compte store-review, aucune charge. */
 export type CalloutPaymentResponse = { amount?: number; clientSecret: string; demo?: boolean };
 
-/** Réponse de POST /payments/setup (cf. lib/api.ts). */
-export type PaymentSetupResponse = {
-  paymentIntentClientSecret: string;
-  /** Alias déprécié de paymentIntentClientSecret. */
-  setupIntentClientSecret: string;
-  ephemeralKey: string;
-  customer: string;
-  demo?: boolean;
-  promo?: AppliedPromo | null;
-};
+/** Réponse de POST /payments/setup : le type unique du contrat (lib/types/wallet). */
+export type { PaymentSetupResponse } from '@/lib/types/wallet';

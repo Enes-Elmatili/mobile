@@ -64,6 +64,8 @@ export interface PaymentSetupResponse {
   amount?: number;
   currency?: string;
   flow?: string;
+  /** Build de revue App Store : pas de débit, la sheet est sautée. */
+  demo?: boolean;
   /** Remise validée serveur ; montants en centimes. */
   promo?: { code: string; discountCents: number; nominalCents: number } | null;
 }

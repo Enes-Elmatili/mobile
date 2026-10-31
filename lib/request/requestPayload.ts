@@ -132,7 +132,8 @@ export function quoteSheetParams(clientSecret: string): PaymentSheet.SetupParams
 
 /** PaymentSheet du prix fixe (DIRECT_CHARGE) depuis la réponse de /payments/setup. */
 export function fixedSheetParams(res: PaymentSetupResponse): PaymentSheet.SetupParams {
-  const clientSecret = res.paymentIntentClientSecret || res.setupIntentClientSecret;
+  // Le serveur renvoie toujours l'un des deux alias (hors build démo, traité avant).
+  const clientSecret = (res.paymentIntentClientSecret || res.setupIntentClientSecret) as string;
   return {
     merchantDisplayName:        'Fixed',
     paymentIntentClientSecret:  clientSecret,
