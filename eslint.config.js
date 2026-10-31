@@ -66,7 +66,14 @@ const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 // (`sv.value = …`). À réactiver une par une, chacune dans son propre commit.
 const REACT_COMPILER_RULES_OFF = Object.fromEntries([
   'immutability', 'preserve-manual-memoization',
-  'refs', 'set-state-in-effect',
+  'set-state-in-effect',
+].map((r) => [`react-hooks/${r}`, 'off']));
+
+// SocketContext ne se modifie pas sans validation explicite (CLAUDE.md) : ses
+// écarts aux règles React Compiler (refs recopiées au rendu) restent en l'état
+// et seules ces règles-là y sont coupées, pour ce seul fichier.
+const SOCKET_CONTEXT_RULES_OFF = Object.fromEntries([
+  'refs',
 ].map((r) => [`react-hooks/${r}`, 'off']));
 
 module.exports = defineConfig([
@@ -76,6 +83,10 @@ module.exports = defineConfig([
   },
   {
     rules: REACT_COMPILER_RULES_OFF,
+  },
+  {
+    files: ['lib/SocketContext.tsx'],
+    rules: SOCKET_CONTEXT_RULES_OFF,
   },
   {
     files: SOURCE,

@@ -115,7 +115,8 @@ export function SplashAnimation({ onDone }: { onDone: () => void }) {
 
   const finishedRef = useRef(false);
   const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
+  // Dernier `onDone` reçu, recopié après commit (pas d'écriture de ref au rendu).
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
   const done = () => onDoneRef.current();
   const finish = () => {

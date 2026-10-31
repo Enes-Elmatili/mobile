@@ -251,7 +251,11 @@ export default function ProviderDashboard() {
   // mission passe devant la dérivation, même planifiée un peu plus tôt.
   const { mission: wantedMissionParam, request: wantedRequestParam } = useLocalSearchParams<{ mission?: string; request?: string }>();
   const wantedMissionRef = useRef<string | null>(null);
-  if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
+  // Recopié après chaque commit (comme avant à chaque rendu), et déclaré avant
+  // tout effet qui appelle loadData : celui-ci le lit déjà à jour.
+  useEffect(() => {
+    if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
+  });
   // Ce que la feuille de mission dit à l'accueil (stade, caméra, porte, hauteur).
   const [missionFacts, setMissionFacts] = useState<MissionFacts | null>(null);
   // L'amorce de la feuille de mission à l'acceptation : la demande reçue + la réponse du serveur.

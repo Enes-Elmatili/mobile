@@ -72,7 +72,9 @@ export function AgendaWeek({ weeks, selectedKey, onSelect, width, dayLabel, init
   const cell = Math.floor((width - 24) / 7);
   const listRef = useRef<FlatList<Week>>(null);
   useEffect(() => { if (jump && jump.n > 0) listRef.current?.scrollToIndex({ index: jump.index, animated: true }); }, [jump]);
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ListViewToken[] }) => {
+  // FlatList exige un onViewableItemsChanged stable : figé au montage
+  // (initialiseur paresseux plutôt qu'une ref lue au rendu).
+  const [onViewable] = useState(() => ({ viewableItems }: { viewableItems: ListViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index != null) onWeekChange?.(first.index);
   });
@@ -90,7 +92,7 @@ export function AgendaWeek({ weeks, selectedKey, onSelect, width, dayLabel, init
       showsHorizontalScrollIndicator={false}
       initialScrollIndex={initialIndex}
       getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-      onViewableItemsChanged={onViewable.current}
+      onViewableItemsChanged={onViewable}
       viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
       style={{ flexGrow: 0 }}
     />

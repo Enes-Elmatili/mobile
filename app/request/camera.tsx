@@ -52,7 +52,8 @@ export default function GuidedCamera() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const session = useRef(cameraSession.current()).current;
+  // Session lue une fois au montage (initialiseur paresseux, pas de ref lue au rendu).
+  const [session] = useState(() => cameraSession.current());
   const queue: ShotQueueItem[] = session?.queue ?? [{ key: null, required: false }];
   const [index, setIndex] = useState(0);
   const [taken, setTaken] = useState<LocalShot[]>([]);

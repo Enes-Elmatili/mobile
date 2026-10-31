@@ -81,7 +81,8 @@ export default function NewRequestStepper() {
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   // Sens de la prochaine transition d'étape (StepPager) : 1 en avant, -1 en arrière.
-  const dirRef = useRef<PagerDirection>(1);
+  // En état (posé avec setStep, même lot) : il est lu pendant le rendu.
+  const [dir, setDir] = useState<PagerDirection>(1);
   // Distance entre le haut de la fenêtre et le contenu de l'étape : inset haut +
   // en-tête mesuré. C'est l'offset exact du KeyboardAvoidingView de l'étape 2 —
   // un « 100 » en dur laissait le bouton trop haut au-dessus du clavier.
@@ -214,10 +215,12 @@ export default function NewRequestStepper() {
   };
 
   // Sens de la poussée de la liste quand on change de catégorie (ordre des pilules).
-  const prevCategoryIndexRef = useRef(0);
+  // Index précédent mémorisé en état et mis à jour pendant le rendu (motif React
+  // « valeur précédente ») : StepPager lit le sens au rendu où la page change.
   const categoryIndex = Math.max(0, categories.findIndex((c) => c.id === categoryId));
-  const railDirection: PagerDirection = categoryIndex >= prevCategoryIndexRef.current ? 1 : -1;
-  useEffect(() => { prevCategoryIndexRef.current = categoryIndex; }, [categoryIndex]);
+  const [rail, setRail] = useState<{ index: number; dir: PagerDirection }>({ index: categoryIndex, dir: 1 });
+  if (rail.index !== categoryIndex) setRail({ index: categoryIndex, dir: categoryIndex >= rail.index ? 1 : -1 });
+  const railDirection = rail.dir;
 
   // TVA service : 6% / 21% — règle dans lib/request/pricing.ts (resolveServiceVat).
   const { vatEligible, privateUse, vatRate } = resolveServiceVat({
@@ -283,7 +286,7 @@ export default function NewRequestStepper() {
         api.patch('/me', profileUpdate).catch(() => {});
       }
     }
-    dirRef.current = 1;
+    setDir(1);
     setStep((p) => Math.min(p + 1, TOTAL_STEPS));
   };
   const goBack = () => {
@@ -292,14 +295,14 @@ export default function NewRequestStepper() {
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/dashboard');
     } else {
-      dirRef.current = -1;
+      setDir(-1);
       setStep((p) => p - 1);
     }
   };
   /** Puce de l'en-tête : revenir à une étape déjà franchie. */
   const goTo = (target: number) => {
     if (target >= step) return;
-    dirRef.current = -1;
+    setDir(-1);
     setStep(target);
   };
 
@@ -515,7 +518,7 @@ export default function NewRequestStepper() {
       {/* Déplié : le récapitulatif vit à droite pendant tout le tunnel, le
           montant compte à chaque choix (urgent, créneau, promo). */}
       <SplitPane
-        master={<StepPager page={step} direction={dirRef.current} render={renderStep} keepMounted style={s.flex} />}
+        master={<StepPager page={step} direction={dir} render={renderStep} keepMounted style={s.flex} />}
         detail={isSplit ? (
           <ScrollView contentContainerStyle={s.recapPane} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <RecapBlock {...recapProps} />
