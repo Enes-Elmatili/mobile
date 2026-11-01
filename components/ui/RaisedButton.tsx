@@ -58,6 +58,8 @@ interface RaisedButtonProps {
   labelStyle?: StyleProp<TextStyle>;
   /** Forcer une police display (Bebas Neue) pour les CTAs principaux. */
   display?: boolean;
+  /** Repère des tests de bout en bout (Maestro, `.maestro/`). */
+  testID?: string;
 }
 
 export function RaisedButton({
@@ -74,6 +76,7 @@ export function RaisedButton({
   style,
   labelStyle,
   display = false,
+  testID,
 }: RaisedButtonProps) {
   const theme = useAppTheme();
   // Règle 4 : le retour part de l'appui (ressort raide), le relâchement remonte
@@ -134,6 +137,7 @@ export function RaisedButton({
       ]}
     >
       <Pressable
+        testID={testID}
         accessibilityRole="button"
         accessibilityState={{ disabled: isInactive, busy: loading }}
         onPressIn={isInactive ? undefined : onPressIn}

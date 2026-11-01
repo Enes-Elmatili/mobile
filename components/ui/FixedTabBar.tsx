@@ -67,13 +67,14 @@ function Badge({ value }: { value: number | string | null | undefined }) {
   );
 }
 
-function TabItem({ label, icon, focused, color, onPress, onLongPress, vertical, accessibilityLabel, badge }: {
-  label: string; icon: FeatherName; focused: boolean; color: string; onPress: () => void; onLongPress: () => void; vertical: boolean; accessibilityLabel?: string; badge?: number | string | null;
+function TabItem({ label, icon, focused, color, onPress, onLongPress, vertical, accessibilityLabel, badge, testID }: {
+  label: string; icon: FeatherName; focused: boolean; color: string; onPress: () => void; onLongPress: () => void; vertical: boolean; accessibilityLabel?: string; badge?: number | string | null; testID?: string;
 }) {
   const press = usePressScale();
   const badgeLabel = badge != null && badge !== 0 && badge !== '' ? `, ${badge}` : '';
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
       accessibilityLabel={(accessibilityLabel ?? label) + badgeLabel}
@@ -177,6 +178,7 @@ export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets
         vertical={isRegular}
         accessibilityLabel={options.tabBarAccessibilityLabel}
         badge={badges[route.name as keyof Badges]}
+        testID={`tab-${route.name}`}
       />
     );
   });

@@ -368,7 +368,7 @@ export function OpportunityDetail({ opportunity, onAccept, onDecline, accepting,
         </PressScale>
         {/* Moment 6 : accepter est un geste — glisser, pas taper. */}
         <View style={{ flex: 2 }}>
-          <SlideToConfirm label={tr('provider.accept')} onConfirm={onAccept} disabled={accepting} />
+          <SlideToConfirm label={tr('provider.accept')} onConfirm={onAccept} disabled={accepting} testID="opportunity-accept" />
         </View>
       </View>
     </Scroller>

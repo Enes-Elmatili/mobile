@@ -28,6 +28,7 @@ export function IdleHero({ ctaPress, theme }: { ctaPress: ReturnType<typeof useP
         {t('dashboard.hero_title')}
       </Text>
       <PressScale
+        testID="dashboard-order"
         {...ctaPress.handlers}
         onPress={() => { hapticMedium(); router.push('/request/NewRequestStepper'); }}
       >

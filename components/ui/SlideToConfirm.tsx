@@ -20,9 +20,11 @@ type Props = {
   disabled?: boolean;
   /** Après confirmation, le curseur reste au bout et le libellé passe à `doneLabel`. */
   done?: boolean;
+  /** Repère Maestro : la piste ; le curseur reçoit `<testID>-knob` (c'est lui qu'on glisse). */
+  testID?: string;
 };
 
-export function SlideToConfirm({ label, doneLabel, onConfirm, disabled = false, done = false }: Props) {
+export function SlideToConfirm({ label, doneLabel, onConfirm, disabled = false, done = false, testID }: Props) {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -32,6 +34,7 @@ export function SlideToConfirm({ label, doneLabel, onConfirm, disabled = false, 
 
   return (
     <View
+      testID={testID}
       onLayout={onLayout}
       style={[s.track, { backgroundColor: theme.surface, borderColor: done ? COLORS.green : theme.border, opacity: disabled ? 0.5 : 1 }]}
       accessibilityRole="adjustable"
@@ -45,7 +48,7 @@ export function SlideToConfirm({ label, doneLabel, onConfirm, disabled = false, 
         </Text>
       </Animated.View>
       <GestureDetector gesture={activeGesture}>
-        <Animated.View style={[s.knob, { backgroundColor: done ? COLORS.green : theme.accent }, knobStyle]}>
+        <Animated.View testID={testID ? `${testID}-knob` : undefined} style={[s.knob, { backgroundColor: done ? COLORS.green : theme.accent }, knobStyle]}>
           <Feather name={done ? 'check' : 'arrow-right'} size={20} color={theme.accentText as string} />
         </Animated.View>
       </GestureDetector>

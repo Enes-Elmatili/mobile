@@ -1,0 +1,46 @@
+# Une prestation sur devis : le client ne paie d'abord que les frais de
+# déplacement ; la recherche démarre, le devis viendra sur place.
+appId: app.thefixed.client
+name: Client — commande sur devis, frais de déplacement payés
+tags: [argent, client]
+env:
+  CATEGORY: ${E2E_QUOTE_CATEGORY}
+  SERVICE: ${E2E_QUOTE_SERVICE}
+---
+- runFlow:
+    file: subflows/connexion.yaml
+    env:
+      EMAIL: ${E2E_CLIENT_EMAIL}
+      PASSWORD: ${E2E_CLIENT_PASSWORD}
+- extendedWaitUntil:
+    visible:
+      id: "dashboard-order"
+    timeout: 20000
+- tapOn:
+    id: "dashboard-order"
+- tapOn:
+    id: "stepper-saved-addresses"
+- tapOn:
+    id: "stepper-saved-address-0"
+- tapOn:
+    id: "stepper-next-location"
+- tapOn:
+    id: "category-${CATEGORY}"
+- tapOn:
+    id: "service-${SERVICE}"
+- tapOn:
+    id: "stepper-next-service"
+- tapOn:
+    id: "stepper-next-planning"
+- extendedWaitUntil:
+    visible:
+      id: "stepper-pay"
+    timeout: 20000
+- tapOn:
+    id: "stepper-pay"
+- runFlow:
+    file: subflows/payer-stripe.yaml
+- extendedWaitUntil:
+    visible:
+      id: "mission-searching"
+    timeout: 30000

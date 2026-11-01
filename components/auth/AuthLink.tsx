@@ -22,9 +22,11 @@ type Props = {
    * strictly unchanged behavior for the existing gradient screens.
    */
   themed?: boolean;
+  /** Repère des tests de bout en bout (Maestro, `.maestro/`). */
+  testID?: string;
 };
 
-export function AuthLink({ prefix, action, onPress, onDark, themed = false }: Props) {
+export function AuthLink({ prefix, action, onPress, onDark, themed = false, testID }: Props) {
   const theme = useAppTheme();
   const base = onDark ? authT.textOnDark : authT.textOnLight;
   const prefixColor = themed
@@ -33,6 +35,7 @@ export function AuthLink({ prefix, action, onPress, onDark, themed = false }: Pr
   const actionColor = themed ? theme.text : base;
   return (
     <PressScale
+      testID={testID}
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"

@@ -164,7 +164,7 @@ export function TakeRow({ brief, when, onPress, onAccept, onDecline }: { brief: 
       onSwipeableOpen={(direction) => { ref.current?.close(); if (direction === 'right') onAccept?.(); else onDecline?.(); }}
       containerStyle={s.takeWrap}
     >
-      <Pressable onPress={() => { feedback.haptic('light'); onPress(); }} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityLabel={`${serviceName(brief)}, ${amount ?? ''}`}>
+      <Pressable testID="opportunity-row" onPress={() => { feedback.haptic('light'); onPress(); }} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityLabel={`${serviceName(brief)}, ${amount ?? ''}`}>
         <Animated.View style={[s.take, { backgroundColor: theme.cardBg, borderColor: theme.border }, press.style]}>
           <Text style={[s.takeAmt, { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{amount ?? '—'}</Text>
           <View style={{ flex: 1 }}>

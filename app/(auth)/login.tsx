@@ -356,6 +356,7 @@ export default function Login() {
               autoCorrect={false}
               keyboardType="email-address"
               returnKeyType="next"
+              testID="login-email"
               value={email}
               onChangeText={setEmail}
               onSubmitEditing={() => pwdRef.current?.focus()}
@@ -374,6 +375,7 @@ export default function Login() {
               trailingIcon={showPwd ? "eye-off" : "eye"}
               onTrailingPress={() => setShowPwd((p) => !p)}
               returnKeyType="done"
+              testID="login-password"
               value={password}
               onChangeText={setPassword}
               onSubmitEditing={onSubmit}
@@ -406,6 +408,7 @@ export default function Login() {
         <View style={s.spacer} />
 
         <AuthCTA
+          testID="login-submit"
           label={t("auth.login_cta")}
           onPress={onSubmit}
           loading={loading}

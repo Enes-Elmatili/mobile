@@ -549,7 +549,7 @@ export default function MissionView() {
 
   const showMap = stage !== 'loading' && !!brief;
   return (
-    <View style={[s.root, { backgroundColor: theme.bg }]}>
+    <View testID={`mission-${stage}`} style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
       {stage === 'loading' && (

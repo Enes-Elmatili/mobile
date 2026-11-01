@@ -265,7 +265,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
           {/* Moment 6 : accepter est un geste — glisser, pas taper. */}
           <View style={styles.acceptWrap}>
-            <SlideToConfirm label={t('mission_sheet.accept')} onConfirm={handleAccept} />
+            <SlideToConfirm label={t('mission_sheet.accept')} onConfirm={handleAccept} testID="mission-request-accept" />
           </View>
         </View>
 

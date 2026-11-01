@@ -21,9 +21,11 @@ type Props = {
   onPress: () => void;
   fixedLabel: string;
   quoteLabel: string;
+  /** Repère des tests de bout en bout (Maestro, `.maestro/`). */
+  testID?: string;
 };
 
-export function ServiceRow({ label, description, pricingMode, selected, onPress, fixedLabel, quoteLabel }: Props) {
+export function ServiceRow({ label, description, pricingMode, selected, onPress, fixedLabel, quoteLabel, testID }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
   const press = usePressScale(0.98);
@@ -38,6 +40,7 @@ export function ServiceRow({ label, description, pricingMode, selected, onPress,
 
   return (
     <Pressable
+      testID={testID}
       onPress={() => { feedback.haptic('selection'); onPress(); }}
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}

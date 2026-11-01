@@ -122,6 +122,7 @@ export function StepLocation({
               separator:   { backgroundColor: theme.dropdownSep as string, height: 1 },
             }}
             textInputProps={{
+              testID: 'stepper-address-input',
               placeholderTextColor: theme.textPlaceholder as string,
               onFocus: () => setShowAddrDropdown(false),
             }}
@@ -133,6 +134,7 @@ export function StepLocation({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
             {savedAddresses.length > 0 && (
               <PressScale
+                testID="stepper-saved-addresses"
                 onPress={() => setShowAddrDropdown(prev => !prev)}
                 style={{ padding: 8 }}
                 accessibilityRole="button"
@@ -172,6 +174,7 @@ export function StepLocation({
               return (
                 <PressScale accessibilityRole="button"
                   key={addr.id}
+                  testID={`stepper-saved-address-${i}`}
                   onPress={() => {
                     setLocation({ address: addr.address, lat: addr.lat, lng: addr.lng });
                     setLocationAllowed(checkLocation(addr.address));
@@ -223,6 +226,7 @@ export function StepLocation({
         pointerEvents="box-none"
       >
         <StepCTA
+          testID="stepper-next-location"
           floating
           label={t('stepper.confirm_address')}
           onPress={onNext}

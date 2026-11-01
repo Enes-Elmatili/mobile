@@ -189,6 +189,7 @@ export default function SendQuote() {
                 placeholder="0.00"
                 placeholderTextColor={theme.textMuted}
                 keyboardType="decimal-pad"
+                testID="quote-labor"
                 value={labor}
                 onChangeText={setLabor}
                 onFocus={() => setFocused("labor")}
@@ -211,6 +212,7 @@ export default function SendQuote() {
                 placeholder="0.00"
                 placeholderTextColor={theme.textMuted}
                 keyboardType="decimal-pad"
+                testID="quote-parts"
                 value={parts}
                 onChangeText={setParts}
                 onFocus={() => setFocused("parts")}
@@ -231,6 +233,7 @@ export default function SendQuote() {
               ]}
               placeholder={t('quote.send_quote_notes_placeholder')}
               placeholderTextColor={theme.textMuted}
+              testID="quote-notes"
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -264,6 +267,7 @@ export default function SendQuote() {
       {/* Footer CTA */}
       <SafeAreaView edges={["bottom"]} style={[s.footer, { backgroundColor: theme.bg }]}>
         <PressScale accessibilityRole="button"
+          testID="quote-send"
           style={[
             s.ctaBtn,
             { backgroundColor: theme.accent },

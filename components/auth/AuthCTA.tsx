@@ -37,9 +37,11 @@ type Props = {
    *   (dark pill), i.e. the same ternary flat screens applied manually.
    */
   variant?: Variant;
+  /** Repère des tests de bout en bout (Maestro, `.maestro/`). */
+  testID?: string;
 };
 
-export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant = "inverted" }: Props) {
+export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant = "inverted", testID }: Props) {
   const theme = useAppTheme();
   const arrow = useSharedValue(0);
   const reduced = useReduceMotion();
@@ -69,6 +71,7 @@ export function AuthCTA({ label, onPress, loading, disabled, hideArrow, variant 
 
   return (
     <PressScale
+      testID={testID}
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"

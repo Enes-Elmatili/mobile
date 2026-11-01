@@ -11,15 +11,16 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { usePressScale } from '@/lib/motion/press';
 import { feedback } from '@/lib/feedback/feedback';
 
-export type RailItem = { id: number; label: string };
+export type RailItem = { id: number; label: string; testID?: string };
 
 type Props = { items: RailItem[]; selectedId: number | null; onSelect: (id: number) => void };
 
-function Pill({ label, active, fill, onPress }: { label: string; active: boolean; fill: boolean; onPress: () => void }) {
+function Pill({ label, active, fill, onPress, testID }: { label: string; active: boolean; fill: boolean; onPress: () => void; testID?: string }) {
   const theme = useAppTheme();
   const press = usePressScale();
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
@@ -46,14 +47,14 @@ export function CategoryRail({ items, selectedId, onSelect }: Props) {
   if (fill) {
     return (
       <View style={s.rowFill}>
-        {items.map((it) => <Pill key={it.id} label={it.label} active={it.id === selectedId} fill onPress={() => select(it.id)} />)}
+        {items.map((it) => <Pill key={it.id} label={it.label} active={it.id === selectedId} fill onPress={() => select(it.id)} testID={it.testID} />)}
       </View>
     );
   }
   return (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.rowScroll}>
-        {items.map((it) => <Pill key={it.id} label={it.label} active={it.id === selectedId} fill={false} onPress={() => select(it.id)} />)}
+        {items.map((it) => <Pill key={it.id} label={it.label} active={it.id === selectedId} fill={false} onPress={() => select(it.id)} testID={it.testID} />)}
       </ScrollView>
       <LinearGradient
         colors={[`${theme.bg}00`, theme.bg as string]}

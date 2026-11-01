@@ -1,0 +1,25 @@
+# PaymentSheet Stripe en mode test : carte 4242, date future, CVC 123.
+# Les libellés viennent de Stripe et suivent la langue du téléphone : les
+# sélecteurs acceptent le français et l'anglais.
+appId: app.thefixed.client
+---
+- extendedWaitUntil:
+    visible:
+      text: "(Carte|Card).*"
+    timeout: 20000
+- tapOn:
+    text: "(Numéro de carte|Card number).*"
+- inputText: "4242424242424242"
+- inputText: "1234"
+- inputText: "123"
+- runFlow:
+    when:
+      visible:
+        text: "(Code postal|ZIP|Postal code).*"
+    commands:
+      - tapOn:
+          text: "(Code postal|ZIP|Postal code).*"
+      - inputText: "1050"
+- hideKeyboard
+- tapOn:
+    text: "(Payer|Pay|Valider|Set up).*"

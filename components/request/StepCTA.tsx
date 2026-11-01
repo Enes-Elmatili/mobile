@@ -25,9 +25,11 @@ type Props = {
   /** Bouton posé sur un dégradé (étape 1) : ni fond ni bordure haute. */
   floating?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Repère des tests de bout en bout (Maestro, `.maestro/`). */
+  testID?: string;
 };
 
-export function StepCTA({ label, onPress, disabled, loading, hint, amount, emphasis, floating, style }: Props) {
+export function StepCTA({ label, onPress, disabled, loading, hint, amount, emphasis, floating, style, testID }: Props) {
   const theme = useAppTheme();
   const press = usePressScale();
   const inert = !!disabled || !!loading;
@@ -45,6 +47,7 @@ export function StepCTA({ label, onPress, disabled, loading, hint, amount, empha
       ) : null}
       <Animated.View style={[press.style, disabled && s.dimmed]}>
         <Pressable
+          testID={testID}
           onPress={handlePress}
           onPressIn={inert ? undefined : press.onPressIn}
           onPressOut={inert ? undefined : press.onPressOut}

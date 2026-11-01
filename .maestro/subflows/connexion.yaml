@@ -1,0 +1,23 @@
+# Connexion par e-mail depuis un état vierge. Paramètres : EMAIL, PASSWORD.
+appId: app.thefixed.client
+---
+- launchApp:
+    clearState: true
+    permissions:
+      location: allow
+      notifications: allow
+- extendedWaitUntil:
+    visible:
+      id: "welcome-sign-in"
+    timeout: 20000
+- tapOn:
+    id: "welcome-sign-in"
+- tapOn:
+    id: "login-email"
+- inputText: ${EMAIL}
+- tapOn:
+    id: "login-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
