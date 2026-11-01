@@ -292,6 +292,15 @@ describe('acceptation de mission', () => {
     expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
   });
 
+  it('acceptation sans requestId : aucune navigation vers /request/undefined', async () => {
+    await mount(PROVIDER);
+    await serverEmits('provider:accept_success', {});
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    // …et une vraie acceptation ensuite n'est pas avalée par la déduplication.
+    await serverEmits('provider:accept_success', { requestId: 43 });
+    expect(mockRouter.push).toHaveBeenCalledWith('/request/43/ongoing');
+  });
+
   it('request:claimed de notre propre acceptation : pas de toast « déjà prise »', async () => {
     await mount(PROVIDER);
     await serverEmits('provider:accept_success', { requestId: 42 });
@@ -359,6 +368,17 @@ describe('fin de mission', () => {
     act(() => jest.advanceTimersByTime(900));
     expect(mockRouter.replace).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/request/[id]/rating', params: { id: 'c-1' } });
+  });
+
+  it('fin de mission sans requestId : ni toast ni navigation vers « undefined »', async () => {
+    jest.useFakeTimers();
+    await mount(CLIENT);
+    await serverEmits('request:completed', {});
+    act(() => jest.advanceTimersByTime(900));
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    await serverEmits('request:completed', { requestId: 'c-2' });
+    act(() => jest.advanceTimersByTime(900));
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/request/[id]/rating', params: { id: 'c-2' } });
   });
 
   it('prestataire : /earnings', async () => {
@@ -595,9 +615,8 @@ describe('nettoyage', () => {
     await act(async () => {});
     expect(s.removeAllListeners).toHaveBeenCalled();
     expect(s.disconnect).toHaveBeenCalled();
-    // NB : ctx.socket reste l'ancienne instance (fermée) — le cleanup vide
-    // socketRef avant que la branche « !user » ne puisse appeler setSocket(null).
-    // Signalé, non corrigé ici (fichier gelé) : on n'en fait pas une attente.
+    // Plus de socket morte exposée : un emit après déconnexion partirait dans le vide.
+    expect(ctx.socket).toBeNull();
     expect(ctx.isConnected).toBe(false);
     expect(ctx.connectionStatus).toBe('connecting');
     expect(isSocketUp()).toBe(false);

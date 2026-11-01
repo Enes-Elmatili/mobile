@@ -423,7 +423,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleProviderAccept = (data: any, eventName: string) => {
       devLog(`✅ [PROVIDER] ${eventName}:`, data);
       clearMissionRequest();
-      const reqId = String(data?.requestId);
+      // Sans id, String(undefined) donnerait « undefined » : on ne navigue pas.
+      const reqId = data?.requestId != null ? String(data.requestId) : '';
       if (!reqId || acceptedRequestIds.has(reqId)) return; // already handled
       acceptedRequestIds.add(reqId);
       playRef.current('missionAccepted');
@@ -493,7 +494,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const completedRequestIds = new Set<string>();
     newSocket.on('request:completed', (data) => {
-      const reqId = String(data?.requestId);
+      const reqId = data?.requestId != null ? String(data.requestId) : '';
+      if (!reqId) return; // événement sans id : rien à noter ni à afficher
       if (completedRequestIds.has(reqId)) return; // deduplicate same event firing twice
       completedRequestIds.add(reqId);
       devLog('🏁 [COMPLETION] Request completed:', reqId);
@@ -649,6 +651,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
+        // Sinon useSocket() exposerait la socket fermée après la déconnexion.
+        setSocket(null);
       }
     };
   // Only depend on user?.id — roles and email are read from userRef inside handlers
