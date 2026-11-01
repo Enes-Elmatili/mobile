@@ -1,0 +1,91 @@
+# Tests de bout en bout Maestro (.maestro/) sur simulateur iOS : les chemins
+# d'argent, contre l'environnement de TEST (jamais la production : profil EAS
+# `e2e`, environnement EAS `development`). Lancement manuel ou chaque nuit —
+# trop lent et trop dépendant du backend de test pour chaque PR.
+#
+# Secrets requis (Settings → Secrets → Actions) : EXPO_TOKEN, E2E_CLIENT_EMAIL,
+# E2E_CLIENT_PASSWORD, E2E_PROVIDER_EMAIL, E2E_PROVIDER_PASSWORD,
+# E2E_QUOTE_REQUEST_ID. Données et réglages : .maestro/README.md.
+name: E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+concurrency:
+  group: e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 90
+    # Services du catalogue de test (slugs) : réglables par variables de dépôt
+    # (Settings → Variables) ; un service à prix fixe et un service sur devis.
+    env:
+      E2E_FIXED_CATEGORY: ${{ vars.E2E_FIXED_CATEGORY || 'plomberie' }}
+      E2E_FIXED_SERVICE: ${{ vars.E2E_FIXED_SERVICE || 'fuite-eau' }}
+      E2E_QUOTE_CATEGORY: ${{ vars.E2E_QUOTE_CATEGORY || 'plomberie' }}
+      E2E_QUOTE_SERVICE: ${{ vars.E2E_QUOTE_SERVICE || 'debouchage-canalisation' }}
+    steps:
+      - name: Secrets présents
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          E2E_CLIENT_EMAIL: ${{ secrets.E2E_CLIENT_EMAIL }}
+          E2E_PROVIDER_EMAIL: ${{ secrets.E2E_PROVIDER_EMAIL }}
+        run: |
+          for v in EXPO_TOKEN E2E_CLIENT_EMAIL E2E_PROVIDER_EMAIL; do
+            if [ -z "${!v}" ]; then echo "::error::Secret $v manquant (voir .maestro/README.md)"; exit 1; fi
+          done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Build simulateur (EAS, profil e2e)
+        run: |
+          eas build --profile e2e --platform ios --non-interactive --wait --json > build.json
+          URL=$(node -p "require('./build.json')[0].artifacts.buildUrl")
+          curl -sSL "$URL" -o app.tar.gz
+          mkdir -p app && tar -xzf app.tar.gz -C app
+      - name: Simulateur
+        run: |
+          UDID=$(xcrun simctl list devices available -j | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const j=JSON.parse(d);const all=Object.values(j.devices).flat().filter(x=>/^iPhone/.test(x.name));console.log((all.find(x=>/Pro$/.test(x.name))||all[0]).udid)})")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl install "$UDID" "$(find app -name '*.app' -maxdepth 3 | head -1)"
+      - name: Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Flux d'argent
+        run: |
+          maestro --device "$UDID" test .maestro \
+            --env E2E_CLIENT_EMAIL="${{ secrets.E2E_CLIENT_EMAIL }}" \
+            --env E2E_CLIENT_PASSWORD="${{ secrets.E2E_CLIENT_PASSWORD }}" \
+            --env E2E_PROVIDER_EMAIL="${{ secrets.E2E_PROVIDER_EMAIL }}" \
+            --env E2E_PROVIDER_PASSWORD="${{ secrets.E2E_PROVIDER_PASSWORD }}" \
+            --env E2E_QUOTE_REQUEST_ID="${{ secrets.E2E_QUOTE_REQUEST_ID }}" \
+            --env E2E_FIXED_CATEGORY="$E2E_FIXED_CATEGORY" \
+            --env E2E_FIXED_SERVICE="$E2E_FIXED_SERVICE" \
+            --env E2E_QUOTE_CATEGORY="$E2E_QUOTE_CATEGORY" \
+            --env E2E_QUOTE_SERVICE="$E2E_QUOTE_SERVICE" \
+            --format junit --output maestro-report.xml
+      - name: Rapport et captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro
+          path: |
+            maestro-report.xml
+            ~/.maestro/tests/
+          if-no-files-found: ignore
