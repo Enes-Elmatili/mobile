@@ -6,124 +6,45 @@
 //   3. Ledger blanc — détail main d'œuvre / pièces / acompte
 //   4. Prestataire (identité) → notes → réassurance paiement
 //   5. Footer : UNE action dominante (accepter), refus en lien discret → sheet dédiée
+//
+// Les blocs vivent dans components/quote/, la logique pure dans lib/quote/quoteReview.ts.
 import React, { useEffect, useState, useCallback } from "react";
-import {
-  View, Text, StyleSheet, StatusBar, Platform, TextInput, KeyboardAvoidingView, Modal, Pressable,
-} from "react-native";
-import Animated, {
-  Easing, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle,
-  useSharedValue, withRepeat, withSequence, withSpring, withTiming,
-} from "react-native-reanimated";
-import Svg, { Path } from "react-native-svg";
-import { MOTION, usePresence, useTraceStroke } from "@/lib/motion";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Feather } from "@expo/vector-icons";
+import { View, StyleSheet, StatusBar } from "react-native";
+import Animated, { interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useStripe } from "@stripe/stripe-react-native";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
 import type { Quote, ServiceRequest } from '@/lib/types';
-import { useAppTheme, FONTS, COLORS, alpha } from "@/hooks/use-app-theme";
-import Avatar from "@/components/ui/Avatar";
-import { ProviderRow } from "@/components/tracking";
+import { useAppTheme, COLORS } from "@/hooks/use-app-theme";
 import { PhotoGallery } from "@/components/mission/photos";
 import { briefOf } from "@/lib/mission/brief";
 import { useCallParty } from "@/lib/webrtc/CallContext";
-import { RaisedButton } from "@/components/ui/RaisedButton";
-import { PulseDot } from "@/components/ui/PulseDot";
 import { useAndroidBackClose } from "@/hooks/use-android-back-close";
 import { devError } from "@/lib/logger";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSocket } from "@/lib/SocketContext";
-import { formatEURCents as fmtEur } from "@/lib/format";
 import { cleanName } from "@/lib/displayName";
 import { translateRequestServiceRaw } from "@/lib/categoryLabel";
 import { useTranslation } from "react-i18next";
-import { PressScale } from '@/components/ui/PressScale';
 import { SplitPane, useSplitPane } from "@/lib/layout";
-
-
-/** Sépare "871,00 €" en { value, cur } pour composer le montant héros en deux tailles. */
-function splitAmount(cents: number) {
-  const s = fmtEur(cents);
-  const m = s.match(/^(.*?)\s*(€)$/);
-  return m ? { value: m[1], cur: m[2] } : { value: s, cur: "" };
-}
-
-/** Micro-label mono uppercase — signature typographique FIXED. */
-function MonoLabel({ children, color, size = 10.5 }: { children: React.ReactNode; color: string; size?: number }) {
-  return (
-    <Text style={{ fontFamily: FONTS.mono, fontSize: size, letterSpacing: 1.6, textTransform: "uppercase", color }}>
-      {children}
-    </Text>
-  );
-}
-
-/** Entrée échelonnée — fade + 14px up, easing charte. */
-function Reveal({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
-  // Cascade : chaque bloc entre `delay` ms après le précédent, sur le ressort
-  // de volet (moment 8) — le regard finit sur le total.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  const { style } = usePresence(mounted, { from: "bottom", preset: MOTION.pane, delayMs: delay });
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
-
-/** Sceau : coche qui se trace à l'acceptation (moment 9). */
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-/** Longueur du tracé « M5 12.5 L10 17.5 L19 7 » : √50 + √191,25 ≈ 20,9. */
-const CHECK_LENGTH = 21;
-const HERO_BORDER_PENDING = alpha(COLORS.amber, 0.45);
-const HERO_BORDER_ACCEPTED = alpha(COLORS.greenBrand, 0.6);
-function SealCheck({ color }: { color: string }) {
-  const [drawn, setDrawn] = useState(false);
-  useEffect(() => { setDrawn(true); }, []);
-  const { animatedProps } = useTraceStroke(drawn, { length: CHECK_LENGTH });
-  return (
-    <Svg width={26} height={26} viewBox="0 0 24 24">
-      <AnimatedPath
-        d="M5 12.5 L10 17.5 L19 7" fill="none" stroke={color} strokeWidth={2.4}
-        strokeLinecap="round" strokeLinejoin="round" strokeDasharray={CHECK_LENGTH}
-        animatedProps={animatedProps}
-      />
-    </Svg>
-  );
-}
-
-/** Bloc du squelette — au niveau module : déclaré dans le rendu, il serait
- *  recréé (donc remonté) à chaque passage. */
-function SkeletonBlock({ h, w = "100%", r = 14, mt = 0, color, pulseStyle }: {
-  h: number; w?: any; r?: number; mt?: number; color: string; pulseStyle: ReturnType<typeof useAnimatedStyle>;
-}) {
-  return <Animated.View style={[{ height: h, width: w, borderRadius: r, marginTop: mt, backgroundColor: color }, pulseStyle]} />;
-}
-
-/** Squelette de chargement — reprend la silhouette réelle de la page (héro + ledger). */
-function QuoteSkeleton({ theme }: { theme: any }) {
-  const pulse = useSharedValue(0.45);
-  useEffect(() => {
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.45, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      false,
-    );
-  }, [pulse]);
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-  const block = { color: theme.surface, pulseStyle };
-  return (
-    <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
-      <SkeletonBlock {...block} h={16} w={140} r={8} />
-      <SkeletonBlock {...block} h={30} w={220} r={8} mt={14} />
-      <SkeletonBlock {...block} h={168} r={26} mt={18} />
-      <SkeletonBlock {...block} h={150} r={20} mt={12} />
-      <SkeletonBlock {...block} h={76} r={20} mt={12} />
-    </View>
-  );
-}
+import {
+  confirmPaymentWithRetry, isFolded, isQuoteReviewStatus, isSealed, quotePaymentSheetParams,
+  quoteReviewState, splitAmount, timeLeftLabel as formatTimeLeft,
+} from "@/lib/quote/quoteReview";
+import { Reveal } from "@/components/quote/primitives";
+import { QuoteSkeleton } from "@/components/quote/QuoteSkeleton";
+import { QuoteHeader, QuoteEmpty } from "@/components/quote/QuoteChrome";
+import { QuoteContext } from "@/components/quote/QuoteContext";
+import { QuoteHero } from "@/components/quote/QuoteHero";
+import { QuoteLedger } from "@/components/quote/QuoteLedger";
+import { QuoteProviderCard } from "@/components/quote/QuoteProviderCard";
+import { QuoteNotes, QuoteSecureNote } from "@/components/quote/QuoteNotes";
+import { QuoteFooter } from "@/components/quote/QuoteFooter";
+import { RefuseQuoteSheet } from "@/components/quote/RefuseQuoteSheet";
+import { quoteCardStyle } from "@/components/quote/card";
+import { useSealFold } from "@/components/quote/useSealFold";
 
 export default function QuoteReview() {
   const router = useRouter();
@@ -153,22 +74,9 @@ export default function QuoteReview() {
   // coche se trace ; au refus la carte se plie et se range, sans rouge.
   // Hissés avant l'early return (squelette) : un hook ne se déclare pas après un return.
   const quoteStatusUpper = (quote?.status || "").toUpperCase();
-  const sealOn = quoteStatusUpper === "ACCEPTED" || requestStatus === "QUOTE_ACCEPTED" || requestStatus === "ONGOING";
-  const foldOn = quoteStatusUpper === "REFUSED" || requestStatus === "QUOTE_REFUSED";
-  const seal = useSharedValue(sealOn ? 1 : 0);
-  const fold = useSharedValue(foldOn ? 1 : 0);
-  useEffect(() => { seal.value = withSpring(sealOn ? 1 : 0, MOTION.trace); }, [sealOn, seal]);
-  useEffect(() => { fold.value = withSpring(foldOn ? 1 : 0, MOTION.pane); }, [foldOn, fold]);
-  // Les deux couleurs sont calculées ICI, sur le thread JS : `alpha` n'est pas
-  // un worklet, l'appeler dans useAnimatedStyle plante le runtime UI en release
-  // (l'app se fermait à la réception du devis).
-  const heroBorderStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(seal.value, [0, 1], [HERO_BORDER_PENDING, HERO_BORDER_ACCEPTED]),
-  }));
-  const foldStyle = useAnimatedStyle(() => ({
-    opacity: 1 - 0.35 * fold.value,
-    transform: [{ perspective: 600 }, { rotateX: `${-12 * fold.value}deg` }, { scale: 1 - 0.04 * fold.value }],
-  }));
+  const sealOn = isSealed(quoteStatusUpper, requestStatus);
+  const foldOn = isFolded(quoteStatusUpper, requestStatus);
+  const { heroBorderStyle, foldStyle } = useSealFold(sealOn, foldOn);
   // Hauteur RÉELLE du footer épinglé (mesurée) → réserve de scroll exacte. Elle varie
   // selon l'OS (barre gestuelle iOS 34 px vs nav 3 boutons Android ~48) et selon l'état
   // (CTA + lien de refus vs CTA seul) : une constante en dur masquerait du contenu.
@@ -204,8 +112,7 @@ export default function QuoteReview() {
       const status = (request.status || "").toUpperCase();
       setRequest(request);
       setRequestStatus(status);
-      const allowed = ["QUOTE_SENT", "QUOTE_ACCEPTED", "QUOTE_REFUSED", "QUOTE_EXPIRED"].includes(status);
-      if (!allowed) {
+      if (!isQuoteReviewStatus(status)) {
         if (!opts?.silent) router.replace("/(tabs)/documents");
         return status;
       }
@@ -229,29 +136,13 @@ export default function QuoteReview() {
   // les CTA reflètent l'état COURANT plutôt qu'un état figé au render.
   useEffect(() => {
     if (!socket || !id) return;
-    const handler = (data: any) => {
+    const handler = (data: { requestId?: string | number }) => {
       if (String(data.requestId) !== String(id)) return;
       load({ silent: true });
     };
     socket.on("request:statusUpdated", handler);
     return () => { socket.off("request:statusUpdated", handler); };
   }, [socket, id, load]);
-
-  // Confirme le paiement côté backend avec retry x3 + backoff. Le client a DÉJÀ été
-  // débité par Stripe : en cas d'échec réseau, on ne le laisse pas dans un état
-  // incohérent — on réessaie, et si ça échoue quand même on ne bloque pas.
-  const confirmPaymentWithRetry = useCallback(async (quoteId: number, paymentIntentId: string): Promise<boolean> => {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        await api.quotes.confirmPayment(quoteId, paymentIntentId);
-        return true;
-      } catch (e: any) {
-        if (e?.status === 401 || e?.status === 403) return false;
-        if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1000));
-      }
-    }
-    return false;
-  }, []);
 
   const handleAccept = async () => {
     if (!quote) return;
@@ -269,13 +160,7 @@ export default function QuoteReview() {
       const res = await api.quotes.accept(quote.id);
 
       if (res.paymentIntent) {
-        const { error: initError } = await initPaymentSheet({
-          merchantDisplayName: "Fixed",
-          paymentIntentClientSecret: res.paymentIntent.clientSecret,
-          applePay: { merchantCountryCode: "BE" },
-          googlePay: { merchantCountryCode: "BE", testEnv: false },
-          paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'bancontact'],
-        });
+        const { error: initError } = await initPaymentSheet(quotePaymentSheetParams(res.paymentIntent.clientSecret));
 
         if (initError) {
           devError("Payment init error:", initError);
@@ -297,7 +182,9 @@ export default function QuoteReview() {
         // Passer le paymentIntentId pour qu'il soit persisté sur le Payment
         // (nécessaire pour un refund admin ultérieur).
         const quoteId = res.paymentIntent.quoteId || quote.id;
-        const confirmed = await confirmPaymentWithRetry(quoteId, res.paymentIntent.id);
+        const confirmed = await confirmPaymentWithRetry(
+          (qid, piId) => api.quotes.confirmPayment(qid, piId), quoteId, res.paymentIntent.id,
+        );
         if (!confirmed) {
           // Débité mais synchro backend échouée après 3 tentatives : on informe et on
           // laisse quand même passer (le webhook/cron réconciliera le statut).
@@ -339,24 +226,7 @@ export default function QuoteReview() {
   };
 
   // ── Header partagé (loading / empty / contenu) ───────────────────────────
-  const Header = (
-    <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
-      <View style={s.header}>
-        <PressScale
-          style={[s.headerBack, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
-          onPress={goBack}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          hitSlop={8}
-        >
-          <Feather name="arrow-left" size={18} color={theme.text} />
-        </PressScale>
-        <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.short_label').toUpperCase()}</Text>
-        <View style={{ width: 36 }} />
-      </View>
-      <Animated.View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }, headerLineStyle]} />
-    </SafeAreaView>
-  );
+  const Header = <QuoteHeader theme={theme} onBack={goBack} lineStyle={headerLineStyle} />;
 
   // Loading — squelette plutôt que spinner : la page se dessine avant d'arriver.
   if (loading) {
@@ -375,32 +245,18 @@ export default function QuoteReview() {
       <View style={[s.root, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
         {Header}
-        <View style={[s.center, { flex: 1, paddingHorizontal: 32 }]}>
-          <View style={[s.emptyIcon, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
-            <Feather name="file-text" size={28} color={theme.textMuted} />
-          </View>
-          <Text style={[s.emptyText, { color: theme.textSub }]}>{t('quote.empty_no_quote_yet')}</Text>
-          <PressScale style={s.emptyBack} onPress={goBack} accessibilityRole="button" hitSlop={8}>
-            <Text style={[s.emptyBackText, { color: theme.text }]}>{t('common.back')}</Text>
-          </PressScale>
-        </View>
+        <QuoteEmpty theme={theme} onBack={goBack} />
       </View>
     );
   }
 
   // Badge dérivé du VRAI statut du devis / de la demande (plus de "en attente" affiché
   // sur un devis déjà accepté ou refusé).
-  const qStatus = (quote.status || "").toUpperCase();
-  const validUntilMs = new Date(quote.validUntil).getTime();
-  const expired = qStatus === "EXPIRED" || requestStatus === "QUOTE_EXPIRED" || now > validUntilMs;
-  const accepted = qStatus === "ACCEPTED" || requestStatus === "QUOTE_ACCEPTED" || requestStatus === "ONGOING";
-  const refused = qStatus === "REFUSED" || requestStatus === "QUOTE_REFUSED";
-  const badgeDanger = refused || expired;
+  const { accepted, refused, badgeDanger, badgeKey, terminal, canAct, msLeft, urgent } = quoteReviewState({
+    quoteStatus: quote.status, requestStatus, validUntil: quote.validUntil, now,
+  });
   const badgeColor = accepted ? theme.greenText : badgeDanger ? COLORS.red : theme.textSub;
-  const badgeLabel = accepted ? t('quote.badge_accepted') : refused ? t('quote.badge_refused') : expired ? t('quote.expired') : t('quote.awaiting_response');
-  const terminal = accepted || refused || expired;
-  const canAct = !terminal && qStatus === "SENT";
-
+  const badgeLabel = t(badgeKey);
 
   const hasDeposit = quote.calloutPaid > 0;
   // Sur un devis clos (accepté donc payé, refusé ou expiré), un « reste à payer »
@@ -408,201 +264,41 @@ export default function QuoteReview() {
   const heroCents = terminal ? quote.totalAmount : quote.remainingAmount;
   const heroLabel = terminal ? t('ext.invoice_total') : t('quote.remaining_to_pay');
   const hero = splitAmount(heroCents);
-
-  // Compte à rebours de validité — urgence sous 6 h.
-  const msLeft = validUntilMs - now;
-  const urgent = !terminal && msLeft < 6 * 3600_000;
-  const timeLeftLabel = (() => {
-    const totalMin = Math.max(0, Math.floor(msLeft / 60_000));
-    const d = Math.floor(totalMin / 1440);
-    const h = Math.floor((totalMin % 1440) / 60);
-    const m = totalMin % 60;
-    if (d > 0) return `${t('notifications.time_day', { n: d })} ${t('notifications.time_hour', { n: h })}`;
-    if (h > 0) return `${t('notifications.time_hour', { n: h })} ${t('notifications.time_min', { n: m })}`;
-    return t('notifications.time_min', { n: m });
-  })();
+  const timeLeftLabel = formatTimeLeft(msLeft, t);
 
   const provider = request?.provider;
   const providerName = provider
     ? cleanName(provider.name || provider.user?.name, { email: provider.user?.email })
     : "";
   const serviceLabel = translateRequestServiceRaw(request);
-
-  const cardStyle = {
-    backgroundColor: theme.cardBg,
-    borderColor: theme.borderLight,
-    shadowColor: "#000",
-    shadowOpacity: theme.shadowOpacity,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: theme.isDark ? 0 : 2,
-  };
+  const cardStyle = quoteCardStyle(theme);
 
   // ── Contexte éditorial : statut · référence · service · adresse ──
   const contextBlock = (
     <Reveal>
-      <View style={s.metaRow}>
-        <View style={[
-          s.badge,
-          { backgroundColor: theme.surface },
-          badgeDanger && { backgroundColor: alpha(COLORS.red, 0.12) },
-          accepted && { backgroundColor: alpha(COLORS.greenBrand, 0.12) },
-        ]}>
-          {terminal
-            ? <View style={[s.badgeDot, { backgroundColor: badgeColor }]} />
-            : <PulseDot size={6} color={badgeColor} />}
-          <Text style={[s.badgeText, { color: badgeColor }]} numberOfLines={1}>{badgeLabel}</Text>
-        </View>
-        <MonoLabel color={theme.textVeryMuted}>{t('quote.doc_label')} #{quote.id}</MonoLabel>
-      </View>
-
-      {serviceLabel ? (
-        <Text style={[s.pageTitle, { color: theme.text }]} numberOfLines={2}>{serviceLabel}</Text>
-      ) : null}
-      {request?.address ? (
-        <View style={s.addressRow}>
-          <Feather name="map-pin" size={12} color={theme.textMuted} />
-          <Text style={[s.addressText, { color: theme.textMuted }]} numberOfLines={1}>{request.address}</Text>
-        </View>
-      ) : null}
+      <QuoteContext
+        theme={theme} quoteId={quote.id} badgeLabel={badgeLabel} badgeColor={badgeColor} badgeDanger={badgeDanger}
+        accepted={accepted} terminal={terminal} serviceLabel={serviceLabel} address={request?.address}
+      />
     </Reveal>
   );
 
   // ── Île héro — le montant qui décide ──
   const heroBlock = (
     <Reveal delay={70}>
-      <Animated.View style={[s.hero, { backgroundColor: theme.heroBg }, foldStyle]}>
-        <LinearGradient
-          colors={[alpha('#FFFFFF', 0.07), 'transparent', alpha('#000000', 0.22)]}
-          locations={[0, 0.5, 1]}
-          start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.heroBorder, heroBorderStyle]} />
-
-        <View style={s.heroTop}>
-          <MonoLabel color={theme.heroSub} size={11}>{heroLabel}</MonoLabel>
-          {accepted ? <SealCheck color={COLORS.green} /> : <Text style={[s.heroWatermark, { color: theme.heroSubFaint }]}>FIXED</Text>}
-        </View>
-
-        <View style={s.heroAmountRow}>
-          <Text style={[s.heroAmount, { color: theme.heroText }]}>
-            {hero.value}
-            <Text style={[s.heroCurrency, { color: theme.heroSub }]}> {hero.cur}</Text>
-          </Text>
-        </View>
-
-        {hasDeposit && !terminal ? (
-          <View style={s.heroSubRow}>
-            <Text style={[s.heroSubText, { color: theme.heroSubFaint }]}>
-              {t('ext.invoice_total')} {fmtEur(quote.totalAmount)}
-            </Text>
-            <View style={[s.heroPill, { backgroundColor: alpha(COLORS.greenBrand, 0.16), borderColor: alpha(COLORS.greenBrand, 0.4) }]}>
-              <Feather name="tag" size={10} color={COLORS.green} />
-              <Text style={[s.heroPillText, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)}</Text>
-            </View>
-          </View>
-        ) : null}
-
-        <View style={[s.heroFooter, { borderTopColor: alpha('#FFFFFF', 0.12) }]}>
-          {terminal ? (
-            <View style={s.heroFooterLeft}>
-              <Feather
-                name={accepted ? "check-circle" : refused ? "slash" : "clock"}
-                size={13}
-                color={accepted ? COLORS.green : theme.heroSubFaint}
-              />
-              <Text style={[s.heroFooterText, { color: accepted ? COLORS.green : theme.heroSub }]} numberOfLines={1}>
-                {badgeLabel}
-              </Text>
-            </View>
-          ) : (
-            <>
-              <View style={s.heroFooterLeft}>
-                <Feather name="clock" size={13} color={theme.heroSubFaint} />
-                <Text style={[s.heroFooterText, { color: theme.heroSub }]} numberOfLines={1}>
-                  {t('quote.valid_until', {
-                    date: new Date(quote.validUntil).toLocaleDateString(undefined, {
-                      day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
-                    }),
-                  })}
-                </Text>
-              </View>
-              <View style={[
-                s.countdown,
-                { backgroundColor: alpha('#FFFFFF', 0.10) },
-                urgent && { backgroundColor: alpha(COLORS.amber, 0.18) },
-              ]}>
-                <Text style={[s.countdownText, { color: urgent ? COLORS.amber : theme.heroText }]}>
-                  {timeLeftLabel}
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
-      </Animated.View>
+      <QuoteHero
+        theme={theme} heroLabel={heroLabel} hero={hero} accepted={accepted} refused={refused} terminal={terminal}
+        hasDeposit={hasDeposit} totalAmount={quote.totalAmount} calloutPaid={quote.calloutPaid} badgeLabel={badgeLabel}
+        validUntil={quote.validUntil} urgent={urgent} timeLeftLabel={timeLeftLabel}
+        foldStyle={foldStyle} heroBorderStyle={heroBorderStyle}
+      />
     </Reveal>
   );
 
   // ── Ledger : détail du devis ──
   const ledgerBlock = (
     <Reveal delay={130}>
-      <View style={[s.card, cardStyle]}>
-        <MonoLabel color={theme.textMuted}>{t('quote.details')}</MonoLabel>
-
-        <View style={{ marginTop: 12 }}>
-          <View style={s.lineRow}>
-            <View style={[s.tile, { backgroundColor: theme.surface }]}>
-              <Feather name="tool" size={15} color={theme.text} />
-            </View>
-            <Text style={[s.lineLabel, { color: theme.text }]} numberOfLines={1}>{t('quote.labor')}</Text>
-            <Text style={[s.lineValue, { color: theme.text }]}>{fmtEur(quote.laborAmount)}</Text>
-          </View>
-
-          {quote.partsAmount > 0 && (
-            <View style={s.lineRow}>
-              <View style={[s.tile, { backgroundColor: theme.surface }]}>
-                <Feather name="package" size={15} color={theme.text} />
-              </View>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={[s.lineLabel, { color: theme.text }]} numberOfLines={1}>{t('quote.parts_materials')}</Text>
-                {quote.partsDetail ? (
-                  <Text style={[s.lineDetail, { color: theme.textMuted }]} numberOfLines={2}>{quote.partsDetail}</Text>
-                ) : null}
-              </View>
-              <Text style={[s.lineValue, { color: theme.text }]}>{fmtEur(quote.partsAmount)}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-        <View style={s.totalRow}>
-          <Text style={[s.totalLabel, { color: theme.text }]}>{t('ext.invoice_total')}</Text>
-          <Text style={[s.totalValue, { color: theme.text }]}>{fmtEur(quote.totalAmount)}</Text>
-        </View>
-
-        {hasDeposit && (
-          <>
-            <View style={s.depositRow}>
-              <Text style={[s.depositLabel, { color: theme.greenText }]} numberOfLines={1}>{t('quote.deposit_paid')}</Text>
-              <Text style={[s.depositValue, { color: theme.greenText }]}>− {fmtEur(quote.calloutPaid)}</Text>
-            </View>
-            <View style={[s.divider, { backgroundColor: theme.border }]} />
-            <View style={s.totalRow}>
-              {/* Devis accepté = solde déjà réglé via la PaymentSheet : afficher
-                  « reste à payer » ferait croire au client qu'il doit encore. */}
-              <Text style={[s.finalLabel, { color: theme.text }]}>
-                {accepted ? t('ext.invoice_paid') : t('quote.remaining_to_pay')}
-              </Text>
-              <Text style={[s.finalValue, { color: accepted ? theme.greenText : theme.text }]}>
-                {fmtEur(quote.remainingAmount)}
-              </Text>
-            </View>
-          </>
-        )}
-      </View>
+      <QuoteLedger theme={theme} cardStyle={cardStyle} quote={quote} hasDeposit={hasDeposit} accepted={accepted} />
     </Reveal>
   );
 
@@ -610,42 +306,12 @@ export default function QuoteReview() {
   const providerBlock = (
     provider ? (
       <Reveal delay={180}>
-        <PressScale
-          style={[s.card, s.providerCard, cardStyle]}
-          onPress={() => router.push(`/providers/${provider.id}`)}
-          accessibilityRole="button"
-          accessibilityLabel={providerName}
-        >
-          <Avatar
-            size={44}
-            name={providerName}
-            avatarUrl={provider.avatarUrl}
-            verified={provider.validationStatus === 'ACTIVE'}
-          />
-          <View style={{ flex: 1, gap: 2 }}>
-            <MonoLabel color={theme.textMuted}>{t('quote.provider_label')}</MonoLabel>
-            <Text style={[s.providerName, { color: theme.text }]} numberOfLines={1}>{providerName}</Text>
-            <View style={s.providerMeta}>
-              <Feather name="star" size={11} color={theme.textSub} />
-              <Text style={[s.providerMetaText, { color: theme.textSub }]}>
-                {(provider.avgRating ?? 0) > 0 ? Number(provider.avgRating).toFixed(1) : '—'}
-              </Text>
-              <Text style={[s.providerMetaText, { color: theme.textVeryMuted }]}>·</Text>
-              <Text style={[s.providerMetaText, { color: theme.textSub }]} numberOfLines={1}>
-                {t('quote.jobs_count', { count: provider.jobsCompleted || 0 })}
-              </Text>
-            </View>
-          </View>
-          <Feather name="chevron-right" size={18} color={theme.textMuted} />
-        </PressScale>
-        {/* Message et appel : le prestataire a accepté, on peut lui parler avant de décider. */}
-        <View style={{ marginTop: 8 }}>
-          <ProviderRow
-            provider={provider}
-            onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(provider.userId || provider.id), name: providerName, requestId: String(id) } })}
-            onCall={() => callParty({ userId: provider.userId, name: providerName, requestId: id })}
-          />
-        </View>
+        <QuoteProviderCard
+          theme={theme} cardStyle={cardStyle} provider={provider} providerName={providerName}
+          onOpen={() => router.push(`/providers/${provider.id}`)}
+          onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(provider.userId || provider.id), name: providerName, requestId: String(id) } })}
+          onCall={() => callParty({ userId: provider.userId, name: providerName, requestId: id })}
+        />
       </Reveal>
     ) : null
   );
@@ -665,13 +331,7 @@ export default function QuoteReview() {
   const notesBlock = (
     quote.notes ? (
       <Reveal delay={220}>
-        <View style={[s.card, cardStyle]}>
-          <MonoLabel color={theme.textMuted}>{t('quote.notes_from_provider')}</MonoLabel>
-          <View style={s.notesRow}>
-            <View style={[s.notesRule, { backgroundColor: theme.border }]} />
-            <Text style={[s.notesText, { color: theme.textSub }]}>{quote.notes}</Text>
-          </View>
-        </View>
+        <QuoteNotes theme={theme} cardStyle={cardStyle} notes={quote.notes} />
       </Reveal>
     ) : null
   );
@@ -680,61 +340,22 @@ export default function QuoteReview() {
   const secureBlock = (
     canAct ? (
       <Reveal delay={260}>
-        <View style={s.secureRow}>
-          <Feather name="shield" size={12} color={theme.textMuted} />
-          <Text style={[s.secureText, { color: theme.textMuted }]}>{t('quote.secure_note')}</Text>
-        </View>
+        <QuoteSecureNote theme={theme} />
       </Reveal>
     ) : null
   );
 
   // ── Footer : une action dominante ──
   const footer = (
-    <LinearGradient
-      colors={[alpha(theme.bg, 0), theme.bg, theme.bg]}
-      locations={[0, 0.45, 1]}
-      style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
-      pointerEvents="box-none"
+    <QuoteFooter
+      theme={theme} bottomInset={insets.bottom} canAct={canAct} accepted={accepted} accepting={accepting}
+      remainingAmount={quote.remainingAmount}
       onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
-    >
-      {canAct ? (
-        <>
-          <RaisedButton
-            display
-            size="lg"
-            label={`${t('quote.accept_cta')} · ${fmtEur(quote.remainingAmount)}`}
-            iconRight="arrow-right"
-            loading={accepting}
-            onPress={handleAccept}
-            haptic="none"
-          />
-          <PressScale
-            style={s.refuseLink}
-            onPress={() => { feedback.haptic('light'); setShowRefuseInput(true); }}
-            accessibilityRole="button"
-            accessibilityLabel={t('quote.refuse_link')}
-            hitSlop={8}
-          >
-            <Text style={[s.refuseLinkText, { color: theme.textSub }]}>{t('quote.refuse_link')}</Text>
-          </PressScale>
-        </>
-      ) : accepted ? (
-        <RaisedButton
-          display
-          size="lg"
-          label={t('notifications.cta_view_mission')}
-          iconRight="arrow-right"
-          onPress={() => router.replace({ pathname: "/request/[id]/missionview", params: { id: String(id) } })}
-        />
-      ) : (
-        <RaisedButton
-          display
-          size="lg"
-          label={t('dashboard.back_home')}
-          onPress={() => router.replace("/(tabs)/dashboard")}
-        />
-      )}
-    </LinearGradient>
+      onAccept={handleAccept}
+      onOpenRefuse={() => { feedback.haptic('light'); setShowRefuseInput(true); }}
+      onViewMission={() => router.replace({ pathname: "/request/[id]/missionview", params: { id: String(id) } })}
+      onHome={() => router.replace("/(tabs)/dashboard")}
+    />
   );
 
   // Écran déplié (Duo ouvert, Fold, iPad) : le problème à gauche, le devis
@@ -792,221 +413,16 @@ export default function QuoteReview() {
       {isSplit ? null : footer}
 
       {/* ── Sheet de refus — sortie du flux de lecture, action destructive isolée ── */}
-      <Modal
-        visible={showRefuseInput}
-        transparent
-        animationType="slide"
-        onRequestClose={closeRefuse}
-        statusBarTranslucent
-        navigationBarTranslucent
-      >
-        {/* behavior="padding" sur LES DEUX plateformes : avec l'edge-to-edge SDK 54,
-            adjustResize est inopérant sur Android — `undefined` laisserait le champ
-            « raison » derrière le clavier. */}
-        <KeyboardAvoidingView style={s.modalRoot} behavior="padding">
-          <Pressable
-            style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#000000', 0.55) }]}
-            onPress={closeRefuse}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.close')}
-          />
-          <View style={[
-            s.sheet,
-            {
-              backgroundColor: theme.cardBg,
-              paddingBottom: Math.max(insets.bottom + 12, Platform.OS === "ios" ? 40 : 28),
-            },
-          ]}>
-            <View style={[s.sheetHandle, { backgroundColor: theme.border }]} />
-
-            <View style={[s.sheetIcon, { backgroundColor: alpha(COLORS.red, 0.12) }]}>
-              <Feather name="x" size={20} color={COLORS.red} />
-            </View>
-
-            <Text style={[s.sheetTitle, { color: theme.text }]}>{t('quote.refuse_sheet_title')}</Text>
-            <Text style={[s.sheetBody, { color: theme.textSub }]}>{t('quote.refuse_sheet_body')}</Text>
-
-            <View style={{ width: "100%", gap: 8 }}>
-              <MonoLabel color={theme.textMuted}>{t('quote.refuse_reason_label')}</MonoLabel>
-              <TextInput
-                style={[s.refuseInput, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
-                placeholder={t('quote.refuse_reason_placeholder')}
-                placeholderTextColor={theme.textMuted}
-                value={refuseReason}
-                onChangeText={setRefuseReason}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                maxLength={300}
-              />
-            </View>
-
-            <View style={s.sheetBtns}>
-              <PressScale
-                style={[s.sheetCancel, { borderColor: theme.border }]}
-                onPress={closeRefuse}
-                accessibilityRole="button"
-              >
-                <Text style={[s.sheetCancelText, { color: theme.textSub }]}>{t('common.cancel')}</Text>
-              </PressScale>
-              <RaisedButton
-                variant="destructive"
-                size="md"
-                label={t('quote.confirm_refusal')}
-                loading={refusing}
-                onPress={handleRefuse}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <RefuseQuoteSheet
+        theme={theme} visible={showRefuseInput} bottomInset={insets.bottom}
+        reason={refuseReason} onChangeReason={setRefuseReason} refusing={refusing}
+        onClose={closeRefuse} onConfirm={handleRefuse}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  center: { justifyContent: "center", alignItems: "center", gap: 16 },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  headerBack: {
-    width: 36, height: 36, borderRadius: 12,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1,
-  },
-  headerTitle: {
-    fontFamily: FONTS.bebas, includeFontPadding: false,
-    fontSize: 22,
-    letterSpacing: 2.5,
-  },
-
   scroll: { paddingHorizontal: 18, paddingTop: 10, gap: 12 },
-
-  // ── Contexte ──
-  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  badge: {
-    flexDirection: "row", alignItems: "center", gap: 7,
-    paddingHorizontal: 11, paddingVertical: 6,
-    borderRadius: 100, flexShrink: 1,
-  },
-  badgeDot: { width: 6, height: 6, borderRadius: 3 },
-  badgeText: {
-    fontFamily: FONTS.mono, fontSize: 10.5,
-    letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 1,
-  },
-  pageTitle: {
-    fontFamily: FONTS.bebas, includeFontPadding: false,
-    fontSize: 32, letterSpacing: 0.8, lineHeight: 34, marginTop: 14,
-  },
-  addressRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 },
-  addressText: { fontFamily: FONTS.sans, fontSize: 12.5, flexShrink: 1 },
-
-  // ── Héro ──
-  hero: {
-    position: "relative", borderRadius: 26, overflow: "hidden", padding: 22, marginTop: 6,
-    shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 18 }, elevation: 10,
-  },
-  heroBorder: { borderRadius: 26, borderWidth: 1 },
-  heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  heroWatermark: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 3 },
-  heroAmountRow: { flexDirection: "row", alignItems: "baseline", marginTop: 10, flexWrap: "wrap" },
-  heroAmount: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 54, letterSpacing: 0.5, lineHeight: 56 },
-  heroCurrency: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 26 },
-  heroSubRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" },
-  heroSubText: { fontFamily: FONTS.mono, fontSize: 12 },
-  heroPill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, borderWidth: 1,
-  },
-  heroPillText: { fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 0.3 },
-  heroFooter: {
-    marginTop: 16, paddingTop: 14, borderTopWidth: 1,
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12,
-  },
-  heroFooterLeft: { flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 },
-  heroFooterText: { fontFamily: FONTS.sans, fontSize: 12.5, flexShrink: 1 },
-  countdown: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, flexShrink: 0 },
-  countdownText: { fontFamily: FONTS.monoMedium, fontSize: 11.5, letterSpacing: 0.3 },
-
-  // ── Cartes ──
-  card: { borderRadius: 20, borderWidth: 1, padding: 16 },
-
-  lineRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, gap: 12 },
-  tile: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  lineLabel: { fontFamily: FONTS.sans, fontSize: 14, flex: 1, paddingRight: 10 },
-  lineDetail: { fontFamily: FONTS.sans, fontSize: 12, marginTop: 2, lineHeight: 16 },
-  lineValue: { fontFamily: FONTS.monoMedium, fontSize: 14, letterSpacing: 0.2, flexShrink: 0 },
-
-  divider: { height: 1, marginVertical: 10 },
-
-  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 12 },
-  totalLabel: { fontFamily: FONTS.sansMedium, fontSize: 14 },
-  totalValue: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 0.8 },
-  depositRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginTop: 8 },
-  depositLabel: { fontFamily: FONTS.sans, fontSize: 13.5, flexShrink: 1 },
-  depositValue: { fontFamily: FONTS.monoMedium, fontSize: 13.5, flexShrink: 0 },
-  finalLabel: { fontFamily: FONTS.sansMedium, fontSize: 15 },
-  finalValue: { fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 26, letterSpacing: 0.8 },
-
-  providerCard: { flexDirection: "row", alignItems: "center", gap: 14 },
-  providerName: { fontFamily: FONTS.sansMedium, fontSize: 15 },
-  providerMeta: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
-  providerMetaText: { fontFamily: FONTS.monoMedium, fontSize: 11.5, flexShrink: 1 },
-
-  notesRow: { flexDirection: "row", gap: 12, marginTop: 12 },
-  notesRule: { width: 2, borderRadius: 2, alignSelf: "stretch" },
-  notesText: { fontFamily: FONTS.sans, fontSize: 13.5, lineHeight: 20, flex: 1 },
-
-  secureRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 4, paddingHorizontal: 8 },
-  secureText: { fontFamily: FONTS.sans, fontSize: 11.5, textAlign: "center", flexShrink: 1 },
-
-  // ── Empty ──
-  emptyIcon: {
-    width: 64, height: 64, borderRadius: 32, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-  },
-  emptyText: { fontFamily: FONTS.sans, fontSize: 14, textAlign: "center" },
-  emptyBack: { paddingHorizontal: 16, paddingVertical: 8 },
-  emptyBackText: { fontFamily: FONTS.sansMedium, fontSize: 13, textDecorationLine: "underline" },
-
-  // ── Footer épinglé ──
-  // zIndex (et non elevation) : sur Android RN réordonne le rendu sans dessiner
-  // d'ombre — une elevation ici tracerait un liseré sombre sur le dégradé.
-  footer: {
-    position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 10,
-    paddingHorizontal: 18, paddingTop: 28, gap: 4,
-  },
-  refuseLink: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16 },
-  refuseLinkText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
-
-  // ── Sheet de refus ──
-  modalRoot: { flex: 1, justifyContent: "flex-end" },
-  sheet: {
-    borderTopLeftRadius: 26, borderTopRightRadius: 26,
-    paddingHorizontal: 20, paddingTop: 10, gap: 14, alignItems: "center",
-  },
-  sheetHandle: { width: 38, height: 4, borderRadius: 2, marginBottom: 6 },
-  sheetIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
-  sheetTitle: {
-    fontFamily: FONTS.bebas, includeFontPadding: false,
-    fontSize: 26, letterSpacing: 1, textAlign: "center",
-  },
-  sheetBody: { fontFamily: FONTS.sans, fontSize: 13.5, lineHeight: 20, textAlign: "center", marginTop: -6 },
-  refuseInput: {
-    borderRadius: 14, borderWidth: 1, padding: 12, minHeight: 84, width: "100%",
-    fontFamily: FONTS.sans, fontSize: 13.5,
-  },
-  sheetBtns: { flexDirection: "row", gap: 10, width: "100%", alignItems: "center" },
-  sheetCancel: {
-    flex: 1, height: 44, borderRadius: 14, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-  },
-  sheetCancelText: { fontFamily: FONTS.sansMedium, fontSize: 14 },
 });
