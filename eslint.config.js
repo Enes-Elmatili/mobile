@@ -1,6 +1,7 @@
 // https://docs.expo.dev/guides/using-eslint/
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
+const globals = require('globals');
 
 // ─── Allowlists de migration ─────────────────────────────────────────────────
 // Chaque liste est un stock à écouler, jamais un droit acquis : on retire une
@@ -85,7 +86,26 @@ const SOCKET_CONTEXT_RULES_OFF = Object.fromEntries([
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*', '.claude/**'],
+    ignores: ['dist/*', '.claude/**', 'android/**', 'ios/**'],
+  },
+  // Tests et réglages jest : les globales de jest (describe, it, expect…).
+  {
+    files: ['**/__tests__/**', '**/*.test.{js,jsx,ts,tsx}', 'jest.setup.js'],
+    languageOptions: { globals: { ...globals.jest, ...globals.node } },
+    // Les harnais de test capturent le hook dans une variable du module
+    // (`function Probe() { q = useX(); }`) et créent des composants à la volée.
+    rules: { 'react-hooks/globals': 'off', 'react-hooks/immutability': 'off', 'react/display-name': 'off' },
+  },
+  // TypeScript vérifie déjà les exports ; import/namespace ne suit pas les
+  // `export *` des paquets (faux positifs sur expo-notifications).
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: { 'import/namespace': 'off' },
+  },
+  // Scripts de release et plugins Expo : du Node.
+  {
+    files: ['scripts/**', 'plugins/**', '*.config.js'],
+    languageOptions: { globals: globals.node },
   },
   {
     rules: REACT_COMPILER_RULES_OFF,

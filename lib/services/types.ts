@@ -5,13 +5,14 @@
  * Les champs optionnels reflètent les `?` Prisma.
  */
 
+import type { RequestStatus } from '../types/request';
+
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type ProviderDocStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ProviderStatus    = 'ONLINE' | 'READY' | 'OFFLINE' | 'BUSY';
 // Statuts de demande : une seule source, lib/types/request.ts.
 export type { RequestStatus } from '../types/request';
-import type { RequestStatus } from '../types/request';
 export type WalletTxType      = 'CREDIT' | 'DEBIT' | 'HOLD' | 'RELEASE';
 export type WithdrawStatus    = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
 export type TicketStatus      = 'OPEN' | 'IN_PROGRESS' | 'CLOSED';
