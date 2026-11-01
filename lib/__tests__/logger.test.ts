@@ -11,6 +11,7 @@ const g = globalThis as unknown as { __DEV__: boolean };
 function loadLogger(dev: boolean): Logger {
   g.__DEV__ = dev;
   let mod!: Logger;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- rechargé à chaque cas, après avoir fixé __DEV__
   jest.isolateModules(() => { mod = require('../logger'); });
   return mod;
 }

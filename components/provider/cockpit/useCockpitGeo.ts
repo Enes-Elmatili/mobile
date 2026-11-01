@@ -20,8 +20,11 @@ type Args = {
 
 // Geolocalisation — démarrée au montage ; si la permission a été refusée,
 // on la redemande au retour sur l'écran (l'utilisateur revient des réglages).
-// startGeo est créé une fois (deps []) : socket, userId et networkOnline sont
-// ceux du premier rendu — comportement d'origine conservé tel quel.
+// startGeo est créé une fois (deps []) : il lit socket, userId et réseau dans
+// des refs tenues à jour. Avant, il gardait ceux du premier rendu — or la
+// socket n'existe pas encore à ce moment-là (SocketContext la crée après
+// avoir lu le jeton) : la position ne partait jamais, ni vers le matching ni
+// vers le suivi du client.
 export function useCockpitGeo({ socket, userId, networkOnline, currentMissionRef, etaRef, isOnlineRef }: Args) {
   const [location,      setLocation]      = useState<LatLng | null>(null);
   const [heading,       setHeading]        = useState(0);
@@ -31,6 +34,15 @@ export function useCockpitGeo({ socket, userId, networkOnline, currentMissionRef
   const dashLastEmitRef = useRef(0);
   const missionEmitRef = useRef(0);
   const geoGenRef = useRef(0);
+  const socketRef = useRef(socket);
+  const userIdRef = useRef(userId);
+  const networkOnlineRef = useRef(networkOnline);
+  useEffect(() => {
+    socketRef.current = socket;
+    userIdRef.current = userId;
+    networkOnlineRef.current = networkOnline;
+  }, [socket, userId, networkOnline]);
+  const lastCoordsRef = useRef<LatLng | null>(null);
   const startGeo = useCallback(async () => {
     const gen = ++geoGenRef.current;
     const stale = () => gen !== geoGenRef.current;
@@ -43,11 +55,14 @@ export function useCockpitGeo({ socket, userId, networkOnline, currentMissionRef
     if (stale()) return;
     const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
     setLocation(coords);
+    lastCoordsRef.current = coords;
     if (loc.coords.heading != null) setHeading(loc.coords.heading);
 
     // Sync initial position to backend so matching can find this provider
-    if (socket && userId) {
-      socket.emit('provider:location_update', { providerId: userId, ...coords });
+    // (si la socket n'est pas encore prête, l'effet plus bas s'en charge).
+    const s0 = socketRef.current;
+    if (s0 && userIdRef.current) {
+      s0.emit('provider:location_update', { providerId: userIdRef.current, ...coords });
     }
 
     if (dashLocSubRef.current) { dashLocSubRef.current.remove(); dashLocSubRef.current = null; }
@@ -59,6 +74,9 @@ export function useCockpitGeo({ socket, userId, networkOnline, currentMissionRef
       (l) => {
         const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
         setLocation(c);
+        lastCoordsRef.current = c;
+        const socket = socketRef.current;
+        const userId = userIdRef.current;
         if (l.coords.heading != null) setHeading(l.coords.heading);
 
         const now = Date.now();
@@ -69,7 +87,7 @@ export function useCockpitGeo({ socket, userId, networkOnline, currentMissionRef
           const eta = etaRef.current;
           socket.emit('provider:location_update', { requestId: Number(cm.id), lat: c.latitude, lng: c.longitude, eta: eta != null ? `${eta} min` : undefined });
         }
-        if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnline && userId) {
+        if (now - dashLastEmitRef.current >= 15_000 && socket && isOnlineRef.current && networkOnlineRef.current && userId) {
           dashLastEmitRef.current = now;
           socket.emit('provider:location_update', { providerId: userId, ...c });
         }
@@ -78,6 +96,13 @@ export function useCockpitGeo({ socket, userId, networkOnline, currentMissionRef
     if (stale()) { sub.remove(); return; }
     dashLocSubRef.current = sub;
   }, []);
+
+  // La socket arrive (ou change) après la première position : on la lui donne
+  // tout de suite, sans attendre 15 s, pour que le matching trouve le prestataire.
+  useEffect(() => {
+    const coords = lastCoordsRef.current;
+    if (socket && userId && coords) socket.emit('provider:location_update', { providerId: userId, ...coords });
+  }, [socket, userId]);
 
   useEffect(() => {
     startGeo();
