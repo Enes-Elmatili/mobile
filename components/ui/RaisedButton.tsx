@@ -139,6 +139,7 @@ export function RaisedButton({
       <Pressable
         testID={testID}
         accessibilityRole="button"
+        accessibilityLabel={label}
         accessibilityState={{ disabled: isInactive, busy: loading }}
         onPressIn={isInactive ? undefined : onPressIn}
         onPressOut={isInactive ? undefined : onPressOut}

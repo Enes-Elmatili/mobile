@@ -215,7 +215,7 @@ export default function MessagesInbox() {
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </PressScale>

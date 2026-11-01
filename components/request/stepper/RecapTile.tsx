@@ -29,6 +29,6 @@ export function RecapTile({
     </>
   );
   return onPress
-    ? <PressScale onPress={onPress} style={rowStyle}>{content}</PressScale>
+    ? <PressScale onPress={onPress} style={rowStyle} accessibilityRole="button">{content}</PressScale>
     : <View style={rowStyle}>{content}</View>;
 }

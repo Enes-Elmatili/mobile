@@ -12,8 +12,10 @@ import Animated from 'react-native-reanimated';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { useTranslation } from 'react-i18next';
 
 export default function ProvidersListScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const theme = useAppTheme();
   const [providers, setProviders] = useState<any[]>([]);
@@ -103,7 +105,7 @@ export default function ProvidersListScreen() {
           style={[styles.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('common.back')}
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </PressScale>
@@ -121,7 +123,7 @@ export default function ProvidersListScreen() {
             style={[styles.retryBtn, { backgroundColor: theme.accent }]}
             onPress={() => { setLoading(true); loadProviders(); }}
             accessibilityRole="button"
-            accessibilityLabel="Réessayer"
+            accessibilityLabel={t('common.retry')}
           >
             <Feather name="refresh-cw" size={15} color={theme.accentText} />
             <Text style={[styles.retryBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>Réessayer</Text>

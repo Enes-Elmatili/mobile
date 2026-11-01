@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import { authT, alpha } from "./tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { PressScale } from '@/components/ui/PressScale';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   onPress: () => void;
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export function AuthBackButton({ onPress, style, themed = false }: Props) {
+  const { t } = useTranslation();
   const theme = useAppTheme();
   const base = themed ? theme.text : authT.textOnDark;
   const iconColor = base;
@@ -37,7 +39,7 @@ export function AuthBackButton({ onPress, style, themed = false }: Props) {
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="Retour"
+      accessibilityLabel={t('common.back')}
       style={[
         s.btn,
         { borderColor, backgroundColor },

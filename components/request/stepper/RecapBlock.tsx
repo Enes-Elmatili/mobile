@@ -83,6 +83,7 @@ export function RecapBlock({
                     disabled={promoApplying}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     accessibilityRole="button"
+                    accessibilityLabel={t('stepper.remove_promo_a11y')}
                   >
                     {promoApplying
                       ? <ActivityIndicator size="small" color={theme.textMuted as string} />

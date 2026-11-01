@@ -322,7 +322,8 @@
     "su_err_activity": "Wybierz miasto i co najmniej jedną kategorię.",
     "welcome_eyebrow": "Hydraulika · Ślusarstwo",
     "google_unavailable": "Google niedostępne: {{reason}}",
-    "google_preparing": "Logowanie przez Google jest w przygotowaniu, spróbuj za chwilę."
+    "google_preparing": "Logowanie przez Google jest w przygotowaniu, spróbuj za chwilę.",
+    "country_code_a11y": "Numer kierunkowy kraju: {{code}}"
   },
   "profile": {
     "title": "Profil",
@@ -513,7 +514,9 @@
     "view_quote": "Zobacz wycenę",
     "track_request": "Śledź zlecenie",
     "track_intervention": "Śledź usługę",
-    "back_home": "WRÓĆ NA START"
+    "back_home": "WRÓĆ NA START",
+    "call_provider_a11y": "Zadzwoń do fachowca",
+    "message_provider_a11y": "Napisz do fachowca"
   },
   "missions": {
     "cancel": "Anuluj zlecenie",
@@ -780,7 +783,8 @@
     "photos_upload_failed_many": "Nie udało się wysłać {{count}} zdjęć. Zlecenie zostało wysłane bez nich.",
     "photos_upload_failed_other": "Nie udało się wysłać {{count}} zdjęć. Zlecenie zostało wysłane bez nich.",
     "shot_required": "WYMAGANE",
-    "shot_free": "Dodatkowe zdjęcie"
+    "shot_free": "Dodatkowe zdjęcie",
+    "remove_promo_a11y": "Usuń kod promocyjny"
   },
   "rating": {
     "skip": "Pomiń",
@@ -890,7 +894,9 @@
     "hours_short": "{{n}} godz.",
     "days_short": "{{n}} d",
     "empty_sub_client": "Tu pojawią się Twoje rozmowy z fachowcami.",
-    "select_hint": "Wybierz rozmowę"
+    "select_hint": "Wybierz rozmowę",
+    "input_a11y": "Twoja wiadomość",
+    "send_a11y": "Wyślij wiadomość"
   },
   "wallet": {
     "title": "Portfel",
@@ -2503,7 +2509,8 @@
     "retry": "Spróbuj ponownie",
     "call": "Zadzwoń: {{name}}",
     "message": "Napisz: {{name}}",
-    "ongoing_now": "W TOKU · PRZED CHWILĄ"
+    "ongoing_now": "W TOKU · PRZED CHWILĄ",
+    "code_a11y": "Kod przybycia"
   },
   "gains": {
     "title": "Zarobki",
@@ -2771,6 +2778,8 @@
     "mute_a11y": "Wycisz mikrofon",
     "unmute_a11y": "Włącz mikrofon",
     "hangup_a11y": "Rozłącz",
-    "mission_n": "Zlecenie #{{id}}"
+    "mission_n": "Zlecenie #{{id}}",
+    "accept_a11y": "Odbierz połączenie",
+    "decline_a11y": "Odrzuć połączenie"
   }
 }

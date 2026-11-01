@@ -137,6 +137,7 @@ export function AuthPhoneInput({
       >
         {/* Country chip — flag + dial code + chevron */}
         <PressScale accessibilityRole="button"
+          accessibilityLabel={t('auth.country_code_a11y', { code: `+${country.callingCode}` })}
           style={s.chip}
           onPress={() => setPickerVisible(true)}
         >

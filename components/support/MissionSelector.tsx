@@ -92,7 +92,7 @@ export default function MissionSelector({ missions, loading, onSelect, onOther, 
             autoCapitalize="none"
           />
           {query.length > 0 && (
-            <PressScale accessibilityRole="button" onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <PressScale accessibilityRole="button" accessibilityLabel={t('ext.missions_clear_search_a11y')} onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="x" size={16} color={theme.textMuted} />
             </PressScale>
           )}

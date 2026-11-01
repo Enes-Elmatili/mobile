@@ -300,6 +300,7 @@ export default function Documents() {
           </Text>
         </View>
         <PressScale
+          hitSlop={4}
           style={[s.helpBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => router.push('/settings/help')}
           accessibilityRole="button"

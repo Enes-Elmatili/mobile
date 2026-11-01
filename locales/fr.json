@@ -316,7 +316,8 @@
     "su_err_activity": "Choisissez votre ville et au moins une catégorie.",
     "welcome_eyebrow": "Plomberie · Serrurerie",
     "google_unavailable": "Google indisponible : {{reason}}",
-    "google_preparing": "Connexion Google en préparation, réessayez dans un instant."
+    "google_preparing": "Connexion Google en préparation, réessayez dans un instant.",
+    "country_code_a11y": "Indicatif du pays : {{code}}"
   },
   "profile": {
     "title": "Profil",
@@ -505,7 +506,9 @@
     "view_quote": "Voir le devis",
     "track_request": "Suivre la demande",
     "track_intervention": "Suivre l'intervention",
-    "back_home": "RETOUR À L'ACCUEIL"
+    "back_home": "RETOUR À L'ACCUEIL",
+    "call_provider_a11y": "Appeler le prestataire",
+    "message_provider_a11y": "Envoyer un message au prestataire"
   },
   "missions": {
     "cancel": "Annuler la mission",
@@ -770,7 +773,8 @@
     "photos_upload_failed_one": "Une photo n’a pas pu être envoyée. Votre demande est partie sans elle.",
     "photos_upload_failed_other": "{{count}} photos n’ont pas pu être envoyées. Votre demande est partie sans elles.",
     "shot_required": "REQUIS",
-    "shot_free": "Photo libre"
+    "shot_free": "Photo libre",
+    "remove_promo_a11y": "Retirer le code promo"
   },
   "rating": {
     "skip": "Passer",
@@ -878,7 +882,9 @@
     "hours_short": "{{n}} h",
     "days_short": "{{n}} j",
     "empty_sub_client": "Vos échanges avec les prestataires apparaîtront ici.",
-    "select_hint": "Sélectionnez une conversation"
+    "select_hint": "Sélectionnez une conversation",
+    "input_a11y": "Votre message",
+    "send_a11y": "Envoyer le message"
   },
   "wallet": {
     "title": "Portefeuille",
@@ -2314,7 +2320,8 @@
     "retry": "Réessayer",
     "call": "Appeler {{name}}",
     "message": "Écrire à {{name}}",
-    "ongoing_now": "EN COURS · À L’INSTANT"
+    "ongoing_now": "EN COURS · À L’INSTANT",
+    "code_a11y": "Code d'arrivée"
   },
   "gains": {
     "title": "Gains",
@@ -2568,6 +2575,8 @@
     "mute_a11y": "Couper le micro",
     "unmute_a11y": "Réactiver le micro",
     "hangup_a11y": "Raccrocher",
-    "mission_n": "Mission #{{id}}"
+    "mission_n": "Mission #{{id}}",
+    "accept_a11y": "Accepter l'appel",
+    "decline_a11y": "Refuser l'appel"
   }
 }

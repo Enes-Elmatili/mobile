@@ -316,7 +316,8 @@
     "su_err_activity": "Kies uw stad en minstens één categorie.",
     "welcome_eyebrow": "Loodgieterij · Slotenmakerij",
     "google_unavailable": "Google niet beschikbaar: {{reason}}",
-    "google_preparing": "Google-aanmelding wordt voorbereid, probeer het zo opnieuw."
+    "google_preparing": "Google-aanmelding wordt voorbereid, probeer het zo opnieuw.",
+    "country_code_a11y": "Landcode: {{code}}"
   },
   "profile": {
     "title": "Profiel",
@@ -505,7 +506,9 @@
     "view_quote": "Offerte bekijken",
     "track_request": "Aanvraag volgen",
     "track_intervention": "Interventie volgen",
-    "back_home": "TERUG NAAR HOME"
+    "back_home": "TERUG NAAR HOME",
+    "call_provider_a11y": "De vakman bellen",
+    "message_provider_a11y": "De vakman een bericht sturen"
   },
   "missions": {
     "cancel": "Missie annuleren",
@@ -770,7 +773,8 @@
     "photos_upload_failed_one": "Eén foto kon niet worden verzonden. Uw aanvraag is zonder verstuurd.",
     "photos_upload_failed_other": "{{count}} foto’s konden niet worden verzonden. Uw aanvraag is zonder verstuurd.",
     "shot_required": "VEREIST",
-    "shot_free": "Vrije foto"
+    "shot_free": "Vrije foto",
+    "remove_promo_a11y": "Promocode verwijderen"
   },
   "rating": {
     "skip": "Overslaan",
@@ -878,7 +882,9 @@
     "hours_short": "{{n}} u",
     "days_short": "{{n}} d",
     "empty_sub_client": "Uw gesprekken met vakmensen verschijnen hier.",
-    "select_hint": "Kies een gesprek"
+    "select_hint": "Kies een gesprek",
+    "input_a11y": "Je bericht",
+    "send_a11y": "Bericht versturen"
   },
   "wallet": {
     "title": "Portefeuille",
@@ -2432,7 +2438,8 @@
     "retry": "Opnieuw proberen",
     "call": "{{name}} bellen",
     "message": "Bericht aan {{name}}",
-    "ongoing_now": "BEZIG · ZONET"
+    "ongoing_now": "BEZIG · ZONET",
+    "code_a11y": "Aankomstcode"
   },
   "gains": {
     "title": "Inkomsten",
@@ -2686,6 +2693,8 @@
     "mute_a11y": "Microfoon dempen",
     "unmute_a11y": "Microfoon aanzetten",
     "hangup_a11y": "Ophangen",
-    "mission_n": "Opdracht #{{id}}"
+    "mission_n": "Opdracht #{{id}}",
+    "accept_a11y": "Oproep aannemen",
+    "decline_a11y": "Oproep weigeren"
   }
 }

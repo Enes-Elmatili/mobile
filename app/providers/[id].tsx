@@ -246,7 +246,7 @@ export default function ProviderDetailScreen() {
       <View style={[s.header, { borderBottomColor: theme.borderLight }]}>
         <IconBtn
           icon="chevron-left"
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('common.back')}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
         />
         <Text style={[s.headerTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>PRESTATAIRE</Text>

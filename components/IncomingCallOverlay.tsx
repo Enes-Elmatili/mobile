@@ -120,7 +120,7 @@ export default function IncomingCallOverlay() {
             style={s.rejectBtn}
             onPress={rejectCall}
             accessibilityRole="button"
-            accessibilityLabel="Refuser l'appel"
+            accessibilityLabel={t('call.decline_a11y')}
           >
             <Feather name="x" size={22} color={COLORS.red} />
           </PressScale>
@@ -128,7 +128,7 @@ export default function IncomingCallOverlay() {
             style={s.acceptBtn}
             onPress={acceptCall}
             accessibilityRole="button"
-            accessibilityLabel="Accepter l'appel"
+            accessibilityLabel={t('call.accept_a11y')}
           >
             <Feather name="phone" size={22} color="#FFF" />
           </PressScale>
