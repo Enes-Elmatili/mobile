@@ -147,7 +147,9 @@ export default function PendingValidation() {
         setStatus(next);
         return true;
       }
-    } catch {}
+    } catch {
+      // Interrogation périodique : un échec réseau est réessayé au tour suivant.
+    }
     return false;
   }
 
