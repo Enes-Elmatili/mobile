@@ -16,6 +16,7 @@ import { PressScale } from '@/components/ui/PressScale';
 import { getStatusInfo, type FeatherName } from '@/lib/dashboard/status';
 import { quoteHref } from '@/lib/dashboard/navigation';
 import type { RequestDetails } from '@/lib/dashboard/types';
+import { reportError } from '@/lib/logger';
 
 type DetailRow = { icon: FeatherName; val: string };
 
@@ -96,7 +97,7 @@ export function RequestDetailContent({
           <PressScale accessibilityRole="button"
             style={[s.resendBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             onPress={async () => {
-              try { await api.post(`/requests/${request.id}/notify`); } catch {}
+              try { await api.post(`/requests/${request.id}/notify`); } catch (e) { reportError(e, 'dashboard.notify_provider'); }
             }}
           >
             <Feather name="refresh-cw" size={15} color={theme.textSub} />

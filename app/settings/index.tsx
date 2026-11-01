@@ -13,7 +13,7 @@ import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import type { Ticket } from '@/lib/types';
-import { devWarn } from '@/lib/logger';
+import { devWarn, reportError } from '@/lib/logger';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -58,14 +58,14 @@ export default function Settings() {
       if (res?.data) setPrefs({ ...DEFAULTS, ...res.data, quiet: { ...DEFAULTS.quiet, ...(res.data.quiet || {}) } });
     } catch {
       feedback.error('notifications.prefs_error');
-      api.notifications.prefs().then((res) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch(() => {});
+      api.notifications.prefs().then((res) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch((e) => reportError(e, 'settings.notification_prefs'));
     }
   }, []);
 
   // ─── Tickets ouverts ─────────────────────────────────────────────────────
   const [tickets, setTickets] = useState<Ticket[]>([]);
   useEffect(() => {
-    api.tickets.list().then((res) => { const list = res?.data || res?.tickets || res; if (Array.isArray(list)) setTickets(list.filter((x) => x.status === 'OPEN' || x.status === 'IN_PROGRESS')); }).catch(() => {});
+    api.tickets.list().then((res) => { const list = res?.data || res?.tickets || res; if (Array.isArray(list)) setTickets(list.filter((x) => x.status === 'OPEN' || x.status === 'IN_PROGRESS')); }).catch((e) => reportError(e, 'settings.tickets'));
   }, []);
 
   // ─── Compte ──────────────────────────────────────────────────────────────

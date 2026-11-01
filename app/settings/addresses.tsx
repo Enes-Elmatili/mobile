@@ -15,6 +15,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { LAYOUT } from '@/lib/motion/layout';
 import { PressScale } from '@/components/ui/PressScale';
+import { reportError } from '@/lib/logger';
 
 export default function AddressesSettings() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function AddressesSettings() {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
-  useEffect(() => { api.addresses.list().then((res) => setAddresses(Array.isArray(res) ? res : res?.data || [])).catch(() => {}); }, []);
+  useEffect(() => { api.addresses.list().then((res) => setAddresses(Array.isArray(res) ? res : res?.data || [])).catch((e) => reportError(e, 'settings.addresses')); }, []);
   const remove = useCallback(async (id: number) => {
     const ok = await feedback.confirm({ titleKey: 'addresses.delete_confirm', confirmKey: 'common.delete', cancelKey: 'common.cancel', destructive: true });
     if (!ok) return;

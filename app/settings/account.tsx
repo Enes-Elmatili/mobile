@@ -15,6 +15,7 @@ import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { PressScale } from '@/components/ui/PressScale';
+import { reportError } from '@/lib/logger';
 
 type Key = 'name' | 'phone' | 'city' | 'description' | 'vatNumber';
 
@@ -28,7 +29,7 @@ export default function AccountSettings() {
   const [prov, setProv] = useState<{ description?: string | null; vatNumber?: string | null } | null>(null);
   useEffect(() => {
     if (!isProvider) return;
-    api.providers.me().then((res) => { const p = res?.provider ?? res?.data?.provider ?? res?.data ?? res; if (p) setProv({ description: p.description ?? null, vatNumber: p.vatNumber ?? null }); }).catch(() => {});
+    api.providers.me().then((res) => { const p = res?.provider ?? res?.data?.provider ?? res?.data ?? res; if (p) setProv({ description: p.description ?? null, vatNumber: p.vatNumber ?? null }); }).catch((e) => reportError(e, 'settings.provider_profile'));
   }, [isProvider]);
 
   const u = user;

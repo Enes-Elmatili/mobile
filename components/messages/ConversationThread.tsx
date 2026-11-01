@@ -10,7 +10,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
-import { devLog, devError } from '../../lib/logger';
+import { devLog, devError, reportError } from '../../lib/logger';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { cleanName } from '@/lib/displayName';
@@ -161,7 +161,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
     if (!userId || loading) return;
     api.messages.markAllRead(userId)
       .then(() => refreshUnreadMessages())
-      .catch(() => {});
+      .catch((e) => reportError(e, 'messages.mark_read'));
   }, [userId, loading, refreshUnreadMessages]);
 
   // ── Can-chat probe: is there an active request between us? ─────────────────
@@ -235,7 +235,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
       if (msg.senderId === userId) {
         api.messages.markAllRead(userId)
           .then(() => refreshUnreadMessages())
-          .catch(() => {});
+          .catch((e) => reportError(e, 'messages.mark_read'));
       }
     });
     return () => { mounted = false; unsub(); };
