@@ -40,6 +40,7 @@ export function QuoteFooter({
           <RaisedButton
             display
             size="lg"
+            testID="quote-accept"
             label={`${t('quote.accept_cta')} · ${fmtEur(remainingAmount)}`}
             iconRight="arrow-right"
             loading={accepting}

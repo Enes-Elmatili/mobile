@@ -531,7 +531,7 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
   return (
     <>
       <StageSheet levels={levels} level={level} onHeightChange={setSheetHeight} footer={footer} keyboard={stage === 'code'} tone={stage === 'done' ? 'green' : 'default'} topInset={topInset}>
-        {content}
+        <View testID={`provider-mission-${stage}`}>{content}</View>
       </StageSheet>
       <PhotoViewer photos={gallery} index={viewer} onClose={() => setViewer(null)} />
     </>
