@@ -222,7 +222,7 @@ export default function ExploreScreen() {
         {location ? (
           <MapView
             ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             initialRegion={{
               latitude: location.lat,
               longitude: location.lng,
@@ -323,7 +323,7 @@ export default function ExploreScreen() {
           )}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            loading ? null : fetchError ? (
+            loading ? undefined : fetchError ? (
               <View style={s.empty}>
                 <Feather name="wifi-off" size={36} color={theme.textDisabled} />
                 <Text style={[s.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Impossible de charger les prestataires.</Text>

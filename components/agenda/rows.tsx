@@ -4,7 +4,7 @@
 // Les statuts se lisent dans la matière (estompé = fait, ambre = en cours,
 // « DEVIS » = devis à rédiger), jamais dans une pastille de texte.
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View, type ListViewToken } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Feather } from '@expo/vector-icons';
@@ -72,7 +72,7 @@ export function AgendaWeek({ weeks, selectedKey, onSelect, width, dayLabel, init
   const cell = Math.floor((width - 24) / 7);
   const listRef = useRef<FlatList<Week>>(null);
   useEffect(() => { if (jump && jump.n > 0) listRef.current?.scrollToIndex({ index: jump.index, animated: true }); }, [jump]);
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewable = useRef(({ viewableItems }: { viewableItems: ListViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index != null) onWeekChange?.(first.index);
   });

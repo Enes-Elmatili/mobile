@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { useEffect, useRef, useCallback } from 'react';
 
 export type SoundKey = 'newMission' | 'missionAccepted' | 'paymentReceived' | 'providerFound';
@@ -16,27 +16,26 @@ const SOUND_FILES: Record<SoundKey, any> = {
 export const RINGTONE_SOUND = SOUND_FILES.newMission;
 
 export function useSoundManager() {
-  const soundsRef = useRef<Partial<Record<SoundKey, Audio.Sound>>>({});
+  const soundsRef = useRef<Partial<Record<SoundKey, AudioPlayer>>>({});
 
   useEffect(() => {
     let mounted = true;
 
     const preload = async () => {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        playsInSilentMode: false,
+        interruptionModeAndroid: 'duckOthers',
       });
       for (const [key, file] of Object.entries(SOUND_FILES)) {
         if (!mounted) return;
-        const { sound } = await Audio.Sound.createAsync(file, { shouldPlay: false });
-        soundsRef.current[key as SoundKey] = sound;
+        soundsRef.current[key as SoundKey] = createAudioPlayer(file);
       }
     };
     preload();
 
     return () => {
       mounted = false;
-      Object.values(soundsRef.current).forEach(s => s?.unloadAsync());
+      Object.values(soundsRef.current).forEach(s => s?.remove());
       soundsRef.current = {};
     };
   }, []);
@@ -45,8 +44,8 @@ export function useSoundManager() {
     try {
       const sound = soundsRef.current[key];
       if (sound) {
-        await sound.setPositionAsync(0);
-        await sound.playAsync();
+        await sound.seekTo(0);
+        sound.play();
       }
     } catch {
       // Never block UX for a sound failure

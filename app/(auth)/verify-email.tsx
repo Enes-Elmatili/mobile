@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, StyleSheet, ActivityIndicator,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
 import { useEntrance } from "@/lib/motion/useEntrance";
@@ -46,7 +47,7 @@ export default function VerifyEmail() {
   const [verified, setVerified] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
 
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const verifiedRef = useRef(false);
 
@@ -481,7 +482,7 @@ const s = StyleSheet.create({
   },
   otpWrap: { position: "relative" },
   otpInput: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.02,
     color: "transparent",
     backgroundColor: "transparent",

@@ -20,7 +20,7 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
-const { Tabs } = require('expo-router');
+const { Tabs } = require('expo-router/js-tabs');
 const { FixedTabBar } = require('../components/ui/FixedTabBar');
 
 const Page = (label) => () => React.createElement(Text, null, label);
@@ -57,20 +57,22 @@ const tabLabels = (r) => r.getAllByRole('tab').map((t) => t.props.accessibilityL
 
 describe('FixedTabBar dans le vrai Expo Router', () => {
   it('client : Accueil, Documents, Profil', async () => {
-    const r = renderRouter(routes('client'), { initialUrl: '/dashboard' });
+    const r = await renderRouter(routes('client'), { initialUrl: '/dashboard' });
     expect(await r.findByText('dashboard-page')).toBeTruthy();
     expect(tabLabels(r)).toEqual(['Accueil', 'Documents', 'Profil']);
   });
 
   it('prestataire : Accueil, Missions, Gains, Profil', async () => {
-    const r = renderRouter(routes('provider'), { initialUrl: '/dashboard' });
+    const r = await renderRouter(routes('provider'), { initialUrl: '/dashboard' });
     expect(await r.findByText('dashboard-page')).toBeTruthy();
     expect(tabLabels(r)).toEqual(['Accueil', 'Missions', 'Gains', 'Profil']);
   });
 
   it('prestataire sur /provider-dashboard : mêmes onglets, Accueil sélectionné', async () => {
-    const r = renderRouter(routes('provider'), { initialUrl: '/provider-dashboard' });
-    expect(await r.findByText('provider-dashboard-page')).toBeTruthy();
+    const r = await renderRouter(routes('provider'), { initialUrl: '/provider-dashboard' });
+    // Expo Router 58 : une route `href: null` ouverte par lien retombe sur le
+    // premier onglet — là où la vraie route redirige de toute façon.
+    expect(await r.findByText('dashboard-page')).toBeTruthy();
     expect(tabLabels(r)).toEqual(['Accueil', 'Missions', 'Gains', 'Profil']);
     const selected = r.getAllByRole('tab').filter((t) => t.props.accessibilityState?.selected).map((t) => t.props.accessibilityLabel);
     expect(selected).toEqual(['Accueil']);

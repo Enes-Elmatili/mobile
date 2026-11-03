@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, Platform, Vibration,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { MOTION } from '@/lib/motion/springs';
 import { useReduceMotion } from '@/lib/motion/sheet';
@@ -44,32 +44,26 @@ export default function IncomingCallOverlay() {
 
   // ── Sonnerie + vibration répétée tant que l'appel entrant est affiché ──
   // Stoppées dès accept/refus/fin (incoming → null) ou démontage.
-  const ringtoneRef = useRef<Audio.Sound | null>(null);
+  const ringtoneRef = useRef<AudioPlayer | null>(null);
   useEffect(() => {
     if (!incoming) return;
 
     Vibration.vibrate(RING_VIBRATION_PATTERN, true);
 
-    let cancelled = false;
     if (useFeedbackPrefs.getState().sound) {
-      (async () => {
-        try {
-          const { sound } = await Audio.Sound.createAsync(
-            RINGTONE_SOUND,
-            { isLooping: true, shouldPlay: true },
-          );
-          if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
-          ringtoneRef.current = sound;
-        } catch {
-          // Ne jamais bloquer l'UX pour un échec de son — la vibration suffit.
-        }
-      })();
+      try {
+        const sound = createAudioPlayer(RINGTONE_SOUND);
+        sound.loop = true;
+        sound.play();
+        ringtoneRef.current = sound;
+      } catch {
+        // Ne jamais bloquer l'UX pour un échec de son — la vibration suffit.
+      }
     }
 
     return () => {
-      cancelled = true;
       Vibration.cancel();
-      ringtoneRef.current?.unloadAsync().catch(() => {});
+      ringtoneRef.current?.remove();
       ringtoneRef.current = null;
     };
   }, [incoming]);

@@ -112,7 +112,7 @@ const th = StyleSheet.create({
   item:     { flex: 1, aspectRatio: 4 / 3, borderRadius: 10, overflow: 'hidden' },
   img:      { width: '100%', height: '100%' },
   cap:      { position: 'absolute', left: 6, bottom: 5, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.5, color: 'rgba(255,255,255,0.9)', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
-  more:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  more:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   moreText: { fontFamily: FONTS.sansMedium, fontSize: 14, color: '#FFFFFF' },
 });
 

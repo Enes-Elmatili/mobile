@@ -18,6 +18,7 @@ import {
   StyleSheet,
   Pressable,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { FONTS, useAppTheme } from "@/hooks/use-app-theme";
@@ -31,7 +32,7 @@ type Props = TextInputProps & {
   error?: string | null;
   label?: string;
   /** Ref to the underlying TextInput for imperative focus. */
-  inputRef?: React.Ref<TextInput>;
+  inputRef?: React.Ref<TextInputInstance>;
   /**
    * Use theme-aware colors (derived from useAppTheme) instead of the fixed
    * gradient zone tones — for flat (theme.bg) screens. Defaults to false —

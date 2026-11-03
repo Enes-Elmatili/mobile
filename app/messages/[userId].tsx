@@ -516,7 +516,7 @@ export default function ConversationScreen() {
                     <Text style={[b.typingDots, { color: theme.textMuted }]}>•••</Text>
                   </View>
                 </View>
-              ) : null
+              ) : undefined
             }
           />
         )}
