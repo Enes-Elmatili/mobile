@@ -26,6 +26,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '@/lib/SocketContext';
 import { useNetwork } from '@/lib/NetworkContext';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, COLORS, alpha } from '@/hooks/use-app-theme';
@@ -84,7 +85,7 @@ interface IncomingRequest {
 }
 
 type CurrentMission = {
-  id: number; serviceType: string | null; status: string; address: string | null;
+  id: number; serviceType?: string | null; status: string; address?: string | null;
   clientName: string | null; lat: number | null; lng: number | null;
 };
 
@@ -118,7 +119,6 @@ function IncomingJobCard({
   const slideUp    = useSharedValue(400);
   const fade       = useSharedValue(1);
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
-  const [expired, setExpired] = useState(false);
   // Le moment de l'acceptation, en UN mouvement, sur le même écran, et
   // discret : la fiche se teinte du vert pâle des pastilles (rien ne se
   // superpose, tout reste lisible), l'anneau du compte à rebours s'efface, le
@@ -132,25 +132,25 @@ function IncomingJobCard({
   const accept = useCallback(() => {
     if (accepted) return;
     setAccepted(true);
-    tint.value = withTiming(1, { duration: reduced ? 200 : 520, easing: Easing.out(Easing.cubic) });
+    tint.set(withTiming(1, { duration: reduced ? 200 : 520, easing: Easing.out(Easing.cubic) }));
     onAccept();
   }, [accepted, reduced, tint, onAccept]);
   useEffect(() => {
     if (!leaving) return;
     // Repli : la fiche descend et s'efface, en partant de sa position courante.
-    slideUp.value = reduced ? withTiming(0, { duration: 1 }) : withSpring(Math.max(size.h, 400) + 80, MOTION.pane);
-    fade.value = withTiming(0, { duration: reduced ? 200 : 380 });
+    slideUp.set(reduced ? withTiming(0, { duration: 1 }) : withSpring(Math.max(size.h, 400) + 80, MOTION.pane));
+    fade.set(withTiming(0, { duration: reduced ? 200 : 380 }));
   }, [leaving, reduced, slideUp, fade, size.h]);
   const tintStyle = useAnimatedStyle(() => ({ opacity: tint.value }));
 
   useEffect(() => {
     if (reduced) {
       // Règle 8 : pas de course, on pose l'état final.
-      slideUp.value = 0;
+      slideUp.set(0);
       return;
     }
     // Entrée : spring critique (ζ = 1.0) — arrive vite, ne dépasse pas.
-    slideUp.value = withSpring(0, CARD_ENTER_SPRING);
+    slideUp.set(withSpring(0, CARD_ENTER_SPRING));
     return () => { cancelAnimation(slideUp); };
   }, [reduced, slideUp]);
 
@@ -167,9 +167,8 @@ function IncomingJobCard({
   }, []);
 
   // When countdown reaches 0, switch to "last chance" mode instead of dismissing
-  useEffect(() => {
-    if (timeLeft === 0) setExpired(true);
-  }, [timeLeft]);
+  // (dérivé : le compte à rebours s'arrête à 0 et n'est jamais relancé).
+  const expired = timeLeft === 0;
 
   const sheetBg = theme.bg;
 
@@ -250,11 +249,15 @@ export default function ProviderDashboard() {
   // mission passe devant la dérivation, même planifiée un peu plus tôt.
   const { mission: wantedMissionParam, request: wantedRequestParam } = useLocalSearchParams<{ mission?: string; request?: string }>();
   const wantedMissionRef = useRef<string | null>(null);
-  if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
+  // Recopié après chaque commit (comme avant à chaque rendu), et déclaré avant
+  // tout effet qui appelle loadData : celui-ci le lit déjà à jour.
+  useEffect(() => {
+    if (wantedMissionParam && wantedMissionRef.current !== String(wantedMissionParam)) wantedMissionRef.current = String(wantedMissionParam);
+  });
   // Ce que la feuille de mission dit à l'accueil (stade, caméra, porte, hauteur).
   const [missionFacts, setMissionFacts] = useState<MissionFacts | null>(null);
   // L'amorce de la feuille de mission à l'acceptation : la demande reçue + la réponse du serveur.
-  const [missionSeed, setMissionSeed] = useState<any>(null);
+  const [missionSeed, setMissionSeed] = useState<ServiceRequest | null>(null);
   const [etaMin, setEtaMin] = useState<number | null>(null);
   const currentMissionRef = useRef<CurrentMission | null>(null);
   useEffect(() => { currentMissionRef.current = currentMission; }, [currentMission]);
@@ -361,25 +364,25 @@ export default function ProviderDashboard() {
       api.connect.balance(),
     ]);
 
-    const dashData = results[2].status === 'fulfilled' ? (results[2].value as any) : null;
+    const dashData = results[2].status === 'fulfilled' ? results[2].value : null;
     setToday(dashData?.stats?.todayEarnings?.total || 0);
 
     if (results[0].status === 'rejected') devWarn('Wallet failed:', (results[0] as PromiseRejectedResult).reason?.message);
     if (results[2].status === 'rejected') devWarn('Stats failed:', (results[2] as PromiseRejectedResult).reason?.message);
 
     if (results[4].status === 'fulfilled') {
-      const c = results[4].value as any;
+      const c = results[4].value;
       setConnect({ needsOnboarding: c?.needsOnboarding, payoutsEnabled: c?.payoutsEnabled });
     }
 
     // Mission active : ACCEPTED/ONGOING/QUOTE_SENT/QUOTE_ACCEPTED, non planifiée future.
     // On ouvre le re-entry dans la mission pour le provider qui revient sur le dashboard.
     if (results[3].status === 'fulfilled') {
-      const m = (results[3].value as any)?.items || [];
+      const m = results[3].value?.items || [];
       setMissions(m);
       const ACTIVE = ['ACCEPTED', 'ONGOING', 'QUOTE_SENT', 'QUOTE_ACCEPTED'];
       const wanted = wantedMissionRef.current;
-      const found = (wanted ? m.find((r: any) => String(r.id) === wanted && ACTIVE.includes(r.status)) : null) || m.find((r: any) => {
+      const found = (wanted ? m.find((r) => String(r.id) === wanted && ACTIVE.includes(r.status)) : null) || m.find((r) => {
         if (!ACTIVE.includes(r.status)) return false;
         if (r.preferredTimeStart) {
           const startTs = new Date(r.preferredTimeStart).getTime();
@@ -391,7 +394,7 @@ export default function ProviderDashboard() {
       // pas encore reste en place : la retirer ferait clignoter la feuille.
       setCurrentMission((prev) => {
         if (found) return { id: found.id, serviceType: found.serviceType, status: found.status, address: found.address, clientName: found.client?.name ?? null, lat: found.lat ?? null, lng: found.lng ?? null };
-        if (prev && !m.some((r: any) => Number(r.id) === Number(prev.id))) return prev;
+        if (prev && !m.some((r) => Number(r.id) === Number(prev.id))) return prev;
         return null;
       });
     }
@@ -651,7 +654,7 @@ export default function ProviderDashboard() {
     (async () => {
       let available = false;
       try {
-        const res: any = await api.get(`/requests/${rid}`);
+        const res = await api.requests.get(rid);
         const r = res?.data ?? res;
         available = (r?.status === 'PUBLISHED' || r?.status === 'QUOTE_PENDING') && !r?.providerId;
       } catch { available = false; }
@@ -746,16 +749,19 @@ export default function ProviderDashboard() {
   const { stripBottom, topRowTop, marginLeft, contentWidth } = g;
 
   // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
-  const jobCoord = useMemo<LatLng | null>(() => (activeJob?.latitude && activeJob?.longitude ? { latitude: activeJob.latitude, longitude: activeJob.longitude } : null), [activeJob?.latitude, activeJob?.longitude]);
-  const doorCoord = useMemo<LatLng | null>(() => (currentMission?.lat != null && currentMission?.lng != null ? { latitude: currentMission.lat, longitude: currentMission.lng } : null), [currentMission?.lat, currentMission?.lng]);
+  // Coordonnées lues hors mémo : chaque point ne dépend que d'elles, pas de tout l'objet.
+  const jobLat = activeJob?.latitude, jobLng = activeJob?.longitude;
+  const doorLat = currentMission?.lat, doorLng = currentMission?.lng;
+  const jobCoord = useMemo<LatLng | null>(() => (jobLat && jobLng ? { latitude: jobLat, longitude: jobLng } : null), [jobLat, jobLng]);
+  const doorCoord = useMemo<LatLng | null>(() => (doorLat != null && doorLng != null ? { latitude: doorLat, longitude: doorLng } : null), [doorLat, doorLng]);
   const other = stage === 'incoming' ? jobCoord : stage === 'busy' ? doorCoord : null;
   // La caméra ne suit « moi » que par pas de 25 m : une position qui tremble
   // sur place ne relance pas un recadrage toutes les 3 s.
   const [camDoor, setCamDoor] = useState<LatLng | null>(null);
-  useEffect(() => {
-    if (!location) return;
-    setCamDoor((prev) => (!prev || metersBetween(prev.latitude, prev.longitude, location.latitude, location.longitude) > 25 ? location : prev));
-  }, [location?.latitude, location?.longitude]);
+  // Ajusté au rendu : ne bouge qu'au-delà de 25 m (ou à la première position).
+  if (location && (!camDoor || metersBetween(camDoor.latitude, camDoor.longitude, location.latitude, location.longitude) > 25)) {
+    setCamDoor(location);
+  }
   // Le rembourrage du cadrage est donné à la caméra (edgePadding), pas à la
   // MapView : Apple Maps ignore `mapPadding` pour cadrer, et un padding qui
   // saute fait sauter la carte. La journée en bas est toujours couverte ; la
@@ -800,7 +806,7 @@ export default function ProviderDashboard() {
   const goMessages = useCallback(() => router.push('/messages'), [router]);
   const goNotifs = useCallback(() => router.push('/notifications'), [router]);
   // Ma photo sur ma carte : on se reconnaît. Stable tant que le profil ne change pas.
-  const meName = (user as any)?.name ?? null, meAvatar = (user as any)?.avatarUrl ?? null;
+  const meName = user?.name ?? null, meAvatar = user?.avatarUrl ?? null;
   const me = useMemo(() => ({ name: meName, avatarUrl: meAvatar }), [meName, meAvatar]);
 
   // ─── Le disque de la barre flottante : GO · stop · flèche vers la mission ──

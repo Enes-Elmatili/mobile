@@ -12,6 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { Ticket } from '@/lib/types';
 import { devWarn } from '@/lib/logger';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { feedback } from '@/lib/feedback/feedback';
@@ -48,23 +49,23 @@ export default function Settings() {
   // ─── Notifications (mêmes préférences que l'écran dédié) ─────────────────
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   useEffect(() => {
-    api.notifications.prefs().then((res: any) => setPrefs({ ...DEFAULTS, ...(res?.data || {}), quiet: { ...DEFAULTS.quiet, ...(res?.data?.quiet || {}) } })).catch((e: any) => { devWarn('[prefs]', e?.message); setPrefs(DEFAULTS); });
+    api.notifications.prefs().then((res) => setPrefs({ ...DEFAULTS, ...(res?.data || {}), quiet: { ...DEFAULTS.quiet, ...(res?.data?.quiet || {}) } })).catch((e: any) => { devWarn('[prefs]', e?.message); setPrefs(DEFAULTS); });
   }, []);
   const patch = useCallback(async (p: Partial<Prefs>) => {
     setPrefs((prev) => ({ ...(prev ?? DEFAULTS), ...p, quiet: { ...(prev ?? DEFAULTS).quiet, ...(p.quiet || {}) } }));
     try {
-      const res: any = await api.notifications.updatePrefs(p);
+      const res = await api.notifications.updatePrefs(p);
       if (res?.data) setPrefs({ ...DEFAULTS, ...res.data, quiet: { ...DEFAULTS.quiet, ...(res.data.quiet || {}) } });
     } catch {
       feedback.error('notifications.prefs_error');
-      api.notifications.prefs().then((res: any) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch(() => {});
+      api.notifications.prefs().then((res) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch(() => {});
     }
   }, []);
 
   // ─── Tickets ouverts ─────────────────────────────────────────────────────
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   useEffect(() => {
-    api.tickets.list().then((res: any) => { const list = res?.data || res?.tickets || res; if (Array.isArray(list)) setTickets(list.filter((x) => x.status === 'OPEN' || x.status === 'IN_PROGRESS')); }).catch(() => {});
+    api.tickets.list().then((res) => { const list = res?.data || res?.tickets || res; if (Array.isArray(list)) setTickets(list.filter((x) => x.status === 'OPEN' || x.status === 'IN_PROGRESS')); }).catch(() => {});
   }, []);
 
   // ─── Compte ──────────────────────────────────────────────────────────────

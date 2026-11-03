@@ -30,13 +30,13 @@ export function useSlideToConfirm(opts: { trackWidth: number; knobSize: number; 
       Gesture.Pan()
         .withTestId('slide-to-confirm')
         .onBegin(() => {
-          halfwayFired.value = 0;
+          halfwayFired.set(0);
         })
         .onUpdate((e) => {
           if (done.value) return;
-          x.value = reduced ? Math.min(track, Math.max(0, e.translationX)) : rubberBand(e.translationX, 0, track);
+          x.set(reduced ? Math.min(track, Math.max(0, e.translationX)) : rubberBand(e.translationX, 0, track));
           if (!halfwayFired.value && x.value >= track * 0.5) {
-            halfwayFired.value = 1;
+            halfwayFired.set(1);
             hapticOnFrame('light');
           }
         })
@@ -44,13 +44,13 @@ export function useSlideToConfirm(opts: { trackWidth: number; knobSize: number; 
           if (done.value) return;
           const ok = reduced ? x.value >= track * 0.9 : shouldConfirm(x.value, e.velocityX, track);
           if (ok) {
-            done.value = 1;
-            x.value = withSpring(track, SETTLE_SPRING);
+            done.set(1);
+            x.set(withSpring(track, SETTLE_SPRING));
             hapticOnFrame('success');
             runOnJS(confirm)();
           } else {
             // Règle 3 : la vitesse du doigt entre dans le ressort de retour.
-            x.value = withSpring(0, { ...SHEET_SPRING_MOMENTUM, velocity: e.velocityX });
+            x.set(withSpring(0, { ...SHEET_SPRING_MOMENTUM, velocity: e.velocityX }));
           }
         }),
     [track, reduced, x, done, halfwayFired, confirm],
@@ -64,8 +64,8 @@ export function useSlideToConfirm(opts: { trackWidth: number; knobSize: number; 
   const labelStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, 1 - (x.value / Math.max(1, track)) * 1.4) }));
 
   const reset = useCallback(() => {
-    done.value = 0;
-    x.value = withSpring(0, SETTLE_SPRING);
+    done.set(0);
+    x.set(withSpring(0, SETTLE_SPRING));
   }, [done, x]);
 
   return { gesture, knobStyle, fillStyle, labelStyle, reset };

@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../../lib/api";
+import type { Category as CatalogCategory } from '@/lib/types';
 import { feedback } from "@/lib/feedback/feedback";
 import { toFeatherName } from "@/lib/iconMapper";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
@@ -40,11 +41,7 @@ const C = {
 // Même périmètre que l'inscription : Région de Bruxelles-Capitale.
 const CITY_OPTIONS = [{ value: "Bruxelles", label: "Bruxelles" }];
 
-interface Category {
-  id: number;
-  name: string;
-  icon?: string;
-}
+type Category = Pick<CatalogCategory, 'id' | 'name' | 'icon'>;
 
 export default function OnboardingActivity() {
   const router = useRouter();
@@ -61,7 +58,7 @@ export default function OnboardingActivity() {
   const loadCategories = useCallback(async (): Promise<Category[]> => {
     setCatsError(false);
     try {
-      const res: any = await api.taxonomies.list();
+      const res = await api.taxonomies.list();
       const list: Category[] = res?.data ?? res ?? [];
       setCategories(list);
       return list;
@@ -121,7 +118,7 @@ export default function OnboardingActivity() {
         if (e?.status === 404) {
           let name = "";
           try {
-            const me: any = await api.user.me();
+            const me = await api.user.me();
             name = me?.user?.name || me?.name || me?.user?.email || "Prestataire";
           } catch {
             name = "Prestataire";

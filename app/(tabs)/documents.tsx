@@ -1,5 +1,5 @@
 // app/(tabs)/documents.tsx — Client Documents (Glow Up v2)
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, RefreshControl, StatusBar,
 } from 'react-native';
@@ -112,7 +112,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
 
   const number = invoice.number ? `#${invoice.number}` : `#INV-${String(invoice.id).slice(-4).toUpperCase()}`;
   const date = new Date(invoice.issuedAt).toLocaleDateString(i18n.language || 'fr-FR', { day: 'numeric', month: 'short' });
-  const service = (invoice as any).request?.serviceType || t('ext.invoice_service_default');
+  const service = invoice.request?.serviceType || t('ext.invoice_service_default');
 
   return (
     <PressScale accessibilityRole="button" style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress}>
@@ -179,7 +179,7 @@ export default function Documents() {
   // Deep-link "preuve de remboursement" : une notif refund ouvre directement la
   // facture de la demande concernée (passée en "Remboursé"), pas l'onglet brut.
   const { openRequestId } = useLocalSearchParams<{ openRequestId?: string }>();
-  const openedRef = useRef<string | null>(null);
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
 
   // Statuts terminaux communs aux deux onglets (Devis + Planifiées).
 
@@ -248,16 +248,16 @@ export default function Documents() {
   }, [load]));
   const onRefresh = () => { lastFetchRef.current = 0; setRefreshing(true); load(); };
 
-  // Une fois les factures chargées, ouvre celle ciblée par le deep-link refund.
-  useEffect(() => {
-    if (!openRequestId || openedRef.current === openRequestId || invoices.length === 0) return;
+  // Une fois les factures chargées, ouvre celle ciblée par le deep-link refund
+  // (une seule fois par lien : ajusté au rendu, pas dans un effet).
+  if (openRequestId && openedFor !== openRequestId && invoices.length > 0) {
     const target = invoices.find(inv => String(inv.requestId) === String(openRequestId));
     if (target) {
-      openedRef.current = openRequestId;
+      setOpenedFor(openRequestId);
       setActiveTab('factures');
       setSelectedInvoice(target);
     }
-  }, [openRequestId, invoices]);
+  }
 
   // Stats
   const totalCount = invoices.length;

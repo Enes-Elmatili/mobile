@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Reanimated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useOfflineAction } from '@/hooks/useOfflineAction';
 import { showSocketToast } from '@/lib/SocketContext';
 import { feedback } from '@/lib/feedback/feedback';
@@ -92,7 +93,7 @@ function ChipButton({ chip, selected, onPress }: { chip: Chip; selected: boolean
 
 
 type Props = {
-  request: any;
+  request: ServiceRequest;
   /** Sous la barre de statut quand le bloc occupe tout l'écran. */
   topInset?: number;
 };
@@ -102,6 +103,9 @@ export function DoneContent({ request, topInset = 0 }: Props) {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  // Heure de repli si la fin de mission n'est pas encore datée : figée au
+  // montage plutôt que relue (impure) à chaque rendu.
+  const [mountedAt] = useState(() => Date.now());
   const [rating, setRating] = useState(0);
   const [chips, setChips] = useState<string[]>([]);
   const [comment, setComment] = useState('');
@@ -151,7 +155,7 @@ export function DoneContent({ request, topInset = 0 }: Props) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topInset + 16, paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Reanimated.View style={entrance.style}>
-            <Text style={[s.kicker, { color: theme.textMuted }]}>{t('tracking.done_kicker', { time: formatClock(completedAt ?? Date.now()) })}</Text>
+            <Text style={[s.kicker, { color: theme.textMuted }]}>{t('tracking.done_kicker', { time: formatClock(completedAt ?? mountedAt) })}</Text>
             <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('tracking.done_title')}</Text>
             <Text style={[s.sub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{duration != null && duration > 0 ? t('tracking.done_sub', { name: firstName, n: duration }) : t('tracking.done_sub_no_duration', { name: firstName })}</Text>
 

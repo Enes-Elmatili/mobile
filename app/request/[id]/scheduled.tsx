@@ -24,6 +24,7 @@ import { useCallParty } from '@/lib/webrtc/CallContext';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { useSocket } from '@/lib/SocketContext';
 import { devError } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
@@ -72,7 +73,7 @@ export default function ScheduledConfirmation() {
   const [calloutFee, setCalloutFee] = useState<string>(params.calloutFee || '');
   const [providerName, setProviderName] = useState<string>('');
   // La demande complète : bloc prestataire (message, appel) et photos du récap.
-  const [requestData, setRequestData] = useState<any>(null);
+  const [requestData, setRequestData] = useState<ServiceRequest | null>(null);
   const [isAccepted, setIsAccepted] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(isRecapMode);
   const [cancelling, setCancelling] = useState<boolean>(false);
@@ -88,7 +89,7 @@ export default function ScheduledConfirmation() {
   const fetchRequest = useCallback(async () => {
     if (!id) return;
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.requests.get(String(id));
       const r = res?.data || res;
       if (!r) return;
 
@@ -164,9 +165,9 @@ export default function ScheduledConfirmation() {
     if (isRecapMode) return; // skip animation en recap
     feedback.haptic('success');
     // L'icône « prend » (MOTION.take, léger dépassement) ; sous réduction, l'état final posé.
-    if (reduced) { iconScale.value = 1; contentFade.value = withTiming(1, { duration: 150 }); return; }
-    iconScale.value = withSpring(1, MOTION.take);
-    contentFade.value = withDelay(400, withTiming(1, { duration: 300 }));
+    if (reduced) { iconScale.set(1); contentFade.set(withTiming(1, { duration: 150 })); return; }
+    iconScale.set(withSpring(1, MOTION.take));
+    contentFade.set(withDelay(400, withTiming(1, { duration: 300 })));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- séquence jouée à l'arrivée
   }, [isRecapMode]);
 
@@ -230,6 +231,9 @@ export default function ScheduledConfirmation() {
       </SafeAreaView>
     );
   }
+
+  // Le prestataire engagé, s'il est connu (lu une fois pour les rappels ci-dessous).
+  const engaged = requestData?.provider;
 
   return (
     <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
@@ -305,13 +309,13 @@ export default function ScheduledConfirmation() {
                 </Text>
               </View>
               {/* Le prestataire engagé : on peut lui écrire ou l'appeler avant le jour J. */}
-              {requestData?.provider ? (
+              {engaged ? (
                 <View style={{ marginTop: 12 }}>
                   <ProviderRow
-                    provider={requestData.provider}
-                    onOpenProfile={() => router.push(`/providers/${requestData.provider.id}`)}
-                    onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(requestData.provider.userId || requestData.provider.id), name: providerName, requestId: String(id) } })}
-                    onCall={() => callParty({ userId: requestData.provider.userId, name: providerName, requestId: id })}
+                    provider={engaged}
+                    onOpenProfile={() => router.push(`/providers/${engaged.id}`)}
+                    onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(engaged.userId || engaged.id), name: providerName, requestId: String(id) } })}
+                    onCall={() => callParty({ userId: engaged.userId, name: providerName, requestId: id })}
                   />
                 </View>
               ) : null}

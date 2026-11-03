@@ -7,7 +7,7 @@
 
 import apiClient from './apiClient';
 import { tokenStorage } from '../storage';
-import type { User, Provider, ProviderDocument } from './types';
+import type { ApiError, User, Provider, ProviderDocument } from './types';
 
 export const userService = {
 
@@ -48,9 +48,9 @@ export const userService = {
 
   /** GET /providers/documents — liste des docs KYC du prestataire connecté */
   getProviderDocuments: async (): Promise<ProviderDocument[]> => {
-    const { data } = await apiClient.get<{ documents: ProviderDocument[] }>('/providers/documents');
     // Le backend peut renvoyer { documents: [...] } ou directement un tableau
-    return Array.isArray(data) ? data : (data as any)?.documents ?? [];
+    const { data } = await apiClient.get<ProviderDocument[] | { documents?: ProviderDocument[] }>('/providers/documents');
+    return Array.isArray(data) ? data : data?.documents ?? [];
   },
 
   /**
@@ -92,7 +92,7 @@ export const userService = {
     });
 
     if (!response.ok) {
-      const err: any = new Error(json?.error || `HTTP ${response.status}`);
+      const err: ApiError = new Error(json?.error || `HTTP ${response.status}`);
       err.status = response.status;
       err.data = json;
       throw err;

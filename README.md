@@ -2,7 +2,7 @@
 
 Application React Native / Expo — marketplace de services à domicile deux faces (clients ↔ prestataires).
 
-**Dernière mise à jour : 27 février 2026**
+**Dernière mise à jour : 31 octobre 2026** (Expo SDK 58)
 
 ---
 
@@ -19,13 +19,13 @@ Application React Native / Expo — marketplace de services à domicile deux fac
 
 | Outil | Version | Installation |
 |-------|---------|-------------|
-| Node.js | ≥ 20 | https://nodejs.org |
+| Node.js | ≥ 22.13 | https://nodejs.org |
 | npm | ≥ 10 | Inclus avec Node |
-| Expo CLI | dernière | `npm i -g expo-cli` |
-| Expo Go | dernière | App Store / Google Play |
+| EAS CLI | dernière | `npm i -g eas-cli` |
+| Xcode | ≥ 27.1 (iOS) | Mac App Store — requis par `modules/fixed-hinge` (charnière iPhone Duo) |
 | ngrok | dernière | https://ngrok.com/download |
 
-> **Appareil physique requis.** Google Maps et la localisation ne fonctionnent pas dans le simulateur Expo Go.
+> **Build de développement requis.** L'app embarque des modules natifs (Stripe, WebRTC, charnière) : Expo Go ne suffit pas. Construire le client une fois avec `eas build --profile development`, puis l'installer sur l'appareil.
 
 ---
 
@@ -118,16 +118,22 @@ npm install
 ### 3.3 Démarrer Expo
 
 ```bash
-npx expo start
+npx expo start --dev-client
 ```
 
 Un QR code apparaîtra dans le terminal et une fenêtre de navigateur s'ouvrira.
+
+### 3.4 Contrôles avant de pousser
+
+```bash
+npm run check   # lint + TypeScript + tests — les mêmes que la CI (.github/workflows/ci.yml)
+```
 
 ---
 
 ## Étape 4 — Ouvrir l'application sur votre appareil
 
-1. Ouvrir l'application **Expo Go** sur votre iPhone ou Android.
+1. Ouvrir le **client de développement FIXED** (build EAS `development`) sur votre iPhone ou Android.
 2. Scanner le QR code affiché dans le terminal.
 3. L'application se bundle et se lance — environ 30 secondes au premier chargement.
 
@@ -160,7 +166,7 @@ Vous devriez voir l'**écran de bienvenue FIXED**.
 
 **Objectif :** Se mettre en ligne, recevoir une demande et compléter une mission.
 
-> Utiliser un second appareil ou une seconde session Expo Go avec un compte séparé.
+> Utiliser un second appareil (client de développement) avec un compte séparé.
 
 | Étape | Écran | Action |
 |-------|-------|--------|
@@ -241,18 +247,23 @@ mobile/
 
 | Catégorie | Librairie | Version |
 |-----------|----------|---------|
-| Framework | React Native + Expo | 0.81.5 / 54.0.33 |
-| Navigation | Expo Router | 6.0.23 |
-| HTTP | Axios | 1.13.2 |
-| Temps réel | Socket.IO client | 4.8.3 |
-| Paiements | @stripe/stripe-react-native | 0.50.3 |
-| Cartes | react-native-maps | 1.20.1 |
-| Géolocalisation | expo-location | 19.0.8 |
-| Formulaires | react-hook-form | 7.69.0 |
-| Stockage sécurisé | expo-secure-store | 15.0.8 |
-| Animations | react-native-reanimated | 4.1.1 |
-| Bottom sheets | @gorhom/bottom-sheet | 5.2.8 |
-| Icônes | @expo/vector-icons | 15.0.3 |
+| Framework | React Native + Expo | 0.88 / 58 |
+| Navigation | Expo Router (React Navigation intégré) | 58 |
+| HTTP | Axios | 1.x |
+| Temps réel | Socket.IO client | 4.8 |
+| Paiements | @stripe/stripe-react-native | 0.81 |
+| Cartes | react-native-maps | 1.29 |
+| Géolocalisation | expo-location | 58 |
+| Audio | expo-audio | 58 |
+| Langues | i18next / react-i18next — fr, nl, en, pl | 26 / 17 |
+| Formulaires | react-hook-form | 7.x |
+| Stockage sécurisé | expo-secure-store | 58 |
+| Animations | react-native-reanimated / worklets | 4.7 / 0.13 |
+| Gestes | react-native-gesture-handler | 3.3 |
+| Bottom sheets | @gorhom/bottom-sheet | 5.2 |
+| Icônes | @expo/vector-icons | 15 |
+
+Versions exactes : `package.json`. Les modules natifs suivent l'Expo SDK (`npx expo install --check`).
 
 ---
 

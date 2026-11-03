@@ -16,6 +16,7 @@ import { CascadeItem } from '@/lib/motion/useCascade';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { api } from '@/lib/api';
+import type { AuthUser, SavedAddress } from '@/lib/types';
 import { runWhenIdle } from '@/lib/idle';
 import { feedback } from '@/lib/feedback/feedback';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -47,10 +48,12 @@ export default function Profile() {
   const isProvider = !!user?.roles?.includes('PROVIDER');
   const { avatarUri, pick } = useAvatar(user, refreshMe);
 
-  const displayName = cleanName((user as any)?.name, { email: user?.email, fallback: isProvider ? t('profile.provider') : t('profile.client') });
+  const displayName = cleanName(user?.name, { email: user?.email, fallback: isProvider ? t('profile.provider') : t('profile.client') });
   const email = cleanEmail(user?.email);
-  const city = (user as any)?.city || null;
-  const since = new Date((user as any)?.createdAt || Date.now()).getFullYear();
+  const city = user?.city || null;
+  // Repli (compte sans date de création) : instant du montage, pas Date.now() en plein rendu.
+  const [mountedAt] = useState(() => Date.now());
+  const since = new Date(user?.createdAt || mountedAt).getFullYear();
 
   // ─── Données ─────────────────────────────────────────────────────────────
   const [prov, setProv] = useState<ProviderInfo | null>(null);
@@ -58,7 +61,7 @@ export default function Profile() {
   const [docsCount, setDocsCount] = useState<number | null>(null);
   // Palier courant tel que le serveur le décrit (/tiers : libellé, commission) — rien d'écrit ici.
   const [plan, setPlan] = useState<{ label: string; rate: number; paid: boolean } | null>(null);
-  const [addresses, setAddresses] = useState<any[]>([]);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -212,7 +215,7 @@ export default function Profile() {
   );
 }
 
-function loginSub(user: any, t: (k: string) => string): string {
+function loginSub(user: Pick<AuthUser, 'authProvider'> | null, t: (k: string) => string): string {
   const p = user?.authProvider;
   if (p === 'apple') return 'Apple';
   if (p === 'google') return 'Google';

@@ -55,7 +55,7 @@ export default function OnboardingCompany() {
       // Déjà renseigné (parcours repris, profil) ? On préremplit — et si tout
       // est en règle, l'écran n'a rien à demander : on enchaîne.
       try {
-        const res: any = await api.providers.me();
+        const res = await api.providers.me();
         const p = res?.provider;
         if (cancelled) return;
         if (p?.vatNumber) setBce(String(p.vatNumber));
@@ -92,7 +92,7 @@ export default function OnboardingCompany() {
       // 1. BCE → VIES (sauf s'il est déjà confirmé et inchangé)
       if (!vatVerified) {
         try {
-          const res: any = await api.provider.setVat(bce.trim());
+          const res = await api.provider.setVat(bce.trim());
           setBce(res?.vatNumber ?? formatBce(bce));
           if (res?.verified === false) {
             // Enregistré, pas encore confirmé : on n'arrête pas le prestataire
@@ -117,7 +117,7 @@ export default function OnboardingCompany() {
       // 2. IBAN (mod-97 côté serveur aussi)
       if (!ibanSaved || formatIban(iban) !== iban) {
         try {
-          const res: any = await api.provider.setIban(iban.trim());
+          const res = await api.provider.setIban(iban.trim());
           setIban(res?.iban ?? formatIban(iban));
           setIbanSaved(true);
         } catch (e: any) {

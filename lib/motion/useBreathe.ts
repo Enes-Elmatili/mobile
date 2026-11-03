@@ -12,8 +12,8 @@ export function useBreathe(amplitude = 1.03) {
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const pulse = useCallback(() => {
     if (reduced) return;
-    scale.value = amplitude;
-    scale.value = withSpring(1, MOTION.breathe);
+    scale.set(amplitude);
+    scale.set(withSpring(1, MOTION.breathe));
   }, [reduced, amplitude, scale]);
   return { style, pulse };
 }

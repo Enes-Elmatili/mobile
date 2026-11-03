@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { feedback } from '@/lib/feedback/feedback';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { Enveloped } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { formatEUR } from '@/lib/format';
@@ -48,20 +49,22 @@ export default function EarlyScreen() {
 
   const [mission, setMission] = useState<MissionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tick, setTick] = useState(0);
+  // Horloge rafraîchie chaque 30s (et à chaque chargement) : recalcule le
+  // compte à rebours et relance l'auto-redirect, sans Date.now() en plein rendu.
+  const [now, setNow] = useState(() => Date.now());
 
-  // Refresh tick chaque 30s pour recalculer le compte à rebours et auto-redirect.
   useEffect(() => {
-    const iv = setInterval(() => setTick(t => t + 1), 30_000);
+    const iv = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(iv);
   }, []);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.get<Enveloped<MissionData>>(`/requests/${id}`);
       const data = res?.data || res;
       setMission(data);
+      setNow(Date.now());
     } catch (e) {
       devError('[early] load mission failed:', e);
     } finally {
@@ -79,12 +82,13 @@ export default function EarlyScreen() {
     if (minsUntil <= ACTIVATION_WINDOW_MIN) {
       router.replace({ pathname: '/request/[id]/ongoing', params: { id: String(mission.id) } });
     }
-  }, [mission?.preferredTimeStart, mission?.id, router, tick]);
+  }, [mission?.preferredTimeStart, mission?.id, router, now]);
 
+  // Lu une fois : les mémos ci-dessous dépendent de ce seul champ.
+  const startAt = mission?.preferredTimeStart;
   const countdown = useMemo(() => {
-    if (!mission?.preferredTimeStart) return null;
-    const target = new Date(mission.preferredTimeStart).getTime();
-    const now = Date.now();
+    if (!startAt) return null;
+    const target = new Date(startAt).getTime();
     const diffMs = target - now;
     if (diffMs <= 0) return null;
     const totalMin = Math.floor(diffMs / 60_000);
@@ -92,22 +96,21 @@ export default function EarlyScreen() {
     const hours = Math.floor((totalMin % (60 * 24)) / 60);
     const mins = totalMin % 60;
     return { days, hours, mins, totalMin };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick force le recalcul chaque minute
-  }, [mission?.preferredTimeStart, tick]);
+  }, [startAt, now]);
 
   const formattedDate = useMemo(() => {
-    if (!mission?.preferredTimeStart) return '—';
-    return new Date(mission.preferredTimeStart).toLocaleDateString(undefined, {
+    if (!startAt) return '—';
+    return new Date(startAt).toLocaleDateString(undefined, {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
-  }, [mission?.preferredTimeStart]);
+  }, [startAt]);
 
   const formattedTime = useMemo(() => {
-    if (!mission?.preferredTimeStart) return '';
-    return new Date(mission.preferredTimeStart).toLocaleTimeString(undefined, {
+    if (!startAt) return '';
+    return new Date(startAt).toLocaleTimeString(undefined, {
       hour: '2-digit', minute: '2-digit',
     });
-  }, [mission?.preferredTimeStart]);
+  }, [startAt]);
 
   const handleNavigate = useCallback(() => {
     if (!mission?.lat || !mission?.lng) {

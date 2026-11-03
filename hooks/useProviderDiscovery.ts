@@ -3,18 +3,10 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { api } from '../lib/api';
 import { devWarn } from '../lib/logger';
+import type { AvailableProvider } from '../lib/types';
 
-export interface DiscoveredProvider {
-  id: string;
-  name: string;
-  city: string | null;
-  avgRating: number;
-  jobsCompleted: number;
-  distanceKm: number;
-  responseTimeMinutes: number;
-  status: string;
-  categories: { id: number; name: string; slug: string }[];
-}
+/** Prestataire de GET /providers/available (forme : lib/types/provider.ts). */
+export type DiscoveredProvider = AvailableProvider;
 
 export interface DiscoveryFilters {
   categoryId: number | null;
@@ -66,7 +58,7 @@ export function useProviderDiscovery() {
       setError(null);
 
       try {
-        const data: any = await api.providers.available({
+        const data = await api.providers.available({
           lat: userLocation.lat,
           lng: userLocation.lng,
           radius: activeFilters.radiusKm,

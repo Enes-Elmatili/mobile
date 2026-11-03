@@ -42,15 +42,15 @@ export default function ProviderStripeConnect() {
     try {
       const returnUrl = Linking.createURL("onboarding/provider/stripe-return");
       const refreshUrl = Linking.createURL("onboarding/provider/stripe-refresh");
-      const res: any = await api.connect.onboarding(returnUrl, refreshUrl);
-      const url: string = res?.url;
+      const res = await api.connect.onboarding(returnUrl, refreshUrl);
+      const url = res?.url;
       if (!url) throw new Error(t('onboarding.st_no_url'));
 
       const result = await WebBrowser.openAuthSessionAsync(url, returnUrl);
       if (__DEV__) console.log("AUTH SESSION RESULT:", JSON.stringify(result));
 
       // Vérifier si Stripe est configuré après retour du browser
-      const status: any = await api.connect.status();
+      const status = await api.connect.status();
       if (__DEV__) console.log("STRIPE STATUS AFTER RETURN:", JSON.stringify(status));
       if (status?.isStripeReady) {
         feedback.success(t('onboarding.st_success'));

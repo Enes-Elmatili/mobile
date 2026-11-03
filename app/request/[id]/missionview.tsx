@@ -22,6 +22,7 @@ import { MOTION, useReduceMotion, useRevealCount, useEntrance } from '@/lib/moti
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
+import type { ServiceRequest } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { useSocket } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -84,7 +85,7 @@ export default function MissionView() {
   const mapRef = useRef<MapView>(null);
 
   // ─── La demande et les faits ────────────────────────────────────────────
-  const [request, setRequest] = useState<any>(null);
+  const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [arrived, setArrived] = useState(false);
   const [pinVerified, setPinVerified] = useState(false);
@@ -155,22 +156,23 @@ export default function MissionView() {
   useEffect(() => { if (tracking) topBarEntrance.replay(); }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Charger la demande, en tirer les faits ─────────────────────────────
-  const apply = useCallback((data: any) => {
+  const apply = useCallback((data: ServiceRequest | null | undefined) => {
     if (!data) return;
     setRequest(data);
     if (data.pinCode) setPinCode(String(data.pinCode));
     if (data.pinVerified) setPinVerified(true);
     if (data.beforePhotoUrl || data.beforePhotoAt) setArrived(true);
     setWork(workOf(data));
-    if (data.provider?.lat && data.provider?.lng) {
-      setProviderLocation((cur) => (hasLiveGps && cur ? cur : { latitude: data.provider.lat, longitude: data.provider.lng }));
+    const { lat, lng } = data.provider ?? {};
+    if (lat && lng) {
+      setProviderLocation((cur) => (hasLiveGps && cur ? cur : { latitude: lat, longitude: lng }));
     }
   }, [hasLiveGps]);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.requests.get(String(id));
       apply(res?.data || res);
     } catch (e: any) {
       if (e?.status === 404 || e?.status === 403) setNotFound(true);
@@ -282,7 +284,7 @@ export default function MissionView() {
     const onStarted = (d: any) => {
       if (!same(d)) return;
       setStartedAtLocal((cur) => cur ?? new Date().toISOString());
-      setRequest((p: any) => (p ? { ...p, status: 'ONGOING' } : p));
+      setRequest((p) => (p ? { ...p, status: 'ONGOING' } : p));
     };
     const onPinReady = (d: any) => { if (same(d) && d.pinCode) setPinCode(String(d.pinCode)); };
     const onBeforePhoto = (d: any) => {
@@ -303,7 +305,7 @@ export default function MissionView() {
     };
     const onCompleted = (d: any) => {
       if (!same(d)) return;
-      setRequest((p: any) => (p ? { ...p, status: 'DONE' } : p));
+      setRequest((p) => (p ? { ...p, status: 'DONE' } : p));
     };
     const onCancelled = (d: any) => {
       if (!same(d)) return;
@@ -318,7 +320,7 @@ export default function MissionView() {
       setAcceptedProviderId(null); setAcceptedName(null); setProviderLocation(null); setHasLiveGps(false);
       setEtaMin(null); setRouteCoords([]); setStartedAtLocal(null);
       prevStatusRef.current = 'PUBLISHED';
-      setRequest((p: any) => (p ? { ...p, status: 'PUBLISHED', providerId: null, provider: null, pinCode: null, pinVerified: false } : p));
+      setRequest((p) => (p ? { ...p, status: 'PUBLISHED', providerId: null, provider: null, pinCode: null, pinVerified: false } : p));
     };
     const onStatusUpdated = (d: any) => { if (same(d)) load(); };
 
@@ -417,8 +419,10 @@ export default function MissionView() {
   // Démontée une fois rangée : caché, le fil marquerait lus des messages
   // que personne ne voit.
   const [chatMounted, setChatMounted] = useState(false);
+  // Montée dès l'ouverture (au rendu) ; démontée 450 ms après la fermeture.
+  if (chatOpen && !chatMounted) setChatMounted(true);
   useEffect(() => {
-    if (chatOpen) { setChatMounted(true); return; }
+    if (chatOpen) return;
     const t = setTimeout(() => setChatMounted(false), 450);
     return () => clearTimeout(t);
   }, [chatOpen]);
@@ -445,7 +449,8 @@ export default function MissionView() {
     };
   });
 
-  const openProfile = useCallback(() => { if (provider?.id) router.push(`/providers/${provider.id}`); }, [provider?.id, router]);
+  const profileId = provider?.id;
+  const openProfile = useCallback(() => { if (profileId) router.push(`/providers/${profileId}`); }, [profileId, router]);
   const back = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }, [router]);
 
   // ─── Contenu de la feuille par stade ────────────────────────────────────
@@ -579,7 +584,7 @@ export default function MissionView() {
                 showsCompass={false}
                 toolbarEnabled={false}
               >
-                {tracking ? <MapPin coordinate={clientCoord} trackKey={(authUser as any)?.avatarUrl ?? ''}><ClientMarker name={(authUser as any)?.name} avatarUrl={(authUser as any)?.avatarUrl} /></MapPin> : null}
+                {tracking ? <MapPin coordinate={clientCoord} trackKey={authUser?.avatarUrl ?? ''}><ClientMarker name={authUser?.name} avatarUrl={authUser?.avatarUrl} /></MapPin> : null}
                 {tracking && visibleRoute.length > 1 && !bandMode ? (
                   <Polyline coordinates={visibleRoute} strokeColor={theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)'} strokeWidth={3} />
                 ) : null}

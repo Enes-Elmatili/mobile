@@ -59,18 +59,22 @@ function renderTitle(raw: string) {
 }
 
 // Warn once (dev only) when a themed headline still receives a kicker.
+// Le drapeau vit au niveau module : on ne le réassigne que dans cette fonction
+// hors composant (react-hooks/globals interdit de le faire depuis le rendu).
 let warnedThemedKicker = false;
+function warnThemedKickerOnce() {
+  if (warnedThemedKicker) return;
+  warnedThemedKicker = true;
+  console.warn(
+    "AuthHeadline: `kicker` est ignoré en mode `themed` — composer <AuthEyebrow /> séparément."
+  );
+}
 
 export function AuthHeadline({ title, subtitle, kicker, align = "center", themed = false }: Props) {
   const theme = useAppTheme();
 
   if (themed) {
-    if (__DEV__ && kicker && !warnedThemedKicker) {
-      warnedThemedKicker = true;
-      console.warn(
-        "AuthHeadline: `kicker` est ignoré en mode `themed` — composer <AuthEyebrow /> séparément."
-      );
-    }
+    if (__DEV__ && kicker) warnThemedKickerOnce();
     // Trim de fin : un espace/saut de ligne résiduel après strip des marqueurs
     // décalerait le point vert — on rend la version trimmée.
     const clean = stripAccent(title).trimEnd();

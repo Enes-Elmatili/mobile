@@ -21,8 +21,13 @@ import { Marker, type MapMarkerProps } from 'react-native-maps';
 /** Vrai pendant `ms` après chaque changement de `key` : le temps de dessiner et d'animer. */
 export function useTracksViewChanges(key: string | number | boolean = 'mount', ms = 1200): boolean {
   const [tracking, setTracking] = useState(true);
-  useEffect(() => {
+  // Nouvelle clé (ou durée) : on repart en suivi, ajusté au rendu.
+  const [armedFor, setArmedFor] = useState({ key, ms });
+  if (armedFor.key !== key || armedFor.ms !== ms) {
+    setArmedFor({ key, ms });
     setTracking(true);
+  }
+  useEffect(() => {
     const t = setTimeout(() => setTracking(false), ms);
     return () => clearTimeout(t);
   }, [key, ms]);

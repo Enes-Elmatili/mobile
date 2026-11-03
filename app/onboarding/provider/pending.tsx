@@ -199,7 +199,7 @@ export default function PendingValidation() {
 
   async function checkStatus() {
     try {
-      const [validationRes, stripeRes, docsRes, tradesRes, meRes]: any[] = await Promise.all([
+      const [validationRes, stripeRes, docsRes, tradesRes, meRes] = await Promise.all([
         api.providers.validationStatus(),
         !stripeConnectedRef.current ? api.connect.status() : null,
         api.providerDocs.list(),

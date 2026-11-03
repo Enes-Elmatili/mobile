@@ -15,6 +15,7 @@ import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
+import type { AuthResponse, Category as CatalogCategory, Role } from '@/lib/types';
 import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
 import { useGoogleAuthDiagnostic } from "@/lib/useGoogleAuthDiagnostic";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -147,11 +148,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const CITY_OPTIONS = [{ value: "Bruxelles", label: "Bruxelles" }];
 
-interface Category {
-  id: number;
-  name: string;
-  icon?: string;
-}
+type Category = Pick<CatalogCategory, 'id' | 'name' | 'icon'>;
 
 type Phase = "identity" | "billing" | "zone" | "creating";
 
@@ -181,27 +178,14 @@ export default function Signup() {
   // dit jamais rien (cf. lib/useGoogleAuthDiagnostic.ts).
   const googleUnavailable = useGoogleAuthDiagnostic(googleRequest);
 
-  useEffect(() => {
-    if (!googleResponse) return;
-    if (googleResponse.type === "success") {
-      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
-      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
-      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
-    } else if (googleResponse.type === "error") {
-      // Échec OAuth Google — sans ce feedback le bouton redevenait juste actif
-      showToast(t('auth.su_err_social'));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement
-  }, [googleResponse]);
-
   // ── Routage post-authentification sociale ──────────────────────────────────
   // Le rôle choisi à l'étape 1 (role-select) est mémorisé dans AsyncStorage.
   // Faute de le relire ici, une inscription sociale repartait de zéro : le
   // backend ne pose AUCUN rôle sur un compte social, l'app renvoyait donc sur
   // role-select et le prestataire devait re-choisir ce qu'il venait de choisir.
-  const routeAfterSocial = async (res: any) => {
-    let payload: any = res;
-    let roles: string[] = res?.roles ?? [];
+  const routeAfterSocial = async (res: AuthResponse) => {
+    let payload: AuthResponse = res;
+    let roles: Role[] = res?.roles ?? [];
 
     if (roles.length === 0) {
       const intent = await AsyncStorage.getItem(ROLE_INTENT_KEY).catch(() => null);
@@ -210,7 +194,7 @@ export default function Signup() {
         return;
       }
       try {
-        const assigned: any = await api.auth.assignRole(intent);
+        const assigned = await api.auth.assignRole(intent);
         if (assigned?.token) {
           await signIn(assigned.token, assigned.missingFields ?? []);
           await refreshMe();
@@ -351,23 +335,37 @@ export default function Signup() {
     feedback.toast(message, type);
   }, []);
 
+  useEffect(() => {
+    if (!googleResponse) return;
+    if (googleResponse.type === "success") {
+      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
+      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
+    } else if (googleResponse.type === "error") {
+      // Échec OAuth Google — sans ce feedback le bouton redevenait juste actif
+      showToast(t('auth.su_err_social'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement
+  }, [googleResponse]);
+
   // Entrée : jouée au montage, rejouée à chaque changement de phase.
   const entrance = useEntrance(16);
   const animateIn = entrance.replay;
 
-  // Categories loader
+  // Categories loader. Les setters (stables) sont cités en dépendances : le
+  // compilateur les infère comme tels et ne préserverait pas le mémo sinon.
   const loadCategories = useCallback(() => {
     setCatsLoading(true);
     setCatsError(false);
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000));
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000));
     Promise.race([api.taxonomies.list(), timeout])
-      .then((res: any) => setCategories(res?.data ?? res ?? []))
+      .then((res) => setCategories(res?.data ?? res ?? []))
       .catch(() => {
         setCatsError(true);
         showToast(t('auth.su_err_cats_load'));
       })
       .finally(() => setCatsLoading(false));
-  }, [showToast, t]);
+  }, [showToast, t, setCategories, setCatsError, setCatsLoading]);
 
   useEffect(() => {
     if (phase === "zone" && isProvider && categories.length === 0) loadCategories();

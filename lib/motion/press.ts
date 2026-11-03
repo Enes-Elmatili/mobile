@@ -72,12 +72,12 @@ export function usePressScale(target: number = PRESS_SCALE) {
     if (reduced) return;
     // Part de la valeur COURANTE (règle 1) : un ré-appui pendant le retour
     // reprend le mouvement en cours au lieu de sauter à 1.
-    scale.value = withSpring(target, PRESS_IN_SPRING);
+    scale.set(withSpring(target, PRESS_IN_SPRING));
   }, [reduced, target, scale]);
 
   const onPressOut = useCallback(() => {
     if (reduced) return;
-    scale.value = withSpring(1, PRESS_OUT_SPRING);
+    scale.set(withSpring(1, PRESS_OUT_SPRING));
   }, [reduced, scale]);
 
   const handlers = useMemo(() => ({ onPressIn, onPressOut }), [onPressIn, onPressOut]);

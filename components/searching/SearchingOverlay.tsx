@@ -29,13 +29,13 @@ function ProPin({ pro, x, y, order, accepted, dimmed }: { pro: Pro; x: number; y
   useEffect(() => {
     if (awake && !reduced) {
       // Le réveil : la pastille « prend » (MOTION.take), en cascade dans la vague.
-      scale.value = withDelay(order * 110, withSpring(1.12, MOTION.take, () => { scale.value = withSpring(1, MOTION.take); }));
+      scale.set(withDelay(order * 110, withSpring(1.12, MOTION.take, () => { scale.value = withSpring(1, MOTION.take); })));
     }
-    opacity.value = withTiming(pro.declined || dimmed ? 0.28 : 1, { duration: 250 });
+    opacity.set(withTiming(pro.declined || dimmed ? 0.28 : 1, { duration: 250 }));
   }, [awake, pro.declined, dimmed, reduced, order, scale, opacity]);
   useEffect(() => {
     // Le moment « accepté » : la pastille prend une fois de plus, un cran plus grand.
-    if (accepted && !reduced) scale.value = withSpring(1.22, MOTION.take, () => { scale.value = withSpring(1.08, MOTION.take); });
+    if (accepted && !reduced) scale.set(withSpring(1.22, MOTION.take, () => { scale.value = withSpring(1.08, MOTION.take); }));
   }, [accepted, reduced, scale]);
   const st = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }));
   const initials = cleanName(pro.name ?? '').split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '·';

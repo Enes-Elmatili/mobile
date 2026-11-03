@@ -307,7 +307,7 @@ export async function resolveRequestById(
   opts?: { provider?: boolean },
 ): Promise<RequestDestination> {
   try {
-    const res: any = await api.requests.get(String(requestId));
+    const res = await api.requests.get(String(requestId));
     const req: RequestLike = res?.data ?? res;
     return opts?.provider ? resolveProviderDestination(req) : resolveRequestDestination(req);
   } catch (e: any) {

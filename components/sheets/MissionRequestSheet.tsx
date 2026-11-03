@@ -115,12 +115,12 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
     if (timerRef.current) clearInterval(timerRef.current);
     // Interrompre la barre : sa valeur reste où elle est, sans callback.
-    progress.value = progress.value;
+    progress.set(progress.get());
 
-    translateY.value = withTiming(SHEET_HEIGHT + 60, { duration: 320, easing: Easing.in(Easing.quad) });
-    backdrop.value = withTiming(0, { duration: 280 }, (finished) => {
+    translateY.set(withTiming(SHEET_HEIGHT + 60, { duration: 320, easing: Easing.in(Easing.quad) }));
+    backdrop.set(withTiming(0, { duration: 280 }, (finished) => {
       if (finished) runOnJS(finishHide)();
-    });
+    }));
   }, [backdrop, finishHide, progress, translateY]);
 
   // ── Show ──────────────────────────────────────────────────────────────────
@@ -133,16 +133,16 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
 
     // Ressort critique (plus de « back » qui dépasse) ; l'haptique d'arrivée
     // tombe sur la frame où le sheet se pose (règle 6).
-    translateY.value = withSpring(0, SHEET_SPRING, (finished) => {
+    translateY.set(withSpring(0, SHEET_SPRING, (finished) => {
       if (finished) runOnJS(triggerArrivalHaptic)();
-    });
-    backdrop.value = withTiming(1, { duration: 360 });
+    }));
+    backdrop.set(withTiming(1, { duration: 360 }));
 
     // Barre de compte à rebours : linéaire, et refus automatique au bout.
-    progress.value = 1;
-    progress.value = withTiming(0, { duration: COUNTDOWN_SECONDS * 1000, easing: Easing.linear }, (finished) => {
+    progress.set(1);
+    progress.set(withTiming(0, { duration: COUNTDOWN_SECONDS * 1000, easing: Easing.linear }, (finished) => {
       if (finished) runOnJS(onTimeout)();
-    });
+    }));
   }, [backdrop, onTimeout, progress, translateY, triggerArrivalHaptic]);
 
   // ── Countdown numérique ───────────────────────────────────────────────────

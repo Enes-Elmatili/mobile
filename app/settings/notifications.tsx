@@ -80,7 +80,7 @@ export default function NotificationsSettingsScreen() {
 
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   useEffect(() => {
-    api.notifications.prefs().then((res: any) => setPrefs({ ...DEFAULTS, ...(res?.data || {}), quiet: { ...DEFAULTS.quiet, ...(res?.data?.quiet || {}) } })).catch((e: any) => { devWarn('[prefs]', e?.message); setPrefs(DEFAULTS); });
+    api.notifications.prefs().then((res) => setPrefs({ ...DEFAULTS, ...(res?.data || {}), quiet: { ...DEFAULTS.quiet, ...(res?.data?.quiet || {}) } })).catch((e: any) => { devWarn('[prefs]', e?.message); setPrefs(DEFAULTS); });
   }, []);
 
   // Optimiste : l'interrupteur bouge tout de suite ; si le serveur refuse, il revient.
@@ -88,12 +88,12 @@ export default function NotificationsSettingsScreen() {
     feedback.haptic('selection');
     setPrefs((prev) => ({ ...(prev ?? DEFAULTS), ...p, quiet: { ...(prev ?? DEFAULTS).quiet, ...(p.quiet || {}) } }));
     try {
-      const res: any = await api.notifications.updatePrefs(p);
+      const res = await api.notifications.updatePrefs(p);
       if (res?.data) setPrefs({ ...DEFAULTS, ...res.data, quiet: { ...DEFAULTS.quiet, ...(res.data.quiet || {}) } });
     } catch (e: any) {
       devWarn('[prefs] save failed', e?.message);
       feedback.error('notifications.prefs_error');
-      api.notifications.prefs().then((res: any) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch(() => {});
+      api.notifications.prefs().then((res) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch(() => {});
     }
   }, []);
 

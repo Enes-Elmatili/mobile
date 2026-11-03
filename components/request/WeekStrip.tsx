@@ -3,7 +3,7 @@
 // En-tête « 15 – 21 septembre » et chevrons ; changer de semaine pousse la
 // rangée latéralement (StepPager). Jours passés grisés et inertes, aujourd'hui
 // porte un point. Sélection : fond accent, haptique selection.
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
@@ -34,14 +34,15 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
   const theme = useAppTheme();
   const initial = Math.max(0, weeks.findIndex((w) => w.days.some((d) => d.iso === selectedIso)));
   const [index, setIndex] = useState(initial);
-  const dirRef = useRef<PagerDirection>(1);
+  // Sens de la poussée, en état (posé avec setIndex, même lot) : lu au rendu.
+  const [dir, setDir] = useState<PagerDirection>(1);
   const week = weeks[index];
   const canPrev = index > 0;
   const canNext = index < weeks.length - 1;
 
   const go = (delta: 1 | -1) => {
     feedback.haptic('light');
-    dirRef.current = delta;
+    setDir(delta);
     setIndex((i) => Math.min(weeks.length - 1, Math.max(0, i + delta)));
   };
 
@@ -58,7 +59,7 @@ export function WeekStrip({ weeks, selectedIso, onSelect, dayLabel, monthLabel, 
           </PressScale>
         </View>
       </View>
-      <StepPager page={index} direction={dirRef.current} style={s.pager} render={() => (
+      <StepPager page={index} direction={dir} style={s.pager} render={() => (
         <View style={s.days}>
           {week.days.map((d) => {
             const selected = d.iso === selectedIso;

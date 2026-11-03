@@ -29,6 +29,9 @@ export default function RequestDispatcher() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [error, setError] = useState(false);
+  // Lus hors callback : les dépendances sont l'id et les rôles, pas tout `user`.
+  const userId = user?.id;
+  const userRoles = user?.roles;
 
   const resolve = useCallback(async () => {
     if (!id) {
@@ -37,17 +40,17 @@ export default function RequestDispatcher() {
     }
     setError(false);
     try {
-      const res: any = await api.requests.get(String(id));
+      const res = await api.requests.get(String(id));
       const req = res?.data ?? res;
       // Client de la demande → résolution client ; sinon prestataire assigné/candidat.
-      const asProvider = !!user?.roles?.includes('PROVIDER') && req?.clientId !== user?.id;
+      const asProvider = !!userRoles?.includes('PROVIDER') && req?.clientId !== userId;
       const dest = asProvider ? resolveProviderDestination(req) : resolveRequestDestination(req);
       navigateToDestination({ ...dest, replace: true });
     } catch (e) {
       devError('[request/[id]] resolve error:', e);
       setError(true);
     }
-  }, [id, user?.id, user?.roles, router]);
+  }, [id, userId, userRoles, router]);
 
   useEffect(() => { resolve(); }, [resolve]);
 

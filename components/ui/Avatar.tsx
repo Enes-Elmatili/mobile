@@ -34,8 +34,12 @@ export default function Avatar({ name = 'A B', size = 40, verified, imageUri, av
   const resolvedUri = imageUri || resolveAvatarUrl(avatarUrl);
   const showImage = !!resolvedUri && !imgFailed;
 
-  // Reset l'état d'erreur quand l'URI change
-  React.useEffect(() => { setImgFailed(false); }, [resolvedUri]);
+  // Reset l'état d'erreur quand l'URI change (ajusté au rendu, pas dans un effet)
+  const [failedCheckedFor, setFailedCheckedFor] = React.useState(resolvedUri);
+  if (failedCheckedFor !== resolvedUri) {
+    setFailedCheckedFor(resolvedUri);
+    setImgFailed(false);
+  }
 
   const a11yLabel = verified ? `${name}, vérifié` : name;
 

@@ -15,6 +15,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { TAB_BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { api } from '@/lib/api';
+import type { Quote } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { formatEURCents as fmtEur } from '@/lib/format';
 import { useSheetMotion } from '@/lib/motion/sheet';
@@ -44,7 +45,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
   // Dessus de la barre flottante : sa hauteur + sa distance au bord.
   const tabBarClear = TAB_BAR_HEIGHT + tabBarBottom(insets.bottom);
 
-  const [quote, setQuote] = useState<any>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
@@ -53,8 +54,8 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
     setLoading(true);
     setError(false);
     setQuote(null);
-    api.get(`/quotes/request/${requestId}`)
-      .then((res: any) => {
+    api.quotes.forRequest(requestId)
+      .then((res) => {
         const q = res?.quotes?.[0];
         if (q) setQuote(q);
       })

@@ -29,6 +29,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
+import type { Enveloped } from '@/lib/types';
 import { feedback } from '@/lib/feedback/feedback';
 import { formatEURCents } from '@/lib/format';
 import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
@@ -291,11 +292,11 @@ export default function FormulesScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(false);
     try {
-      const unwrap = (r: any) => r?.data ?? r;
+      const unwrap = <T,>(r: Enveloped<T>): T => r?.data ?? r;
       const [cfg, meRes, tiersRes] = await Promise.all([
-        api.get<SubConfig>('/subscriptions/config').then(unwrap),
-        api.get<SubMe>('/subscriptions/me').then(unwrap),
-        api.get<TiersResponse>('/tiers').then(unwrap).catch(() => null),
+        api.get<Enveloped<SubConfig>>('/subscriptions/config').then(unwrap),
+        api.get<Enveloped<SubMe>>('/subscriptions/me').then(unwrap),
+        api.get<Enveloped<TiersResponse>>('/tiers').then(unwrap).catch(() => null),
       ]);
       setConfig(cfg);
       setMe(meRes);
@@ -314,7 +315,7 @@ export default function FormulesScreen() {
     if (PURCHASE_UI_BLOCKED) return;
     setChoosingTier(tier);
     try {
-      const res: any = await api.subscription.createSubscription(tier);
+      const res = await api.subscription.createSubscription(tier);
       if (!res?.paymentIntentClientSecret) throw new Error(t('formules.subscribe_error'));
 
       const { error: initError } = await initPaymentSheet({

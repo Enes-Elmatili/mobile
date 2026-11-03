@@ -8,6 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { translateCategory } from '@/lib/categoryLabel';
 import { api } from '@/lib/api';
+import type { ProviderSummary } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { PulseDot } from '@/components/ui/PulseDot';
@@ -114,7 +115,7 @@ export default function ProviderDetailScreen() {
   const theme  = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [provider, setProvider]     = useState<any>(null);
+  const [provider, setProvider]     = useState<Partial<ProviderSummary> | null>(null);
   const [reviews,  setReviews]      = useState<Review[]>([]);
   const [loading,  setLoading]      = useState(true);
   const [showAll,  setShowAll]      = useState(false);
@@ -144,7 +145,7 @@ export default function ProviderDetailScreen() {
     if (!id) return;
     setCtaLoading(true);
     try {
-      const av: any = await api.providers.availability(id);
+      const av = await api.providers.availability(id);
       if (av?.available) {
         router.push({
           pathname: '/request/NewRequestStepper',
@@ -204,8 +205,9 @@ export default function ProviderDetailScreen() {
   const providerName = cleanName(provider.name);
   const initials     = avatarInitials(providerName);
   const displayedReviews = showAll ? reviews : reviews.slice(0, 3);
-  const acceptRate   = provider.totalRequests > 0
-    ? Math.round((provider.acceptedRequests / provider.totalRequests) * 100)
+  const totalRequests = provider.totalRequests ?? 0;
+  const acceptRate   = totalRequests > 0
+    ? Math.round((Number(provider.acceptedRequests) / totalRequests) * 100)
     : null;
   const memberSince  = provider.createdAt
     ? new Date(provider.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
@@ -299,7 +301,7 @@ export default function ProviderDetailScreen() {
                 <Text style={[s.badgeText, { color: COLORS.amber, fontFamily: FONTS.mono }]}>{avgRating.toFixed(1)}</Text>
               </View>
             )}
-            {provider.languages?.length > 0 && (
+            {!!provider.languages?.length && (
               <View style={[s.badge, { backgroundColor: theme.surface }]}>
                 <Feather name="globe" size={11} color={theme.textSub} />
                 <Text style={[s.badgeText, { color: theme.textSub, fontFamily: FONTS.mono, flexShrink: 1 }]} numberOfLines={1}>{provider.languages.join(', ').toUpperCase()}</Text>
@@ -341,14 +343,14 @@ export default function ProviderDetailScreen() {
         ) : null}
 
         {/* Specialties section */}
-        {provider.categories?.length > 0 && (
+        {!!provider.categories?.length && (
           <View style={s.sectionWrap}>
             <View style={s.sectionHeaderRow}>
               <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>SPÉCIALITÉS</Text>
             </View>
             <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
               <View style={s.chips}>
-                {provider.categories.map((cat: any) => (
+                {provider.categories.map((cat) => (
                   <View key={cat.id} style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                     <Text style={[s.chipText, { color: theme.textSub, fontFamily: FONTS.sansMedium }]}>{translateCategory(t, cat)}</Text>
                   </View>

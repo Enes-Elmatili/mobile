@@ -44,12 +44,14 @@ export default function SendQuote() {
   const [loadError, setLoadError] = useState(false);
 
   // Guard ownership + statut au mount, et gestion de l'erreur du fetch initial.
+  // L'id seul, lu hors callback : c'est lui la dépendance, pas tout `user`.
+  const userId = user?.id;
   const loadRequest = useCallback(async () => {
-    if (!id || !user?.id) return;
+    if (!id || !userId) return;
     setChecking(true);
     setLoadError(false);
     try {
-      const res: any = await api.get(`/requests/${id}`);
+      const res = await api.requests.get(String(id));
       const data = res?.data || res;
       if (!data) { setLoadError(true); return; }
 
@@ -63,7 +65,7 @@ export default function SendQuote() {
       // inclut dans la réponse et utilise lui-même pour ce contrôle
       // (routes/requests.js : `request.provider?.userId === req.user?.id`).
       const assignedUserId = data.provider?.userId ?? null;
-      if (assignedUserId && assignedUserId !== user.id) {
+      if (assignedUserId && assignedUserId !== userId) {
         feedback.error(t("ext.sendquote_not_assigned"));
         router.replace("/(tabs)/missions");
         return;
@@ -81,7 +83,7 @@ export default function SendQuote() {
     } finally {
       setChecking(false);
     }
-  }, [id, user?.id, router, t]);
+  }, [id, userId, router, t]);
 
   useEffect(() => { loadRequest(); }, [loadRequest]);
 

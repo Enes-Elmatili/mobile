@@ -1,6 +1,7 @@
 // https://docs.expo.dev/guides/using-eslint/
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
+const globals = require('globals');
 
 // ─── Allowlists de migration ─────────────────────────────────────────────────
 // Chaque liste est un stock à écouler, jamais un droit acquis : on retire une
@@ -61,21 +62,57 @@ const EXCEPTIONS = [...new Set(LEGACY_ALERT_ALLOWLIST)];
 const EXCEPTION_GLOBS = EXCEPTIONS.map(toGlob);
 
 // Règles « React Compiler » arrivées avec eslint-config-expo 58
-// (eslint-plugin-react-hooks 7). Coupées le temps de la migration SDK 58 :
-// beaucoup signalent à tort les écritures de shared values Reanimated
-// (`sv.value = …`). À réactiver une par une, chacune dans son propre commit.
+// (eslint-plugin-react-hooks 7). Toutes réactivées, sauf une :
+// `set-state-in-effect` (7.1.1) ne modélise pas `await` — tout chargement
+// `useEffect(() => { load(); }, [load])` dont le setState suit l'await est
+// signalé (une trentaine de faux positifs, le motif de chargement documenté
+// par React). La réactiver imposerait ~45 eslint-disable, qui deviendraient
+// un réflexe et videraient la règle de son sens. Les vrais cas (état dérivé,
+// remise à zéro sur changement de prop, magasin externe) ont été corrigés ;
+// à réévaluer quand le plugin saura distinguer le setState asynchrone.
 const REACT_COMPILER_RULES_OFF = Object.fromEntries([
-  'globals', 'immutability', 'preserve-manual-memoization', 'purity',
-  'refs', 'set-state-in-effect', 'static-components',
+  'set-state-in-effect',
+].map((r) => [`react-hooks/${r}`, 'off']));
+
+// SocketContext ne se modifie pas sans validation explicite (CLAUDE.md) : ses
+// écarts aux règles React Compiler (refs recopiées au rendu) restent en l'état
+// et seules ces règles-là y sont coupées, pour ce seul fichier. Il a aussi
+// trois setState d'effet : y ajouter `set-state-in-effect` le jour où elle
+// sera réactivée ailleurs.
+const SOCKET_CONTEXT_RULES_OFF = Object.fromEntries([
+  'refs',
 ].map((r) => [`react-hooks/${r}`, 'off']));
 
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    ignores: ['dist/*', '.claude/**', 'android/**', 'ios/**'],
+  },
+  // Tests et réglages jest : les globales de jest (describe, it, expect…).
+  {
+    files: ['**/__tests__/**', '**/*.test.{js,jsx,ts,tsx}', 'jest.setup.js'],
+    languageOptions: { globals: { ...globals.jest, ...globals.node } },
+    // Les harnais de test capturent le hook dans une variable du module
+    // (`function Probe() { q = useX(); }`) et créent des composants à la volée.
+    rules: { 'react-hooks/globals': 'off', 'react-hooks/immutability': 'off', 'react/display-name': 'off' },
+  },
+  // TypeScript vérifie déjà les exports ; import/namespace ne suit pas les
+  // `export *` des paquets (faux positifs sur expo-notifications).
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: { 'import/namespace': 'off' },
+  },
+  // Scripts de release et plugins Expo : du Node.
+  {
+    files: ['scripts/**', 'plugins/**', '*.config.js'],
+    languageOptions: { globals: globals.node },
   },
   {
     rules: REACT_COMPILER_RULES_OFF,
+  },
+  {
+    files: ['lib/SocketContext.tsx'],
+    rules: SOCKET_CONTEXT_RULES_OFF,
   },
   {
     files: SOURCE,

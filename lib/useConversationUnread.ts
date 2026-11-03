@@ -35,17 +35,17 @@ export function useConversationUnread(
 ) {
   const [count, setCount] = useState(0);
   const { socket } = useSocket();
+  // Sans les deux interlocuteurs, pas de compteur (remise à zéro au rendu).
+  if ((!peerUserId || !currentUserId) && count !== 0) setCount(0);
 
   // ── Initial fetch ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!peerUserId || !currentUserId) {
-      setCount(0);
-      return;
-    }
+    if (!peerUserId || !currentUserId) return;
     let cancelled = false;
     (async () => {
       try {
-        const res: any = await api.messages.conversation(peerUserId, 1);
+        // Élargi aux formes enveloppées seules, pour que le test de tableau les garde.
+        const res: AnyMessage[] | { data?: AnyMessage[]; messages?: AnyMessage[] } = await api.messages.conversation(peerUserId, 1);
         if (cancelled) return;
         const list: AnyMessage[] = Array.isArray(res) ? res : (res?.data || res?.messages || []);
         const unread = list.filter(

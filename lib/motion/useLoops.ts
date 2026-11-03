@@ -85,7 +85,7 @@ export function useShake() {
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const shake = useCallback(() => {
     if (reduced) return;
-    x.value = withSpring(0, SHAKE_SPRING);
+    x.set(withSpring(0, SHAKE_SPRING));
   }, [reduced, x]);
   return { style, shake };
 }

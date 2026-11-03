@@ -14,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { feedback } from "@/lib/feedback/feedback";
 import { api } from "@/lib/api";
+import type { AuthResponse } from '@/lib/types';
 import { GOOGLE_AUTH_CONFIG } from "@/lib/googleAuth";
 import { useGoogleAuthDiagnostic } from "@/lib/useGoogleAuthDiagnostic";
 import { routeAfterLogin } from "@/lib/providerGate";
@@ -122,21 +123,6 @@ export default function Login() {
     }
   }, [googleRequest]);
 
-  useEffect(() => {
-    if (!googleResponse) return;
-    if (__DEV__) console.log("[Google Auth] response type:", googleResponse.type);
-    if (googleResponse.type === "success") {
-      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
-      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
-      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
-    } else if (googleResponse.type === "error") {
-      // Échec OAuth Google — sans feedback l'utilisateur ne voit rien
-      showToast(t("auth.login_google_failed"));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement ; les handlers sont stables dans la pratique
-  }, [googleResponse]);
-
-
   // Le bouton reste actif même si la requête n'est pas prête : un appui doit
   // toujours produire une réponse. Sans ça, un échec de construction rendait le
   // bouton totalement inerte — ni navigateur, ni message, ni log.
@@ -159,7 +145,7 @@ export default function Login() {
   // dashboard complet. La règle vit dans lib/providerGate.ts (testée) ; ici on
   // ne fait que réunir les données — la réponse de login ne porte pas
   // providerStatus, /auth/me si.
-  const routeAfterAuth = async (res: any) => {
+  const routeAfterAuth = async (res: AuthResponse) => {
     const me = await refreshMe();
     const roles: string[] | undefined = Array.isArray(res?.roles) ? res.roles : me?.roles;
     router.replace(
@@ -186,6 +172,20 @@ export default function Login() {
       setSocialLoading(null);
     }
   };
+
+  useEffect(() => {
+    if (!googleResponse) return;
+    if (__DEV__) console.log("[Google Auth] response type:", googleResponse.type);
+    if (googleResponse.type === "success") {
+      const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+      const accessToken = googleResponse.authentication?.accessToken ?? googleResponse.params?.access_token;
+      if (idToken || accessToken) handleGoogleSignIn({ idToken, accessToken });
+    } else if (googleResponse.type === "error") {
+      // Échec OAuth Google — sans feedback l'utilisateur ne voit rien
+      showToast(t("auth.login_google_failed"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit à la réponse OAuth seulement ; les handlers sont stables dans la pratique
+  }, [googleResponse]);
 
   const handleAppleSignIn = async () => {
     setSocialLoading("apple");
