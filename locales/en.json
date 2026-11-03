@@ -316,7 +316,8 @@
     "su_err_activity": "Choose your city and at least one category.",
     "welcome_eyebrow": "Plumbing · Locksmith",
     "google_unavailable": "Google unavailable: {{reason}}",
-    "google_preparing": "Google sign-in is getting ready, try again in a moment."
+    "google_preparing": "Google sign-in is getting ready, try again in a moment.",
+    "country_code_a11y": "Country code: {{code}}"
   },
   "profile": {
     "title": "Profile",
@@ -505,7 +506,9 @@
     "view_quote": "View quote",
     "track_request": "Track request",
     "track_intervention": "Track intervention",
-    "back_home": "BACK HOME"
+    "back_home": "BACK HOME",
+    "call_provider_a11y": "Call the provider",
+    "message_provider_a11y": "Message the provider"
   },
   "missions": {
     "cancel": "Cancel mission",
@@ -770,7 +773,8 @@
     "photos_upload_failed_one": "One photo could not be sent. Your request went out without it.",
     "photos_upload_failed_other": "{{count}} photos could not be sent. Your request went out without them.",
     "shot_required": "REQUIRED",
-    "shot_free": "Extra photo"
+    "shot_free": "Extra photo",
+    "remove_promo_a11y": "Remove promo code"
   },
   "rating": {
     "skip": "Skip",
@@ -878,7 +882,9 @@
     "hours_short": "{{n}} h",
     "days_short": "{{n}} d",
     "empty_sub_client": "Your conversations with pros will appear here.",
-    "select_hint": "Select a conversation"
+    "select_hint": "Select a conversation",
+    "input_a11y": "Your message",
+    "send_a11y": "Send the message"
   },
   "wallet": {
     "title": "Wallet",
@@ -2432,7 +2438,8 @@
     "retry": "Try again",
     "call": "Call {{name}}",
     "message": "Message {{name}}",
-    "ongoing_now": "IN PROGRESS · JUST NOW"
+    "ongoing_now": "IN PROGRESS · JUST NOW",
+    "code_a11y": "Arrival code"
   },
   "gains": {
     "title": "Earnings",
@@ -2686,6 +2693,8 @@
     "mute_a11y": "Mute microphone",
     "unmute_a11y": "Unmute microphone",
     "hangup_a11y": "Hang up",
-    "mission_n": "Job #{{id}}"
+    "mission_n": "Job #{{id}}",
+    "accept_a11y": "Accept the call",
+    "decline_a11y": "Decline the call"
   }
 }

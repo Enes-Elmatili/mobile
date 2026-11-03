@@ -190,7 +190,7 @@ export function MissionIsland({
                 }}
                 onPress={(e) => { e.stopPropagation?.(); hapticLight(); onCallProvider?.(); }}
                 accessibilityRole="button"
-                accessibilityLabel="Appeler le prestataire"
+                accessibilityLabel={t('dashboard.call_provider_a11y')}
               >
                 <Feather name="phone" size={18} color="#fff" />
               </PressScale>
@@ -203,7 +203,7 @@ export function MissionIsland({
                 }}
                 onPress={(e) => { e.stopPropagation?.(); hapticLight(); onMessageProvider?.(); }}
                 accessibilityRole="button"
-                accessibilityLabel="Envoyer un message au prestataire"
+                accessibilityLabel={t('dashboard.message_provider_a11y')}
               >
                 <Feather name="message-square" size={18} color={theme.heroText} />
               </PressScale>

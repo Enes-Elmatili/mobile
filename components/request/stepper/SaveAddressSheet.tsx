@@ -26,7 +26,7 @@ export function SaveAddressSheet({ theme, address, saveLabel, setSaveLabel, savi
       position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
       backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 100,
     }}>
-      <Pressable accessibilityRole="button" style={{ flex: 1 }} onPress={onClose} />
+      <Pressable accessibilityRole="button" accessibilityLabel={t('common.close')} style={{ flex: 1 }} onPress={onClose} />
       <KeyboardAvoidingView behavior="padding">
       <View style={{
         backgroundColor: theme.card as string, borderTopLeftRadius: 28, borderTopRightRadius: 28,

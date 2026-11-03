@@ -465,7 +465,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
             style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Retour"
+            accessibilityLabel={t('common.back')}
           >
             <Feather name="arrow-left" size={18} color={theme.textAlt} />
           </PressScale>
@@ -504,7 +504,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
               style={[s.retryBtn, { backgroundColor: theme.accent }]}
               onPress={() => { setLoading(true); loadConversation(); }}
               accessibilityRole="button"
-              accessibilityLabel="Réessayer"
+              accessibilityLabel={t('common.retry')}
             >
               <Feather name="refresh-cw" size={15} color={theme.accentText} />
               <Text style={[s.retryBtnText, { color: theme.accentText }]}>{t('common.retry')}</Text>
@@ -565,14 +565,15 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
               multiline
               maxLength={2000}
               blurOnSubmit={false}
-              accessibilityLabel="Votre message"
+              accessibilityLabel={t('messages.input_a11y')}
             />
             <PressScale
+              hitSlop={4}
               style={[s.sendBtn, { backgroundColor: theme.accent }, !inputText.trim() && s.sendBtnDisabled]}
               onPress={sendMessage}
               disabled={!inputText.trim()}
               accessibilityRole="button"
-              accessibilityLabel="Envoyer le message"
+              accessibilityLabel={t('messages.send_a11y')}
               accessibilityState={{ disabled: !inputText.trim() }}
             >
               <Feather name="send" size={18} color={theme.accentText} />

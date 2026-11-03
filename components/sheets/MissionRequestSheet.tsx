@@ -206,7 +206,7 @@ export function MissionRequestSheet({ request, onAccept, onDecline }: Props) {
       {/* Backdrop bloquant : absorbe les taps pour que l'écran derrière ne soit pas
           cliquable pendant l'affichage de la sheet. Un tap sur le fond ne fait rien —
           le prestataire doit choisir explicitement Accepter ou Refuser. */}
-      <Pressable style={StyleSheet.absoluteFill} onPress={() => {}}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} accessible={false} importantForAccessibility="no">
         <Animated.View
           style={[styles.backdrop, backdropStyle]}
           pointerEvents="none"

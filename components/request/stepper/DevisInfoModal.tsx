@@ -25,8 +25,8 @@ export function DevisInfoModal({ visible, onClose, pricingMode, theme }: {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <PressScale style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose}>
-        <PressScale onPress={() => {}}>
+      <PressScale style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+        <PressScale onPress={() => {}} accessible={false}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24 }]}>
 
             {/* Header */}

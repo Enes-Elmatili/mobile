@@ -4,10 +4,12 @@ import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { TextInputInstance } from 'react-native';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useTranslation } from 'react-i18next';
 
 type Props = { value: string; onChange: (v: string) => void; onSubmit?: () => void; autoFocus?: boolean; hint?: string | null; error?: boolean };
 
 export function CodeEntry({ value, onChange, onSubmit, autoFocus = true, hint, error = false }: Props) {
+  const { t } = useTranslation();
   const theme = useAppTheme();
   const ref = useRef<TextInputInstance>(null);
   useEffect(() => { if (autoFocus) { const tm = setTimeout(() => ref.current?.focus(), 450); return () => clearTimeout(tm); } }, [autoFocus]);
@@ -36,7 +38,7 @@ export function CodeEntry({ value, onChange, onSubmit, autoFocus = true, hint, e
         autoComplete="one-time-code"
         caretHidden
         returnKeyType="done"
-        accessibilityLabel="code"
+        accessibilityLabel={t('tracking.code_a11y')}
       />
       {hint ? <Text style={[s.hint, { color: error ? theme.danger : theme.textSub }]} maxFontSizeMultiplier={1.3}>{hint}</Text> : null}
     </View>

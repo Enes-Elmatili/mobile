@@ -9,7 +9,7 @@
 FIXED is an on-demand home-services marketplace (two-sided): **clients** book a local professional (plumbing & locksmith during this beta), **providers** receive the job, travel to the address, complete the work, and get paid. Real-time chat, live provider tracking, in-app calls, and Stripe payments are core features.
 
 - **Beta scope:** service area limited to **Ixelles (Brussels, Belgium)**; services limited to **plumbing & locksmith**.
-- **Languages:** French (default), Dutch, English.
+- **Languages:** French (default), Dutch, English, Polish.
 - **Payments:** Stripe **LIVE** mode (see §3 — reviewers use a payment-bypassed demo account, no real charge).
 
 ---
@@ -39,7 +39,7 @@ The app runs Stripe in **LIVE** mode, so a reviewer cannot complete a real card 
 
 **Where Apple Pay appears in the app:**
 
-> The app is localised FR / NL / EN and follows the device language. On an English-language device all labels below appear exactly as written.
+> The app is localised FR / NL / EN / PL and follows the device language. On an English-language device all labels below appear exactly as written.
 
 | # | Screen | How to reach it |
 |---|--------|-----------------|

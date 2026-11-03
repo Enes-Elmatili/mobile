@@ -119,7 +119,7 @@ export default function GuidedCamera() {
   if (permission && !permission.granted && !permission.canAskAgain) {
     return (
       <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
-        <PressScale onPress={close} style={[s.close, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+        <PressScale onPress={close} hitSlop={8} style={[s.close, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
           <Feather name="x" size={20} color="#FFFFFF" />
         </PressScale>
         <View style={s.denied}>

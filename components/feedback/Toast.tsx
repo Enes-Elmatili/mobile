@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, Platform, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, Platform, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
@@ -17,6 +17,8 @@ const ACCENT: Record<ToastItem['type'], string> = {
 
 const RETRACT_SPRING = spring(300, 1.0);
 const VISIBLE_MS = 2500;
+/** Lecteur d'écran actif : le temps d'entendre le message et d'atteindre l'action. */
+const SCREEN_READER_MIN_MS = 6000;
 
 export function Toast({ item }: { item: ToastItem }) {
   const theme = useAppTheme();
@@ -32,10 +34,19 @@ export function Toast({ item }: { item: ToastItem }) {
       if (finished) runOnJS(dismiss)(item.id);
     });
   };
+  // VoiceOver n'annonce pas une vue qui apparaît : on lit le message, et on
+  // laisse au lecteur d'écran le temps de l'entendre (et d'atteindre l'action).
   useEffect(() => {
     progress.value = withSpring(1, MOTION.island);
-    const t = setTimeout(retract, item.durationMs ?? VISIBLE_MS);
-    return () => clearTimeout(t);
+    AccessibilityInfo.announceForAccessibility(item.title ? `${item.title}. ${item.message}` : item.message);
+    const base = item.durationMs ?? VISIBLE_MS;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    const schedule = (ms: number) => { if (!cancelled) t = setTimeout(retract, ms); };
+    AccessibilityInfo.isScreenReaderEnabled()
+      .then((on) => schedule(on ? Math.max(base * 2, SCREEN_READER_MIN_MS) : base))
+      .catch(() => schedule(base));
+    return () => { cancelled = true; if (t) clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cycle de vie d'un toast
   }, []);
 
@@ -53,11 +64,13 @@ export function Toast({ item }: { item: ToastItem }) {
     const fg = green ? '#0A0A0A' : (theme.accentText as string);
     const onAction = () => { const a = item.action; retract(); a?.onPress(); };
     return (
-      <Animated.View style={[s.card, { backgroundColor: bg }, style]} accessible accessibilityRole="alert" accessibilityLabel={`${item.title}. ${item.message}`}>
+      // Avec une action, le texte et le bouton restent deux cibles distinctes
+      // (un parent `accessible` les fusionnerait : bouton injoignable à VoiceOver).
+      <Animated.View style={[s.card, { backgroundColor: bg }, style]} accessible={!item.action} accessibilityRole="alert" accessibilityLiveRegion="polite" accessibilityLabel={item.action ? undefined : `${item.title}. ${item.message}`}>
         <View style={[s.cardIcon, { backgroundColor: green ? 'rgba(10,10,10,0.1)' : theme.isDark ? 'rgba(10,10,10,0.1)' : 'rgba(255,255,255,0.14)' }]}>
           <Feather name={green ? 'credit-card' : 'bell'} size={17} color={fg} />
         </View>
-        <View style={s.cardBody}>
+        <View style={s.cardBody} accessible={!!item.action} accessibilityLabel={`${item.title}. ${item.message}`}>
           <Text style={[s.cardTitle, { color: fg }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.title}</Text>
           <Text style={[s.cardMsg, { color: fg }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.message}</Text>
         </View>
@@ -71,7 +84,7 @@ export function Toast({ item }: { item: ToastItem }) {
   }
 
   return (
-    <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, borderLeftColor: ACCENT[item.type] }, style]}>
+    <Animated.View style={[s.pill, { backgroundColor: theme.cardBg, borderLeftColor: ACCENT[item.type] }, style]} accessible accessibilityRole="alert" accessibilityLiveRegion="polite" accessibilityLabel={item.message}>
       <Feather name={ICON[item.type]} size={18} color={ACCENT[item.type]} />
       <Text style={[s.text, { color: theme.text }]} numberOfLines={8}>{item.message}</Text>
     </Animated.View>
