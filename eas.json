@@ -11,6 +11,17 @@
         "image": "latest"
       }
     },
+    "e2e": {
+      "distribution": "internal",
+      "environment": "development",
+      "ios": {
+        "simulator": true,
+        "image": "latest"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "preview": {
       "distribution": "store",
       "autoIncrement": true,

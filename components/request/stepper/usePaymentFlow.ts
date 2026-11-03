@@ -10,7 +10,7 @@ import type { useStripe } from '@stripe/stripe-react-native';
 import type { TFunction } from 'i18next';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
-import { devError } from '@/lib/logger';
+import { devError, reportError } from '@/lib/logger';
 import { buildAccessSnapshot } from '@/lib/request/access';
 import { chargedParams, fixedAmountsCents } from '@/lib/request/pricing';
 import type { ScheduleMode } from '@/lib/request/schedule';
@@ -104,7 +104,7 @@ export function usePaymentFlow(input: PaymentFlowInput) {
     // Annule la demande PENDING_PAYMENT devenue obsolète pour éviter les
     // demandes orphelines côté client ("reprendre paiement", documents…).
     if (requestId) {
-      api.requests.cancel(String(requestId)).catch(() => {});
+      api.requests.cancel(String(requestId)).catch((e) => reportError(e, 'stepper.cancel_pending'));
     }
     setServerPrice(null);
     setPaymentReady(false);
@@ -140,7 +140,7 @@ export function usePaymentFlow(input: PaymentFlowInput) {
         // Demande partiellement créée lors d'une tentative précédente (init en
         // échec) → annulée avant d'en recréer une (évite les orphelines).
         if (requestId) {
-          api.requests.cancel(String(requestId)).catch(() => {});
+          api.requests.cancel(String(requestId)).catch((e) => reportError(e, 'stepper.cancel_pending'));
           setRequestId(null);
         }
         const serviceType = selectedSubcategory?.name || selectedCategory.name;

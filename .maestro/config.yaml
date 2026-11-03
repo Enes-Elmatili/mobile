@@ -1,0 +1,9 @@
+# Tests de bout en bout FIXED (Maestro) — voir .maestro/README.md.
+# Ordre voulu : chaque flux prépare le suivant (commande publiée → acceptée).
+flows:
+  - 01-client-commande-prix-fixe.yaml
+  - 02-client-commande-sur-devis.yaml
+  - 03-prestataire-accepte.yaml
+  - 04-client-accepte-devis.yaml
+executionOrder:
+  continueOnFailure: false

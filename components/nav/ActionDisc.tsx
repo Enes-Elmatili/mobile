@@ -57,6 +57,7 @@ function ActionDiscBase({ kind, onPress, label, style }: Props) {
   return (
     <Animated.View style={[s.wrap, style, style_]} pointerEvents={hidden ? 'none' : 'auto'}>
       <Pressable
+        testID={`action-disc-${kind}`}
         onPressIn={() => { press.onPressIn(); feedback.haptic(kind === 'go' ? 'medium' : 'light'); }}
         onPressOut={press.onPressOut}
         onPress={onPress}

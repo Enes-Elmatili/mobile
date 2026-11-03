@@ -133,6 +133,7 @@ export function StepValidation({
 
       {/* Footer CTA — libellé à gauche, montant à droite (planche 4A) */}
       <StepCTA
+        testID="stepper-pay"
         emphasis
         label={isFreeService ? t('stepper.confirm_free') : isQuoteFlow ? t('stepper.reserve') : t('stepper.confirm_mission')}
         amount={ctaAmount({ isFreeService, isQuoteFlow, confirmedCalloutCents, calloutFee, discountedCents: discountedCentsFixed })}

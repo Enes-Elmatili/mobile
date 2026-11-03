@@ -20,6 +20,7 @@ import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
 import { getRequiredDocuments, type DocumentRequirement, type DocumentType } from "../../constants/kycRequirements";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
+import { reportError } from "@/lib/logger";
 
 // Forced-dark local palette — sourced from theme tokens so charter updates propagate
 const C = { white: darkTokens.text, grey: darkTokens.textMuted };
@@ -97,7 +98,7 @@ export default function OnboardingDocuments() {
           byKey[d.docKey] = { status: d.status as DocServerStatus, rejectionReason: d.rejectionReason };
         }
         setServerDocs(byKey);
-      } catch {}
+      } catch (e) { reportError(e, 'onboarding.docs_status'); }
 
       setUploads(initialState);
       setLoading(false);

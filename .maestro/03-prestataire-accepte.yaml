@@ -1,0 +1,53 @@
+# Le prestataire passe en ligne et accepte la demande publiée par le flux 01
+# (glisser pour accepter) : la mission démarre, en route vers le client.
+appId: app.thefixed.client
+name: Prestataire — en ligne, accepte une mission
+tags: [argent, prestataire]
+---
+- runFlow:
+    file: subflows/connexion.yaml
+    env:
+      EMAIL: ${E2E_PROVIDER_EMAIL}
+      PASSWORD: ${E2E_PROVIDER_PASSWORD}
+
+# Le GO : passer en ligne (le disque devient « stop » une fois l'accusé reçu).
+- extendedWaitUntil:
+    visible:
+      id: "action-disc-go"
+    timeout: 20000
+- tapOn:
+    id: "action-disc-go"
+- extendedWaitUntil:
+    visible:
+      id: "action-disc-stop"
+    timeout: 15000
+
+# Les demandes à prendre, la plus récente en premier.
+- tapOn:
+    id: "tab-missions"
+- extendedWaitUntil:
+    visible:
+      id: "opportunity-row"
+    timeout: 30000
+- tapOn:
+    id: "opportunity-row"
+    index: 0
+
+# Accepter est un geste : on glisse le curseur jusqu'au bout.
+- extendedWaitUntil:
+    visible:
+      id: "opportunity-accept-knob"
+    timeout: 10000
+- swipe:
+    from:
+      id: "opportunity-accept-knob"
+    direction: RIGHT
+    duration: 900
+
+# La mission s'ouvre sur l'accueil prestataire, en route.
+- tapOn:
+    id: "tab-dashboard"
+- extendedWaitUntil:
+    visible:
+      id: "provider-mission-en_route"
+    timeout: 30000

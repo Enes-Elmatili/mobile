@@ -85,6 +85,7 @@ export default function Welcome() {
             prefix={t('auth.welcome_already')}
             action={t('auth.welcome_signin')}
             onPress={handleSignIn}
+            testID="welcome-sign-in"
             themed
           />
         </View>

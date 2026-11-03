@@ -1,0 +1,56 @@
+# Le chemin qui fait le chiffre d'affaires : un client commande une prestation
+# à prix fixe, paie, et la recherche d'un prestataire démarre.
+appId: app.thefixed.client
+name: Client — commande à prix fixe et paiement
+tags: [argent, client]
+env:
+  CATEGORY: ${E2E_FIXED_CATEGORY}
+  SERVICE: ${E2E_FIXED_SERVICE}
+---
+- runFlow:
+    file: subflows/connexion.yaml
+    env:
+      EMAIL: ${E2E_CLIENT_EMAIL}
+      PASSWORD: ${E2E_CLIENT_PASSWORD}
+- extendedWaitUntil:
+    visible:
+      id: "dashboard-order"
+    timeout: 20000
+- tapOn:
+    id: "dashboard-order"
+
+# 1. Lieu : l'adresse enregistrée du compte de test (pas d'appel Google Places).
+- tapOn:
+    id: "stepper-saved-addresses"
+- tapOn:
+    id: "stepper-saved-address-0"
+- tapOn:
+    id: "stepper-next-location"
+
+# 2. Service
+- tapOn:
+    id: "category-${CATEGORY}"
+- tapOn:
+    id: "service-${SERVICE}"
+- tapOn:
+    id: "stepper-next-service"
+
+# 3. Planning : « Maintenant » est le choix par défaut.
+- tapOn:
+    id: "stepper-next-planning"
+
+# 4. Validation et paiement
+- extendedWaitUntil:
+    visible:
+      id: "stepper-pay"
+    timeout: 20000
+- tapOn:
+    id: "stepper-pay"
+- runFlow:
+    file: subflows/payer-stripe.yaml
+
+# La demande est publiée : l'écran de suivi passe en recherche.
+- extendedWaitUntil:
+    visible:
+      id: "mission-searching"
+    timeout: 30000

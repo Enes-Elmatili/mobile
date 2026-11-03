@@ -68,7 +68,7 @@ export function StepService({
         ) : (
           <>
             <CategoryRail
-              items={categories.map((c) => ({ id: c.id, label: translateCategory(t, c) }))}
+              items={categories.map((c) => ({ id: c.id, label: translateCategory(t, c), testID: c.slug ? `category-${c.slug}` : undefined }))}
               selectedId={categoryId}
               onSelect={onSelectCategory}
             />
@@ -84,6 +84,7 @@ export function StepService({
                       onPress={() => setSubcategoryId(sub.id)}
                       fixedLabel={t('stepper.pricing_fixed')}
                       quoteLabel={t('stepper.pricing_quote')}
+                      testID={sub.slug ? `service-${sub.slug}` : undefined}
                     />
                     {subcategoryId === sub.id && (
                       <ShotStrip specs={shotSpecs} shots={shots} onTake={openCamera} onRemoveFree={removeFreeShot} />
@@ -125,6 +126,7 @@ export function StepService({
       </View>
 
       <StepCTA
+        testID="stepper-next-service"
         label={isQuoteFlow ? t('stepper.request_quote_cta') : t('stepper.continue')}
         onPress={onNext}
         disabled={!serviceChosen || missingShots.length > 0}

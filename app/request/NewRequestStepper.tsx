@@ -15,7 +15,7 @@ import { feedback } from '@/lib/feedback/feedback';
 import { translateCategory, translateSubcategory } from '@/lib/categoryLabel';
 import i18nInstance from '@/lib/i18n';
 import { api } from '@/lib/api';
-import { devError } from '@/lib/logger';
+import { devError, reportError } from '@/lib/logger';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { StepHeader } from '@/components/request/StepHeader';
 import { StepPager, type PagerDirection } from '@/components/request/StepPager';
@@ -114,7 +114,7 @@ export default function NewRequestStepper() {
     if (step === 1) {
       api.addresses.list().then((res: SavedAddress[] | { data?: SavedAddress[] } | null) => {
         setSavedAddresses(Array.isArray(res) ? res : res?.data || []);
-      }).catch(() => {});
+      }).catch((e) => reportError(e, 'stepper.addresses'));
     }
   }, [step]);
 
@@ -285,7 +285,7 @@ export default function NewRequestStepper() {
     if (step === 3) {
       const profileUpdate = buildProfileUpdate({ buildingType, floorNum, hasElevator, clientLanguage });
       if (Object.keys(profileUpdate).length > 0) {
-        api.patch('/me', profileUpdate).catch(() => {});
+        api.patch('/me', profileUpdate).catch((e) => reportError(e, 'stepper.profile_update'));
       }
     }
     setDir(1);

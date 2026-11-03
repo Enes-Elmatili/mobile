@@ -1,0 +1,31 @@
+# Le devis : le client relit le montant, accepte, paie le solde — la mission
+# reprend. Part d'un devis préparé côté serveur (E2E_QUOTE_REQUEST_ID) : sur
+# le terrain, envoyer un devis exige d'être sur place (code d'arrivée, photo),
+# ce qu'un test de bout en bout ne simule pas.
+appId: app.thefixed.client
+name: Client — accepte un devis et paie le solde
+tags: [argent, client]
+---
+- runFlow:
+    file: subflows/connexion.yaml
+    env:
+      EMAIL: ${E2E_CLIENT_EMAIL}
+      PASSWORD: ${E2E_CLIENT_PASSWORD}
+- extendedWaitUntil:
+    visible:
+      id: "dashboard-order"
+    timeout: 20000
+- openLink: "fixed://request/${E2E_QUOTE_REQUEST_ID}/quote-review"
+- extendedWaitUntil:
+    visible:
+      id: "quote-accept"
+    timeout: 20000
+- tapOn:
+    id: "quote-accept"
+- runFlow:
+    file: subflows/payer-stripe.yaml
+# Devis payé : retour au suivi de la mission, quel qu'en soit le stade.
+- extendedWaitUntil:
+    visible:
+      id: "mission-.*"
+    timeout: 30000

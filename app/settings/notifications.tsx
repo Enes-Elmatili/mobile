@@ -15,7 +15,7 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
 import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
-import { devWarn } from '@/lib/logger';
+import { devWarn, reportError } from '@/lib/logger';
 import { PressScale } from '@/components/ui/PressScale';
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
@@ -93,7 +93,7 @@ export default function NotificationsSettingsScreen() {
     } catch (e: any) {
       devWarn('[prefs] save failed', e?.message);
       feedback.error('notifications.prefs_error');
-      api.notifications.prefs().then((res) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch(() => {});
+      api.notifications.prefs().then((res) => res?.data && setPrefs({ ...DEFAULTS, ...res.data })).catch((e) => reportError(e, 'settings.notification_prefs'));
     }
   }, []);
 

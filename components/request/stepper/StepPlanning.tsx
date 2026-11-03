@@ -157,6 +157,7 @@ export function StepPlanning({
 
       <View style={s.floatingCTA}>
         <StepCTA
+          testID="stepper-next-planning"
           label={
             scheduleMode === 'now'
               ? t('stepper.confirm_now')
