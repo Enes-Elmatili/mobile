@@ -1,0 +1,57 @@
+# Livraison : `npm run release` depuis GitHub, sans poste local. Le script
+# (scripts/release.js) choisit la version suivante (> version en vente sur
+# l'App Store), la committe sur main, puis lance le build EAS de production
+# avec envoi automatique (App Store Connect → TestFlight).
+#
+# Prérequis : secret EXPO_TOKEN (expo.dev → Access tokens) et les identifiants
+# App Store Connect déjà enregistrés côté EAS (`eas credentials`, ce qui est le
+# cas si `npm run release` a déjà livré depuis un poste).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Plateforme
+        type: choice
+        options: [ios, android, all]
+        default: ios
+      submit:
+        description: Envoyer au store (TestFlight / piste internal) après le build
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Secret présent
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Secret EXPO_TOKEN manquant (Settings → Secrets → Actions)"; exit 1; fi
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Identité git du commit de version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Version, build EAS et envoi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node scripts/release.js --platform "${{ inputs.platform }}" ${{ inputs.submit && '' || '--no-submit' }}
