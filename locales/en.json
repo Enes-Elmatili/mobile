@@ -579,7 +579,8 @@
     "status_closure": "CLOSING",
     "status_en_route": "EN ROUTE",
     "status_quote_sent_short": "QUOTE SENT",
-    "status_quote_accepted_short": "QUOTE ACCEPTED"
+    "status_quote_accepted_short": "QUOTE ACCEPTED",
+    "select_hint": "Select a mission"
   },
   "mission_view": {
     "label_service": "SERVICE",
@@ -876,7 +877,8 @@
     "minutes_short": "{{n}} min",
     "hours_short": "{{n}} h",
     "days_short": "{{n}} d",
-    "empty_sub_client": "Your conversations with pros will appear here."
+    "empty_sub_client": "Your conversations with pros will appear here.",
+    "select_hint": "Select a conversation"
   },
   "wallet": {
     "title": "Wallet",

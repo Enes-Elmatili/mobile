@@ -40,6 +40,7 @@ import { cleanName } from "@/lib/displayName";
 import { translateRequestServiceRaw } from "@/lib/categoryLabel";
 import { useTranslation } from "react-i18next";
 import { PressScale } from '@/components/ui/PressScale';
+import { SplitPane, useSplitPane } from "@/lib/layout";
 
 
 /** Sépare "871,00 €" en { value, cur } pour composer le montant héros en deux tailles. */
@@ -121,6 +122,7 @@ export default function QuoteReview() {
   const router = useRouter();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -427,300 +429,358 @@ export default function QuoteReview() {
     elevation: theme.isDark ? 0 : 2,
   };
 
+  // ── Contexte éditorial : statut · référence · service · adresse ──
+  const contextBlock = (
+    <Reveal>
+      <View style={s.metaRow}>
+        <View style={[
+          s.badge,
+          { backgroundColor: theme.surface },
+          badgeDanger && { backgroundColor: alpha(COLORS.red, 0.12) },
+          accepted && { backgroundColor: alpha(COLORS.greenBrand, 0.12) },
+        ]}>
+          {terminal
+            ? <View style={[s.badgeDot, { backgroundColor: badgeColor }]} />
+            : <PulseDot size={6} color={badgeColor} />}
+          <Text style={[s.badgeText, { color: badgeColor }]} numberOfLines={1}>{badgeLabel}</Text>
+        </View>
+        <MonoLabel color={theme.textVeryMuted}>{t('quote.doc_label')} #{quote.id}</MonoLabel>
+      </View>
+
+      {serviceLabel ? (
+        <Text style={[s.pageTitle, { color: theme.text }]} numberOfLines={2}>{serviceLabel}</Text>
+      ) : null}
+      {request?.address ? (
+        <View style={s.addressRow}>
+          <Feather name="map-pin" size={12} color={theme.textMuted} />
+          <Text style={[s.addressText, { color: theme.textMuted }]} numberOfLines={1}>{request.address}</Text>
+        </View>
+      ) : null}
+    </Reveal>
+  );
+
+  // ── Île héro — le montant qui décide ──
+  const heroBlock = (
+    <Reveal delay={70}>
+      <Animated.View style={[s.hero, { backgroundColor: theme.heroBg }, foldStyle]}>
+        <LinearGradient
+          colors={[alpha('#FFFFFF', 0.07), 'transparent', alpha('#000000', 0.22)]}
+          locations={[0, 0.5, 1]}
+          start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.heroBorder, heroBorderStyle]} />
+
+        <View style={s.heroTop}>
+          <MonoLabel color={theme.heroSub} size={11}>{heroLabel}</MonoLabel>
+          {accepted ? <SealCheck color={COLORS.green} /> : <Text style={[s.heroWatermark, { color: theme.heroSubFaint }]}>FIXED</Text>}
+        </View>
+
+        <View style={s.heroAmountRow}>
+          <Text style={[s.heroAmount, { color: theme.heroText }]}>
+            {hero.value}
+            <Text style={[s.heroCurrency, { color: theme.heroSub }]}> {hero.cur}</Text>
+          </Text>
+        </View>
+
+        {hasDeposit && !terminal ? (
+          <View style={s.heroSubRow}>
+            <Text style={[s.heroSubText, { color: theme.heroSubFaint }]}>
+              {t('ext.invoice_total')} {fmtEur(quote.totalAmount)}
+            </Text>
+            <View style={[s.heroPill, { backgroundColor: alpha(COLORS.greenBrand, 0.16), borderColor: alpha(COLORS.greenBrand, 0.4) }]}>
+              <Feather name="tag" size={10} color={COLORS.green} />
+              <Text style={[s.heroPillText, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        <View style={[s.heroFooter, { borderTopColor: alpha('#FFFFFF', 0.12) }]}>
+          {terminal ? (
+            <View style={s.heroFooterLeft}>
+              <Feather
+                name={accepted ? "check-circle" : refused ? "slash" : "clock"}
+                size={13}
+                color={accepted ? COLORS.green : theme.heroSubFaint}
+              />
+              <Text style={[s.heroFooterText, { color: accepted ? COLORS.green : theme.heroSub }]} numberOfLines={1}>
+                {badgeLabel}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={s.heroFooterLeft}>
+                <Feather name="clock" size={13} color={theme.heroSubFaint} />
+                <Text style={[s.heroFooterText, { color: theme.heroSub }]} numberOfLines={1}>
+                  {t('quote.valid_until', {
+                    date: new Date(quote.validUntil).toLocaleDateString(undefined, {
+                      day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
+                    }),
+                  })}
+                </Text>
+              </View>
+              <View style={[
+                s.countdown,
+                { backgroundColor: alpha('#FFFFFF', 0.10) },
+                urgent && { backgroundColor: alpha(COLORS.amber, 0.18) },
+              ]}>
+                <Text style={[s.countdownText, { color: urgent ? COLORS.amber : theme.heroText }]}>
+                  {timeLeftLabel}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+      </Animated.View>
+    </Reveal>
+  );
+
+  // ── Ledger : détail du devis ──
+  const ledgerBlock = (
+    <Reveal delay={130}>
+      <View style={[s.card, cardStyle]}>
+        <MonoLabel color={theme.textMuted}>{t('quote.details')}</MonoLabel>
+
+        <View style={{ marginTop: 12 }}>
+          <View style={s.lineRow}>
+            <View style={[s.tile, { backgroundColor: theme.surface }]}>
+              <Feather name="tool" size={15} color={theme.text} />
+            </View>
+            <Text style={[s.lineLabel, { color: theme.text }]} numberOfLines={1}>{t('quote.labor')}</Text>
+            <Text style={[s.lineValue, { color: theme.text }]}>{fmtEur(quote.laborAmount)}</Text>
+          </View>
+
+          {quote.partsAmount > 0 && (
+            <View style={s.lineRow}>
+              <View style={[s.tile, { backgroundColor: theme.surface }]}>
+                <Feather name="package" size={15} color={theme.text} />
+              </View>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[s.lineLabel, { color: theme.text }]} numberOfLines={1}>{t('quote.parts_materials')}</Text>
+                {quote.partsDetail ? (
+                  <Text style={[s.lineDetail, { color: theme.textMuted }]} numberOfLines={2}>{quote.partsDetail}</Text>
+                ) : null}
+              </View>
+              <Text style={[s.lineValue, { color: theme.text }]}>{fmtEur(quote.partsAmount)}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+
+        <View style={s.totalRow}>
+          <Text style={[s.totalLabel, { color: theme.text }]}>{t('ext.invoice_total')}</Text>
+          <Text style={[s.totalValue, { color: theme.text }]}>{fmtEur(quote.totalAmount)}</Text>
+        </View>
+
+        {hasDeposit && (
+          <>
+            <View style={s.depositRow}>
+              <Text style={[s.depositLabel, { color: theme.greenText }]} numberOfLines={1}>{t('quote.deposit_paid')}</Text>
+              <Text style={[s.depositValue, { color: theme.greenText }]}>− {fmtEur(quote.calloutPaid)}</Text>
+            </View>
+            <View style={[s.divider, { backgroundColor: theme.border }]} />
+            <View style={s.totalRow}>
+              {/* Devis accepté = solde déjà réglé via la PaymentSheet : afficher
+                  « reste à payer » ferait croire au client qu'il doit encore. */}
+              <Text style={[s.finalLabel, { color: theme.text }]}>
+                {accepted ? t('ext.invoice_paid') : t('quote.remaining_to_pay')}
+              </Text>
+              <Text style={[s.finalValue, { color: accepted ? theme.greenText : theme.text }]}>
+                {fmtEur(quote.remainingAmount)}
+              </Text>
+            </View>
+          </>
+        )}
+      </View>
+    </Reveal>
+  );
+
+  // ── Prestataire ──
+  const providerBlock = (
+    provider ? (
+      <Reveal delay={180}>
+        <PressScale
+          style={[s.card, s.providerCard, cardStyle]}
+          onPress={() => router.push(`/providers/${provider.id}`)}
+          accessibilityRole="button"
+          accessibilityLabel={providerName}
+        >
+          <Avatar
+            size={44}
+            name={providerName}
+            avatarUrl={provider.avatarUrl}
+            verified={provider.validationStatus === 'ACTIVE'}
+          />
+          <View style={{ flex: 1, gap: 2 }}>
+            <MonoLabel color={theme.textMuted}>{t('quote.provider_label')}</MonoLabel>
+            <Text style={[s.providerName, { color: theme.text }]} numberOfLines={1}>{providerName}</Text>
+            <View style={s.providerMeta}>
+              <Feather name="star" size={11} color={theme.textSub} />
+              <Text style={[s.providerMetaText, { color: theme.textSub }]}>
+                {provider.avgRating > 0 ? Number(provider.avgRating).toFixed(1) : '—'}
+              </Text>
+              <Text style={[s.providerMetaText, { color: theme.textVeryMuted }]}>·</Text>
+              <Text style={[s.providerMetaText, { color: theme.textSub }]} numberOfLines={1}>
+                {t('quote.jobs_count', { count: provider.jobsCompleted || 0 })}
+              </Text>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={18} color={theme.textMuted} />
+        </PressScale>
+        {/* Message et appel : le prestataire a accepté, on peut lui parler avant de décider. */}
+        <View style={{ marginTop: 8 }}>
+          <ProviderRow
+            provider={provider}
+            onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(provider.userId || provider.id), name: providerName, requestId: String(id) } })}
+            onCall={() => callParty({ userId: provider.userId, name: providerName, requestId: id })}
+          />
+        </View>
+      </Reveal>
+    ) : null
+  );
+
+  // ── Les photos de la demande, pour relire le devis face au problème ──
+  const photosBlock = (
+    request?.photos?.length ? (
+      <Reveal delay={200}>
+        <View style={{ marginHorizontal: -20 }}>
+          <PhotoGallery photos={briefOf(request).photos} title={t('mission.your_photos')} />
+        </View>
+      </Reveal>
+    ) : null
+  );
+
+  // ── Notes du prestataire ──
+  const notesBlock = (
+    quote.notes ? (
+      <Reveal delay={220}>
+        <View style={[s.card, cardStyle]}>
+          <MonoLabel color={theme.textMuted}>{t('quote.notes_from_provider')}</MonoLabel>
+          <View style={s.notesRow}>
+            <View style={[s.notesRule, { backgroundColor: theme.border }]} />
+            <Text style={[s.notesText, { color: theme.textSub }]}>{quote.notes}</Text>
+          </View>
+        </View>
+      </Reveal>
+    ) : null
+  );
+
+  // ── Réassurance paiement ──
+  const secureBlock = (
+    canAct ? (
+      <Reveal delay={260}>
+        <View style={s.secureRow}>
+          <Feather name="shield" size={12} color={theme.textMuted} />
+          <Text style={[s.secureText, { color: theme.textMuted }]}>{t('quote.secure_note')}</Text>
+        </View>
+      </Reveal>
+    ) : null
+  );
+
+  // ── Footer : une action dominante ──
+  const footer = (
+    <LinearGradient
+      colors={[alpha(theme.bg, 0), theme.bg, theme.bg]}
+      locations={[0, 0.45, 1]}
+      style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      pointerEvents="box-none"
+      onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
+    >
+      {canAct ? (
+        <>
+          <RaisedButton
+            display
+            size="lg"
+            label={`${t('quote.accept_cta')} · ${fmtEur(quote.remainingAmount)}`}
+            iconRight="arrow-right"
+            loading={accepting}
+            onPress={handleAccept}
+            haptic="none"
+          />
+          <PressScale
+            style={s.refuseLink}
+            onPress={() => { feedback.haptic('light'); setShowRefuseInput(true); }}
+            accessibilityRole="button"
+            accessibilityLabel={t('quote.refuse_link')}
+            hitSlop={8}
+          >
+            <Text style={[s.refuseLinkText, { color: theme.textSub }]}>{t('quote.refuse_link')}</Text>
+          </PressScale>
+        </>
+      ) : accepted ? (
+        <RaisedButton
+          display
+          size="lg"
+          label={t('notifications.cta_view_mission')}
+          iconRight="arrow-right"
+          onPress={() => router.replace({ pathname: "/request/[id]/missionview", params: { id: String(id) } })}
+        />
+      ) : (
+        <RaisedButton
+          display
+          size="lg"
+          label={t('dashboard.back_home')}
+          onPress={() => router.replace("/(tabs)/dashboard")}
+        />
+      )}
+    </LinearGradient>
+  );
+
+  // Écran déplié (Duo ouvert, Fold, iPad) : le problème à gauche, le devis
+  // à droite avec son action — on relit la demande face au montant sans
+  // faire défiler. Compact : la colonne unique, dans l'ordre de lecture.
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
       {Header}
 
-      <Animated.ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: footerH + 24 }]}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-      >
-        {/* ── Contexte éditorial : statut · référence · service · adresse ── */}
-        <Reveal>
-          <View style={s.metaRow}>
-            <View style={[
-              s.badge,
-              { backgroundColor: theme.surface },
-              badgeDanger && { backgroundColor: alpha(COLORS.red, 0.12) },
-              accepted && { backgroundColor: alpha(COLORS.greenBrand, 0.12) },
-            ]}>
-              {terminal
-                ? <View style={[s.badgeDot, { backgroundColor: badgeColor }]} />
-                : <PulseDot size={6} color={badgeColor} />}
-              <Text style={[s.badgeText, { color: badgeColor }]} numberOfLines={1}>{badgeLabel}</Text>
-            </View>
-            <MonoLabel color={theme.textVeryMuted}>{t('quote.doc_label')} #{quote.id}</MonoLabel>
-          </View>
-
-          {serviceLabel ? (
-            <Text style={[s.pageTitle, { color: theme.text }]} numberOfLines={2}>{serviceLabel}</Text>
-          ) : null}
-          {request?.address ? (
-            <View style={s.addressRow}>
-              <Feather name="map-pin" size={12} color={theme.textMuted} />
-              <Text style={[s.addressText, { color: theme.textMuted }]} numberOfLines={1}>{request.address}</Text>
-            </View>
-          ) : null}
-        </Reveal>
-
-        {/* ── Île héro — le montant qui décide ── */}
-        <Reveal delay={70}>
-          <Animated.View style={[s.hero, { backgroundColor: theme.heroBg }, foldStyle]}>
-            <LinearGradient
-              colors={[alpha('#FFFFFF', 0.07), 'transparent', alpha('#000000', 0.22)]}
-              locations={[0, 0.5, 1]}
-              start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.heroBorder, heroBorderStyle]} />
-
-            <View style={s.heroTop}>
-              <MonoLabel color={theme.heroSub} size={11}>{heroLabel}</MonoLabel>
-              {accepted ? <SealCheck color={COLORS.green} /> : <Text style={[s.heroWatermark, { color: theme.heroSubFaint }]}>FIXED</Text>}
-            </View>
-
-            <View style={s.heroAmountRow}>
-              <Text style={[s.heroAmount, { color: theme.heroText }]}>
-                {hero.value}
-                <Text style={[s.heroCurrency, { color: theme.heroSub }]}> {hero.cur}</Text>
-              </Text>
-            </View>
-
-            {hasDeposit && !terminal ? (
-              <View style={s.heroSubRow}>
-                <Text style={[s.heroSubText, { color: theme.heroSubFaint }]}>
-                  {t('ext.invoice_total')} {fmtEur(quote.totalAmount)}
-                </Text>
-                <View style={[s.heroPill, { backgroundColor: alpha(COLORS.greenBrand, 0.16), borderColor: alpha(COLORS.greenBrand, 0.4) }]}>
-                  <Feather name="tag" size={10} color={COLORS.green} />
-                  <Text style={[s.heroPillText, { color: COLORS.green }]}>− {fmtEur(quote.calloutPaid)}</Text>
-                </View>
-              </View>
-            ) : null}
-
-            <View style={[s.heroFooter, { borderTopColor: alpha('#FFFFFF', 0.12) }]}>
-              {terminal ? (
-                <View style={s.heroFooterLeft}>
-                  <Feather
-                    name={accepted ? "check-circle" : refused ? "slash" : "clock"}
-                    size={13}
-                    color={accepted ? COLORS.green : theme.heroSubFaint}
-                  />
-                  <Text style={[s.heroFooterText, { color: accepted ? COLORS.green : theme.heroSub }]} numberOfLines={1}>
-                    {badgeLabel}
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  <View style={s.heroFooterLeft}>
-                    <Feather name="clock" size={13} color={theme.heroSubFaint} />
-                    <Text style={[s.heroFooterText, { color: theme.heroSub }]} numberOfLines={1}>
-                      {t('quote.valid_until', {
-                        date: new Date(quote.validUntil).toLocaleDateString(undefined, {
-                          day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
-                        }),
-                      })}
-                    </Text>
-                  </View>
-                  <View style={[
-                    s.countdown,
-                    { backgroundColor: alpha('#FFFFFF', 0.10) },
-                    urgent && { backgroundColor: alpha(COLORS.amber, 0.18) },
-                  ]}>
-                    <Text style={[s.countdownText, { color: urgent ? COLORS.amber : theme.heroText }]}>
-                      {timeLeftLabel}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-          </Animated.View>
-        </Reveal>
-
-        {/* ── Ledger : détail du devis ── */}
-        <Reveal delay={130}>
-          <View style={[s.card, cardStyle]}>
-            <MonoLabel color={theme.textMuted}>{t('quote.details')}</MonoLabel>
-
-            <View style={{ marginTop: 12 }}>
-              <View style={s.lineRow}>
-                <View style={[s.tile, { backgroundColor: theme.surface }]}>
-                  <Feather name="tool" size={15} color={theme.text} />
-                </View>
-                <Text style={[s.lineLabel, { color: theme.text }]} numberOfLines={1}>{t('quote.labor')}</Text>
-                <Text style={[s.lineValue, { color: theme.text }]}>{fmtEur(quote.laborAmount)}</Text>
-              </View>
-
-              {quote.partsAmount > 0 && (
-                <View style={s.lineRow}>
-                  <View style={[s.tile, { backgroundColor: theme.surface }]}>
-                    <Feather name="package" size={15} color={theme.text} />
-                  </View>
-                  <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={[s.lineLabel, { color: theme.text }]} numberOfLines={1}>{t('quote.parts_materials')}</Text>
-                    {quote.partsDetail ? (
-                      <Text style={[s.lineDetail, { color: theme.textMuted }]} numberOfLines={2}>{quote.partsDetail}</Text>
-                    ) : null}
-                  </View>
-                  <Text style={[s.lineValue, { color: theme.text }]}>{fmtEur(quote.partsAmount)}</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
-
-            <View style={s.totalRow}>
-              <Text style={[s.totalLabel, { color: theme.text }]}>{t('ext.invoice_total')}</Text>
-              <Text style={[s.totalValue, { color: theme.text }]}>{fmtEur(quote.totalAmount)}</Text>
-            </View>
-
-            {hasDeposit && (
-              <>
-                <View style={s.depositRow}>
-                  <Text style={[s.depositLabel, { color: theme.greenText }]} numberOfLines={1}>{t('quote.deposit_paid')}</Text>
-                  <Text style={[s.depositValue, { color: theme.greenText }]}>− {fmtEur(quote.calloutPaid)}</Text>
-                </View>
-                <View style={[s.divider, { backgroundColor: theme.border }]} />
-                <View style={s.totalRow}>
-                  {/* Devis accepté = solde déjà réglé via la PaymentSheet : afficher
-                      « reste à payer » ferait croire au client qu'il doit encore. */}
-                  <Text style={[s.finalLabel, { color: theme.text }]}>
-                    {accepted ? t('ext.invoice_paid') : t('quote.remaining_to_pay')}
-                  </Text>
-                  <Text style={[s.finalValue, { color: accepted ? theme.greenText : theme.text }]}>
-                    {fmtEur(quote.remainingAmount)}
-                  </Text>
-                </View>
-              </>
-            )}
-          </View>
-        </Reveal>
-
-        {/* ── Prestataire ── */}
-        {provider ? (
-          <Reveal delay={180}>
-            <PressScale
-              style={[s.card, s.providerCard, cardStyle]}
-              onPress={() => router.push(`/providers/${provider.id}`)}
-              accessibilityRole="button"
-              accessibilityLabel={providerName}
-            >
-              <Avatar
-                size={44}
-                name={providerName}
-                avatarUrl={provider.avatarUrl}
-                verified={provider.validationStatus === 'ACTIVE'}
-              />
-              <View style={{ flex: 1, gap: 2 }}>
-                <MonoLabel color={theme.textMuted}>{t('quote.provider_label')}</MonoLabel>
-                <Text style={[s.providerName, { color: theme.text }]} numberOfLines={1}>{providerName}</Text>
-                <View style={s.providerMeta}>
-                  <Feather name="star" size={11} color={theme.textSub} />
-                  <Text style={[s.providerMetaText, { color: theme.textSub }]}>
-                    {provider.avgRating > 0 ? Number(provider.avgRating).toFixed(1) : '—'}
-                  </Text>
-                  <Text style={[s.providerMetaText, { color: theme.textVeryMuted }]}>·</Text>
-                  <Text style={[s.providerMetaText, { color: theme.textSub }]} numberOfLines={1}>
-                    {t('quote.jobs_count', { count: provider.jobsCompleted || 0 })}
-                  </Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={18} color={theme.textMuted} />
-            </PressScale>
-            {/* Message et appel : le prestataire a accepté, on peut lui parler avant de décider. */}
-            <View style={{ marginTop: 8 }}>
-              <ProviderRow
-                provider={provider}
-                onMessage={() => router.push({ pathname: '/messages/[userId]', params: { userId: String(provider.userId || provider.id), name: providerName, requestId: String(id) } })}
-                onCall={() => callParty({ userId: provider.userId, name: providerName, requestId: id })}
-              />
-            </View>
-          </Reveal>
-        ) : null}
-
-        {/* ── Les photos de la demande, pour relire le devis face au problème ── */}
-        {request?.photos?.length ? (
-          <Reveal delay={200}>
-            <View style={{ marginHorizontal: -20 }}>
-              <PhotoGallery photos={briefOf(request).photos} title={t('mission.your_photos')} />
-            </View>
-          </Reveal>
-        ) : null}
-
-        {/* ── Notes du prestataire ── */}
-        {quote.notes ? (
-          <Reveal delay={220}>
-            <View style={[s.card, cardStyle]}>
-              <MonoLabel color={theme.textMuted}>{t('quote.notes_from_provider')}</MonoLabel>
-              <View style={s.notesRow}>
-                <View style={[s.notesRule, { backgroundColor: theme.border }]} />
-                <Text style={[s.notesText, { color: theme.textSub }]}>{quote.notes}</Text>
-              </View>
-            </View>
-          </Reveal>
-        ) : null}
-
-        {/* ── Réassurance paiement ── */}
-        {canAct ? (
-          <Reveal delay={260}>
-            <View style={s.secureRow}>
-              <Feather name="shield" size={12} color={theme.textMuted} />
-              <Text style={[s.secureText, { color: theme.textMuted }]}>{t('quote.secure_note')}</Text>
-            </View>
-          </Reveal>
-        ) : null}
-      </Animated.ScrollView>
-
-      {/* ── Footer : une action dominante ── */}
-      <LinearGradient
-        colors={[alpha(theme.bg, 0), theme.bg, theme.bg]}
-        locations={[0, 0.45, 1]}
-        style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
-        pointerEvents="box-none"
-        onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
-      >
-        {canAct ? (
-          <>
-            <RaisedButton
-              display
-              size="lg"
-              label={`${t('quote.accept_cta')} · ${fmtEur(quote.remainingAmount)}`}
-              iconRight="arrow-right"
-              loading={accepting}
-              onPress={handleAccept}
-              haptic="none"
-            />
-            <PressScale
-              style={s.refuseLink}
-              onPress={() => { feedback.haptic('light'); setShowRefuseInput(true); }}
-              accessibilityRole="button"
-              accessibilityLabel={t('quote.refuse_link')}
-              hitSlop={8}
-            >
-              <Text style={[s.refuseLinkText, { color: theme.textSub }]}>{t('quote.refuse_link')}</Text>
-            </PressScale>
-          </>
-        ) : accepted ? (
-          <RaisedButton
-            display
-            size="lg"
-            label={t('notifications.cta_view_mission')}
-            iconRight="arrow-right"
-            onPress={() => router.replace({ pathname: "/request/[id]/missionview", params: { id: String(id) } })}
-          />
+      <SplitPane
+        master={isSplit ? (
+          <Animated.ScrollView
+            contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}
+            showsVerticalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+          >
+            {contextBlock}
+            {providerBlock}
+            {photosBlock}
+            {notesBlock}
+          </Animated.ScrollView>
         ) : (
-          <RaisedButton
-            display
-            size="lg"
-            label={t('dashboard.back_home')}
-            onPress={() => router.replace("/(tabs)/dashboard")}
-          />
+          <Animated.ScrollView
+            contentContainerStyle={[s.scroll, { paddingBottom: footerH + 24 }]}
+            showsVerticalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+          >
+            {contextBlock}
+            {heroBlock}
+            {ledgerBlock}
+            {providerBlock}
+            {photosBlock}
+            {notesBlock}
+            {secureBlock}
+          </Animated.ScrollView>
         )}
-      </LinearGradient>
+        detail={isSplit ? (
+          <View style={s.root}>
+            <Animated.ScrollView
+              contentContainerStyle={[s.scroll, { paddingBottom: footerH + 24 }]}
+              showsVerticalScrollIndicator={false}
+            >
+              {heroBlock}
+              {ledgerBlock}
+              {secureBlock}
+            </Animated.ScrollView>
+            {footer}
+          </View>
+        ) : null}
+      />
+
+      {isSplit ? null : footer}
 
       {/* ── Sheet de refus — sortie du flux de lecture, action destructive isolée ── */}
       <Modal

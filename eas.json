@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "image": "latest"
+      }
     },
     "preview": {
       "distribution": "store",
@@ -20,12 +23,16 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "710118047947-0707kj90f8bijv76pi8obqis2agmp69d.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "710118047947-3e7ls24vbo7b0k1il8la2fh1u9q74rc6.apps.googleusercontent.com",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "ios": {
+        "image": "latest"
       }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "image": "latest"
       },
       "android": {
         "buildType": "app-bundle"

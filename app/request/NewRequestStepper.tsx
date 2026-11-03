@@ -36,7 +36,7 @@ import { ShotStrip } from '@/components/request/ShotStrip';
 import { cameraSession } from '@/lib/request/cameraSession';
 import { mergeShots, missingRequiredShots, nextQueue, shotsFor, uploadRequestPhotos, type LocalShot } from '@/lib/request/photos';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { AdaptiveScroll } from '@/lib/layout';
+import { AdaptiveScroll, SplitPane, useSplitPane } from '@/lib/layout';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { WeekStrip } from '@/components/request/WeekStrip';
 import { SlotGrid } from '@/components/request/SlotGrid';
@@ -1295,6 +1295,144 @@ export default function NewRequestStepper() {
   // Contenu de chaque étape. Le pager (StepPager, keepMounted) garde les pages
   // visitées montées : la carte de l'étape 1 et le défilement des listes
   // survivent aux allers-retours, rien ne se recharge.
+  const isSplit = useSplitPane();
+
+  // ── Montant et récapitulatif ─────────────────────────────────────────────
+  // Étape 4 sur compact ; volet droit vivant à toutes les étapes une fois
+  // déplié (maquette « Le prix qu'on voit bouger », moment 10).
+  // MONTANT (carte noire premium · Direction B)
+  const amountBlock = (
+    isFreeService ? (
+      <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+        <Feather name="gift" size={18} color={theme.text as string} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>{t('stepper.free_service')}</Text>
+          <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>{t('stepper.no_payment_required')}</Text>
+        </View>
+      </View>
+    ) : isQuoteFlow ? (
+      <View style={{ gap: 12 }}>
+        <AmountCardB
+          theme={theme}
+          loading={paymentInitLoading}
+          label={t('stepper.pay_now')}
+          euros={stripEuro(confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : formatEUR(calloutFee))}
+          footerLeft={(
+            <>
+              <Feather name="check" size={13} color={COLORS.green} />
+              <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub as string }} numberOfLines={1}>
+                {t('stepper.deducted_if_accepted')}
+              </Text>
+            </>
+          )}
+          footerRight={selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
+            <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.heroSubFaint as string }}>
+              {selectedSubcategory.priceMin}–{selectedSubcategory.priceMax} €
+            </Text>
+          ) : null}
+        />
+        <PressScale accessibilityRole="button"
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
+          onPress={() => setDevisModalVisible(true)}
+        >
+          <Feather name="file-text" size={14} color={COLORS.amber} />
+          <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>{t('stepper.how_quote_works')}</Text>
+          <Feather name="chevron-right" size={13} color={theme.textMuted as string} />
+        </PressScale>
+      </View>
+    ) : (
+      <AmountCardB
+        theme={theme}
+        loading={paymentInitLoading}
+        label={t('stepper.total_to_pay')}
+        euros={appliedPromo ? stripEuro(formatEURCents(discountedCentsFixed)) : (displayPrice as any).totalTVAC}
+        original={appliedPromo ? stripEuro(formatEURCents(nominalCentsFixed)) : undefined}
+        savings={appliedPromo ? `−${stripEuro(formatEURCents(appliedPromo.discountCents))} €` : undefined}
+        footerLeft={(
+          <>
+            <Feather name="shield" size={13} color={theme.heroSubFaint as string} />
+            <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub as string }} numberOfLines={1}>
+              {(displayPrice as any).vatRate
+                ? t('stepper.incl_vat', { pct: Math.round(Number((displayPrice as any).vatRate) * 100), amount: (displayPrice as any).vat })
+                : t('stepper.total_ttc')}
+            </Text>
+          </>
+        )}
+        footerRight={(displayPrice as any).vatRate ? (
+          <Text style={{ fontFamily: FONTS.mono, fontSize: 12.5, color: theme.heroSubFaint as string }}>
+            {t('stepper.excl_vat_label')} {htEuros(displayPrice)}
+          </Text>
+        ) : null}
+      />
+    )
+  );
+
+  // RÉCAPITULATIF (tuiles-icônes · Direction B)
+  const recapBlock = (
+    <View>
+      <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>{t('stepper.recap_title')}</Text>
+      <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
+        <RecapTile
+          theme={theme}
+          icon="map-pin"
+          title={location?.address?.split(',')[0] || '—'}
+          sub={location?.address?.split(',').slice(1).join(',').trim()}
+        />
+        <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+        <RecapTile
+          theme={theme}
+          icon={toFeatherName(toIoniconName(selectedCategory?.icon, 'construct-outline'), 'tool') as any}
+          title={serviceName || '—'}
+        />
+        <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+        <RecapTile
+          theme={theme}
+          icon="clock"
+          title={scheduledLabel || t('stepper.now')}
+          right={isUrgent ? (
+            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: theme.accent }}>
+              <Text style={{ fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.5, color: theme.accentText as string }}>{t('provider.urgent')}</Text>
+            </View>
+          ) : undefined}
+        />
+        {/* ── Code promo (mode fixe) ── */}
+        {!isFreeService && !isQuoteFlow && (
+          <>
+            <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
+            {appliedPromo ? (
+              <RecapTile
+                theme={theme}
+                icon="tag"
+                title={appliedPromo.code}
+                sub={`${t('stepper.promo_applied') || 'Offre appliquée'} · −${stripEuro(formatEURCents(appliedPromo.discountCents))} €`}
+                right={(
+                  <PressScale
+                    onPress={removePromo}
+                    disabled={promoApplying}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                  >
+                    {promoApplying
+                      ? <ActivityIndicator size="small" color={theme.textMuted as string} />
+                      : <Feather name="x" size={18} color={theme.textMuted as string} />}
+                  </PressScale>
+                )}
+              />
+            ) : (
+              <RecapTile
+                theme={theme}
+                icon="tag"
+                title={t('stepper.promo_add') || 'Ajouter un code promo'}
+                onPress={() => { feedback.haptic('light'); setPromoSheetVisible(true); }}
+                right={<Feather name="chevron-right" size={16} color={theme.textMuted as string} />}
+              />
+            )}
+          </>
+        )}
+      </View>
+    </View>
+  );
+
   const renderStep = (n: number | string) => (
     <>
 
@@ -1957,133 +2095,10 @@ export default function NewRequestStepper() {
               )}
 
               {/* ── MONTANT (carte noire premium · Direction B) ── */}
-              {isFreeService ? (
-                <View style={[s.v4QuoteInfo, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
-                  <Feather name="gift" size={18} color={theme.text as string} />
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[s.v4QuoteInfoTitle, { color: theme.text }]}>{t('stepper.free_service')}</Text>
-                    <Text style={[s.v4QuoteInfoDesc, { color: theme.textSub }]}>{t('stepper.no_payment_required')}</Text>
-                  </View>
-                </View>
-              ) : isQuoteFlow ? (
-                <View style={{ gap: 12 }}>
-                  <AmountCardB
-                    theme={theme}
-                    loading={paymentInitLoading}
-                    label={t('stepper.pay_now')}
-                    euros={stripEuro(confirmedCalloutCents != null ? formatEURCents(confirmedCalloutCents) : formatEUR(calloutFee))}
-                    footerLeft={(
-                      <>
-                        <Feather name="check" size={13} color={COLORS.green} />
-                        <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub as string }} numberOfLines={1}>
-                          {t('stepper.deducted_if_accepted')}
-                        </Text>
-                      </>
-                    )}
-                    footerRight={selectedSubcategory?.priceMin && selectedSubcategory?.priceMax ? (
-                      <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: theme.heroSubFaint as string }}>
-                        {selectedSubcategory.priceMin}–{selectedSubcategory.priceMax} €
-                      </Text>
-                    ) : null}
-                  />
-                  <PressScale accessibilityRole="button"
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: theme.surfaceBorder as string, backgroundColor: theme.v4CardBg as string }}
-                    onPress={() => setDevisModalVisible(true)}
-                  >
-                    <Feather name="file-text" size={14} color={COLORS.amber} />
-                    <Text style={{ fontSize: 13, fontFamily: FONTS.sansMedium, color: theme.text as string }}>{t('stepper.how_quote_works')}</Text>
-                    <Feather name="chevron-right" size={13} color={theme.textMuted as string} />
-                  </PressScale>
-                </View>
-              ) : (
-                <AmountCardB
-                  theme={theme}
-                  loading={paymentInitLoading}
-                  label={t('stepper.total_to_pay')}
-                  euros={appliedPromo ? stripEuro(formatEURCents(discountedCentsFixed)) : (displayPrice as any).totalTVAC}
-                  original={appliedPromo ? stripEuro(formatEURCents(nominalCentsFixed)) : undefined}
-                  savings={appliedPromo ? `−${stripEuro(formatEURCents(appliedPromo.discountCents))} €` : undefined}
-                  footerLeft={(
-                    <>
-                      <Feather name="shield" size={13} color={theme.heroSubFaint as string} />
-                      <Text style={{ fontFamily: FONTS.sans, fontSize: 12.5, color: theme.heroSub as string }} numberOfLines={1}>
-                        {(displayPrice as any).vatRate
-                          ? t('stepper.incl_vat', { pct: Math.round(Number((displayPrice as any).vatRate) * 100), amount: (displayPrice as any).vat })
-                          : t('stepper.total_ttc')}
-                      </Text>
-                    </>
-                  )}
-                  footerRight={(displayPrice as any).vatRate ? (
-                    <Text style={{ fontFamily: FONTS.mono, fontSize: 12.5, color: theme.heroSubFaint as string }}>
-                      {t('stepper.excl_vat_label')} {htEuros(displayPrice)}
-                    </Text>
-                  ) : null}
-                />
-              )}
+              {isSplit ? null : amountBlock}
 
               {/* ── RÉCAPITULATIF (tuiles-icônes · Direction B) ── */}
-              <View>
-                <Text style={{ fontFamily: FONTS.bebas, includeFontPadding: false, fontSize: 22, letterSpacing: 2, color: theme.text as string, marginBottom: 10 }}>{t('stepper.recap_title')}</Text>
-                <View style={[s.v4Card, { backgroundColor: theme.v4CardBg, marginHorizontal: 0 }]}>
-                  <RecapTile
-                    theme={theme}
-                    icon="map-pin"
-                    title={location?.address?.split(',')[0] || '—'}
-                    sub={location?.address?.split(',').slice(1).join(',').trim()}
-                  />
-                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                  <RecapTile
-                    theme={theme}
-                    icon={toFeatherName(toIoniconName(selectedCategory?.icon, 'construct-outline'), 'tool') as any}
-                    title={serviceName || '—'}
-                  />
-                  <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                  <RecapTile
-                    theme={theme}
-                    icon="clock"
-                    title={scheduledLabel || t('stepper.now')}
-                    right={isUrgent ? (
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: theme.accent }}>
-                        <Text style={{ fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.5, color: theme.accentText as string }}>{t('provider.urgent')}</Text>
-                      </View>
-                    ) : undefined}
-                  />
-                  {/* ── Code promo (mode fixe) ── */}
-                  {!isFreeService && !isQuoteFlow && (
-                    <>
-                      <View style={[s.v4Sep, { backgroundColor: theme.v4Sep }]} />
-                      {appliedPromo ? (
-                        <RecapTile
-                          theme={theme}
-                          icon="tag"
-                          title={appliedPromo.code}
-                          sub={`${t('stepper.promo_applied') || 'Offre appliquée'} · −${stripEuro(formatEURCents(appliedPromo.discountCents))} €`}
-                          right={(
-                            <PressScale
-                              onPress={removePromo}
-                              disabled={promoApplying}
-                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                              accessibilityRole="button"
-                            >
-                              {promoApplying
-                                ? <ActivityIndicator size="small" color={theme.textMuted as string} />
-                                : <Feather name="x" size={18} color={theme.textMuted as string} />}
-                            </PressScale>
-                          )}
-                        />
-                      ) : (
-                        <RecapTile
-                          theme={theme}
-                          icon="tag"
-                          title={t('stepper.promo_add') || 'Ajouter un code promo'}
-                          onPress={() => { feedback.haptic('light'); setPromoSheetVisible(true); }}
-                          right={<Feather name="chevron-right" size={16} color={theme.textMuted as string} />}
-                        />
-                      )}
-                    </>
-                  )}
-                </View>
-              </View>
+              {isSplit ? null : recapBlock}
 
               {/* ── Réassurance ── */}
               {!isFreeService && (
@@ -2152,7 +2167,17 @@ export default function NewRequestStepper() {
       </View>
 
       {/* ── Contenu de l'étape, poussé latéralement à chaque changement ── */}
-      <StepPager page={step} direction={dirRef.current} render={renderStep} keepMounted style={s.flex} />
+      {/* Déplié : le récapitulatif vit à droite pendant tout le tunnel, le
+          montant compte à chaque choix (urgent, créneau, promo). */}
+      <SplitPane
+        master={<StepPager page={step} direction={dirRef.current} render={renderStep} keepMounted style={s.flex} />}
+        detail={isSplit ? (
+          <ScrollView contentContainerStyle={s.recapPane} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {recapBlock}
+            {selectedSubcategory ? amountBlock : null}
+          </ScrollView>
+        ) : null}
+      />
       <DevisInfoModal
         visible={devisModalVisible}
         onClose={() => setDevisModalVisible(false)}
@@ -2174,6 +2199,7 @@ export default function NewRequestStepper() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
+  recapPane: { paddingTop: 16, paddingRight: 20, paddingBottom: 32, gap: 18 },
 
   // Fog overlays
 
