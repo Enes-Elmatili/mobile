@@ -3,6 +3,8 @@
 // notifications du catalogue serveur (data.event / data.family) et tolère les
 // anciennes (category / type / screen).
 
+import { localeFor } from '../format';
+
 export type Family = 'mission' | 'money' | 'account' | 'message' | 'news';
 
 export type NotifData = {
@@ -77,7 +79,7 @@ export function timeLabel(createdAt: string, t: (k: string, o?: Record<string, u
   const d = new Date(createdAt);
   if (!Number.isFinite(d.getTime())) return '';
   const sec = Math.max(0, Math.floor((now.getTime() - d.getTime()) / 1000));
-  const hm = d.toLocaleTimeString(lang === 'en' ? 'en-GB' : lang === 'nl' ? 'nl-BE' : 'fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const hm = d.toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' });
   switch (sectionOf(createdAt, now)) {
     case 'today':
       if (sec < 60) return t('notifications.time_now');
@@ -86,9 +88,9 @@ export function timeLabel(createdAt: string, t: (k: string, o?: Record<string, u
     case 'yesterday':
       return `${t('notifications.yesterday')} · ${hm}`;
     case 'week':
-      return `${d.toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'nl' ? 'nl-BE' : 'fr-BE', { weekday: 'short' })} · ${hm}`;
+      return `${d.toLocaleDateString(localeFor(lang), { weekday: 'short' })} · ${hm}`;
     default:
-      return d.toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'nl' ? 'nl-BE' : 'fr-BE', { day: 'numeric', month: 'short' });
+      return d.toLocaleDateString(localeFor(lang), { day: 'numeric', month: 'short' });
   }
 }
 

@@ -25,7 +25,7 @@ import { devLog } from '@/lib/logger';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { feedback } from '@/lib/feedback/feedback';
-import { formatEUR as formatEuros } from '@/lib/format';
+import { formatEUR as formatEuros, localeFor } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { useLayoutClass } from '@/lib/layout';
@@ -33,10 +33,7 @@ import { PressScale } from '@/components/ui/PressScale';
 
 // Locale BCP-47 dérivée de la langue i18n active. Évite les hardcodes
 // `fr-BE` qui forcent un format date FR même sur device NL/EN.
-const getLocale = () => {
-  const map: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB' };
-  return map[i18n.language] || 'fr-BE';
-};
+const getLocale = () => localeFor(i18n.language);
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

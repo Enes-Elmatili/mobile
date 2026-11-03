@@ -1,11 +1,13 @@
 /**
  * lib/i18n.ts — Initialisation de react-i18next
  *
- * Langues supportées : fr, nl, en (cf. landing trilingue).
+ * Langues supportées : fr, nl, en, pl (beaucoup de prestataires polonais).
  * Détection device via expo-localization :
  *   - fr (fr-FR, fr-BE, fr-CA…) → fr
  *   - nl (nl-NL, nl-BE)         → nl
+ *   - pl (pl-PL)                → pl
  *   - autre / non détectable     → en (fallback international)
+ * Une clé absente en pl retombe sur en (fallbackLng).
  *
  * Import side-effect dans app/_layout.tsx : import '@/lib/i18n'
  *
@@ -22,15 +24,16 @@ import * as Localization from 'expo-localization';
 import fr from '../locales/fr.json';
 import nl from '../locales/nl.json';
 import en from '../locales/en.json';
+import pl from '../locales/pl.json';
 
-type Supported = 'fr' | 'nl' | 'en';
+type Supported = 'fr' | 'nl' | 'en' | 'pl';
 
 function pickDeviceLanguage(): Supported {
   try {
     const locales = Localization.getLocales();
     for (const loc of locales) {
       const code = (loc.languageCode || '').toLowerCase();
-      if (code === 'fr' || code === 'nl' || code === 'en') return code;
+      if (code === 'fr' || code === 'nl' || code === 'en' || code === 'pl') return code;
     }
   } catch {
     // ignore — fallback ci-dessous
@@ -46,6 +49,7 @@ i18n
       fr: { translation: fr },
       nl: { translation: nl },
       en: { translation: en },
+      pl: { translation: pl },
     },
     lng: pickDeviceLanguage(),
     fallbackLng: 'en',

@@ -15,6 +15,7 @@ import { cleanName } from '@/lib/displayName';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import i18nInstance from '@/lib/i18n';
+import { localeFor } from '@/lib/format';
 import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefresh';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
@@ -42,7 +43,6 @@ interface Conversation {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const LOCALE_TAG: Record<string, string> = { fr: 'fr-BE', nl: 'nl-BE', en: 'en-GB' };
 
 function timeAgo(isoString: string, t: (k: string, o?: any) => string): string {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -54,7 +54,7 @@ function timeAgo(isoString: string, t: (k: string, o?: any) => string): string {
   const days = Math.floor(hours / 24);
   if (days < 7) return t('messages.days_short', { n: days });
   const lang = (i18nInstance.language || 'fr').split('-')[0];
-  return new Date(isoString).toLocaleDateString(LOCALE_TAG[lang] ?? 'fr-BE', { day: '2-digit', month: 'short' });
+  return new Date(isoString).toLocaleDateString(localeFor(lang), { day: '2-digit', month: 'short' });
 }
 
 function displayLabel(userId: string): string {

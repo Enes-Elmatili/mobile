@@ -17,12 +17,12 @@ import { useTabBarPadding } from '@/app/(tabs)/_layout';
 import { useCallParty } from '@/lib/webrtc/CallContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
+import { localeFor } from '@/lib/format';
 import { MAP_PROVIDER, mapAppearance } from '@/lib/map/appearance';
 import type { MissionBrief } from '@/lib/mission/brief';
 import { PressScale } from '@/components/ui/PressScale';
 
-const LOCALE_MAP: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
-export const getLocale = () => LOCALE_MAP[i18n.language] || 'fr-FR';
+export const getLocale = () => localeFor(i18n.language);
 
 export type MissionStatus =
   | 'PUBLISHED' | 'ACCEPTED' | 'ONGOING' | 'DONE'

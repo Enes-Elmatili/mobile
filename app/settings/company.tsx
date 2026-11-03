@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
+import { localeFor } from '@/lib/format';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
 import { goBack } from '@/lib/nav/back';
@@ -71,7 +72,7 @@ export default function CompanyScreen() {
   }, [company?.categories, docs, t]);
   const approved = rows.filter((r) => r.doc?.status === 'APPROVED').length;
 
-  const date = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(i18n.language === 'en' ? 'en-GB' : i18n.language === 'nl' ? 'nl-BE' : 'fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+  const date = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(localeFor(i18n.language), { day: 'numeric', month: 'short', year: 'numeric' }) : '');
   const stateOf = (doc?: ServerDoc): { sub: string; value: string; tone: RowTone } => {
     if (!doc) return { sub: t('company.doc_missing_sub'), value: t('company.doc_missing'), tone: 'warn' };
     if (doc.status === 'APPROVED') return { sub: t('company.doc_approved_sub', { date: date(doc.approvedAt ?? doc.createdAt) }), value: t('company.doc_approved'), tone: 'ok' };

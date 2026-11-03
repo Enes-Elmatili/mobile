@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ProviderDashboard from '@/components/provider/ProviderDashboard';
 import { useTabBarPadding } from './_layout';
 import { useNavStore, clientDisc, BarLock } from '@/stores/nav';
-import { formatEUR } from '@/lib/format';
+import { formatEUR, localeFor } from '@/lib/format';
 import { useAppTheme, FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import type { AppTheme } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
@@ -459,8 +459,7 @@ function ActivityItem({
   theme: AppTheme;
 }) {
   const { t, i18n } = useTranslation();
-  const localeMap: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
-  const locale = localeMap[i18n.language] || 'fr-FR';
+  const locale = localeFor(i18n.language);
   const status = getStatusInfo(request.status, t);
   // Affiche le nom localisé : subcategory.nameI18n[lang] (via translateRequestService),
   // sinon traduit le slug de la catégorie. serviceType reste un fallback ultime mais
@@ -560,8 +559,7 @@ function UpcomingIslandCard({
   theme: AppTheme;
 }) {
   const { t, i18n } = useTranslation();
-  const localeMap: Record<string, string> = { fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' };
-  const locale = localeMap[i18n.language] || 'fr-FR';
+  const locale = localeFor(i18n.language);
   const serviceName =
     translateRequestServiceRaw(request as any) ||
     translateCategoryRaw(request.category as any) ||
@@ -861,7 +859,7 @@ function ClientDashboard() {
         address:        r.address || '',
         price:          String(r.price || ''),
         scheduledLabel: scheduledFor
-          ? new Date(scheduledFor).toLocaleString(({ fr: 'fr-FR', nl: 'nl-BE', en: 'en-GB' } as Record<string,string>)[i18n.language] || 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+          ? new Date(scheduledFor).toLocaleString(localeFor(i18n.language), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
           : t('common.now'),
         expiresAt: r.expiresAt || '',
         lat: String(r.lat || ''),
