@@ -372,6 +372,8 @@ export default function Login() {
               autoComplete="password"
               textContentType="password"
               autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
               trailingIcon={showPwd ? "eye-off" : "eye"}
               onTrailingPress={() => setShowPwd((p) => !p)}
               returnKeyType="done"

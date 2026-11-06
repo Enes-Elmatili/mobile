@@ -83,6 +83,8 @@ export function SignupIdentityPhase(p: Props) {
           autoComplete="password-new"
           textContentType="newPassword"
           autoCorrect={false}
+          autoCapitalize="none"
+          spellCheck={false}
           trailingIcon={p.showPwd ? "eye-off" : "eye"}
           onTrailingPress={p.onToggleShowPwd}
           returnKeyType="done"

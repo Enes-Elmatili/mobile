@@ -84,7 +84,7 @@ export function FieldSheet({ field, onClose, onSave }: Props) {
           placeholder={field.placeholder}
           placeholderTextColor={theme.textMuted as string}
           keyboardType={field.keyboardType}
-          autoCapitalize={field.autoCapitalize ?? 'sentences'}
+          autoCapitalize={field.autoCapitalize ?? (field.secure ? 'none' : 'sentences')}
           autoFocus
           multiline={field.multiline}
           maxLength={field.maxLength}

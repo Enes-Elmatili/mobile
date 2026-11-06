@@ -192,6 +192,8 @@ export default function ResetPassword() {
                 autoComplete="password-new"
                 textContentType="newPassword"
                 autoCorrect={false}
+                autoCapitalize="none"
+                spellCheck={false}
                 trailingIcon={showPwd ? "eye-off" : "eye"}
                 onTrailingPress={() => setShowPwd((p) => !p)}
                 returnKeyType="next"
@@ -213,6 +215,8 @@ export default function ResetPassword() {
                 autoComplete="password-new"
                 textContentType="newPassword"
                 autoCorrect={false}
+                autoCapitalize="none"
+                spellCheck={false}
                 returnKeyType="done"
                 value={confirm}
                 onChangeText={(t) => {
