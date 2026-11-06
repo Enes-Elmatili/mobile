@@ -4,7 +4,7 @@ export { useLayoutClass } from './useLayoutClass';
 export type { Layout } from './useLayoutClass';
 export { SplitPane, PanePlaceholder, useSplitPane, HINGE_GUTTER } from './SplitPane';
 export { useHinge, useHingeAngle, HINGE_SUPPORTED } from './hinge';
-export { foldLayoutFor, splitRatioFor, creaseFor } from './posture';
+export { foldLayoutFor, foldLineFor, splitRatioFor, creaseFor } from './posture';
 export type { FoldLayout, FoldRect, HingePosture, HingeState } from './posture';
 export { AdaptiveScroll, READING_MAX_WIDTH } from './AdaptiveScroll';
 export { useAsymmetricInsets, horizontalPadding } from './insets';

@@ -1,5 +1,5 @@
 // iOS 27.1 : ce que la charnière veut dire pour la mise en page (lib/layout/posture).
-import { creaseFor, foldLayoutFor, splitRatioFor } from '@/lib/layout/posture';
+import { creaseFor, foldLayoutFor, foldLineFor, splitRatioFor } from '@/lib/layout/posture';
 
 // Écran interne du Duo, orientation naturelle : 951 × 669, pli vertical de 40 pt au milieu.
 const DUO = { x: 0, y: 0, width: 951, height: 669 };
@@ -61,5 +61,39 @@ describe('creaseFor', () => {
     expect(creaseFor(30)).toBe(1);
     expect(creaseFor(null)).toBe(0);
     expect(creaseFor(NaN)).toBe(0);
+  });
+});
+
+// Ce qu'on ne doit jamais chevaucher : la bande du pli, À PLAT COMME ENTROUVERT.
+// À plat le pli ne sépare pas l'écran, mais il reste visible sous le doigt et
+// sous l'œil : le contenu s'arrête avant, reprend après.
+describe('foldLineFor', () => {
+  it('sans charnière : pas de pli', () => {
+    expect(foldLineFor(undefined, DUO)).toBeNull();
+  });
+
+  it('à plat (fully-open) : la bande du pli, en repère conteneur', () => {
+    expect(foldLineFor({ posture: 'fully-open', fold: { ...VFOLD, separating: false } }, DUO)).toEqual({ start: 455.5, end: 495.5 });
+  });
+
+  it('entrouvert : la même bande', () => {
+    expect(foldLineFor({ posture: 'partially-open', fold: { ...VFOLD, separating: true } }, DUO)).toEqual({ start: 455.5, end: 495.5 });
+  });
+
+  it('conteneur décalé (sidebar, rail) : bords relatifs au conteneur', () => {
+    expect(foldLineFor({ posture: 'fully-open', fold: { ...VFOLD, separating: false } }, { x: 88, y: 0, width: 863, height: 669 }))
+      .toEqual({ start: 367.5, end: 407.5 });
+  });
+
+  it('fermé : pas de pli', () => {
+    expect(foldLineFor({ posture: 'closed', fold: { ...VFOLD, separating: false } }, DUO)).toBeNull();
+  });
+
+  it('pli horizontal (Duo tourné) : pas de pli vertical à éviter en colonnes', () => {
+    expect(foldLineFor({ posture: 'fully-open', fold: { ...HFOLD, separating: false } }, DUO_TALL)).toBeNull();
+  });
+
+  it('pli hors du conteneur ou trop près d\'un bord : pas de pli', () => {
+    expect(foldLineFor({ posture: 'fully-open', fold: { ...VFOLD, separating: false } }, { x: 500, y: 0, width: 367, height: 669 })).toBeNull();
   });
 });

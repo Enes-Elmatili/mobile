@@ -6,14 +6,20 @@
 //              se redresse (TabIcon) ; à droite, détaché, le disque d'action
 //              (GO / stop / flèche côté prestataire, « + » / flèche côté client)
 //              réglé par les écrans via stores/nav.
-//   regular  → sidebar à gauche (Apple : la tab bar devient une sidebar sur
-//              les largeurs regular), même capsule, verticale ; le disque
-//              flotte en bas à droite du contenu.
+//   rail     → iPhone Duo : le système range la barre d'état dans un rail
+//              vertical (côté caméra, à droite). Apple y met la tab bar, calée
+//              en bas sous l'heure (HIG « Designing for iPhone Duo » : « Dynamic
+//              Island, status bar, toolbar, and tab bar ») ; on y range nos
+//              onglets ET le disque, à portée du pouce. Le côté suit
+//              useVerticalBarEdgeIOS() (expo-status-bar), jamais supposé.
+//   regular  → (sans rail : pliables Android, iPad) sidebar à gauche, même
+//              capsule, verticale ; le disque flotte en bas à droite du contenu.
 // La capsule repart de sa position courante (règle 1) sur MOTION.tab.
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
+import { useVerticalBarEdgeIOS, type VerticalBarEdgeIOS } from 'expo-status-bar';
 import { useAppTheme, FONTS, COLORS, alpha } from '@/hooks/use-app-theme';
 import { useLayoutClass } from '@/lib/layout/useLayoutClass';
 import { MOTION } from '@/lib/motion/springs';
@@ -31,6 +37,30 @@ type FeatherName = React.ComponentProps<typeof TabIcon>['name'];
 export const TAB_BAR_HEIGHT = 64;
 /** Largeur de la sidebar sur regular. */
 export const SIDEBAR_WIDTH = 88;
+/** Largeur réelle de la sidebar : elle s'élargit de l'inset gauche (rail système
+ *  du Duo tourné) au lieu de le prendre sur ses icônes. Le contenu se décale d'autant. */
+export function sidebarWidth(insetLeft: number): number {
+  return SIDEBAR_WIDTH + insetLeft;
+}
+
+export type TabBarMode = 'pill' | 'rail' | 'sidebar';
+
+/** Où vit la navigation : dans le rail système s'il existe (iPhone Duo), sinon
+ *  sidebar sur regular, sinon pilule flottante. Partagé avec app/(tabs)/_layout
+ *  (décalage du contenu, padding bas). */
+export function useTabBarMode(): { mode: TabBarMode; edge: VerticalBarEdgeIOS | null } {
+  const { isRegular } = useLayoutClass();
+  const edge = useVerticalBarEdgeIOS();
+  if (edge) return { mode: 'rail', edge };
+  return { mode: isRegular ? 'sidebar' : 'pill', edge: null };
+}
+
+/** Largeur du rail : l'inset système de son côté (84 pt mesurés sur le Duo),
+ *  jamais moins que le disque et son air. */
+export function railWidth(insets: { left: number; right: number }, edge: VerticalBarEdgeIOS | null): number {
+  const inset = edge === 'leading' ? insets.left : insets.right;
+  return Math.max(inset, DISC_SIZE + 16);
+}
 /** Marge latérale de la pilule et du disque. */
 export const TAB_BAR_MARGIN = 16;
 /** Espace entre la pilule et le disque. */
@@ -96,7 +126,9 @@ function TabItem({ label, icon, focused, color, onPress, onLongPress, vertical, 
 
 export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const theme = useAppTheme();
-  const { isRegular } = useLayoutClass();
+  const { mode, edge } = useTabBarMode();
+  // Rail et sidebar : onglets empilés, capsule verticale.
+  const vertical = mode !== 'pill';
   const reduced = useReduceMotion();
   const disc = useNavStore((st) => st.disc);
   const badges = useNavStore((st) => st.badges);
@@ -133,8 +165,8 @@ export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets
   const count = Math.max(1, routes.length);
   const [size, setSize] = React.useState({ w: 0, h: 0 });
   const indicatorStyle = useAnimatedStyle(() => {
-    const slot = isRegular ? size.h / count : (size.w - TRACK_PAD * 2) / count;
-    return isRegular
+    const slot = vertical ? size.h / count : (size.w - TRACK_PAD * 2) / count;
+    return vertical
       ? { transform: [{ translateY: indicator.value * slot }], height: slot }
       : { transform: [{ translateX: indicator.value * slot }], width: slot };
   });
@@ -150,6 +182,13 @@ export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets
   }, [barHidden, reduced, away]);
   const awayStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: away.value * (TAB_BAR_HEIGHT + bottom + 24) }],
+    opacity: 1 - away.value * 0.4,
+  }));
+  // Dans le rail, la barre sort par son bord (vers la droite si le rail est à droite).
+  const railSide = edge === 'leading' ? 'left' : 'right';
+  const railW = railWidth(insets, edge);
+  const railAwayStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: away.value * (railW + 24) * (railSide === 'right' ? 1 : -1) }],
     opacity: 1 - away.value * 0.4,
   }));
 
@@ -175,7 +214,7 @@ export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets
         color={color}
         onPress={onPress}
         onLongPress={onLongPress}
-        vertical={isRegular}
+        vertical={vertical}
         accessibilityLabel={options.tabBarAccessibilityLabel}
         badge={badges[route.name as keyof Badges]}
         testID={`tab-${route.name}`}
@@ -184,15 +223,35 @@ export function FixedTabBar({ state, descriptors, emitter, navigateToTab, insets
   });
 
   const capsule = (
-    <Animated.View pointerEvents="none" style={[s.indicator, isRegular ? s.indicatorVertical : s.indicatorHorizontal, indicatorStyle]}>
-      <View style={[s.capsule, isRegular && s.capsuleVertical, { backgroundColor: alpha(theme.text, theme.isDark ? 0.14 : 0.09) }]} />
+    <Animated.View pointerEvents="none" style={[s.indicator, vertical ? s.indicatorVertical : s.indicatorHorizontal, indicatorStyle]}>
+      <View style={[s.capsule, vertical && s.capsuleVertical, { backgroundColor: alpha(theme.text, theme.isDark ? 0.14 : 0.09) }]} />
     </Animated.View>
   );
 
-  if (isRegular) {
+  // Rail (iPhone Duo) : onglets puis disque, calés en bas du rail système, sous
+  // l'heure et la caméra qui en occupent le haut. Pas de fond : le rail est la
+  // surface de l'app, comme pour la tab bar native.
+  if (mode === 'rail') {
+    return (
+      <Animated.View
+        testID="tab-rail"
+        style={[s.rail, railSide === 'right' ? { right: 0 } : { left: 0 }, { width: railW, paddingBottom: Math.max(insets.bottom, 12) }, railAwayStyle]}
+        pointerEvents={barHidden ? 'none' : 'box-none'}
+      >
+        <View style={[s.track, s.trackVertical, s.trackRail]} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+          {capsule}
+          {items}
+        </View>
+        <View style={s.railGap} pointerEvents="none" />
+        {discNode}
+      </Animated.View>
+    );
+  }
+
+  if (mode === 'sidebar') {
     return (
       <>
-        <View style={[s.sidebar, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12, paddingLeft: insets.left, borderRightColor: theme.border, backgroundColor: alpha(theme.bg, 0.98) }]}>
+        <View style={[s.sidebar, { width: sidebarWidth(insets.left), paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12, paddingLeft: insets.left, borderRightColor: theme.border, backgroundColor: alpha(theme.bg, 0.98) }]}>
           <View style={[s.track, s.trackVertical]} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
             {capsule}
             {items}
@@ -226,7 +285,14 @@ const s = StyleSheet.create({
   discSlot: { position: 'absolute', width: DISC_SIZE, height: DISC_SIZE },
   sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRightWidth: 1, overflow: 'hidden' },
   track: { flex: 1, flexDirection: 'row', paddingHorizontal: TRACK_PAD },
-  trackVertical: { flexDirection: 'column', paddingHorizontal: 0 },
+  // Colonne à sa taille naturelle (n × itemVertical) : la capsule prend la
+  // hauteur d'UN onglet. En flex: 1 elle mesurait toute la sidebar et la capsule
+  // couvrait tous les onglets.
+  trackVertical: { flex: 0, flexDirection: 'column', paddingHorizontal: 0 },
+  rail: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', justifyContent: 'flex-end' },
+  // Sur toute la largeur du rail : la capsule garde son air de chaque côté.
+  trackRail: { alignSelf: 'stretch' },
+  railGap: { height: 12 },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   itemVertical: { flex: 0, height: 60 },
   // Icônes seules : le nom de l'onglet reste annoncé par le lecteur d'écran (accessibilityLabel).

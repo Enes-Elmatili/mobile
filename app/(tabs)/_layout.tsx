@@ -15,8 +15,7 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
 import { TabIcon } from '@/components/ui/TabIcon';
-import { FixedTabBar, SIDEBAR_WIDTH, TAB_BAR_HEIGHT as BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
-import { useLayoutClass } from '@/lib/layout';
+import { FixedTabBar, railWidth, sidebarWidth, TAB_BAR_HEIGHT as BAR_HEIGHT, tabBarBottom, useTabBarMode } from '@/components/ui/FixedTabBar';
 
 // Hauteur de la pilule flottante. Elle flotte à tabBarBottom(insets.bottom) du
 // bas de l'écran : le haut de la pilule (et du disque) est donc à
@@ -26,9 +25,12 @@ export const TAB_BAR_HEIGHT = BAR_HEIGHT;
 
 /** Padding bas à appliquer au contenu scrollable d'un écran sous la barre flottante.
  *  Sur un écran « regular », la barre est une sidebar à gauche : seul le disque
- *  flotte encore en bas à droite, on garde sa hauteur. */
+ *  flotte encore en bas à droite, on garde sa hauteur. Dans le rail du Duo, rien
+ *  ne flotte en bas : seul l'inset bas (indicateur d'accueil) reste. */
 export function useTabBarPadding(extra: number = 24): number {
   const insets = useSafeAreaInsets();
+  const { mode } = useTabBarMode();
+  if (mode === 'rail') return insets.bottom + extra;
   return TAB_BAR_HEIGHT + tabBarBottom(insets.bottom) + extra;
 }
 
@@ -36,7 +38,8 @@ export default function TabLayout() {
   const { user } = useAuth();
   const theme    = useAppTheme();
   const { t } = useTranslation();
-  const { isRegular } = useLayoutClass();
+  const { mode, edge } = useTabBarMode();
+  const insets = useSafeAreaInsets();
   // Tab bar custom : pilule flottante + disque (moment 15), sidebar sur regular.
   const renderTabBar = useCallback((props: BottomTabBarProps) => <FixedTabBar {...props} />, []);
 
@@ -50,15 +53,24 @@ export default function TabLayout() {
   // ── screenOptions stable ──────────────────────────────────────────────────
   const screenOptions = useMemo(() => ({
     headerShown: false,
-    // Sur regular la sidebar occupe la gauche : le contenu se décale.
-    contentStyle: { backgroundColor: theme.bg, paddingLeft: isRegular ? SIDEBAR_WIDTH : 0 },
+    // Sur regular la sidebar occupe la gauche : le contenu se décale. `sceneStyle`
+    // (et non `contentStyle`, option des piles, ignorée par les onglets) — sans
+    // quoi l'écran passait sous la sidebar sur le Duo déplié.
+    // Rail du Duo : le contenu s'arrête avant le rail, du côté du système, même
+    // sur un écran qui n'applique pas lui-même l'inset latéral (sinon nos
+    // onglets passeraient sur lui).
+    sceneStyle: {
+      backgroundColor: theme.bg,
+      paddingLeft: mode === 'sidebar' ? sidebarWidth(insets.left) : mode === 'rail' && edge === 'leading' ? railWidth(insets, edge) : 0,
+      paddingRight: mode === 'rail' && edge !== 'leading' ? railWidth(insets, edge) : 0,
+    },
     tabBarActiveTintColor:   theme.accent,
     tabBarInactiveTintColor: theme.textMuted,
     tabBarShowLabel: false,
     // La barre est custom (tabBar={renderTabBar}) et flotte au-dessus du
     // contenu : rien à réserver ici, chaque écran compense via useTabBarPadding().
     tabBarStyle: { position: 'absolute' as const, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0, shadowOpacity: 0 },
-  }), [theme.bg, theme.accent, theme.textMuted, isRegular]);
+  }), [theme.bg, theme.accent, theme.textMuted, mode, edge, insets]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect

@@ -48,6 +48,23 @@ export function foldLayoutFor(state: HingeState | null | undefined, frame: Frame
   return { kind: 'tabletop', start, end };
 }
 
+/**
+ * La bande verticale du pli à ne jamais chevaucher, à plat COMME entrouvert
+ * (bords en x dans le repère du conteneur). À plat le pli ne sépare pas l'écran,
+ * mais il reste là, sous le doigt et sous l'œil : deux colonnes s'arrêtent avant
+ * et reprennent après. `null` : fermé, pas de pli vertical, ou pli hors du
+ * conteneur / trop près d'un bord (même seuil de 25 % que foldLayoutFor).
+ */
+export function foldLineFor(state: HingeState | null | undefined, frame: Frame): { start: number; end: number } | null {
+  const fold = state?.fold;
+  if (!state || !fold || (state.posture !== 'fully-open' && state.posture !== 'partially-open')) return null;
+  if (frame.width <= 0 || fold.height < fold.width) return null;
+  const start = fold.x - frame.x;
+  const end = start + fold.width;
+  if (start < frame.width * 0.25 || end > frame.width * 0.75) return null;
+  return { start, end };
+}
+
 /** Part du volet gauche d'un SplitPane : au pli en « livre », sinon le ratio de base. */
 export function splitRatioFor(layout: FoldLayout, frameWidth: number, base: number): number {
   if (layout.kind !== 'book' || frameWidth <= 0) return base;
