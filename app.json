@@ -87,7 +87,8 @@
         "@stripe/stripe-react-native",
         {
           "merchantIdentifier": "merchant.app.thefixed",
-          "enableGooglePay": true
+          "enableGooglePay": true,
+          "disableSPM": true
         }
       ],
       "expo-secure-store",
