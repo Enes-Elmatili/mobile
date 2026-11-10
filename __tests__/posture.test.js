@@ -97,3 +97,56 @@ describe('foldLineFor', () => {
     expect(foldLineFor({ posture: 'fully-open', fold: { ...VFOLD, separating: false } }, { x: 500, y: 0, width: 367, height: 669 })).toBeNull();
   });
 });
+
+// ── normalizeHinge : la charnière telle que la mise en page doit la lire ─────
+// Doc Apple (tech talk « Strike a pose with adaptive layouts on iPhone Duo ») :
+// « When flat, it's inactive and has a width of zero » ; aucune notification
+// ne garantit une relecture des régions réservées au pliage / dépliage.
+describe('normalizeHinge', () => {
+  const { normalizeHinge, HINGE_BAND, foldLineFor } = require('@/lib/layout/posture');
+  const WIN = { width: 951, height: 669 };
+  const SCENE = { x: 0, y: 0, width: 867, height: 669 };
+
+  it('à plat, pli de largeur nulle : position gardée, largeur physique posée', () => {
+    const raw = { posture: 'fully-open', fold: { x: 475.5, y: 0, width: 0, height: 669, separating: false }, window: WIN };
+    const h = normalizeHinge(raw, WIN, true);
+    expect(h.fold.width).toBe(HINGE_BAND);
+    expect(h.fold.x).toBe(455.5);
+    expect(foldLineFor(h, SCENE)).toEqual({ start: 455.5, end: 495.5 });
+  });
+
+  it('pli rapporté de 40 pt (simulateur) : inchangé', () => {
+    const raw = { posture: 'fully-open', fold: { x: 455.5, y: 0, width: 40, height: 669, separating: false }, window: WIN };
+    expect(foldLineFor(normalizeHinge(raw, WIN, true), SCENE)).toEqual({ start: 455.5, end: 495.5 });
+  });
+
+  it('pli mesuré pour la fenêtre pliée (466 pt) puis déplié sans relecture : périmé, reposé au milieu de la fenêtre', () => {
+    const stale = { posture: 'fully-open', fold: { x: 213, y: 0, width: 40, height: 678, separating: false }, window: { width: 466, height: 678 } };
+    expect(foldLineFor(normalizeHinge(stale, WIN, true), SCENE)).toEqual({ start: 455.5, end: 495.5 });
+  });
+
+  it('posture « fermé » restée en mémoire alors que la fenêtre est celle du Duo ouvert : pli au milieu de la fenêtre', () => {
+    const h = normalizeHinge({ posture: 'closed', fold: null, window: { width: 466, height: 678 } }, WIN, true);
+    expect(h.posture).toBe('fully-open');
+    expect(foldLineFor(h, SCENE)).toEqual({ start: 455.5, end: 495.5 });
+  });
+
+  it('rail à gauche : la coupure suit la FENÊTRE, pas le milieu de la scène décalée', () => {
+    const h = normalizeHinge(undefined, WIN, true);
+    expect(foldLineFor(h, { x: 84, y: 0, width: 867, height: 669 })).toEqual({ start: 371.5, end: 411.5 });
+  });
+
+  it('Duo plié (fenêtre compacte) : rien d’inventé', () => {
+    const raw = { posture: 'closed', fold: null, window: { width: 466, height: 678 } };
+    expect(normalizeHinge(raw, { width: 466, height: 678 }, true)).toEqual(raw);
+  });
+
+  it('sans module natif (Android, Expo Go, jest) : on ne devine rien', () => {
+    expect(normalizeHinge(undefined, WIN, false)).toBeUndefined();
+  });
+
+  it('entrouvert : la région active (marges comprises) prime si elle est plus large', () => {
+    const raw = { posture: 'partially-open', fold: { x: 445.5, y: 0, width: 60, height: 669, separating: true }, window: WIN };
+    expect(foldLineFor(normalizeHinge(raw, WIN, true), SCENE)).toEqual({ start: 445.5, end: 505.5 });
+  });
+});

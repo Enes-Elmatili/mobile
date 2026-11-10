@@ -7,7 +7,7 @@
 
 import { Redirect } from 'expo-router';
 import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
-import { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import type { ColorValue } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { shouldLeaveTabs } from '@/lib/providerGate';
 import { TabIcon } from '@/components/ui/TabIcon';
 import { FixedTabBar, railWidth, sidebarWidth, TAB_BAR_HEIGHT as BAR_HEIGHT, tabBarBottom, useTabBarMode } from '@/components/ui/FixedTabBar';
+import { InsetScope, type SidePad } from '@/lib/layout/InsetScope';
 
 // Hauteur de la pilule flottante. Elle flotte à tabBarBottom(insets.bottom) du
 // bas de l'écran : le haut de la pilule (et du disque) est donc à
@@ -43,6 +44,18 @@ export default function TabLayout() {
   // Tab bar custom : pilule flottante + disque (moment 15), sidebar sur regular.
   const renderTabBar = useCallback((props: BottomTabBarProps) => <FixedTabBar {...props} />, []);
 
+  // Sur regular la sidebar occupe la gauche ; dans le rail du Duo, nos onglets
+  // occupent le côté du système. Le contenu s'arrête avant (InsetScope), et les
+  // écrans voient l'inset de ce côté à 0 : un SafeAreaView ou un
+  // useSafeAreaInsets ne rajoute plus 84 pt par-dessus.
+  const padLeft  = mode === 'sidebar' ? sidebarWidth(insets.left) : mode === 'rail' && edge === 'leading' ? railWidth(insets, edge) : 0;
+  const padRight = mode === 'rail' && edge !== 'leading' ? railWidth(insets, edge) : 0;
+  const scenePad = useMemo<SidePad>(() => ({ left: padLeft, right: padRight }), [padLeft, padRight]);
+  const screenLayout = useCallback(
+    ({ route, children }: { route: { name: string }; children: React.ReactElement }) => <InsetScope pad={scenePad} debugName={route.name}>{children}</InsetScope>,
+    [scenePad],
+  );
+
   // ── Stable boolean — ne change que si les rôles changent réellement ───────
   // useMemo évite de recalculer isProvider sur chaque re-render provoqué par
   // un changement de référence de l'objet `user` (même données, nouvel objet).
@@ -53,24 +66,16 @@ export default function TabLayout() {
   // ── screenOptions stable ──────────────────────────────────────────────────
   const screenOptions = useMemo(() => ({
     headerShown: false,
-    // Sur regular la sidebar occupe la gauche : le contenu se décale. `sceneStyle`
-    // (et non `contentStyle`, option des piles, ignorée par les onglets) — sans
-    // quoi l'écran passait sous la sidebar sur le Duo déplié.
-    // Rail du Duo : le contenu s'arrête avant le rail, du côté du système, même
-    // sur un écran qui n'applique pas lui-même l'inset latéral (sinon nos
-    // onglets passeraient sur lui).
-    sceneStyle: {
-      backgroundColor: theme.bg,
-      paddingLeft: mode === 'sidebar' ? sidebarWidth(insets.left) : mode === 'rail' && edge === 'leading' ? railWidth(insets, edge) : 0,
-      paddingRight: mode === 'rail' && edge !== 'leading' ? railWidth(insets, edge) : 0,
-    },
+    // `sceneStyle` (et non `contentStyle`, option des piles, ignorée par les
+    // onglets). Le décalage latéral (sidebar, rail) est posé par screenLayout.
+    sceneStyle: { backgroundColor: theme.bg },
     tabBarActiveTintColor:   theme.accent,
     tabBarInactiveTintColor: theme.textMuted,
     tabBarShowLabel: false,
     // La barre est custom (tabBar={renderTabBar}) et flotte au-dessus du
     // contenu : rien à réserver ici, chaque écran compense via useTabBarPadding().
     tabBarStyle: { position: 'absolute' as const, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0, shadowOpacity: 0 },
-  }), [theme.bg, theme.accent, theme.textMuted, mode, edge, insets]);
+  }), [theme.bg, theme.accent, theme.textMuted]);
 
   // ── Options par onglet — entièrement mémoïsées ───────────────────────────
   // Expo Router lit les options de chaque <Tabs.Screen> dans un useLayoutEffect
@@ -127,7 +132,7 @@ export default function TabLayout() {
   }
 
   return (
-    <Tabs screenOptions={screenOptions} tabBar={renderTabBar}>
+    <Tabs screenOptions={screenOptions} screenLayout={screenLayout} tabBar={renderTabBar}>
 
       {/* ── 1. ACCUEIL — tous les rôles ─────────────────────────────────── */}
       <Tabs.Screen name="dashboard"         options={dashboardOptions}  />

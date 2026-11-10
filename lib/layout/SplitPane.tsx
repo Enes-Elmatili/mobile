@@ -18,8 +18,8 @@
 //     (foldLineFor) et le volet droit reprend après lui : aucun contenu à
 //     cheval sur la charnière (40 pt sur le Duo, mesurés)
 //   - l'angle creuse une ombre de pliure (effet seulement, jamais la disposition)
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type HostInstance, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
@@ -28,8 +28,10 @@ import { MOTION } from '@/lib/motion/springs';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { usePresence } from '@/lib/motion/usePresence';
 import { useLayoutClass } from './useLayoutClass';
-import { useHinge, useHingeAngle } from './hinge';
-import { creaseFor, foldLineFor, type Frame } from './posture';
+import { layoutLog, useHinge, useHingeAngle } from './hinge';
+import { creaseFor, foldLineFor } from './posture';
+import { useRowFrame } from './rowFrame';
+import { useSceneFrame } from './sceneFrame';
 
 export const HINGE_GUTTER = 24;
 
@@ -67,35 +69,37 @@ export function SplitPane({ master, detail, detailKey = null, ratio = 0.42, plac
   const hasDetail = detail != null;
   const detailPresence = usePresence(hasDetail, { from: 'hinge', preset: MOTION.pane });
 
-  // Où est la rangée dans la fenêtre : le pli est donné en repère fenêtre, et
-  // une sidebar d'onglets peut décaler le conteneur.
-  const rowRef = useRef<HostInstance>(null);
-  const [frame, setFrame] = useState<Frame>({ x: 0, y: 0, width: 0, height: 0 });
-  const onLayout = useCallback((_e: LayoutChangeEvent) => {
-    rowRef.current?.measureInWindow((x, y, width, height) => {
-      setFrame((f) => (f.x === x && f.y === y && f.width === width && f.height === height ? f : { x, y, width, height }));
-    });
-  }, []);
+  // Où est la rangée dans la fenêtre (le pli est donné en repère fenêtre) :
+  // mesurée par rapport à la racine de l'écran, sans les transformations en
+  // cours (lib/layout/rowFrame) — remesurée quand la scène ou le pli change.
+  const scene = useSceneFrame();
   const hinge = useHinge();
+  const { ref: rowRef, onLayout, frame } = useRowFrame([hinge]);
   // Le pli, à plat COMME entrouvert : la séparation se pose à son bord gauche et
   // le volet droit reprend après lui — aucun contenu à cheval sur la charnière.
   const line = isRegular ? foldLineFor(hinge, frame) : null;
   const targetRatio = line && frame.width > 0 ? line.start / frame.width : ratio;
+  useEffect(() => {
+    layoutLog('split', { frame, scene, win: { w: windowWidth }, regular: isRegular, posture: hinge?.posture, fold: hinge?.fold, line, targetRatio });
+  }, [frame, scene, windowWidth, isRegular, hinge, line, targetRatio]);
 
-  // 0 = une colonne, 1 = deux volets. Part du bon état au montage : pas
-  // d'animation à l'ouverture d'un écran, seulement au pliage.
+  // 0 = une colonne, 1 = deux volets : ne pilote plus que l'opacité du volet
+  // droit au pliage.
   const unfold = useSharedValue(isRegular ? 1 : 0);
-  const split = useSharedValue(targetRatio);
   useEffect(() => {
     const target = isRegular ? 1 : 0;
     unfold.value = reduced ? withTiming(target, { duration: 200 }) : withSpring(target, MOTION.unfold);
   }, [isRegular, reduced, unfold]);
-  useEffect(() => {
-    split.value = reduced ? withTiming(targetRatio, { duration: 200 }) : withSpring(targetRatio, MOTION.unfold);
-  }, [targetRatio, reduced, split]);
 
-  const masterStyle = useAnimatedStyle(() => ({ flex: 1 - (1 - split.value) * unfold.value }));
-  const detailStyle = useAnimatedStyle(() => ({ flex: (1 - split.value) * unfold.value, opacity: unfold.value }));
+  // La LARGEUR des volets est fixée, calculée sur le pli — plus animée.
+  // Constaté sur le Duo (capture interne, 10/11/2026) : la largeur animée
+  // restait sur sa valeur de départ (ratio 0,5 → coupure à 433,5 pt) alors que
+  // la cible calculée était juste (pli à 455,5) ; la page droite empiétait de
+  // 5 pt sur la charnière. Une largeur posée ne peut pas manquer sa cible.
+  const masterWidth = isRegular && frame.width > 0 ? Math.round(targetRatio * frame.width * 2) / 2 : undefined;
+  const masterStyle = isRegular ? (masterWidth != null ? { width: masterWidth } : { flex: targetRatio }) : s.fill;
+  const detailBox = isRegular ? (masterWidth != null ? s.fill : { flex: 1 - targetRatio }) : s.collapsed;
+  const detailStyle = useAnimatedStyle(() => ({ opacity: unfold.value }));
   const lineStyle = useAnimatedStyle(() => ({ opacity: unfold.value }));
 
   // Ombre de pliure : le livre qu'on entrouvre se creuse au milieu.
@@ -115,7 +119,7 @@ export function SplitPane({ master, detail, detailKey = null, ratio = 0.42, plac
       <Animated.View style={[s.master, masterStyle, { paddingLeft: padLeft }]}>{master}</Animated.View>
       {isRegular && !line ? <Animated.View style={[s.separator, { backgroundColor: theme.border }, lineStyle]} /> : null}
       <Animated.View
-        style={[s.detail, detailStyle, { paddingRight: padRight, paddingLeft: isRegular ? detailGutter : 0 }]}
+        style={[s.detail, detailBox, detailStyle, { paddingRight: padRight, paddingLeft: isRegular ? detailGutter : 0 }]}
         pointerEvents={isRegular ? 'auto' : 'none'}
         importantForAccessibility={isRegular ? 'auto' : 'no-hide-descendants'}
         accessibilityElementsHidden={!isRegular}
@@ -160,6 +164,7 @@ const s = StyleSheet.create({
   master: { minWidth: 0 },
   separator: { width: StyleSheet.hairlineWidth },
   detail: { minWidth: 0, overflow: 'hidden' },
+  collapsed: { width: 0, flex: 0 },
   crease: { position: 'absolute', top: 0, bottom: 0 },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   placeholderDisc: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

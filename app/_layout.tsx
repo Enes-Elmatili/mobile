@@ -26,6 +26,8 @@ import { darkTokens, lightTokens, FONTS, useAppTheme } from '@/hooks/use-app-the
 import * as Sentry from '@sentry/react-native';
 import { PressScale } from '@/components/ui/PressScale';
 import { useReduceMotion } from '@/lib/motion/sheet';
+import { InsetScope } from '@/lib/layout/InsetScope';
+import { WindowSizeProvider } from '@/lib/layout/windowSize';
 
 Sentry.init({
   dsn: 'https://1bf1a0242d483a309a3dafbe00d22e59@o4511135218532352.ingest.de.sentry.io/4511135226396752',
@@ -78,6 +80,9 @@ const MISSION_FLOW_ROUTES = [
 // ✅ Pages légales consultables sans être connecté (liens CGU / confidentialité du signup)
 const PUBLIC_LEGAL_ROUTES = ['cgu', 'privacy'];
 
+/** Routes de la pile racine qui ne passent pas par InsetScope (voir stackScreenLayout). */
+const FULL_BLEED_ROUTES = new Set(['(tabs)', 'index', 'request/camera', 'call', 'connect/success', 'connect/reauth']);
+
 function RootLayoutNav() {
   const reducedMotion = useReduceMotion();
   const { user, isBooting, token, missingFields } = useAuth();
@@ -90,6 +95,17 @@ function RootLayoutNav() {
   const t           = useAppTheme();
   const hydratePrefs = usePrefs((s) => s.hydrate);
   useEffect(() => { hydratePrefs(); }, [hydratePrefs]);
+
+  // Rail système du Duo : chaque écran de la pile s'arrête à son bord. Les
+  // onglets gèrent le leur (leur navigation se range DANS le rail), les pleins
+  // écrans (appareil photo, appel, écrans de retour Stripe) gardent leur fond
+  // jusqu'au bord et posent eux-mêmes leurs insets.
+  const stackBg = t.bg;
+  const stackScreenLayout = useCallback(
+    ({ route, children }: { route: { name: string }; children: React.ReactElement }) =>
+      FULL_BLEED_ROUTES.has(route.name) ? children : <InsetScope backgroundColor={stackBg} debugName={route.name}>{children}</InsetScope>,
+    [stackBg],
+  );
 
   // Primitives stables — évitent de relancer l'effet sur chaque re-render
   // `segments` est un nouveau tableau à chaque render (référence instable)
@@ -194,7 +210,9 @@ function RootLayoutNav() {
     <>
       <StatusBar barStyle={t.statusBar} />
       {/* « Réduire les animations » : les écrans se relaient en fondu au lieu de glisser (règle 8). */}
-      <Stack screenOptions={{ headerShown: false, gestureEnabled: true, animation: reducedMotion ? 'fade' : 'slide_from_right' }}>
+      {/* Rail système du Duo : chaque écran s'arrête à son bord (InsetScope), sauf
+          les onglets (leur navigation VIT dans le rail) et les pleins écrans. */}
+      <Stack screenLayout={stackScreenLayout} screenOptions={{ headerShown: false, gestureEnabled: true, animation: reducedMotion ? 'fade' : 'slide_from_right' }}>
         {/* Appareil photo guidé du stepper : plein écran, fondu, pas de geste de retour latéral. */}
         <Stack.Screen name="request/camera" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
       </Stack>
@@ -293,6 +311,9 @@ export default Sentry.wrap(function RootLayout() {
   return (
     <AppErrorBoundary>
       <GestureHandlerRootView style={styles.container} onLayout={onLayoutRootView}>
+        {/* Taille de fenêtre lue sur la vue native : Dimensions reste à la taille
+            pliée après un dépliage du Duo (lib/layout/windowSize). */}
+        <WindowSizeProvider>
         <NetworkProvider>
           <StripeProvider
             publishableKey={STRIPE_PUBLISHABLE_KEY}
@@ -319,6 +340,7 @@ export default Sentry.wrap(function RootLayout() {
             justement l'endroit où la chaîne s'interrompait sans un mot. */}
         <FeedbackHost />
         {showSplash && <SplashAnimation onDone={() => setShowSplash(false)} />}
+        </WindowSizeProvider>
       </GestureHandlerRootView>
     </AppErrorBoundary>
   );

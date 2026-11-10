@@ -2,15 +2,18 @@
 // Le pont JS de modules/fixed-hinge (iPhone Duo, iOS 27.1). Optionnel : sur un
 // build sans le module (Android, Expo Go, ancien dev client, jest), tout
 // répond « pas de charnière » et l'app se comporte comme avant.
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { requireOptionalNativeModule } from 'expo';
 import { useSharedValue, type SharedValue } from 'react-native-reanimated';
-import type { HingeState } from './posture';
+import { normalizeHinge, type HingeState } from './posture';
+import { useWindowSize } from './windowSize';
 
 type Subscription = { remove(): void };
 type NativeHinge = {
   getState(): HingeState | null;
   getAngle(): number | null;
+  isLogging?(): boolean;
+  snapshot?(name: string): void;
   addListener(event: 'onChange', listener: (e: { state: HingeState | null }) => void): Subscription;
   addListener(event: 'onAngle', listener: (e: { degrees: number }) => void): Subscription;
 };
@@ -19,6 +22,23 @@ const Native = requireOptionalNativeModule<NativeHinge>('FixedHinge');
 
 /** `true` quand le binaire embarque le module (build iOS 27.1). */
 export const HINGE_SUPPORTED = Native != null;
+
+/**
+ * Diagnostic de mise en page (éteint par défaut, aucun coût) : allumé par
+ * `defaults write app.thefixed.client FixedHingeLog -bool YES`. console.error
+ * est le seul niveau que React Native transmet aux journaux natifs en release.
+ */
+const HINGE_LOG = (() => { try { return Native?.isLogging?.() === true; } catch { return false; } })();
+export function layoutLog(tag: string, data: Record<string, unknown>) {
+  if (HINGE_LOG) console.error(`[DuoLayout] ${tag} ${JSON.stringify(data)}`);
+}
+
+/** Diagnostic : image de la fenêtre une fois l'animation d'entrée posée (drapeau requis). */
+export function debugSnapshot(name: string, delayMs = 900) {
+  if (!HINGE_LOG) return;
+  const safe = name.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40);
+  setTimeout(() => { try { Native?.snapshot?.(safe); } catch { /* diagnostic seulement */ } }, delayMs);
+}
 
 // ── Posture : magasin externe, un seul abonnement natif partagé ─────────────
 const listeners = new Set<() => void>();
@@ -29,6 +49,8 @@ function same(a: HingeState | undefined, b: HingeState | undefined): boolean {
   if (!a || !b) return a === b;
   const fa = a.fold, fb = b.fold;
   if (a.posture !== b.posture) return false;
+  const wa = a.window, wb = b.window;
+  if (!!wa !== !!wb || (wa && wb && (wa.width !== wb.width || wa.height !== wb.height))) return false;
   if (!fa || !fb) return !fa && !fb;
   return fa.x === fb.x && fa.y === fb.y && fa.width === fb.width && fa.height === fb.height && fa.separating === fb.separating;
 }
@@ -59,9 +81,22 @@ function getSnapshot(): HingeState | undefined {
 
 const getServerSnapshot = () => undefined;
 
-/** Posture et pli courants ; `undefined` sans charnière. Re-rend au changement de posture ou de pli. */
-export function useHinge(): HingeState | undefined {
+/** Ce que rapporte le module natif, brut (diagnostic). */
+export function useRawHinge(): HingeState | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+/**
+ * Posture et pli à utiliser pour la mise en page ; `undefined` sans charnière.
+ * Normalisés (posture.ts → normalizeHinge) : pli à plat de largeur nulle,
+ * pli périmé après un pliage, fenêtre de Duo ouvert sans pli rapporté — la
+ * coupure reste sur la charnière. Re-rend au changement de posture, de pli ou
+ * de taille de fenêtre.
+ */
+export function useHinge(): HingeState | undefined {
+  const raw = useRawHinge();
+  const { width, height } = useWindowSize();
+  return useMemo(() => normalizeHinge(raw, { width, height }, HINGE_SUPPORTED), [raw, width, height]);
 }
 
 /**

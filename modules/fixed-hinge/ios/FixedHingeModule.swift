@@ -18,6 +18,7 @@ public class FixedHingeModule: Module {
   private var angleDegrees: Double?
 
   @MainActor private var observer: HingeObserverView?
+  @MainActor private var keyObserver: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {
     Name("FixedHinge")
@@ -32,8 +33,30 @@ public class FixedHingeModule: Module {
       self.locked { self.angleDegrees }
     }
 
+    // Diagnostic (éteint par défaut) : le JS journalise aussi ses mesures de mise en page.
+    Function("isLogging") { () -> Bool in
+      UserDefaults.standard.bool(forKey: "FixedHingeLog")
+    }
+
+    // Diagnostic : image de la fenêtre à la demande du JS (écran, sheet ou modale
+    // qui s'ouvre). Ne fait rien sans le drapeau FixedHingeLog.
+    Function("snapshot") { (name: String) in
+      guard UserDefaults.standard.bool(forKey: "FixedHingeLog") else { return }
+      DispatchQueue.main.async { MainActor.assumeIsolated { writeWindowSnapshot(name) } }
+    }
+
     OnCreate {
       DispatchQueue.main.async { MainActor.assumeIsolated { self.attach() } }
+      // Diagnostic (éteint par défaut) : une notification Darwin écrit une image
+      // de la fenêtre — les captures du simulateur Duo sortent noires (Xcode 27.2).
+      // xcrun simctl spawn <udid> notifyutil -p app.thefixed.snapshot
+      if UserDefaults.standard.bool(forKey: "FixedHingeLog") {
+        CFNotificationCenterAddObserver(
+          CFNotificationCenterGetDarwinNotifyCenter(), nil,
+          { _, _, _, _, _ in DispatchQueue.main.async { MainActor.assumeIsolated { writeWindowSnapshot(nil) } } },
+          "app.thefixed.snapshot" as CFString, nil, .deliverImmediately
+        )
+      }
     }
 
     // La fenêtre n'existe pas toujours à la création du module.
@@ -41,11 +64,28 @@ public class FixedHingeModule: Module {
       DispatchQueue.main.async { MainActor.assumeIsolated { self.attach() } }
     }
 
+    // Plier / déplier peut confier la scène à une autre fenêtre clé : on suit.
+    OnStartObserving(changeEvent) {
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          guard self.keyObserver == nil else { return }
+          self.keyObserver = NotificationCenter.default.addObserver(
+            forName: UIWindow.didBecomeKeyNotification, object: nil, queue: .main
+          ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.attach() }
+          }
+          self.attach()
+        }
+      }
+    }
+
     OnDestroy {
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
           self.observer?.removeFromSuperview()
           self.observer = nil
+          if let keyObserver = self.keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+          self.keyObserver = nil
         }
       }
     }
@@ -125,12 +165,30 @@ final class HingeObserverView: UIView {
     publish()
   }
 
+  // Plier / déplier déplace la fenêtre d'un écran à l'autre et la redimensionne.
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if let window { frame = window.bounds }
+    publish()
+  }
+
+  /// Apple ne documente aucune notification quand les régions réservées
+  /// changent : après une mise à jour de charnière, on relit à la passe de
+  /// layout ET une fois la transition posée (runloop suivant), sinon la région
+  /// lue en plein pliage peut rester la dernière publiée.
+  private func publishSoon() {
+    setNeedsLayout()
+    DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.publish() } }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in MainActor.assumeIsolated { self?.publish() } }
+  }
+
   @available(iOS 27.1, *)
   private func hingeDidUpdate(_ hinge: UIHinge?) {
     guard let hinge else {
       posture = nil
       lastAngle = nil
       publish()
+      publishSoon()
       return
     }
     let next: String
@@ -143,7 +201,7 @@ final class HingeObserverView: UIView {
     if next != posture {
       posture = next
       publish()
-      setNeedsLayout()
+      publishSoon()
     }
     // Un degré suffit aux effets ; inutile d'inonder le pont JS.
     let degrees = (Double(hinge.angle) * 180 / .pi).rounded()
@@ -159,9 +217,15 @@ final class HingeObserverView: UIView {
       return
     }
     var payload: [String: Any] = ["posture": posture]
+    if let window {
+      // La taille de fenêtre de CETTE mesure : côté JS, un pli lu pour une autre
+      // fenêtre (pendant un pliage) est reconnu périmé.
+      payload["window"] = ["width": window.bounds.width, "height": window.bounds.height]
+    }
     if #available(iOS 27.1, *), let window,
        let region = reservedRegions(kind: .division, options: .includeInactive).first {
-      // Repère fenêtre ; sur Duo la région fait ~40 pt, centrée sur le pli.
+      // Repère fenêtre. Apple : à plat la région est inactive et de largeur
+      // nulle ; seule sa position compte (la largeur du pli est posée en JS).
       let frame = convert(region.frame, to: window)
       payload["fold"] = [
         "x": frame.origin.x,
@@ -171,6 +235,28 @@ final class HingeObserverView: UIView {
         "separating": region.isActive,
       ]
     }
+    // Diagnostic, éteint par défaut (aucun coût en production) :
+    // xcrun simctl spawn <udid> defaults write app.thefixed.client FixedHingeLog -bool YES
+    if UserDefaults.standard.bool(forKey: "FixedHingeLog") {
+      NSLog("[FixedHinge] %@", payload.description)
+    }
     onState?(payload)
   }
+}
+
+/// Diagnostic : la fenêtre clé (modales présentées comprises) en PNG, dans le
+/// dossier temporaire de l'app. N'existe que derrière le drapeau FixedHingeLog.
+@MainActor
+private func writeWindowSnapshot(_ name: String?) {
+  guard let window = UIApplication.shared.connectedScenes
+    .compactMap({ $0 as? UIWindowScene })
+    .flatMap(\.windows)
+    .first(where: \.isKeyWindow) else { return }
+  let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+    _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+  }
+  let file = name.map { "duo-\($0)-\(Int(Date().timeIntervalSince1970 * 1000)).png" } ?? "duo-snapshot.png"
+  let url = FileManager.default.temporaryDirectory.appendingPathComponent(file)
+  try? image.pngData()?.write(to: url)
+  NSLog("[FixedHinge] snapshot %@ %@", url.path, NSCoder.string(for: window.bounds))
 }

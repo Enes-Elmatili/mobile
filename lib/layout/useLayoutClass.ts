@@ -3,9 +3,9 @@
 // et au Split View. Les insets gauche/droite sont exposés SÉPARÉMENT — sur
 // l'écran interne du Duo, la Dynamic Island est latérale et ils diffèrent.
 import { useMemo } from 'react';
-import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveLayoutClass, type LayoutClass } from './resolveLayoutClass';
+import { useWindowSize } from './windowSize';
 
 export interface Layout {
   width: number;
@@ -17,7 +17,9 @@ export interface Layout {
 }
 
 export function useLayoutClass(): Layout {
-  const { width, height } = useWindowDimensions();
+  // Taille lue sur la vue native (lib/layout/windowSize) : Dimensions peut
+  // rester à la taille pliée après un dépliage du Duo.
+  const { width, height } = useWindowSize();
   const insets = useSafeAreaInsets();
   return useMemo(() => {
     const cls = resolveLayoutClass(width, height);
