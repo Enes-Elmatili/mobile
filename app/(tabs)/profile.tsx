@@ -7,7 +7,7 @@
 // Les réglages de l'app vivent derrière l'engrenage (app/settings).
 // Une information se modifie un champ à la fois (components/settings/FieldSheet).
 import React, { useCallback, useRef, useState } from 'react';
-import { RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -31,6 +31,7 @@ import { Chip, Figure, Group, Row, SectionHead, type FeatherName } from '@/compo
 import { CategoriesSheet } from '@/components/settings/CategoriesSheet';
 import { LAYOUT } from '@/lib/motion/layout';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 type ProviderInfo = {
   validationStatus?: string | null; vatNumber?: string | null; description?: string | null;
@@ -47,6 +48,8 @@ export default function Profile() {
   const brandRefresh = useBrandRefresh();
   const isProvider = !!user?.roles?.includes('PROVIDER');
   const { avatarUri, pick } = useAvatar(user, refreshMe);
+  // Duo déplié : qui vous êtes à gauche du pli, vos réglages à droite.
+  const isSplit = useSplitPane();
 
   const displayName = cleanName(user?.name, { email: user?.email, fallback: isProvider ? t('profile.provider') : t('profile.client') });
   const email = cleanEmail(user?.email);
@@ -107,17 +110,9 @@ export default function Profile() {
     await load();
   }, [load]);
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <BrandRefreshHeader style={brandRefresh.headerStyle} />
-      <Animated.ScrollView
-        onScroll={brandRefresh.onScroll}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: tabBarPadding }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
-      >
+  // ── Les blocs du profil, assemblés selon la disposition ──
+  const headBlock = (
+    <>
         {/* -- En-tête : qui, depuis quand, l'engrenage -- */}
         <View style={s.head}>
           <View>
@@ -144,9 +139,11 @@ export default function Profile() {
             </Text>
           </View>
         </Animated.View>
+    </>
+  );
 
-        {isProvider ? (
-          <Animated.View layout={LAYOUT}>
+  // Prestataire : métiers, chiffres, activité.
+  const tradesBlock = (
             <CascadeItem index={1}>
             {/* -- Métiers -- */}
             <SectionHead title={t('profile.trades')} aside={prov?.categories ? t('profile.trades_count', { n: prov.categories.length }) : null} />
@@ -154,17 +151,19 @@ export default function Profile() {
               {(prov?.categories ?? []).map((c) => <Chip key={c.id} label={translateCategoryRaw(c)} icon={toFeatherName(c.icon) as FeatherName} onPress={openCategories} />)}
               <Chip label={t('profile.add_trade')} add onPress={openCategories} />
             </View>
-
-            {/* -- Trois chiffres -- */}
             </CascadeItem>
+  );
+  const figuresBlock = (
             <CascadeItem index={2}>
+            {/* -- Trois chiffres -- */}
             <View style={s.figs}>
               <Figure value={rating} label={prov?.totalRatings ? `${t('profile.stat_rating')} · ${prov.totalRatings}` : t('profile.stat_rating')} />
               <Figure number={prov?.jobsCompleted ?? 0} label={t('profile.stat_missions')} />
               <Figure number={prov?.acceptanceRate ?? null} value="—" suffix=" %" label={t('profile.stat_accepted')} />
             </View>
-
             </CascadeItem>
+  );
+  const activityBlock = (
             <CascadeItem index={3}>
             {/* -- Votre activité -- */}
             <SectionHead title={t('profile.activity')} />
@@ -174,9 +173,10 @@ export default function Profile() {
               <Row icon="file-text" title={t('profile.company')} sub={[prov?.vatNumber ? `${t('profile.vat_label')} ${prov.vatNumber}` : null, docsCount != null ? t('profile.docs_count', { n: docsCount }) : null].filter(Boolean).join(' · ') || t('profile.company_sub')} onPress={() => router.push('/settings/company')} />
             </Group>
             </CascadeItem>
-          </Animated.View>
-        ) : (
-          <Animated.View layout={LAYOUT}>
+  );
+
+  // Client : adresses, FIXED Pass.
+  const addressesBlock = (
             <CascadeItem index={1}>
             {/* -- Vos adresses -- */}
             <SectionHead title={t('addresses.title')} aside={addresses.length ? String(addresses.length) : null} />
@@ -187,8 +187,9 @@ export default function Profile() {
                 <Row first icon="map-pin" title={t('addresses.empty')} sub={t('addresses.empty_sub')} chevron={false} />
               )}
             </Group>
-
             </CascadeItem>
+  );
+  const passBlock = (
             <CascadeItem index={2}>
             {/* -- FIXED Pass -- */}
             <SectionHead title="FIXED Pass" />
@@ -197,18 +198,84 @@ export default function Profile() {
               <Row first icon="zap" title={t('profile.pass_none')} sub={t('profile.pass_sub')} value={t('formules.soon_title')} chevron={false} />
             </Group>
             </CascadeItem>
-          </Animated.View>
-        )}
+  );
 
-        {/* -- Compte -- */}
+  const accountBlock = (
         <CascadeItem index={4}>
+          {/* -- Compte -- */}
           <SectionHead title={t('profile.account')} />
           <Group>
             <Row first icon="user" title={t('profile.information')} sub={isProvider ? t('profile.information_sub_provider') : t('profile.information_sub')} onPress={() => router.push('/settings/account')} />
             <Row icon="key" title={t('profile.login')} sub={loginSub(user, t)} onPress={() => router.push('/settings/login')} />
           </Group>
         </CascadeItem>
+  );
+
+  const refreshControl = <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />;
+
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {isSplit ? (
+        // Duo déplié : page gauche = vous (identité, métiers, chiffres — ou
+        // vos adresses) ; page droite = les réglages (activité ou Pass, compte).
+        // Rien ne chevauche le pli : chips et chiffres tiennent dans leur page.
+        <BookSpread
+          left={
+            <View style={s.root}>
+              <BrandRefreshHeader style={brandRefresh.headerStyle} />
+              <Animated.ScrollView
+                onScroll={brandRefresh.onScroll}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: tabBarPadding }}
+                refreshControl={refreshControl}
+              >
+                {headBlock}
+                <Animated.View layout={LAYOUT}>
+                  {isProvider ? <>{tradesBlock}{figuresBlock}</> : addressesBlock}
+                </Animated.View>
+              </Animated.ScrollView>
+            </View>
+          }
+          right={
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: tabBarPadding }}>
+              <Animated.View layout={LAYOUT}>
+                {isProvider ? activityBlock : passBlock}
+              </Animated.View>
+              {accountBlock}
+            </ScrollView>
+          }
+        />
+      ) : (
+      <>
+      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+      <Animated.ScrollView
+        onScroll={brandRefresh.onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: tabBarPadding }}
+        refreshControl={refreshControl}
+      >
+        {headBlock}
+
+        {isProvider ? (
+          <Animated.View layout={LAYOUT}>
+            {tradesBlock}
+            {figuresBlock}
+            {activityBlock}
+          </Animated.View>
+        ) : (
+          <Animated.View layout={LAYOUT}>
+            {addressesBlock}
+            {passBlock}
+          </Animated.View>
+        )}
+
+        {accountBlock}
       </Animated.ScrollView>
+      </>
+      )}
 
       {isProvider && catsOpen ? <CategoriesSheet selectedIds={(prov?.categories ?? []).map((c) => c.id)} onClose={() => setCatsOpen(false)} onSave={saveCategories} /> : null}
     </SafeAreaView>

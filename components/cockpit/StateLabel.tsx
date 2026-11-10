@@ -26,9 +26,11 @@ type Props = {
   /** Début de l'intervention (ms) : le chrono de l'étiquette en mission. */
   missionSince?: number | null;
   top: number;
+  /** Duo déplié : la bande de la page gauche (sinon centrée sur l'écran — donc sur le pli). */
+  band?: { left: number; width: number } | null;
 };
 
-function StateLabelBase({ stage, count, onlineSince, missionId, missionStage, missionSince, top }: Props) {
+function StateLabelBase({ stage, count, onlineSince, missionId, missionStage, missionSince, top, band = null }: Props) {
   const theme = useAppTheme();
   const { t } = useTranslation();
   const visible = stage !== 'incoming';
@@ -66,7 +68,7 @@ function StateLabelBase({ stage, count, onlineSince, missionId, missionStage, mi
           : [count > 0 ? t('cockpit.demand_count', { count }) : t('cockpit.demand_none'), clock].filter(Boolean).join(' · ');
 
   return (
-    <Animated.View style={[s.wrap, { top }, presence]} pointerEvents="none">
+    <Animated.View style={[s.wrap, { top }, band ? { left: band.left, right: undefined, width: band.width } : null, presence]} pointerEvents="none">
       <View style={[s.pill, { backgroundColor: theme.isDark ? 'rgba(10,10,10,0.78)' : 'rgba(255,255,255,0.9)', borderColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
         <View style={[s.dot, { backgroundColor: tone }]} />
         <Text style={[s.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2} accessibilityRole="header">{title.toUpperCase()}</Text>

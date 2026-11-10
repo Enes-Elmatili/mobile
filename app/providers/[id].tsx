@@ -17,6 +17,7 @@ import { resolveAvatarUrl } from '@/lib/avatarUrl';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSheetFrame, useSplitPane, debugSnapshot } from '@/lib/layout';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,10 @@ export default function ProviderDetailScreen() {
   const [showAll,  setShowAll]      = useState(false);
   const [busyModal, setBusyModal]   = useState(false);
   const [ctaLoading, setCtaLoading] = useState(false);
+  // Duo déplié : qui (identité, chiffres) à gauche du pli, le détail et
+  // l'action à droite. La carte « pas dispo » se pose sur une seule page.
+  const isSplit = useSplitPane();
+  const modalFrame = useSheetFrame({ modal: true });
 
   useEffect(() => {
     if (!id) return;
@@ -185,14 +190,28 @@ export default function ProviderDetailScreen() {
   }
 
   if (!provider) {
-    return (
-      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
+    const notFound = (
+      <>
         <Feather name="alert-circle" size={56} color={theme.textMuted} />
         <Text style={[s.errorText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Prestataire introuvable</Text>
         <PressScale accessibilityRole="button" style={[s.backBtnFallback, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnFallbackText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </PressScale>
+      </>
+    );
+    // Duo déplié : le message tient dans la page gauche, jamais sur le pli.
+    if (isSplit) {
+      return (
+        <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+          <StatusBar barStyle={theme.statusBar} />
+          <BookSpread left={<View style={s.center}>{notFound}</View>} right={null} />
+        </SafeAreaView>
+      );
+    }
+    return (
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        {notFound}
       </SafeAreaView>
     );
   }
@@ -238,25 +257,20 @@ export default function ProviderDetailScreen() {
   // First name for CTA (déjà calculé en `firstNameCb` plus haut, on le réutilise)
   const firstName = firstNameCb;
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header — IconBtn chevron-left + PRESTATAIRE */}
-      <View style={[s.header, { borderBottomColor: theme.borderLight }]}>
+  // ── Les blocs de la fiche, assemblés selon la disposition ──
+  const backBtn = (
         <IconBtn
           icon="chevron-left"
           accessibilityLabel={t('common.back')}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
         />
+  );
+  const headerLabel = (
         <Text style={[s.headerTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>PRESTATAIRE</Text>
-        {/* Spacer symétrique (l'ancien bouton "…" sans action a été retiré) */}
-        <View style={{ width: 36 }} />
-      </View>
+  );
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* Avatar + Name + Subtitle */}
+  const identityBlock = (
+        /* Avatar + Name + Subtitle */
         <View style={s.identitySection}>
           {/* Centered avatar 80px with verified overlay */}
           <View style={s.avatarOuter}>
@@ -309,8 +323,10 @@ export default function ProviderDetailScreen() {
             )}
           </View>
         </View>
+  );
 
-        {/* Stats card — Card wrapping StatStrip-style layout */}
+  const statsBlock = (
+        /* Stats card — Card wrapping StatStrip-style layout */
         <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <View style={s.statsRow}>
             {statItems.map((item, i) => (
@@ -329,9 +345,11 @@ export default function ProviderDetailScreen() {
             ))}
           </View>
         </View>
+  );
 
-        {/* About section */}
-        {provider.description ? (
+  const aboutBlock = (
+        /* About section */
+        provider.description ? (
           <View style={s.sectionWrap}>
             <View style={s.sectionHeaderRow}>
               <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>À PROPOS</Text>
@@ -340,10 +358,12 @@ export default function ProviderDetailScreen() {
               <Text style={[s.desc, { color: theme.textSub, fontFamily: FONTS.sans }]}>{provider.description}</Text>
             </View>
           </View>
-        ) : null}
+        ) : null
+  );
 
-        {/* Specialties section */}
-        {!!provider.categories?.length && (
+  const specialtiesBlock = (
+        /* Specialties section */
+        !!provider.categories?.length && (
           <View style={s.sectionWrap}>
             <View style={s.sectionHeaderRow}>
               <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>SPÉCIALITÉS</Text>
@@ -358,9 +378,11 @@ export default function ProviderDetailScreen() {
               </View>
             </View>
           </View>
-        )}
+        )
+  );
 
-        {/* Reviews section */}
+  const reviewsBlock = (
+        /* Reviews section */
         <View style={s.sectionWrap}>
           <View style={s.sectionHeaderRow}>
             <Text style={[s.sectionTitle, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
@@ -399,11 +421,11 @@ export default function ProviderDetailScreen() {
             </View>
           )}
         </View>
+  );
 
-      </ScrollView>
-
-      {/* Bottom CTA — full width accent button */}
-      <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
+  const ctaBlock = (
+      /* Bottom CTA — full width accent button */
+      <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }, isSplit && s.ctaWrapPage]}>
         <PressScale accessibilityRole="button"
           style={[s.ctaBtn, { backgroundColor: theme.accent }, ctaLoading && { opacity: 0.6 }]}
           onPress={handleRequestProvider}
@@ -421,10 +443,65 @@ export default function ProviderDetailScreen() {
           )}
         </PressScale>
       </View>
+  );
 
-      {/* Modal — provider BUSY/OFFLINE */}
-      <Modal visible={busyModal} transparent animationType="fade" onRequestClose={() => setBusyModal(false)} statusBarTranslucent navigationBarTranslucent>
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {isSplit ? (
+        // Duo déplié : page gauche = en-tête, identité, chiffres ; page droite
+        // = à propos, spécialités, avis, et le CTA épinglé au pied de la page.
+        <BookSpread
+          left={
+            <View style={s.root}>
+              <View style={[s.header, s.headerPage, { borderBottomColor: theme.borderLight }]}>
+                {backBtn}
+                {headerLabel}
+              </View>
+              <ScrollView contentContainerStyle={[s.scroll, s.scrollPage]} showsVerticalScrollIndicator={false}>
+                {identityBlock}
+                {statsBlock}
+              </ScrollView>
+            </View>
+          }
+          right={
+            <View style={s.root}>
+              <ScrollView contentContainerStyle={[s.scroll, s.scrollPage]} showsVerticalScrollIndicator={false}>
+                {aboutBlock}
+                {specialtiesBlock}
+                {reviewsBlock}
+              </ScrollView>
+              {ctaBlock}
+            </View>
+          }
+        />
+      ) : (
+        <>
+      {/* Header — IconBtn chevron-left + PRESTATAIRE */}
+      <View style={[s.header, { borderBottomColor: theme.borderLight }]}>
+        {backBtn}
+        {headerLabel}
+        {/* Spacer symétrique (l'ancien bouton "…" sans action a été retiré) */}
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {identityBlock}
+        {statsBlock}
+        {aboutBlock}
+        {specialtiesBlock}
+        {reviewsBlock}
+      </ScrollView>
+
+      {ctaBlock}
+        </>
+      )}
+
+      {/* Modal — provider BUSY/OFFLINE. Sur le Duo déplié, la carte tient sur une page (useSheetFrame). */}
+      <Modal onShow={() => debugSnapshot('modal-busy')} visible={busyModal} transparent animationType="fade" onRequestClose={() => setBusyModal(false)} statusBarTranslucent navigationBarTranslucent>
         <Pressable style={s.modalBackdrop} onPress={() => setBusyModal(false)}>
+          <View style={[s.modalFrame, modalFrame]}>
           <PressScale style={[s.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={(e) => e.stopPropagation()}>
             <View style={[s.modalIconCircle, { backgroundColor: theme.surface }]}>
               <Feather name="clock" size={24} color={theme.textSub} />
@@ -459,6 +536,7 @@ export default function ProviderDetailScreen() {
               <Text style={[s.modalCancel, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Annuler</Text>
             </PressScale>
           </PressScale>
+          </View>
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -477,8 +555,11 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 11, letterSpacing: 1 },
+  // Duo déplié : l'en-tête en haut de la page gauche, libellé calé à côté du retour.
+  headerPage: { justifyContent: 'flex-start', gap: 12, paddingTop: 12 },
 
   scroll: { padding: 16, gap: 16, paddingBottom: 24 },
+  scrollPage: { paddingHorizontal: 20 },
 
   // ── Identity section (no card bg — sits directly on bg) ──
   identitySection: {
@@ -578,6 +659,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 8 : 16,
     borderTopWidth: 1,
   },
+  ctaWrapPage: { paddingHorizontal: 20 },
   ctaBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 100,
@@ -599,6 +681,8 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 24,
   },
+  // Cadre de la carte : toute la largeur sur iPhone, une seule page sur le Duo.
+  modalFrame: { alignSelf: 'stretch', alignItems: 'center' },
   modalCard: {
     width: '100%', maxWidth: 380,
     borderRadius: 20, borderWidth: 1,

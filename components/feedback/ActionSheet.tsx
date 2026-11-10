@@ -1,11 +1,12 @@
 import React, { useCallback, useRef } from 'react';
 import { Text, StyleSheet, View } from 'react-native';
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSheetFrame } from '@/lib/layout';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { PressScale } from '@/components/ui/PressScale';
 
@@ -17,6 +18,8 @@ export function ActionSheet() {
   const ref = useRef<BottomSheet>(null);
   const insets = useSafeAreaInsets();
   const motion = useSheetMotion();
+  // Montée à la racine (FeedbackHost) : repère fenêtre. Sur le Duo déplié, une page.
+  const frame = useSheetFrame({ modal: true });
 
   const settle = useCallback((index: number | null) => {
     const current = useFeedbackStore.getState().actionSheet;
@@ -25,7 +28,7 @@ export function ActionSheet() {
   }, [clear]);
 
   const renderBackdrop = useCallback(
-    (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />,
+    (props: any) => <SheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />,
     [],
   );
 
@@ -48,8 +51,11 @@ export function ActionSheet() {
       animationConfigs={motion.animationConfigs}
       overDragResistanceFactor={motion.overDragResistanceFactor}
       onAnimate={motion.onAnimate}
+      style={frame}
     >
-      <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 16 }]}>
+      {/* Défilante : une longue liste d'options (669 pt de haut sur le Duo
+          déplié) défile au lieu d'être coupée par maxDynamicContentSize. */}
+      <BottomSheetScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 16 }]}>
         {!!sheet.title && <Text style={[s.title, { color: theme.textMuted }]}>{sheet.title}</Text>}
         {sheet.options.map((opt, i) => (
           <PressScale accessibilityRole="button" key={i} style={s.optionBtn} onPress={() => settle(i)}>
@@ -60,7 +66,7 @@ export function ActionSheet() {
         <PressScale accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(null)}>
           <Text style={[s.cancelText, { color: theme.textMuted }]}>{sheet.cancelLabel}</Text>
         </PressScale>
-      </BottomSheetView>
+      </BottomSheetScrollView>
     </BottomSheet>
   );
 }

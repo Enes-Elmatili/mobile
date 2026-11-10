@@ -38,7 +38,7 @@ import {
   type PendingDoc,
   type PendingStatus,
 } from "@/lib/onboarding/pendingDossier";
-import { useLayoutClass } from "@/lib/layout";
+import { useLayoutClass, useSceneFrame, useHinge, foldLineFor, BookSpread } from "@/lib/layout";
 import { C, ps } from "@/components/onboarding/pending/pendingTheme";
 import { PendingBackdrop } from "@/components/onboarding/pending/PendingBackdrop";
 import { PendingTimeline } from "@/components/onboarding/pending/PendingTimeline";
@@ -54,7 +54,11 @@ interface ValidationUpdate {
 }
 
 export default function PendingValidation() {
-  const { width: SCREEN_W } = useLayoutClass();
+  const { width: SCREEN_W, isRegular } = useLayoutClass();
+  // Largeur de la page gauche (bord du pli) pour l'écran d'issue sur le Duo.
+  const scene = useSceneFrame();
+  const fold = foldLineFor(useHinge(), scene);
+  const outcomePageWidth = fold ? fold.start : scene.width / 2;
   const { signOut, user, refreshMe } = useAuth();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -266,6 +270,114 @@ export default function PendingValidation() {
 
   // ── PENDING : attente active ────────────────────────────────────────────────
   if (status === "pending") {
+    const intro = (
+      <>
+      {/* Header : kicker + chip statut */}
+      <View style={s.headerRow}>
+        <Text style={s.kicker}>{t('onboarding.pending_kicker')}</Text>
+        <View style={s.chip}>
+          <Animated.View style={[s.chipDot, chipPulseStyle]} />
+          <Text style={s.chipText}>
+            {fileIncomplete ? t('onboarding.pending_chip_incomplete') : t('onboarding.pending_chip')}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={s.titleLeft}>
+        {t('onboarding.pending_title_l1')}{"\n"}
+        <Text style={ps.titleOutline}>
+          {firstName
+            ? t('onboarding.pending_title_l2_name', { name: firstName.toUpperCase() })
+            : t('onboarding.pending_title_l2')}
+        </Text>
+      </Text>
+      <Text style={s.subtitleLeft}>
+        {fileIncomplete ? t('onboarding.pending_sub_incomplete') : t('onboarding.pending_sub')}
+      </Text>
+
+      {/* Timeline du dossier */}
+      <PendingTimeline rows={timelineRows(dossier, stripeConnected)} />
+      </>
+    );
+    const actions = (
+      <>
+      {fileIncomplete && (
+        <PendingIncompleteCard reason={incompleteReason(dossier, company)} onResume={resumeOnboarding} />
+      )}
+
+      {rejectedDocs.length > 0 && (
+        <PendingRejectedDocs
+          docs={rejectedDocs}
+          onFix={() => { feedback.haptic('medium'); router.push("/onboarding/documents"); }}
+        />
+      )}
+
+      {/* En attendant : complétez votre profil */}
+      <PendingPrepSection
+        hasPhoto={hasPhoto}
+        photoBusy={photoBusy}
+        onAddPhoto={handleAddPhoto}
+        hasBio={hasBio}
+        bioOpen={bioOpen}
+        onToggleBio={() => { feedback.haptic('light'); setBioOpen(o => !o); }}
+        bioDraft={bioDraft}
+        onChangeBioDraft={setBioDraft}
+        bioSaving={bioSaving}
+        onSaveBio={handleSaveBio}
+      />
+      </>
+    );
+    const footerNode = (
+    <PendingFooter
+      fileIncomplete={fileIncomplete}
+      stripeConnected={stripeConnected}
+      onResume={resumeOnboarding}
+      onStripe={(haptic) => {
+        feedback.haptic(haptic);
+        router.push("/onboarding/provider/stripe-connect");
+      }}
+      bottomInset={insets.bottom}
+      onSignOut={signOut}
+    />
+    );
+
+    // Duo déplié : à gauche le dossier (où vous en êtes, la frise), à droite ce
+    // que vous pouvez faire en attendant, et le bouton. Rien sur la charnière.
+    if (isRegular) {
+      return (
+        <View style={s.root}>
+          <StatusBar barStyle="light-content" />
+          <PendingBackdrop screenWidth={SCREEN_W} glowStyle={glowStyle} />
+          <BookSpread
+            left={
+              <ScrollView
+                style={s.flex}
+                contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 24 }]}
+                showsVerticalScrollIndicator={false}
+              >
+                {intro}
+              </ScrollView>
+            }
+            right={
+              <>
+                <KeyboardAvoidingView style={s.flex} behavior="padding">
+                  <ScrollView
+                    style={s.flex}
+                    contentContainerStyle={[s.scrollContent, s.bookRight, { paddingTop: insets.top + 24 }]}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {actions}
+                  </ScrollView>
+                </KeyboardAvoidingView>
+                {footerNode}
+              </>
+            }
+          />
+        </View>
+      );
+    }
+
     return (
       <View style={s.root}>
         <StatusBar barStyle="light-content" />
@@ -282,70 +394,12 @@ export default function PendingValidation() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header : kicker + chip statut */}
-          <View style={s.headerRow}>
-            <Text style={s.kicker}>{t('onboarding.pending_kicker')}</Text>
-            <View style={s.chip}>
-              <Animated.View style={[s.chipDot, chipPulseStyle]} />
-              <Text style={s.chipText}>
-                {fileIncomplete ? t('onboarding.pending_chip_incomplete') : t('onboarding.pending_chip')}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={s.titleLeft}>
-            {t('onboarding.pending_title_l1')}{"\n"}
-            <Text style={ps.titleOutline}>
-              {firstName
-                ? t('onboarding.pending_title_l2_name', { name: firstName.toUpperCase() })
-                : t('onboarding.pending_title_l2')}
-            </Text>
-          </Text>
-          <Text style={s.subtitleLeft}>
-            {fileIncomplete ? t('onboarding.pending_sub_incomplete') : t('onboarding.pending_sub')}
-          </Text>
-
-          {/* Timeline du dossier */}
-          <PendingTimeline rows={timelineRows(dossier, stripeConnected)} />
-
-          {fileIncomplete && (
-            <PendingIncompleteCard reason={incompleteReason(dossier, company)} onResume={resumeOnboarding} />
-          )}
-
-          {rejectedDocs.length > 0 && (
-            <PendingRejectedDocs
-              docs={rejectedDocs}
-              onFix={() => { feedback.haptic('medium'); router.push("/onboarding/documents"); }}
-            />
-          )}
-
-          {/* En attendant : complétez votre profil */}
-          <PendingPrepSection
-            hasPhoto={hasPhoto}
-            photoBusy={photoBusy}
-            onAddPhoto={handleAddPhoto}
-            hasBio={hasBio}
-            bioOpen={bioOpen}
-            onToggleBio={() => { feedback.haptic('light'); setBioOpen(o => !o); }}
-            bioDraft={bioDraft}
-            onChangeBioDraft={setBioDraft}
-            bioSaving={bioSaving}
-            onSaveBio={handleSaveBio}
-          />
+          {intro}
+          {actions}
         </ScrollView>
         </KeyboardAvoidingView>
 
-        <PendingFooter
-          fileIncomplete={fileIncomplete}
-          stripeConnected={stripeConnected}
-          onResume={resumeOnboarding}
-          onStripe={(haptic) => {
-            feedback.haptic(haptic);
-            router.push("/onboarding/provider/stripe-connect");
-          }}
-          bottomInset={insets.bottom}
-          onSignOut={signOut}
-        />
+        {footerNode}
       </View>
     );
   }
@@ -356,18 +410,22 @@ export default function PendingValidation() {
       <StatusBar barStyle="light-content" />
       <PendingBackdrop screenWidth={SCREEN_W} glowStyle={glowStyle} />
 
-      <View style={s.content}>
-        <PendingOutcome
-          status={status}
-          rejectionReason={rejectionReason}
-          successStyle={successStyle}
-          onGoLive={goLive}
-          onNavigate={(route) => router.push(route as Href)}
-        />
-      </View>
+      {/* Un motif long (refus) ne pousse plus le bouton hors de l'écran : ça défile.
+          Duo déplié : l'issue tient dans la page gauche, jamais sur la charnière. */}
+      <View style={[s.flex, isRegular && { width: outcomePageWidth }]}>
+        <ScrollView style={s.flex} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+          <PendingOutcome
+            status={status}
+            rejectionReason={rejectionReason}
+            successStyle={successStyle}
+            onGoLive={goLive}
+            onNavigate={(route) => router.push(route as Href)}
+          />
+        </ScrollView>
 
-      <View style={ps.footer}>
-        <PendingLogoutButton bottomInset={insets.bottom} onSignOut={signOut} />
+        <View style={ps.footer}>
+          <PendingLogoutButton bottomInset={insets.bottom} onSignOut={signOut} />
+        </View>
       </View>
     </View>
   );
@@ -415,7 +473,8 @@ const s = StyleSheet.create({
   },
 
   content: {
-    flex: 1, justifyContent: "center", alignItems: "center",
+    flexGrow: 1, justifyContent: "center", alignItems: "center",
     paddingHorizontal: 28, gap: 16, zIndex: 2,
   },
+  bookRight: { paddingHorizontal: 24 },
 });

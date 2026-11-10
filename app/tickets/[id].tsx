@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 const WHATSAPP_URL = 'https://wa.me/message/SXNKDKILPEFMO1';
 
@@ -119,6 +120,7 @@ export default function TicketDetailScreen() {
   const { t } = useTranslation();
   const { user: authUser } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const isSplit = useSplitPane();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -226,19 +228,27 @@ export default function TicketDetailScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // Attente et erreur : centrées dans la page gauche au Duo déplié — au
+  // centre de la scène, les deux boutons enjambaient la charnière.
+  const centered = (content: React.ReactNode) => (isSplit ? (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      <BookSpread left={<View style={s.center}>{content}</View>} right={null} />
+    </SafeAreaView>
+  ) : (
+    <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {content}
+    </SafeAreaView>
+  ));
+
   if (loading) {
-    return (
-      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
-        <ActivityIndicator color={theme.text} />
-      </SafeAreaView>
-    );
+    return centered(<ActivityIndicator color={theme.text} />);
   }
 
   if (!ticket) {
-    return (
-      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
+    return centered(
+      <>
         <Feather name="alert-circle" size={36} color={theme.textMuted} />
         <Text style={[s.errText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.ticket_not_found')}</Text>
         <View style={s.errBtnRow}>
@@ -249,19 +259,16 @@ export default function TicketDetailScreen() {
             <Text style={[s.errBtnText, { color: theme.text, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
           </PressScale>
         </View>
-      </SafeAreaView>
+      </>
     );
   }
 
   const ref = ticketRef(ticket.id);
   const isClosed = ticket.status === 'CLOSED';
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header */}
-      <View style={s.header}>
+  const headerBlock = (
+    <>
+      <View style={[s.header, isSplit && s.headerSplit]}>
         <PressScale accessibilityRole="button"
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/settings/help'); }}
@@ -273,16 +280,12 @@ export default function TicketDetailScreen() {
         <View style={[s.refPill, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <Text style={[s.refText, { color: theme.text, fontFamily: FONTS.monoMedium }]}>{ref}</Text>
         </View>
-        <View style={{ width: 36 }} />
+        {isSplit ? null : <View style={{ width: 36 }} />}
       </View>
-
-      <KeyboardAvoidingView
-        style={s.kav}
-        behavior="padding"
-        keyboardVerticalOffset={8}
-      >
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
+    </>
+  );
+  const summaryBlock = (
+    <>
         {/* ── Status + priority pills ───────────────────────────────────── */}
         <View style={s.pillRow}>
           <View style={[s.pill, { backgroundColor: `${statusColor(ticket.status)}1A` }]}>
@@ -321,7 +324,10 @@ export default function TicketDetailScreen() {
             <Feather name="arrow-up-right" size={14} color={theme.textMuted} />
           </PressScale>
         )}
-
+    </>
+  );
+  const descriptionBlock = (
+    <>
         {/* ── Description ─────────────────────────────────────────────── */}
         <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
         <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
@@ -330,9 +336,11 @@ export default function TicketDetailScreen() {
         <Text style={[s.descText, { color: theme.text, fontFamily: FONTS.sans }]}>
           {ticket.description}
         </Text>
-
+    </>
+  );
+  const timelineBlock = (
+    <>
         {/* ── Timeline (events réels) ─────────────────────────────────── */}
-        <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
         <View style={s.timelineHeader}>
           <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
             {t('ext.ticket_history')}
@@ -364,7 +372,7 @@ export default function TicketDetailScreen() {
                   {!isLast && <View style={[s.tlLine, { backgroundColor: theme.borderLight }]} />}
                 </View>
                 <View style={s.tlBody}>
-                  <View style={s.tlBodyHeader}>
+                  <View style={[s.tlBodyHeader, isSplit && s.tlBodyHeaderSplit]}>
                     <Text style={[s.tlLabel, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
                       {eventLabel(ev, t)}
                     </Text>
@@ -396,7 +404,10 @@ export default function TicketDetailScreen() {
             );
           })}
         </View>
-
+    </>
+  );
+  const replyBlock = (
+    <>
         {/* Champ message inline */}
         <View style={[s.replyBox, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <TextInput
@@ -424,7 +435,10 @@ export default function TicketDetailScreen() {
             )}
           </PressScale>
         </View>
-
+    </>
+  );
+  const actionsBlock = (
+    <>
         {/* ── Quick actions ───────────────────────────────────────────── */}
         <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
         <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
@@ -458,8 +472,10 @@ export default function TicketDetailScreen() {
             <Feather name="external-link" size={14} color={theme.textMuted} />
           </PressScale>
         </View>
-      </ScrollView>
-
+    </>
+  );
+  const ctaBlock = (
+    <>
       {/* ── Footer CTA ─────────────────────────────────────────────────── */}
       <View style={[s.ctaWrap, { borderTopColor: theme.borderLight, backgroundColor: theme.bg }]}>
         {isClosed ? (
@@ -494,6 +510,68 @@ export default function TicketDetailScreen() {
           </PressScale>
         )}
       </View>
+    </>
+  );
+
+  if (isSplit) {
+    // Duo déplié : à gauche le ticket (référence, statut, titre, votre
+    // signalement, contacts), à droite l'historique, la réponse et l'action
+    // principale épinglée en bas de la page droite.
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {headerBlock}
+              <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
+                {summaryBlock}
+                {descriptionBlock}
+                {actionsBlock}
+              </ScrollView>
+            </>
+          }
+          right={
+            <KeyboardAvoidingView style={s.kav} behavior="padding" keyboardVerticalOffset={8}>
+              <ScrollView contentContainerStyle={[s.page, s.pageTop]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {timelineBlock}
+                {replyBlock}
+              </ScrollView>
+              {ctaBlock}
+            </KeyboardAvoidingView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Header */}
+      {headerBlock}
+
+      <KeyboardAvoidingView
+        style={s.kav}
+        behavior="padding"
+        keyboardVerticalOffset={8}
+      >
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        {summaryBlock}
+
+        {descriptionBlock}
+
+        <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
+        {timelineBlock}
+
+        {replyBlock}
+
+        {actionsBlock}
+      </ScrollView>
+
+      {ctaBlock}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -514,6 +592,8 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10,
   },
+  // Page gauche : marge haute de page, la référence contre le retour (centrée, elle tombait sur la charnière).
+  headerSplit: { justifyContent: 'flex-start', gap: 12, paddingHorizontal: 20, paddingTop: 12 },
   backBtn: {
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
@@ -524,6 +604,9 @@ const s = StyleSheet.create({
   refText: { fontSize: 11, letterSpacing: 1.4 },
 
   scroll: { paddingHorizontal: 18, paddingBottom: 32 },
+  // Duo déplié : marges de page ; la droite s'aligne sur le haut de la gauche.
+  page: { paddingHorizontal: 20, paddingBottom: 32 },
+  pageTop: { paddingTop: 12 },
 
   // Pills row
   pillRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
@@ -565,6 +648,8 @@ const s = StyleSheet.create({
   tlLine: { width: 2, flex: 1, marginVertical: 2 },
   tlBody: { flex: 1, paddingBottom: 18 },
   tlBodyHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 2 },
+  // Duo déplié : la date suit son libellé au lieu de partir au bord de la page.
+  tlBodyHeaderSplit: { justifyContent: 'flex-start' },
   tlLabel: { fontSize: 14, flexShrink: 1 },
   tlDate: { fontSize: 10, letterSpacing: 0.4 },
   tlDetail: { fontSize: 12, lineHeight: 17 },

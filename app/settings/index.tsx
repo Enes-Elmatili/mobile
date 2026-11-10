@@ -8,7 +8,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -24,6 +23,8 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { LAYOUT } from '@/lib/motion/layout';
 import { PressScale } from '@/components/ui/PressScale';
+import { SettingsHeader } from '@/components/settings/SettingsHeader';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // Codes courts, toujours dans leur propre langue : FR · NL · EN · PL.
 const LANGUAGE_OPTIONS = LANGUAGE_PREFS.map((value) => ({ value, label: value.toUpperCase() }));
@@ -34,6 +35,7 @@ const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true,
 export default function Settings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
@@ -85,32 +87,36 @@ export default function Settings() {
   const build = (Constants as any).nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? null;
   const q = prefs?.quiet ?? DEFAULTS.quiet;
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={s.head}>
-        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
-          <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </PressScale>
-        <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('settings.title').toUpperCase()}</Text>
-        <View style={{ width: 40 }} />
-      </View>
+  // Apparence : sur la page étroite du Duo, le segment passe sous son libellé
+  // (à côté, il écrasait « Thème » en trois lettres).
+  const themeSeg = <SegmentedControl<ThemePref> options={[{ value: 'system', label: t('settings.theme_system') }, { value: 'light', label: t('settings.theme_light') }, { value: 'dark', label: t('settings.theme_dark') }]} value={themePref} onChange={(v) => { feedback.haptic('selection'); setTheme(v); }} />;
+  const langSeg = <SegmentedControl<LanguagePref> options={LANGUAGE_OPTIONS} value={language} onChange={(v) => { feedback.haptic('selection'); setLanguage(v); }} />;
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
-        {/* -- Apparence -- */}
+  const appearanceBlock = (
         <CascadeItem index={0}>
         <SectionHead title={t('settings.appearance')} />
         <Group>
-          <Row first glyph="◐" title={t('settings.theme')} chevron={false} right={
-            <View style={s.segWrap}><SegmentedControl<ThemePref> options={[{ value: 'system', label: t('settings.theme_system') }, { value: 'light', label: t('settings.theme_light') }, { value: 'dark', label: t('settings.theme_dark') }]} value={themePref} onChange={(v) => { feedback.haptic('selection'); setTheme(v); }} /></View>
-          } />
-          <Row glyph="Aa" title={t('settings.language')} chevron={false} right={
-            <View style={s.segWrap}><SegmentedControl<LanguagePref> options={LANGUAGE_OPTIONS} value={language} onChange={(v) => { feedback.haptic('selection'); setLanguage(v); }} /></View>
-          } />
+          {isSplit ? (
+            <>
+              <Row first glyph="◐" title={t('settings.theme')} chevron={false} />
+              <View style={s.segBelow}>{themeSeg}</View>
+              <Row glyph="Aa" title={t('settings.language')} chevron={false} />
+              <View style={s.segBelow}>{langSeg}</View>
+            </>
+          ) : (
+            <>
+              <Row first glyph="◐" title={t('settings.theme')} chevron={false} right={
+                <View style={s.segWrap}>{themeSeg}</View>
+              } />
+              <Row glyph="Aa" title={t('settings.language')} chevron={false} right={
+                <View style={s.segWrap}>{langSeg}</View>
+              } />
+            </>
+          )}
         </Group>
         </CascadeItem>
-
-        {/* -- Notifications -- */}
+  );
+  const notificationsBlock = (
         <CascadeItem index={1}>
         <SectionHead title={t('notifications.prefs_title')} />
         <Group>
@@ -121,8 +127,8 @@ export default function Settings() {
           <SwitchRow icon="clock" title={t('notifications.prefs_quiet')} sub={`${q.from} – ${q.to}`} value={q.enabled} onChange={(v) => patch({ quiet: { ...q, enabled: v } })} />
         </Group>
         </CascadeItem>
-
-        {/* -- Confidentialité & données -- */}
+  );
+  const privacyBlock = (
         <CascadeItem index={2}>
         <SectionHead title={t('settings.privacy_data')} />
         <Group>
@@ -130,8 +136,8 @@ export default function Settings() {
           <Row icon="map-pin" title={t('settings.location')} sub={isProvider ? t('settings.location_sub_provider') : t('settings.location_sub_client')} onPress={() => router.push('/settings/privacy')} />
         </Group>
         </CascadeItem>
-
-        {/* -- Aide & support -- */}
+  );
+  const helpBlock = (
         <CascadeItem index={3}>
         <SectionHead title={t('settings.help_support')} aside={tickets.length ? t('profile.tickets_open_count', { count: tickets.length }) : null} />
         <Group>
@@ -144,8 +150,8 @@ export default function Settings() {
           <Row glyph="+" title={t('settings.write_us')} sub={t('settings.write_us_sub')} onPress={() => router.push('/settings/help')} />
         </Group>
         </CascadeItem>
-
-        {/* -- À propos -- */}
+  );
+  const aboutBlock = (
         <CascadeItem index={4}>
         <SectionHead title={t('settings.about')} />
         <Group>
@@ -153,8 +159,8 @@ export default function Settings() {
           <Row icon="lock" title={t('profile.privacy')} onPress={() => router.push('/settings/privacy')} />
         </Group>
         </CascadeItem>
-
-        {/* -- Compte : la suppression, à part -- */}
+  );
+  const accountBlock = (
         <CascadeItem index={5}>
         <SectionHead title={t('profile.account')} />
         <Group>
@@ -166,6 +172,62 @@ export default function Settings() {
         </PressScale>
         <Text style={[s.version, { color: theme.textMuted }]} maxFontSizeMultiplier={1.2}>{`FIXED ${version}${build ? ` · BUILD ${build}` : ''}`}</Text>
         </CascadeItem>
+  );
+  const header = <SettingsHeader title={t('settings.title')} />;
+  const scrollBottom = { paddingBottom: Math.max(insets.bottom, 12) + 24 };
+
+  if (isSplit) {
+    // Duo déplié : à gauche vos préférences (apparence, notifications,
+    // confidentialité), à droite le reste (aide, à propos, compte).
+    return (
+      <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {header}
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>
+                {appearanceBlock}
+                {notificationsBlock}
+                {privacyBlock}
+              </ScrollView>
+            </>
+          }
+          right={
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.pageTop, scrollBottom]}>
+              {helpBlock}
+              {aboutBlock}
+              {accountBlock}
+            </ScrollView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {header}
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>
+        {/* -- Apparence -- */}
+        {appearanceBlock}
+
+        {/* -- Notifications -- */}
+        {notificationsBlock}
+
+        {/* -- Confidentialité & données -- */}
+        {privacyBlock}
+
+        {/* -- Aide & support -- */}
+        {helpBlock}
+
+        {/* -- À propos -- */}
+        {aboutBlock}
+
+        {/* -- Compte : la suppression, à part -- */}
+        {accountBlock}
       </ScrollView>
     </SafeAreaView>
   );
@@ -173,10 +235,11 @@ export default function Settings() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  head: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
   segWrap: { width: 208 },
+  // Sous le libellé, calé sur le texte de la ligne (14 + 34 + 12).
+  segBelow: { paddingLeft: 60, paddingRight: 14, paddingBottom: 12, marginTop: -4 },
+  // Page droite : même marge haute que la page gauche.
+  pageTop: { paddingTop: 12 },
   out: { alignItems: 'center', paddingVertical: 14, marginTop: 10 },
   outText: { fontFamily: FONTS.sansMedium, fontSize: 13 },
   version: { textAlign: 'center', fontFamily: FONTS.monoMedium, fontSize: 10.5, letterSpacing: 1.5, marginTop: 2 },

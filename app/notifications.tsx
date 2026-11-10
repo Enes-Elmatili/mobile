@@ -22,6 +22,7 @@ import { NotifRow } from '@/components/notifications/NotifRow';
 import { groupBySection, type Notif, type Section } from '@/lib/notifications/model';
 import { handleNotificationNavigation } from '@/lib/usePushNotifications';
 import { PressScale } from '@/components/ui/PressScale';
+import { PanePlaceholder, SplitPane, useSplitPane } from '@/lib/layout';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
 const SECTION_KEY: Record<Section, string> = { today: 'notifications.section_today', yesterday: 'notifications.section_yesterday', week: 'notifications.section_week', earlier: 'notifications.section_earlier' };
@@ -34,6 +35,8 @@ export default function NotificationsScreen() {
   const theme = useAppTheme();
   const { clearUnread, socket } = useSocket();
   const brandRefresh = useBrandRefresh();
+  // Duo déplié : la liste sur la page gauche, la page droite au repos.
+  const isSplit = useSplitPane();
 
   const [items, setItems] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,11 +120,8 @@ export default function NotificationsScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      <View style={s.header}>
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  const backBtn = (
         <PressScale
           onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/dashboard'); }}
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.border  }]}
@@ -131,13 +131,17 @@ export default function NotificationsScreen() {
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
         </PressScale>
-        <Text style={[s.headerTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2} accessibilityRole="header">{t('notifications.title').toUpperCase()}</Text>
+  );
+  const title = (
+        <Text style={[s.headerTitle, { color: theme.text }, isSplit && s.headerTitlePage]} numberOfLines={isSplit ? 1 : undefined} maxFontSizeMultiplier={1.2} accessibilityRole="header">{t('notifications.title').toUpperCase()}</Text>
+  );
+  const markAll = (
         <PressScale onPress={handleMarkAllRead} disabled={unreadCount === 0} style={[s.markAll, { opacity: unreadCount === 0 ? 0.3 : 1 }]} accessibilityRole="button" accessibilityLabel={t('notifications.mark_all_read')} accessibilityState={{ disabled: unreadCount === 0 }} hitSlop={8}>
           <Text style={[s.markAllText, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('notifications.mark_all_read')}</Text>
         </PressScale>
-      </View>
+  );
 
-      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+  const list = (
       <AnimatedSectionList
         onScroll={brandRefresh.onScroll}
         scrollEventThrottle={16}
@@ -168,6 +172,44 @@ export default function NotificationsScreen() {
           </View>
         }
       />
+  );
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {isSplit ? (
+        // Duo déplié : en-tête (titre à côté du retour) et liste sur la page
+        // gauche. Le détail (appui long) reste une feuille posée sur une page
+        // (NotificationDetailSheet n'expose pas de contenu seul) : la page
+        // droite reste au repos en attendant.
+        <SplitPane
+          ratio={0.5}
+          master={
+            <View style={s.root}>
+              <View style={[s.header, s.headerPage]}>
+                {backBtn}
+                {title}
+                {markAll}
+              </View>
+              <BrandRefreshHeader style={brandRefresh.headerStyle} />
+              {list}
+            </View>
+          }
+          placeholder={<PanePlaceholder icon="bell" label={t('notifications.title')} />}
+        />
+      ) : (
+        <>
+          <View style={s.header}>
+            {backBtn}
+            {title}
+            {markAll}
+          </View>
+
+          <BrandRefreshHeader style={brandRefresh.headerStyle} />
+          {list}
+        </>
+      )}
 
       <NotificationDetailSheet
         notif={selected as any}
@@ -185,6 +227,9 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 },
   backBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
+  // Duo déplié : en haut de la page gauche, titre calé à côté du retour.
+  headerPage: { paddingTop: 12, gap: 12 },
+  headerTitlePage: { flex: 1 },
   markAll: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'flex-end' },
   markAllText: { fontFamily: FONTS.sansMedium, fontSize: 12.5 },
   list: { paddingBottom: 40 },

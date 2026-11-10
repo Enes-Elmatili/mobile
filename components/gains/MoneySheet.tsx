@@ -4,12 +4,14 @@
 import { useHideBar } from '@/stores/nav';
 import React, { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useSheetMotion } from '@/lib/motion/sheet';
+import { useSheetFrame } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { formatClock, formatDay, formatDayShort } from '@/lib/format';
 import { ledgerOf, type GainLine } from '@/lib/gains/model';
@@ -24,8 +26,11 @@ export function MoneySheet({ line, bankLabel, onClose, onInvoice }: Props) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const motion = useSheetMotion();
+  // Posée dans la scène de l'écran (pas un portail) : repère du conteneur.
+  // Sur le Duo déplié, le sheet tient sur une page ; sur un iPhone, rien ne change.
+  const frame = useSheetFrame({ modal: false });
   useAndroidBackClose(!!line, onClose);
-  const renderBackdrop = useCallback((props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.35} pressBehavior="close" />, []);
+  const renderBackdrop = useCallback((props: any) => <SheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.35} pressBehavior="close" />, []);
   if (!line) return null;
   const ledger = ledgerOf(line);
   const lang = i18n.language;
@@ -47,6 +52,7 @@ export function MoneySheet({ line, bankLabel, onClose, onInvoice }: Props) {
       onAnimate={motion.onAnimate}
       handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }}
       backgroundStyle={{ backgroundColor: theme.cardBg, borderTopLeftRadius: 26, borderTopRightRadius: 26 }}
+      style={frame}
     >
       <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 24 }]}>
         {line.missionId != null ? <Text style={[s.kicker, { color: theme.textMuted }]}>{t('gains.sheet_mission', { id: line.missionId, date: formatDay(line.date, lang).toUpperCase() })}</Text> : null}

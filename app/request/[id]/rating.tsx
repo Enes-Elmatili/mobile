@@ -16,6 +16,7 @@ import { showSocketToast } from '@/lib/SocketContext';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { DoneContent } from '@/components/tracking/DoneContent';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 export default function DoneScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +24,7 @@ export default function DoneScreen() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -51,16 +53,39 @@ export default function DoneScreen() {
   useEffect(() => { load(); }, [load]);
 
   if (loadError) {
-    return (
-      <View style={[s.center, { backgroundColor: theme.bg, paddingHorizontal: 32 }]}>
-        <StatusBar barStyle={theme.statusBar} />
+    const errorBlock = (
+      <>
         <Feather name="alert-circle" size={40} color={theme.textMuted as string} />
         <Text style={[s.errText, { color: theme.textSub }]}>{t('tracking.load_error')}</Text>
+      </>
+    );
+    const actionsBlock = (
+      <>
         <PressScale style={[s.retry, { backgroundColor: theme.accent }]} onPress={load} accessibilityRole="button">
           <Feather name="refresh-cw" size={16} color={theme.accentText as string} />
           <Text style={[s.retryText, { color: theme.accentText }]}>{t('tracking.retry')}</Text>
         </PressScale>
         <PressScale onPress={() => router.replace('/(tabs)/dashboard')} accessibilityRole="button" style={s.later}><Text style={[s.laterText, { color: theme.textMuted }]}>{t('tracking.later')}</Text></PressScale>
+      </>
+    );
+    // Duo déplié : le message centré tombait sur le pli — le constat à gauche,
+    // les actions à droite.
+    if (isSplit) {
+      return (
+        <View style={[s.fill, { backgroundColor: theme.bg }]}>
+          <StatusBar barStyle={theme.statusBar} />
+          <BookSpread
+            left={<View style={[s.center, s.page]}>{errorBlock}</View>}
+            right={<View style={[s.center, s.page]}>{actionsBlock}</View>}
+          />
+        </View>
+      );
+    }
+    return (
+      <View style={[s.center, { backgroundColor: theme.bg, paddingHorizontal: 32 }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        {errorBlock}
+        {actionsBlock}
       </View>
     );
   }
@@ -76,6 +101,8 @@ export default function DoneScreen() {
 }
 
 const s = StyleSheet.create({
+  fill: { flex: 1 },
+  page: { paddingHorizontal: 20 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   errText: { fontFamily: FONTS.sans, fontSize: 14, textAlign: 'center' },
   retry: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 100, paddingHorizontal: 20, paddingVertical: 12 },

@@ -12,7 +12,7 @@ import BottomSheet, { BottomSheetFooter, BottomSheetScrollView, type BottomSheet
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, COLORS } from '@/hooks/use-app-theme';
 import { useSheetMotion } from '@/lib/motion/sheet';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSheetFrame } from '@/lib/layout';
 
 export type SheetLevel = 'peek' | 'half' | 'full' | 'page';
 export const SHEET_RATIOS: Record<Exclude<SheetLevel, 'page'>, number> = { peek: 0.24, half: 0.54, full: 0.9 };
@@ -42,6 +42,9 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useLayoutClass();
   const motion = useSheetMotion();
+  // Feuille posée dans la scène : sur un écran déplié qui ne la met pas en
+  // volet, elle tient sur UNE page (0/0 sur un iPhone, rien ne change).
+  const frame = useSheetFrame({ modal: false });
   const ref = useRef<BottomSheet>(null);
   const [footerH, setFooterH] = useState(0);
 
@@ -103,6 +106,7 @@ export function StageSheet({ levels, level, onHeightChange, footer, children, ke
   return (
     <BottomSheet
       ref={ref}
+      style={frame}
       index={targetIndex}
       snapPoints={snapPoints}
       enableDynamicSizing={!isPage}

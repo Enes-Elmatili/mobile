@@ -10,6 +10,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { darkTokens, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { CelebrationItem, useFeedbackStore } from '@/lib/feedback/store';
 import { MOTION } from '@/lib/motion/springs';
+import { useSheetFrame } from '@/lib/layout';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { useTraceStroke } from '@/lib/motion/useTraceStroke';
 
@@ -25,6 +26,9 @@ const LIFE_MS = 1600;
 export function CelebrationOverlay({ item }: { item: CelebrationItem }) {
   const clear = useFeedbackStore((s) => s.clearCelebration);
   const reduced = useReduceMotion();
+  // Sur le Duo déplié, le centre de la fenêtre est la charnière : le sceau se
+  // centre dans une page (marges nulles sur un iPhone).
+  const page = useSheetFrame({ modal: true });
   // Sous reduce-motion la coche est posée d'emblée (useTraceStroke la pose sans ressort).
   const [checkDrawn, setCheckDrawn] = useState(reduced);
   const ring = useSharedValue(reduced ? 0 : RING_LENGTH);
@@ -58,7 +62,7 @@ export function CelebrationOverlay({ item }: { item: CelebrationItem }) {
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, s.center, wrapStyle]} pointerEvents="none">
+    <Animated.View style={[StyleSheet.absoluteFill, s.center, { paddingLeft: page.marginLeft, paddingRight: page.marginRight }, wrapStyle]} pointerEvents="none">
       <View style={s.badge}>
         <Svg width={84} height={84} viewBox="0 0 84 84">
           <Circle cx={42} cy={42} r={R} fill="none" stroke={darkTokens.border} strokeWidth={2} />

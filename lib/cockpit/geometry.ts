@@ -8,6 +8,8 @@
 //     (520 pt) centrée ; la barre d'onglets est latérale, seul le disque
 //     d'action flotte encore en bas à droite
 //   - insets gauche/droite ajoutés aux marges (encoche latérale du Duo)
+//   - Duo déplié : les surfaces vivent dans UNE page (la gauche) — la bande
+//     centrée de 520 pt passait sur le pli ; la carte reste plein cadre
 // Le GO n'est plus dans l'écran : c'est le disque détaché de la barre
 // flottante (components/nav/ActionDisc) ; l'écran ne réserve que sa hauteur.
 import type { LayoutClass } from '@/lib/layout/resolveLayoutClass';
@@ -48,6 +50,8 @@ export function cockpitGeometry(a: {
   cls: LayoutClass;
   /** Dessus de la barre flottante depuis le bas de l'écran (useTabBarPadding(0)). */
   tabBarHeight: number;
+  /** Duo déplié : la page où poser les surfaces (x et largeur dans l'écran). Sans page : largeur de lecture centrée. */
+  page?: { left: number; width: number } | null;
 }): CockpitGeometry {
   const denseHeight = a.height - a.insets.top < DENSE_HEIGHT;
   const barTop = a.tabBarHeight;
@@ -55,10 +59,17 @@ export function cockpitGeometry(a: {
   const topRowTop = a.insets.top + 8;
   const stateTop = topRowTop + 44 + 10;
   const usable = a.width - a.insets.left - a.insets.right;
-  const contentWidth = Math.min(usable - 32, a.cls === 'regular' ? CONTENT_MAX_WIDTH : usable - 32);
+  let contentWidth = Math.min(usable - 32, a.cls === 'regular' ? CONTENT_MAX_WIDTH : usable - 32);
   const side = Math.max(16, (usable - contentWidth) / 2);
-  const marginLeft = a.insets.left + side;
-  const marginRight = a.insets.right + side;
+  let marginLeft = a.insets.left + side;
+  let marginRight = a.insets.right + side;
+  if (a.page) {
+    // Une page, 16 pt de chaque côté : rien ne déborde sur le pli.
+    const start = Math.max(a.page.left, a.insets.left);
+    contentWidth = Math.max(0, a.page.left + a.page.width - start - 32);
+    marginLeft = start + 16;
+    marginRight = Math.max(0, a.width - marginLeft - contentWidth);
+  }
   const strip = denseHeight ? STRIP_ESTIMATE.dense : STRIP_ESTIMATE.normal;
   const mapPaddingBottom = stripBottom + strip;
   const mapPaddingTop = stateTop + 36;

@@ -11,7 +11,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSceneFrame, useSheetFrame, debugSnapshot } from '@/lib/layout';
 import type { BriefPhoto } from '@/lib/mission/brief';
 import { PressScale } from '@/components/ui/PressScale';
 
@@ -31,15 +31,38 @@ export function shotCaption(shotKey: string | null, t: (k: string) => string): s
   return label === `shots.${shotKey}.label` ? null : label;
 }
 
+/**
+ * Insets de la FENÊTRE vus depuis un écran. Un Modal RN couvre toute la
+ * fenêtre mais garde le contexte React de l'écran : sous InsetScope, le rail du
+ * Duo y est déjà retiré (inset latéral à 0). On le rend : ce que la scène
+ * laisse de chaque côté de la fenêtre, plus ce qu'elle signale encore. Calcul
+ * synchrone (pas de SafeAreaProvider natif à attendre dans le Modal) ; sur un
+ * iPhone la scène est la fenêtre : insets inchangés.
+ */
+function useWindowInsets() {
+  const inner = useSafeAreaInsets();
+  const scene = useSceneFrame();
+  const { width } = useLayoutClass();
+  return {
+    top: inner.top,
+    bottom: inner.bottom,
+    left: Math.max(0, scene.x) + inner.left,
+    right: Math.max(0, width - scene.x - scene.width) + inner.right,
+  };
+}
+
 // ─── Plein écran ─────────────────────────────────────────────────────────────
 export function PhotoViewer({ photos, index, onClose }: { photos: BriefPhoto[]; index: number | null; onClose: () => void }) {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   const { width } = useLayoutClass();
+  // La légende tient sur une page du Duo déplié, jamais sur le pli (repère
+  // fenêtre, comme le Modal) ; marges nulles sur un iPhone.
+  const page = useSheetFrame({ modal: true });
   const [current, setCurrent] = useState(index ?? 0);
   if (index === null) return null;
   return (
-    <Modal visible transparent={false} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal onShow={() => debugSnapshot('modal-photo')} visible transparent={false} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={v.root}>
         <FlatList
           data={photos}
@@ -56,14 +79,14 @@ export function PhotoViewer({ photos, index, onClose }: { photos: BriefPhoto[]; 
             </PressScale>
           )}
         />
-        <View style={[v.top, { top: insets.top + 12 }]} pointerEvents="box-none">
+        <View style={[v.top, { top: insets.top + 12, left: insets.left + 20, right: insets.right + 20 }]} pointerEvents="box-none">
           <Text style={v.counter} accessibilityLabel={t('mission.photo_a11y', { n: current + 1, total: photos.length })}>{current + 1} / {photos.length}</Text>
           <PressScale onPress={onClose} hitSlop={10} style={v.close} accessibilityRole="button" accessibilityLabel={t('mission.close')}>
             <Feather name="x" size={20} color="#FFFFFF" />
           </PressScale>
         </View>
         {shotCaption(photos[current]?.shotKey ?? null, t) ? (
-          <Text style={[v.caption, { bottom: insets.bottom + 24 }]}>{shotCaption(photos[current]?.shotKey ?? null, t)}</Text>
+          <Text style={[v.caption, { bottom: insets.bottom + 24, left: page.marginLeft + 24, right: page.marginRight + 24 }]}>{shotCaption(photos[current]?.shotKey ?? null, t)}</Text>
         ) : null}
       </View>
     </Modal>
@@ -73,10 +96,10 @@ export function PhotoViewer({ photos, index, onClose }: { photos: BriefPhoto[]; 
 const v = StyleSheet.create({
   root:    { flex: 1, backgroundColor: '#000000' },
   full:    { width: '100%', height: '100%' },
-  top:     { position: 'absolute', left: 20, right: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  top:     { position: 'absolute', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   counter: { fontFamily: FONTS.mono, fontSize: 12, letterSpacing: 1, color: 'rgba(255,255,255,0.85)' },
   close:   { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  caption: { position: 'absolute', left: 24, right: 24, textAlign: 'center', fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.5, color: '#FFFFFF', includeFontPadding: false },
+  caption: { position: 'absolute', textAlign: 'center', fontFamily: FONTS.bebas, fontSize: 22, letterSpacing: 0.5, color: '#FFFFFF', includeFontPadding: false },
 });
 
 // ─── Vignettes (carte entrante, planche 2A) ──────────────────────────────────

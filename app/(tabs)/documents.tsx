@@ -19,6 +19,8 @@ import QuoteSheet from '../../components/sheets/QuoteSheet';
 import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR, formatEURCents, formatEURInt } from '@/lib/format';
 import { PressScale } from '@/components/ui/PressScale';
+import { PanePlaceholder, SplitPane, useSplitPane } from '@/lib/layout';
+import { InvoicePane } from '@/components/documents/InvoicePane';
 
 const TERMINAL_STATUSES = ['CANCELLED', 'QUOTE_REFUSED', 'QUOTE_EXPIRED', 'DONE', 'REFUNDED'];
 
@@ -94,9 +96,11 @@ const sc = StyleSheet.create({
 });
 
 // ── Invoice Card (redesigned) ──
-function InvoiceCard({ invoice, onPress, theme }: {
+function InvoiceCard({ invoice, onPress, theme, selected = false }: {
   invoice: Invoice; onPress: () => void;
   theme: ReturnType<typeof useAppTheme>;
+  /** Duo déplié : la facture ouverte dans la page droite. */
+  selected?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const status = invoice.status?.toUpperCase();
@@ -115,7 +119,7 @@ function InvoiceCard({ invoice, onPress, theme }: {
   const service = invoice.request?.serviceType || t('ext.invoice_service_default');
 
   return (
-    <PressScale accessibilityRole="button" style={[iv.card, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]} onPress={onPress}>
+    <PressScale accessibilityRole="button" accessibilityState={selected ? { selected } : undefined} style={[iv.card, { backgroundColor: theme.cardBg, borderColor: selected ? theme.accent : theme.borderLight }]} onPress={onPress}>
       <View style={[iv.bar, { backgroundColor: barColor }]} />
       <View style={[iv.icon, { backgroundColor: iconBg }]}>
         <Feather name={iconName as any} size={16} color={iconColor} />
@@ -175,6 +179,8 @@ export default function Documents() {
   const [filter, setFilter] = useState<Filter>('all');
   const [activeTab, setActiveTab] = useState<Tab>('factures');
   const tabBarPadding = useTabBarPadding();
+  // Duo déplié : la liste à gauche du pli, la facture ouverte à droite.
+  const isSplit = useSplitPane();
 
   // Deep-link "preuve de remboursement" : une notif refund ouvre directement la
   // facture de la demande concernée (passée en "Remboursé"), pas l'onglet brut.
@@ -285,18 +291,19 @@ export default function Documents() {
     );
   }
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
+  const tabSub = activeTab === 'factures' ? t('ext.documents_tab_invoices_sub')
+    : activeTab === 'devis' ? t('ext.documents_tab_quotes_sub')
+    : t('ext.documents_tab_scheduled_sub');
 
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  const headBlock = (
+    <>
       {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={[s.headerTitle, { color: theme.text }]}>{t('ext.tabs_documents').toUpperCase()}</Text>
           <Text style={[s.headerSub, { color: theme.textMuted }]}>
-            {activeTab === 'factures' ? t('ext.documents_tab_invoices_sub')
-              : activeTab === 'devis' ? t('ext.documents_tab_quotes_sub')
-              : t('ext.documents_tab_scheduled_sub')}
+            {tabSub}
           </Text>
         </View>
         <PressScale
@@ -337,19 +344,11 @@ export default function Documents() {
           );
         })}
       </View>
+    </>
+  );
 
-      <BrandRefreshHeader style={brandRefresh.headerStyle} />
-
-      <Animated.ScrollView
-
-        onScroll={brandRefresh.onScroll}
-
-        scrollEventThrottle={16}
-        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
-      >
-
+  const listBlock = (
+    <>
         {/* ── ERREUR DE CHARGEMENT — jamais d'état vide trompeur ── */}
         {loadError ? (
           <View style={[s.empty, { backgroundColor: theme.cardBg }]}>
@@ -435,6 +434,7 @@ export default function Documents() {
                     invoice={inv}
                     onPress={() => setSelectedInvoice(inv)}
                     theme={theme}
+                    selected={isSplit && selectedInvoice?.id === inv.id}
                   />
                 ))}
               </View>
@@ -652,12 +652,61 @@ export default function Documents() {
 
         </>
         )}
+    </>
+  );
 
+  const listScroll = (
+      <Animated.ScrollView
+
+        onScroll={brandRefresh.onScroll}
+
+        scrollEventThrottle={16}
+        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
+      >
+        {listBlock}
       </Animated.ScrollView>
+  );
+
+  // La facture ouverte n'a sa page que sur l'onglet Factures.
+  const paneInvoice = isSplit && activeTab === 'factures' ? selectedInvoice : null;
+
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {isSplit ? (
+        // Duo déplié : en-tête, onglets, résumé et liste sur la page gauche ;
+        // la facture choisie s'ouvre sur la page droite (plus de feuille).
+        <SplitPane
+          ratio={0.5}
+          master={
+            <View style={s.root}>
+              {headBlock}
+              <BrandRefreshHeader style={brandRefresh.headerStyle} />
+              {listScroll}
+            </View>
+          }
+          detail={paneInvoice ? (
+            <InvoicePane invoice={paneInvoice} onClose={() => setSelectedInvoice(null)} bottomPad={tabBarPadding} />
+          ) : null}
+          detailKey={paneInvoice?.id ?? null}
+          placeholder={<PanePlaceholder icon={activeTab === 'planifiees' ? 'calendar' : 'file-text'} label={tabSub} />}
+        />
+      ) : (
+        <>
+          {headBlock}
+
+          <BrandRefreshHeader style={brandRefresh.headerStyle} />
+
+          {listScroll}
+        </>
+      )}
 
       <InvoiceSheet
         invoice={selectedInvoice}
-        isVisible={!!selectedInvoice}
+        isVisible={!isSplit && !!selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
         userRole="client"
       />

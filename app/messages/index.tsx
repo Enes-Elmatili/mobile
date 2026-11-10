@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, RefreshControl, ActivityIndicator, StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -22,6 +22,9 @@ import { PressScale } from '@/components/ui/PressScale';
 import { PanePlaceholder, SplitPane, useSplitPane } from '@/lib/layout';
 import { ConversationThread } from '@/components/messages/ConversationThread';
 import { contactNameCacheGet, contactNameCacheHas, contactNameCacheSet } from '@/lib/messages/contactNameCache';
+
+// Le fil en volet est déjà dans le SafeAreaView de l'inbox : il n'en rajoute aucun.
+const NO_EDGES: Edge[] = [];
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 interface Message {
@@ -204,28 +207,34 @@ export default function MessagesInbox() {
     </PressScale>
   ), [theme, t, isSplit, selected, openConversation]);
 
+  const header = (
+    <View style={[s.header, isSplit && s.headerPage, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+      <PressScale
+        onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
+        style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.back')}
+      >
+        <Feather name="arrow-left" size={18} color={theme.textAlt} />
+      </PressScale>
+      <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('messages.title')}</Text>
+      {isSplit ? null : <View style={{ width: 38 }} />}
+    </View>
+  );
+
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
 
-      {/* Header */}
-      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
-        <PressScale
-          onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
-          style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-        >
-          <Feather name="arrow-left" size={18} color={theme.textAlt} />
-        </PressScale>
-        <Text style={[s.headerTitle, { color: theme.textAlt }]}>{t('messages.title')}</Text>
-        <View style={{ width: 38 }} />
-      </View>
+      {/* Header — déplié, il vit en haut de la liste (page gauche), titre à côté du retour. */}
+      {isSplit ? null : header}
 
       <SplitPane
+        ratio={0.5}
         master={(
           <>
+            {isSplit ? header : null}
             {loading ? (
               <View style={s.centered}>
                 <ActivityIndicator size="large" color={theme.accent} />
@@ -282,7 +291,7 @@ export default function MessagesInbox() {
           </>
         )}
         detail={isSplit && selected ? (
-          <ConversationThread key={selected.userId} userId={selected.userId} name={selected.displayName} inPane />
+          <ConversationThread key={selected.userId} userId={selected.userId} name={selected.displayName} inPane edges={NO_EDGES} />
         ) : null}
         detailKey={selected?.userId ?? null}
         placeholder={<PanePlaceholder icon="message-circle" label={t('messages.select_hint')} />}
@@ -306,6 +315,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
+  headerPage: { justifyContent: 'flex-start', gap: 12, paddingHorizontal: 20 },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   emptyTitle: { fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, marginBottom: 20 },

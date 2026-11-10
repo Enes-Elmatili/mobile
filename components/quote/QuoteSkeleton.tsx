@@ -14,8 +14,10 @@ function SkeletonBlock({ h, w = "100%", r = 14, mt = 0, color, pulseStyle }: {
   return <Animated.View style={[{ height: h, width: w, borderRadius: r, marginTop: mt, backgroundColor: color }, pulseStyle]} />;
 }
 
-/** Squelette de chargement — reprend la silhouette réelle de la page (héro + ledger). */
-export function QuoteSkeleton({ theme }: { theme: AppTheme }) {
+/** Squelette de chargement — reprend la silhouette réelle de la page (héro + ledger).
+ *  `part` : la page gauche (contexte, prestataire) ou droite (héro, ledger) du
+ *  Duo déplié — en une colonne, les blocs pleine largeur passaient sur le pli. */
+export function QuoteSkeleton({ theme, part = "all" }: { theme: AppTheme; part?: "all" | "context" | "quote" }) {
   const pulse = useSharedValue(0.45);
   useEffect(() => {
     pulse.value = withRepeat(
@@ -29,6 +31,23 @@ export function QuoteSkeleton({ theme }: { theme: AppTheme }) {
   }, [pulse]);
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
   const block = { color: theme.surface, pulseStyle };
+  if (part === "context") {
+    return (
+      <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
+        <SkeletonBlock {...block} h={16} w={140} r={8} />
+        <SkeletonBlock {...block} h={30} w={220} r={8} mt={14} />
+        <SkeletonBlock {...block} h={76} r={20} mt={18} />
+      </View>
+    );
+  }
+  if (part === "quote") {
+    return (
+      <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
+        <SkeletonBlock {...block} h={168} r={26} />
+        <SkeletonBlock {...block} h={150} r={20} mt={12} />
+      </View>
+    );
+  }
   return (
     <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
       <SkeletonBlock {...block} h={16} w={140} r={8} />

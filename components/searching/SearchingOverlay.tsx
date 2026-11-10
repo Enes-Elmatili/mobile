@@ -7,7 +7,8 @@
 // natif du suivi — sur la même carte, sans changer d'écran.
 // Les positions à l'écran viennent de pointForCoordinate (carte verrouillée).
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { useWindowSize } from '@/lib/layout/windowSize';
 import type MapView from 'react-native-maps';
 import { Image } from 'expo-image';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
@@ -92,7 +93,13 @@ type Props = {
 export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHeight, acceptedProviderId, visible, regionKey = 0 }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
-  const { width, height } = useWindowDimensions();
+  // La taille de LA CARTE qui porte le calque (onLayout), pas celle de la
+  // fenêtre : sur le Duo déplié la carte n'occupe que la page gauche, et des
+  // pastilles hors carte débordaient sur le pli et la page droite.
+  const win = useWindowSize();
+  const [box, setBox] = useState<{ width: number; height: number } | null>(null);
+  const width = box?.width ?? win.width;
+  const height = box?.height ?? win.height;
   const [points, setPoints] = useState<Record<string, { x: number; y: number }>>({});
   const prosKey = pros.map((p) => `${p.id}:${p.lat}:${p.lng}`).join('|');
   useEffect(() => {
@@ -124,7 +131,11 @@ export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHe
 
   const me = points.me;
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fadeStyle]}>
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, s.clip, fadeStyle]}
+      onLayout={(e) => { const { width: w, height: h } = e.nativeEvent.layout; setBox((b) => (b && b.width === w && b.height === h ? b : { width: w, height: h })); }}
+    >
       {me ? pros.map((p, i) => {
         const pt = points[p.id];
         if (!pt) return null;
@@ -142,6 +153,7 @@ export function SearchingOverlay({ pros, mapRef, mapReady, missionCoord, sheetHe
 }
 
 const s = StyleSheet.create({
+  clip:         { overflow: 'hidden' },
   me:           { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: COLORS.greenBrand, borderWidth: 3 },
   pin:          { position: 'absolute', width: PIN, alignItems: 'center' },
   pinDisc:      { width: PIN, height: PIN, borderRadius: PIN / 2, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },

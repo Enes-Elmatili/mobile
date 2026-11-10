@@ -17,7 +17,10 @@ import {
   AuthCTA,
   AuthLink,
   AuthMasthead,
+  AuthEyebrow,
 } from "@/components/auth";
+import { WelcomeHeadline, WelcomeSteps } from "@/components/auth/AuthCover";
+import { useSplitPane } from "@/lib/layout";
 import Animated from 'react-native-reanimated';
 import { useEntrance } from '@/lib/motion/useEntrance';
 import { PressScale } from '@/components/ui/PressScale';
@@ -25,7 +28,9 @@ import { PressScale } from '@/components/ui/PressScale';
 export default function Welcome() {
   const { t } = useTranslation();
   const theme = useAppTheme();
-  const dot = theme.brandDot;
+  // Duo déplié : titre et étapes sont sur la couverture (page gauche) ; la page
+  // droite ne garde que l'invitation — commencer, se connecter, être pro.
+  const inBook = useSplitPane();
   // Entrée : fondu + glissé sur un ressort (lib/motion/useEntrance).
   const entrance = useEntrance(20);
 
@@ -50,29 +55,22 @@ export default function Welcome() {
       <Animated.View style={[s.flex, entrance.style]}>
         <AuthMasthead />
 
-        <View style={s.airTop} />
-
-        <Text style={[s.headline, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
-          {t('auth.welcome_l1')}{"\n"}
-          {t('auth.welcome_l2_prefix')}{t('auth.welcome_l2_accent')}{"\n"}
-          {t('auth.welcome_l3')}<Text style={{ color: dot }}>.</Text>
-        </Text>
-
-        <Text style={[s.subhead, { color: alpha(theme.text, 0.56) }]} maxFontSizeMultiplier={1.2}>
-          {t('auth.welcome_sub')}
-        </Text>
-
-        <View style={s.airMid} />
-
-        {/* 3 étapes — colonnes gauches sur hairline, numéros verts */}
-        <View style={[s.steps, { borderTopColor: alpha(theme.text, 0.11) }]}>
-          {[t('auth.welcome_step1'), t('auth.welcome_step2'), t('auth.welcome_step3')].map((label, i) => (
-            <View key={label} style={s.step}>
-              <Text style={[s.stepNum, { color: theme.greenText }]} maxFontSizeMultiplier={1.2}>{String(i + 1).padStart(2, "0")}</Text>
-              <Text style={[s.stepLabel, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{label}</Text>
+        {inBook ? (
+          // Page droite : l'invitation, au centre optique de la page.
+          <View style={s.bookInvite}>
+            <AuthEyebrow label={t('auth.welcome_eyebrow')} />
+          </View>
+        ) : (
+          <>
+            <View style={s.airTop} />
+            <WelcomeHeadline />
+            <View style={s.airMid} />
+            {/* 3 étapes — trois colonnes égales sur filet, numéros verts */}
+            <View style={s.stepsWrap}>
+              <WelcomeSteps />
             </View>
-          ))}
-        </View>
+          </>
+        )}
 
         <AuthCTA
           label={t('auth.welcome_cta')}
@@ -116,41 +114,8 @@ const s = StyleSheet.create({
   airTop: { flex: 0.85, maxHeight: 170 },
   airMid: { flex: 1.15 },
 
-  headline: {
-    fontFamily: FONTS.bebas, includeFontPadding: false,
-    fontSize: 52,
-    lineHeight: 52,
-    letterSpacing: 0.6,
-    textAlign: "left",
-  },
-  subhead: {
-    fontFamily: FONTS.sans,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 20,
-    maxWidth: 230,
-    textAlign: "left",
-  },
-
-  steps: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    paddingTop: 18,
-    marginBottom: 30,
-  },
-  step: {},
-  stepNum: {
-    fontFamily: FONTS.monoMedium,
-    fontSize: 11,
-    letterSpacing: 1.5,
-  },
-  stepLabel: {
-    fontFamily: FONTS.bebas, includeFontPadding: false,
-    fontSize: 16,
-    letterSpacing: 1.2,
-    marginTop: 5,
-  },
+  stepsWrap: { marginBottom: 30 },
+  bookInvite: { flex: 1, justifyContent: "flex-end", paddingBottom: 18 },
 
   signinWrap: { marginTop: 10 },
 

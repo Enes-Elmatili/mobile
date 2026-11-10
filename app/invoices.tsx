@@ -19,6 +19,8 @@ import type { Invoice } from '@/hooks/useInvoice';
 import { formatEUR as formatEuros, localeFor } from '@/lib/format';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { PanePlaceholder, SplitPane, useSplitPane } from '@/lib/layout';
+import { InvoicePane } from '@/components/documents/InvoicePane';
 
 // Reanimated n'expose pas Animated.SectionList : on l'anime nous-mêmes.
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as typeof SectionList;
@@ -43,6 +45,9 @@ export default function InvoicesScreen() {
   const brandRefresh = useBrandRefresh();
   const [loadError, setLoadError] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  // Duo déplié : la liste à gauche du pli, la facture choisie à droite.
+  const isSplit = useSplitPane();
+  const selectedId = isSplit ? selectedInvoice?.id ?? null : null;
 
   const loadInvoices = useCallback(async () => {
     try {
@@ -103,9 +108,15 @@ export default function InvoicesScreen() {
       ? `#FIXED-${item.number.replace(/^\d{4}-/, '')}`
       : `#${String(item.id).slice(-5).toUpperCase()}`;
 
+    const selected = selectedId === item.id;
     return (
       <PressScale accessibilityRole="button"
-        style={[s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
+        accessibilityState={isSplit ? { selected } : undefined}
+        style={[
+          s.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity },
+          // Page droite ouverte : la facture affichée se repère dans la liste.
+          isSplit && { borderWidth: 1, borderColor: selected ? theme.accent : 'transparent' },
+        ]}
         onPress={() => setSelectedInvoice(item)}
       >
         <View style={[s.iconWrap, { backgroundColor: theme.surface }]}>
@@ -143,23 +154,20 @@ export default function InvoicesScreen() {
         </View>
       </PressScale>
     );
-  }, [theme, t]);
+  }, [theme, t, isSplit, selectedId]);
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header */}
-      <View style={[s.header, { borderBottomColor: theme.border }]}>
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  const backBtn = (
         <PressScale onPress={() => { goBack(router, '/(tabs)/dashboard'); }} style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </PressScale>
+  );
+  const title = (
         <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 }]}>{t('ext.wallet_my_invoices')}</Text>
-        <View style={{ width: 40 }} />
-      </View>
+  );
 
-      {/* Monthly summary */}
-      <View style={[s.summaryCard, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+  const summaryBlock = (
+      <View style={[s.summaryCard, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, isSplit && s.pageInset]}>
         <View style={[s.summaryIconWrap, { backgroundColor: theme.surface }]}>
           <Feather name="file-text" size={22} color={theme.textSub} />
         </View>
@@ -175,8 +183,10 @@ export default function InvoicesScreen() {
           {monthlyCount} {monthlyCount === 1 ? t('ext.invoice_word_singular') : t('ext.invoice_word_plural')}
         </Text>
       </View>
+  );
 
-      {/* List */}
+  const listBlock = (
+    <>
       {loading ? (
         <View style={s.center}>
           <ActivityIndicator size="large" color={theme.textMuted} />
@@ -224,7 +234,7 @@ export default function InvoicesScreen() {
               {(section as { title: string }).title}
             </Text>
           )}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, isSplit && s.listPage]}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
           refreshControl={
@@ -233,11 +243,57 @@ export default function InvoicesScreen() {
         />
         </>
       )}
+    </>
+  );
 
-      {/* Invoice Detail Sheet */}
+  const paneInvoice = isSplit ? selectedInvoice : null;
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {isSplit ? (
+        // Duo déplié : en-tête (titre à côté du retour), total du mois et liste
+        // sur la page gauche ; la facture choisie s'ouvre sur la page droite.
+        <SplitPane
+          ratio={0.5}
+          master={
+            <View style={s.root}>
+              <View style={[s.headerPage, { borderBottomColor: theme.border }]}>
+                {backBtn}
+                {title}
+              </View>
+              {summaryBlock}
+              {listBlock}
+            </View>
+          }
+          detail={paneInvoice ? (
+            <InvoicePane invoice={paneInvoice} userRole={isProvider ? 'provider' : 'client'} onClose={() => setSelectedInvoice(null)} />
+          ) : null}
+          detailKey={paneInvoice?.id ?? null}
+          placeholder={<PanePlaceholder icon="file-text" label={t('ext.documents_tab_invoices_sub')} />}
+        />
+      ) : (
+        <>
+          {/* Header */}
+          <View style={[s.header, { borderBottomColor: theme.border }]}>
+            {backBtn}
+            {title}
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Monthly summary */}
+          {summaryBlock}
+
+          {/* List */}
+          {listBlock}
+        </>
+      )}
+
+      {/* Invoice Detail Sheet — sur le Duo déplié, la page droite la remplace. */}
       <InvoiceSheet
         invoice={selectedInvoice}
-        isVisible={!!selectedInvoice}
+        isVisible={!isSplit && !!selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
         userRole={isProvider ? 'provider' : 'client'}
       />
@@ -255,6 +311,14 @@ const s = StyleSheet.create({
   },
   backBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22, letterSpacing: 0.5 },
+  // Duo déplié : l'en-tête vit en haut de la page gauche, titre calé à gauche.
+  headerPage: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14,
+    borderBottomWidth: 0.5,
+  },
+  pageInset: { marginHorizontal: 20 },
+  listPage: { paddingHorizontal: 20 },
 
   summaryCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,

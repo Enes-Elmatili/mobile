@@ -14,7 +14,7 @@ import { feedback } from "@/lib/feedback/feedback";
 import { useTranslation } from "react-i18next";
 import { FONTS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
-import { useLayoutClass, READING_MAX_WIDTH } from "@/lib/layout";
+import { useLayoutClass, BookSpread } from "@/lib/layout";
 import { PressScale } from '@/components/ui/PressScale';
 
 const GRID_SIZE = 40;
@@ -115,6 +115,124 @@ export function OnboardingLayout({
   // Halo qui respire (useGlow) ; immobile sous reduce-motion.
   const glowStyle = useGlow();
 
+  const navRow = (
+    <View style={s.navRow}>
+      {shouldShowBack ? (
+        <PressScale
+          style={s.backBtn}
+          onPress={handleBack}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+        >
+          <Feather name="chevron-left" size={16} color={alpha(darkTokens.text, 0.6)} />
+        </PressScale>
+      ) : (
+        <View style={{ width: 36 }} />
+      )}
+
+      {hideStepper ? (
+        <Text style={s.stepLabel}>
+          <Text style={s.stepLabelBold}>{stepLabel ? stepLabel.toUpperCase() : ""}</Text>
+        </Text>
+      ) : (
+        <View style={s.stepIndicator}>
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <View key={i} style={[s.stepBar, i < currentStep ? s.stepBarActive : s.stepBarInactive]} />
+          ))}
+          <Text style={s.stepLabel}>
+            <Text style={s.stepLabelBold}>
+              {stepLabel ? `${stepLabel.toUpperCase()} · ` : ""}
+              {String(currentStep).padStart(2, "0")}
+            </Text>
+            {" / "}
+            {String(totalSteps).padStart(2, "0")}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const footerInner = cta ? (
+    <>
+      <PressScale accessibilityRole="button"
+        style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
+        onPress={() => {
+          feedback.haptic('medium');
+          cta.onPress();
+        }}
+        disabled={cta.disabled || cta.loading}
+      >
+        <Text style={s.btnPrimaryText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+          {cta.loading ? t('common.loading').toUpperCase() : cta.label.toUpperCase()}
+        </Text>
+        {!cta.loading && !cta.disabled && (
+          <View style={s.arrowPill}>
+            <Feather name="arrow-right" size={14} color={C.white} />
+          </View>
+        )}
+      </PressScale>
+
+      {!!cta.sub && (
+        <Text style={s.ctaSub}>{cta.sub.toUpperCase()}</Text>
+      )}
+
+      {secondaryCta && (
+        <PressScale accessibilityRole="button"
+          onPress={() => {
+            feedback.haptic('light');
+            secondaryCta.onPress();
+          }}
+          style={s.secondaryCta}
+        >
+          <Text style={s.secondaryCtaText}>{secondaryCta.label}</Text>
+        </PressScale>
+      )}
+    </>
+  ) : null;
+
+  const footer = (
+    <View style={[s.footer, Platform.OS === "android" && { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+      {footerInner}
+    </View>
+  );
+
+  // Duo déplié : deux pages autour du pli. À gauche la page de titre — retour,
+  // étapes, titre en grand, sous-titre — ; à droite le formulaire et son
+  // bouton. Plus de colonne centrée à cheval sur la charnière, plus de bouton
+  // de 900 pt.
+  if (isRegular) {
+    return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <GridLines />
+        <BookSpread
+          left={
+            <View style={[s.bookCover, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+              {navRow}
+              <View style={s.flex} />
+              <Text style={[s.title, s.bookTitle]}>{title}</Text>
+              {subtitle && <Text style={[s.subtitle, s.bookSubtitle]}>{subtitle}</Text>}
+            </View>
+          }
+          right={
+            <KeyboardAvoidingView style={s.flex} behavior="padding">
+              <ScrollView
+                style={s.flex}
+                contentContainerStyle={[s.bookScroll, { paddingTop: insets.top + 24 }]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={s.content}>{children}</View>
+              </ScrollView>
+              {footerInner && <View style={[s.bookFooter, { paddingBottom: insets.bottom + 16 }]}>{footerInner}</View>}
+            </KeyboardAvoidingView>
+          }
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" />
@@ -131,41 +249,7 @@ export function OnboardingLayout({
 
       {/* Header */}
       <View style={[s.header, Platform.OS === "android" && { paddingTop: insets.top + 16 }]}>
-        <View style={s.navRow}>
-          {shouldShowBack ? (
-            <PressScale
-              style={s.backBtn}
-              onPress={handleBack}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.back')}
-            >
-              <Feather name="chevron-left" size={16} color={alpha(darkTokens.text, 0.6)} />
-            </PressScale>
-          ) : (
-            <View style={{ width: 36 }} />
-          )}
-
-          {hideStepper ? (
-            <Text style={s.stepLabel}>
-              <Text style={s.stepLabelBold}>{stepLabel ? stepLabel.toUpperCase() : ""}</Text>
-            </Text>
-          ) : (
-            <View style={s.stepIndicator}>
-              {Array.from({ length: totalSteps }).map((_, i) => (
-                <View key={i} style={[s.stepBar, i < currentStep ? s.stepBarActive : s.stepBarInactive]} />
-              ))}
-              <Text style={s.stepLabel}>
-                <Text style={s.stepLabelBold}>
-                  {stepLabel ? `${stepLabel.toUpperCase()} · ` : ""}
-                  {String(currentStep).padStart(2, "0")}
-                </Text>
-                {" / "}
-                {String(totalSteps).padStart(2, "0")}
-              </Text>
-            </View>
-          )}
-        </View>
+        {navRow}
       </View>
 
       {/* Content */}
@@ -175,7 +259,7 @@ export function OnboardingLayout({
       >
         <ScrollView
           style={s.flex}
-          contentContainerStyle={[s.scrollContent, isRegular && { maxWidth: READING_MAX_WIDTH, alignSelf: 'center', width: '100%' }]}
+          contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -185,43 +269,7 @@ export function OnboardingLayout({
         </ScrollView>
 
         {/* CTA */}
-        {cta && (
-          <View style={[s.footer, Platform.OS === "android" && { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-            <PressScale accessibilityRole="button"
-              style={[s.btnPrimary, cta.disabled && { opacity: 0.4 }]}
-              onPress={() => {
-                feedback.haptic('medium');
-                cta.onPress();
-              }}
-              disabled={cta.disabled || cta.loading}
-            >
-              <Text style={s.btnPrimaryText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-                {cta.loading ? t('common.loading').toUpperCase() : cta.label.toUpperCase()}
-              </Text>
-              {!cta.loading && !cta.disabled && (
-                <View style={s.arrowPill}>
-                  <Feather name="arrow-right" size={14} color={C.white} />
-                </View>
-              )}
-            </PressScale>
-
-            {!!cta.sub && (
-              <Text style={s.ctaSub}>{cta.sub.toUpperCase()}</Text>
-            )}
-
-            {secondaryCta && (
-              <PressScale accessibilityRole="button"
-                onPress={() => {
-                  feedback.haptic('light');
-                  secondaryCta.onPress();
-                }}
-                style={s.secondaryCta}
-              >
-                <Text style={s.secondaryCtaText}>{secondaryCta.label}</Text>
-              </PressScale>
-            )}
-          </View>
-        )}
+        {cta && footer}
       </KeyboardAvoidingView>
     </View>
   );
@@ -279,6 +327,13 @@ const s = StyleSheet.create({
     color: C.grey, marginBottom: 28,
   },
   content: { flex: 1 },
+
+  // Livre (Duo déplié)
+  bookCover: { flex: 1, paddingHorizontal: 28 },
+  bookTitle: { fontSize: 52, lineHeight: 54, marginBottom: 12 },
+  bookSubtitle: { maxWidth: 340, marginBottom: 0 },
+  bookScroll: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 24 },
+  bookFooter: { paddingHorizontal: 24, paddingTop: 12, gap: 12 },
 
   // Footer
   footer: {

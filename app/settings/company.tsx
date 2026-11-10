@@ -10,8 +10,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
@@ -19,12 +17,12 @@ import { useTranslation } from 'react-i18next';
 import { localeFor } from '@/lib/format';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
-import { goBack } from '@/lib/nav/back';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead, type RowTone } from '@/components/settings/rows';
 import { CascadeItem } from '@/lib/motion/useCascade';
 import { getRequiredDocuments, type DocumentRequirement } from '@/constants/kycRequirements';
-import { PressScale } from '@/components/ui/PressScale';
+import { SettingsHeader } from '@/components/settings/SettingsHeader';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 type DocStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 type ServerDoc = { docKey: string; fileUrl?: string | null; status: DocStatus; rejectionReason?: string | null; approvedAt?: string | null; createdAt?: string | null };
@@ -44,8 +42,8 @@ export function maskIban(iban?: string | null): string | null {
 }
 
 export default function CompanyScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   const theme = useAppTheme();
   const { t, i18n } = useTranslation();
   const [company, setCompany] = useState<Company | null>(null);
@@ -125,25 +123,7 @@ export default function CompanyScreen() {
   const vat = company?.vatNumber || null;
   const iban = maskIban(company?.bankIban);
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={s.head}>
-        <PressScale onPress={() => goBack(router, '/(tabs)/profile')} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
-          <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </PressScale>
-        <Text style={[s.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t('profile.company').toUpperCase()}</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {loading ? (
-        <View style={s.center}><ActivityIndicator color={theme.textMuted as string} /></View>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.textMuted as string} />}
-        >
+  const companyBlock = (
           <CascadeItem index={0}>
             <SectionHead title={t('company.section_company')} />
             <Group>
@@ -153,7 +133,8 @@ export default function CompanyScreen() {
               <Row icon="credit-card" title={t('company.iban')} value={iban || t('company.missing')} tone={iban ? 'default' : 'warn'} chevron={false} />
             </Group>
           </CascadeItem>
-
+  );
+  const docsBlock = (
           <CascadeItem index={1}>
             <SectionHead title={t('company.section_docs')} aside={rows.length ? t('company.docs_approved', { n: approved, total: rows.length }) : null} />
             <Group>
@@ -178,6 +159,54 @@ export default function CompanyScreen() {
             </Group>
             <Text style={[s.note, { color: theme.textMuted }]} maxFontSizeMultiplier={1.3}>{t('company.note')}</Text>
           </CascadeItem>
+  );
+  const header = <SettingsHeader title={t('profile.company')} fit />;
+  const spinner = <View style={s.center}><ActivityIndicator color={theme.textMuted as string} /></View>;
+  const scrollBottom = { paddingBottom: Math.max(insets.bottom, 12) + 24 };
+  const refresh = <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.textMuted as string} />;
+
+  if (isSplit) {
+    // Duo déplié : à gauche l'entreprise (BCE, IBAN), à droite les pièces et leur état.
+    return (
+      <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {header}
+              {loading ? null : (
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>
+                  {companyBlock}
+                </ScrollView>
+              )}
+            </>
+          }
+          right={loading ? spinner : (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.pageTop, scrollBottom]} refreshControl={refresh}>
+              {docsBlock}
+            </ScrollView>
+          )}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {header}
+
+      {loading ? (
+        spinner
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={scrollBottom}
+          refreshControl={refresh}
+        >
+          {companyBlock}
+
+          {docsBlock}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -186,9 +215,8 @@ export default function CompanyScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  head: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { flexShrink: 1, fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
+  // Page droite : même marge haute que la page gauche.
+  pageTop: { paddingTop: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   note: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 17, paddingHorizontal: 24, paddingTop: 10 },
 });

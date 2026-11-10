@@ -22,6 +22,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // ── FAQ catégorisée ────────────────────────────────────────────────────────────
 
@@ -116,6 +117,7 @@ export default function HelpScreen() {
   const theme = useAppTheme();
   const { user } = useAuth();
   const isProvider = !!user?.roles?.includes('PROVIDER');
+  const isSplit = useSplitPane();
 
   const FAQ = useMemo<FaqItem[]>(() => {
     const prefix = isProvider ? 'provider' : 'client';
@@ -185,12 +187,11 @@ export default function HelpScreen() {
   const openWhatsApp = () => WebBrowser.openBrowserAsync(WHATSAPP_SUPPORT_URL);
   const openMissionSupport = () => router.push('/support');
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header — sobre, monochrome */}
-      <View style={s.header}>
+  // Duo déplié : les cartes d'action s'empilent (côte à côte, la seconde tombait sur la charnière).
+  const actionCard = isSplit ? s.actionCardStacked : s.actionCard;
+  const headerBlock = (
+    <>
+      <View style={[s.header, isSplit && s.headerSplit]}>
         <PressScale accessibilityRole="button"
           style={[s.backBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
@@ -202,11 +203,12 @@ export default function HelpScreen() {
         <Text style={[s.headerLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
           {t('help.header')}
         </Text>
-        <View style={{ width: 38 }} />
+        {isSplit ? null : <View style={{ width: 38 }} />}
       </View>
-
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
+    </>
+  );
+  const heroBlock = (
+    <>
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
         <View style={s.hero}>
           <Text style={[s.heroKicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
@@ -219,7 +221,10 @@ export default function HelpScreen() {
             {t('help.hero_sub')}
           </Text>
         </View>
-
+    </>
+  );
+  const bannerBlock = (
+    <>
         {/* ── Bandeau support WhatsApp ─────────────────────────────────────── */}
         <PressScale accessibilityRole="button"
           style={[s.supportBanner, { backgroundColor: 'rgba(37,211,102,0.10)', borderColor: 'rgba(37,211,102,0.30)' }]}
@@ -238,7 +243,10 @@ export default function HelpScreen() {
           </View>
           <Feather name="arrow-up-right" size={16} color={theme.textMuted} />
         </PressScale>
-
+    </>
+  );
+  const searchBlock = (
+    <>
         {/* ── Search ───────────────────────────────────────────────────────── */}
         <View style={[s.searchBar, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <Feather name="search" size={16} color={theme.textMuted} />
@@ -257,12 +265,15 @@ export default function HelpScreen() {
             </PressScale>
           )}
         </View>
-
+    </>
+  );
+  const actionsBlock = (
+    <>
         {/* ── 2 cartes d'action prioritaires ───────────────────────────────── */}
-        <View style={s.actionsRow}>
+        <View style={isSplit ? s.actionsCol : s.actionsRow}>
           {/* Mission — accent fort (rouge subtil pour signaler "urgent") */}
           <PressScale accessibilityRole="button"
-            style={[s.actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+            style={[actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={openMissionSupport}
           >
             <View style={[s.actionIcon, { backgroundColor: 'rgba(239,68,68,0.10)' }]}>
@@ -278,7 +289,7 @@ export default function HelpScreen() {
 
           {/* Support direct */}
           <PressScale accessibilityRole="button"
-            style={[s.actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
+            style={[actionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
             onPress={openWhatsApp}
           >
             <View style={[s.actionIcon, { backgroundColor: 'rgba(37,211,102,0.10)' }]}>
@@ -292,7 +303,10 @@ export default function HelpScreen() {
             </Text>
           </PressScale>
         </View>
-
+    </>
+  );
+  const ticketsErrorBlock = (
+    <>
         {/* ── Erreur de chargement des tickets (≠ absence de tickets) ──────── */}
         {ticketsError && tickets.length === 0 && (
           <PressScale accessibilityRole="button"
@@ -306,7 +320,10 @@ export default function HelpScreen() {
             <Feather name="refresh-cw" size={13} color={theme.textMuted} />
           </PressScale>
         )}
-
+    </>
+  );
+  const ticketsBlock = (
+    <>
         {/* ── Mes tickets (ouverts + résolus) ──────────────────────────────── */}
         {tickets.length > 0 && (
           <View style={s.ticketsSection}>
@@ -384,7 +401,10 @@ export default function HelpScreen() {
             )}
           </View>
         )}
-
+    </>
+  );
+  const faqBlock = (
+    <>
         {/* ── FAQ catégorisée ──────────────────────────────────────────────── */}
         {filtered.length === 0 ? (
           <View style={[s.emptyFaq, { borderColor: theme.borderLight }]}>
@@ -415,7 +435,10 @@ export default function HelpScreen() {
             );
           })
         )}
-
+    </>
+  );
+  const contactBlock = (
+    <>
         {/* ── Footer contact ───────────────────────────────────────────────── */}
         <View style={[s.divider, { backgroundColor: theme.borderLight }]} />
 
@@ -450,10 +473,75 @@ export default function HelpScreen() {
             </View>
           </View>
         </View>
-
+    </>
+  );
+  const versionBlock = (
+    <>
         <Text style={[s.version, { color: theme.textMuted, fontFamily: FONTS.mono }]}>
           {t('help.version')}
         </Text>
+    </>
+  );
+
+  if (isSplit) {
+    // Duo déplié : à gauche se repérer et agir (héros, WhatsApp, recherche,
+    // cartes d'action, contact), à droite vos tickets et la FAQ — la
+    // recherche de gauche filtre la liste de droite.
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {headerBlock}
+              <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {heroBlock}
+                {bannerBlock}
+                {searchBlock}
+                {actionsBlock}
+                {contactBlock}
+              </ScrollView>
+            </>
+          }
+          right={
+            <ScrollView contentContainerStyle={[s.page, s.pageTop]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {ticketsErrorBlock}
+              {ticketsBlock}
+              {faqBlock}
+              {versionBlock}
+            </ScrollView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Header — sobre, monochrome */}
+      {headerBlock}
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        {heroBlock}
+
+        {bannerBlock}
+
+        {searchBlock}
+
+        {actionsBlock}
+
+        {ticketsErrorBlock}
+
+        {ticketsBlock}
+
+        {faqBlock}
+
+        {contactBlock}
+
+        {versionBlock}
       </ScrollView>
     </SafeAreaView>
   );
@@ -468,6 +556,8 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10,
   },
+  // Page gauche : marge haute de page, libellé contre le retour.
+  headerSplit: { justifyContent: 'flex-start', gap: 12, paddingHorizontal: 20, paddingTop: 12 },
   backBtn: {
     width: 38, height: 38, borderRadius: 12, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
@@ -475,6 +565,9 @@ const s = StyleSheet.create({
   headerLabel: { fontSize: 11, letterSpacing: 1.4 },
 
   scroll: { paddingHorizontal: 18, paddingBottom: 32 },
+  // Duo déplié : marges de page ; la page droite s'aligne sur le haut de la gauche.
+  page: { paddingHorizontal: 20, paddingBottom: 32 },
+  pageTop: { paddingTop: 12 },
 
   // Hero
   hero: { paddingTop: 12, paddingBottom: 18 },
@@ -510,6 +603,13 @@ const s = StyleSheet.create({
   actionsRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
   actionCard: {
     flex: 1, borderRadius: 18, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 14,
+    gap: 10,
+  },
+  // Empilées : sans flex (base 0), une carte s'écraserait dans la colonne.
+  actionsCol: { gap: 10, marginBottom: 22 },
+  actionCardStacked: {
+    borderRadius: 18, borderWidth: 1,
     paddingHorizontal: 14, paddingVertical: 14,
     gap: 10,
   },

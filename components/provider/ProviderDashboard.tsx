@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
-import { useLayoutClass } from '@/lib/layout';
+import { bookColumnsFor, foldLineFor, useHinge, useLayoutClass, useSceneFrame } from '@/lib/layout';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import MapView from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
@@ -129,11 +129,25 @@ export default function ProviderDashboard() {
   const next = useMemo<NextMission | null>(() => nextMissionOf(missions), [missions]);
 
   // ─── Géométrie : décidée par l'écran (SE, Pro Max, Android 3 boutons, Fold) ──
-  const g = useMemo(() => cockpitGeometry({ width: layout.width, height: layout.height, insets: layout.insets, cls: layout.cls, tabBarHeight }), [layout, tabBarHeight]);
+  // La largeur est celle de la SCÈNE (elle s'arrête au rail du Duo), pas de la
+  // fenêtre : les insets latéraux y valent déjà 0 côté rail.
+  const scene = useSceneFrame();
+  const hinge = useHinge();
+  // Déplié : deux pages autour du pli. La gauche porte l'interface flottante,
+  // la droite la fiche « elle est pour vous » puis la mission.
+  const cols = layout.isRegular ? bookColumnsFor(foldLineFor(hinge, scene), scene.width) : null;
+  const leftEnd = cols ? cols.left : null;
+  const rightStart = cols ? cols.left + cols.gutter : null;
+  const leftPage = useMemo(() => (leftEnd != null ? { left: 0, width: leftEnd } : null), [leftEnd]);
+  const rightPage = useMemo(() => (rightStart != null ? { left: rightStart, width: Math.max(0, scene.width - rightStart) } : null), [rightStart, scene.width]);
+  const g = useMemo(() => cockpitGeometry({ width: scene.width, height: layout.height, insets: layout.insets, cls: layout.cls, tabBarHeight, page: leftPage }), [scene.width, layout, tabBarHeight, leftPage]);
   const { stripBottom, topRowTop, marginLeft, contentWidth } = g;
+  const band = useMemo(() => (leftPage ? { left: marginLeft, width: contentWidth } : null), [leftPage, marginLeft, contentWidth]);
+  // Une fiche ou une mission tient la page droite : la carte s'arrête au pli.
+  const sidePanel = !!rightPage && ((stage === 'incoming' && !!activeJob) || (stage === 'busy' && !!currentMission));
 
   const stripCover = g.mapPaddingBottom;
-  const { doorCoord, routeCoords } = useCockpitCamera({ mapRef, mapReady, stage, activeJob, currentMission, location, missionFacts, stripCover, mapPaddingTop: g.mapPaddingTop, windowHeight, reduced, setEtaMin });
+  const { doorCoord, routeCoords } = useCockpitCamera({ mapRef, mapReady, stage, activeJob, currentMission, location, missionFacts, stripCover, mapPaddingTop: g.mapPaddingTop, windowHeight, reduced, setEtaMin, sidePanel });
 
   // ─── Navigation ──────────────────────────────────────────────────────────
   // Ouvrir une mission depuis la journée : elle vit ici, sur l'accueil — on la
@@ -174,6 +188,20 @@ export default function ProviderDashboard() {
   }
 
   const meTone = meToneOf(stage);
+  const missionFlow = stage === 'busy' && currentMission ? (
+    <MissionFlow
+      key={String(currentMission.id)}
+      requestId={String(currentMission.id)}
+      seed={missionSeed && Number(missionSeed.id) === Number(currentMission.id) ? missionSeed : null}
+      topInset={g.mapPaddingTop}
+      myLocation={location}
+      gpsDenied={gpsDenied}
+      etaMin={etaMin}
+      onFacts={setMissionFacts}
+      onExit={onMissionExit}
+      inPane={!!rightPage}
+    />
+  ) : null;
   const routeColor = theme.isDark ? 'rgba(248,247,244,0.55)' : 'rgba(26,26,26,0.45)';
 
   return (
@@ -187,6 +215,7 @@ export default function ProviderDashboard() {
         onReady={() => setMapReady(true)}
         legalBottom={stripCover}
         legalLeft={layout.insets.left}
+        right={sidePanel && rightPage ? rightPage.width : 0}
         stage={stage}
         location={location}
         heading={heading}
@@ -200,7 +229,7 @@ export default function ProviderDashboard() {
       />
 
       {/* -- Le voile : la carte s'éteint hors ligne (l'étiquette d'état, en haut, dit pourquoi) -- */}
-      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={null} labelTop={g.veilLabelTop} />
+      <Veil dimmed={stage === 'off' || stage === 'gps' || stage === 'net'} label={null} labelTop={g.veilLabelTop} band={band} />
 
       {/* -- Haut : profil · aujourd'hui · messages · cloche -- */}
       <TopRow
@@ -219,7 +248,7 @@ export default function ProviderDashboard() {
       />
 
       {/* -- L'état, écrit sous la rangée du haut -- */}
-      <StateLabel stage={stage} count={incomingRequests.length} onlineSince={onlineSince} missionId={currentMission?.id ?? null} missionStage={stage === 'busy' ? missionFacts?.stage ?? null : null} missionSince={missionFacts?.startedAt ? new Date(missionFacts.startedAt).getTime() : null} top={g.stateTop} />
+      <StateLabel stage={stage} count={incomingRequests.length} onlineSince={onlineSince} missionId={currentMission?.id ?? null} missionStage={stage === 'busy' ? missionFacts?.stage ?? null : null} missionSince={missionFacts?.startedAt ? new Date(missionFacts.startedAt).getTime() : null} top={g.stateTop} band={band} />
 
       {/* -- La journée, lisible en bas -- */}
       <DayStrip
@@ -238,18 +267,10 @@ export default function ProviderDashboard() {
       <GpsCard visible={stage === 'gps'} bottom={stripBottom} left={marginLeft} width={contentWidth} />
 
       {/* -- La mission, sur l'accueil : une feuille par étape, la carte reste -- */}
-      {stage === 'busy' && currentMission ? (
-        <MissionFlow
-          key={String(currentMission.id)}
-          requestId={String(currentMission.id)}
-          seed={missionSeed && Number(missionSeed.id) === Number(currentMission.id) ? missionSeed : null}
-          topInset={g.mapPaddingTop}
-          myLocation={location}
-          gpsDenied={gpsDenied}
-          etaMin={etaMin}
-          onFacts={setMissionFacts}
-          onExit={onMissionExit}
-        />
+      {/* Déplié : elle devient la page droite, fixe — la carte garde la page gauche. */}
+      {/* Même arbre plié comme déplié : plier le Duo ne démonte pas la mission (photos, code en cours). */}
+      {missionFlow ? (
+        <View style={rightPage ? [s.pane, { left: rightPage.left }] : StyleSheet.absoluteFill} pointerEvents="box-none">{missionFlow}</View>
       ) : null}
 
       {/* -- Elle est pour vous -- */}
@@ -266,7 +287,8 @@ export default function ProviderDashboard() {
           leaving={leavingId === activeJob.requestId}
           bottom={0}
           insetBottom={layout.insets.bottom}
-          maxWidth={layout.isRegular ? 560 : null}
+          page={rightPage}
+          maxHeight={layout.height - Math.max(16, layout.insets.top)}
         />
       )}
     </View>
@@ -275,5 +297,6 @@ export default function ProviderDashboard() {
 
 const s = StyleSheet.create({
   root:          { flex: 1 },
+  pane:          { position: 'absolute', top: 0, right: 0, bottom: 0 },
   loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

@@ -8,9 +8,9 @@ import { useHideBar } from '@/stores/nav';
 import React, { useCallback, useMemo } from 'react';
 import BottomSheet, {
   BottomSheetScrollView,
-  BottomSheetBackdrop,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
@@ -20,7 +20,7 @@ import i18n from '@/lib/i18n';
 import { localeFor } from '@/lib/format';
 import { cleanName } from '@/lib/displayName';
 import { useSheetMotion } from '@/lib/motion/sheet';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSheetFrame } from '@/lib/layout';
 import {
   displayInvoiceNumber, fmtInvoiceDate, invoiceAmounts, invoiceItems, payoutDateOf,
 } from '@/lib/invoice/invoiceSheet';
@@ -69,6 +69,9 @@ export default function InvoiceSheet({
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();
+  // Posée dans la scène de l'écran (pas un portail) : repère du conteneur.
+  // Sur le Duo déplié, le sheet tient sur une page ; sur un iPhone, rien ne change.
+  const frame = useSheetFrame({ modal: false });
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   useAndroidBackClose(isVisible, onClose);
@@ -79,7 +82,7 @@ export default function InvoiceSheet({
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
+      <SheetBackdrop
         {...props}
         disappearsOnIndex={-1}
         appearsOnIndex={0}
@@ -139,6 +142,7 @@ export default function InvoiceSheet({
       backgroundStyle={{ backgroundColor: palette.bg }}
       maxDynamicContentSize={windowHeight * 0.88}
       {...sheetMotion}
+      style={frame}
     >
       <BottomSheetScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 16 }]}

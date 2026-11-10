@@ -16,6 +16,10 @@ import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefres
 import { formatEUR } from '@/lib/format';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { bookColumnsFor, foldLineFor, useHinge, useSceneFrame, useSplitPane } from '@/lib/layout';
+
+// Retrait de chaque page du Duo déplié (de part et d'autre du pli).
+const PAGE_PAD = 20;
 
 // Clés i18n des statuts bruts de l'enum backend (traduits au rendu).
 const STATUS_KEYS: Record<string, string> = {
@@ -50,6 +54,16 @@ export default function RequestsListScreen() {
   const brandRefresh = useBrandRefresh();
   const [error, setError] = useState(false);
 
+  // Duo déplié : deux colonnes de cartes, la gouttière posée EXACTEMENT sur le
+  // pli (une colonne de 835 pt passait sous la charnière). L'écran remplit la
+  // scène (InsetScope) : le pli s'y mesure directement.
+  const isSplit = useSplitPane();
+  const scene = useSceneFrame();
+  const hinge = useHinge();
+  const cols = bookColumnsFor(foldLineFor(hinge, scene), scene.width);
+  const leftCardW = Math.max(0, cols.left - PAGE_PAD * 2);
+  const columnGap = cols.gutter + PAGE_PAD * 2;
+
   const loadRequests = async () => {
     try {
       setError(false);
@@ -75,9 +89,9 @@ export default function RequestsListScreen() {
     loadRequests();
   };
 
-  const renderRequest = ({ item }: { item: ServiceRequest }) => (
+  const renderRequest = ({ item, index }: { item: ServiceRequest; index: number }) => (
     <PressScale accessibilityRole="button"
-      style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
+      style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, isSplit && (index % 2 === 0 ? { width: leftCardW } : styles.rightCard)]}
       onPress={() => {
         router.push({
           pathname: '/request/[id]',
@@ -114,16 +128,18 @@ export default function RequestsListScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
-      <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }]}>
+      {/* Déplié : le titre à côté du retour, en haut de la page gauche (centré,
+          il tombait sur le pli) ; seul le fond de la barre traverse. */}
+      <View style={[styles.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.border }, isSplit && styles.headerPage]}>
         <PressScale onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={24} color={theme.textAlt} />
         </PressScale>
         <Text style={[styles.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.list_all_requests')}</Text>
-        <View style={{ width: 24 }} />
+        {isSplit ? null : <View style={{ width: 24 }} />}
       </View>
 
       {error && requests.length === 0 ? (
-        <View style={styles.empty}>
+        <View style={[styles.empty, isSplit && { width: cols.left }]}>
           <Feather name="alert-circle" size={56} color={theme.textMuted} />
           <Text style={[styles.emptyText, { color: theme.textSub, fontFamily: FONTS.sans }]}>{t('ext.reqlist_load_error')}</Text>
           <PressScale accessibilityRole="button"
@@ -138,17 +154,21 @@ export default function RequestsListScreen() {
         <>
         <BrandRefreshHeader style={brandRefresh.headerStyle} />
         <Animated.FlatList
+          // numColumns ne change pas à chaud : une clé par disposition.
+          key={isSplit ? 'book' : 'column'}
+          numColumns={isSplit ? 2 : 1}
+          columnWrapperStyle={isSplit ? { gap: columnGap } : undefined}
           onScroll={brandRefresh.onScroll}
           scrollEventThrottle={16}
           data={requests}
           renderItem={renderRequest}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={isSplit ? styles.listPage : styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
+            <View style={[styles.empty, isSplit && { width: leftCardW }]}>
               <Feather name="file-text" size={64} color={theme.textDisabled} />
               <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.list_no_requests')}</Text>
             </View>
@@ -170,8 +190,11 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
   },
+  headerPage: { justifyContent: 'flex-start', gap: 16, paddingHorizontal: PAGE_PAD, paddingTop: 12 },
   headerTitle: { fontSize: 20 },
   list: { padding: 16 },
+  listPage: { paddingHorizontal: PAGE_PAD, paddingTop: 16, paddingBottom: 16 },
+  rightCard: { flex: 1 },
   card: {
     padding: 16,
     borderRadius: 12,

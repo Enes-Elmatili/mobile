@@ -26,6 +26,7 @@ import { DEFAULT_PAYOUT_DELAY_DAYS, groupByMonth, inTransit, toLine, type GainLi
 import { GainRow } from '@/components/gains/GainRow';
 import { MoneySheet } from '@/components/gains/MoneySheet';
 import { PressScale } from '@/components/ui/PressScale';
+import { PanePlaceholder, SplitPane, useSplitPane } from '@/lib/layout';
 
 type Segment = 'missions' | 'payouts';
 
@@ -70,6 +71,7 @@ export default function WalletTab() {
   const insets = useSafeAreaInsets();
   const tabBarPadding = useTabBarPadding();
   const brandRefresh = useBrandRefresh();
+  const isSplit = useSplitPane();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -222,42 +224,69 @@ export default function WalletTab() {
     ? (bankLabel ? t('gains.schedule', { bank: bankLabel, days: delay }) : t('gains.schedule_no_bank', { days: delay }))
     : t('gains.setup_sub');
 
+  const header = (
+    <View style={s.header}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('gains.title')}</Text>
+        <Text style={[s.schedule, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{schedule}</Text>
+      </View>
+      <PressScale onPress={openMenu} disabled={stripeBusy} style={[s.menuBtn, { backgroundColor: theme.surface }]} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={8}>
+        {stripeBusy ? <ActivityIndicator size="small" color={theme.textSub as string} /> : <Feather name="more-horizontal" size={20} color={theme.text as string} />}
+      </PressScale>
+    </View>
+  );
+  const segmentBar = (
+    <View style={s.segment}>
+      <SegmentedControl<Segment> options={[{ value: 'missions', label: t('gains.seg_missions') }, { value: 'payouts', label: t('gains.seg_payouts') }]} value={segment} onChange={(v) => { feedback.haptic('selection'); setSegment(v); }} />
+    </View>
+  );
+  const errorLine = error ? <Text style={[s.error, { color: theme.textMuted }]}>{t('gains.balance_error')}</Text> : null;
+  const body = loading ? (
+    <View style={s.center}><ActivityIndicator size="large" color={theme.accent as string} /></View>
+  ) : (
+    <>
+      <BrandRefreshHeader style={brandRefresh.headerStyle} top={insets.top} />
+      <Animated.FlatList
+        data={items}
+        keyExtractor={(it) => it.key}
+        renderItem={renderItem}
+        contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }]}
+        showsVerticalScrollIndicator={false}
+        onScroll={brandRefresh.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
+      />
+    </>
+  );
+  const sheet = <MoneySheet line={selected} bankLabel={bankLabel} onClose={() => setSelected(null)} onInvoice={() => { setSelected(null); router.push('/invoices'); }} />;
+
+  // Déplié : le relevé entier (en-tête, banque, segments, liste) tient la page
+  // gauche ; la droite attend une mission. La fiche argent reste une feuille
+  // (MoneySheet n'expose pas encore son contenu seul pour la poser en volet).
+  if (isSplit) {
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
+        <StatusBar barStyle={theme.statusBar} />
+        <SplitPane
+          ratio={0.5}
+          master={<>{header}{segmentBar}{errorLine}{body}</>}
+          placeholder={<PanePlaceholder icon="credit-card" label={t('missions.select_hint')} />}
+        />
+        {sheet}
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={['top']}>
       <StatusBar barStyle={theme.statusBar} />
-      <View style={s.header}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('gains.title')}</Text>
-          <Text style={[s.schedule, { color: theme.textSub }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{schedule}</Text>
-        </View>
-        <PressScale onPress={openMenu} disabled={stripeBusy} style={[s.menuBtn, { backgroundColor: theme.surface }]} accessibilityRole="button" accessibilityLabel={t('missions.options')} hitSlop={8}>
-          {stripeBusy ? <ActivityIndicator size="small" color={theme.textSub as string} /> : <Feather name="more-horizontal" size={20} color={theme.text as string} />}
-        </PressScale>
-      </View>
-      <View style={s.segment}>
-        <SegmentedControl<Segment> options={[{ value: 'missions', label: t('gains.seg_missions') }, { value: 'payouts', label: t('gains.seg_payouts') }]} value={segment} onChange={(v) => { feedback.haptic('selection'); setSegment(v); }} />
-      </View>
-      {error ? <Text style={[s.error, { color: theme.textMuted }]}>{t('gains.balance_error')}</Text> : null}
+      {header}
+      {segmentBar}
+      {errorLine}
 
-      {loading ? (
-        <View style={s.center}><ActivityIndicator size="large" color={theme.accent as string} /></View>
-      ) : (
-        <>
-          <BrandRefreshHeader style={brandRefresh.headerStyle} top={insets.top} />
-          <Animated.FlatList
-            data={items}
-            keyExtractor={(it) => it.key}
-            renderItem={renderItem}
-            contentContainerStyle={[s.list, { paddingBottom: tabBarPadding }]}
-            showsVerticalScrollIndicator={false}
-            onScroll={brandRefresh.onScroll}
-            scrollEventThrottle={16}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
-          />
-        </>
-      )}
+      {body}
 
-      <MoneySheet line={selected} bankLabel={bankLabel} onClose={() => setSelected(null)} onInvoice={() => { setSelected(null); router.push('/invoices'); }} />
+      {sheet}
     </SafeAreaView>
   );
 }
