@@ -6,20 +6,20 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, Platform, ActivityIndicator, Image,
 } from 'react-native';
-import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import { TAB_BAR_HEIGHT, tabBarBottom } from '@/components/ui/FixedTabBar';
+import { useTabBarPadding } from '@/app/(tabs)/_layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { api } from '@/lib/api';
 import type { Quote } from '@/lib/types';
 import { devError } from '@/lib/logger';
 import { formatEURCents as fmtEur } from '@/lib/format';
 import { useSheetMotion } from '@/lib/motion/sheet';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSheetFrame } from '@/lib/layout';
 import { PressScale } from '@/components/ui/PressScale';
 
 interface QuoteSheetProps {
@@ -38,12 +38,15 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();
+  // Posée dans la scène de l'écran (pas un portail) : repère du conteneur.
+  // Sur le Duo déplié, le sheet tient sur une page ; sur un iPhone, rien ne change.
+  const frame = useSheetFrame({ modal: false });
   const router = useRouter();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   useAndroidBackClose(isVisible, onClose);
-  // Dessus de la barre flottante : sa hauteur + sa distance au bord.
-  const tabBarClear = TAB_BAR_HEIGHT + tabBarBottom(insets.bottom);
+  // Dessus de la barre flottante + 24 ; dans le rail du Duo, rien ne flotte en
+  // bas : seul l'inset bas reste.
+  const bottomPad = useTabBarPadding();
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,7 +73,7 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
 
   const renderBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop
+      <SheetBackdrop
         {...props}
         disappearsOnIndex={-1}
         appearsOnIndex={0}
@@ -107,9 +110,10 @@ export default function QuoteSheet({ requestId, requestStatus, serviceName, isVi
       backgroundStyle={{ backgroundColor: bg }}
       maxDynamicContentSize={windowHeight * 0.88}
       {...sheetMotion}
+      style={frame}
     >
       <BottomSheetScrollView
-        contentContainerStyle={[qs.scroll, { paddingBottom: tabBarClear + 24 }]}
+        contentContainerStyle={[qs.scroll, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}

@@ -11,7 +11,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar, ActivityIndicator,
+  View, Text, StyleSheet, StatusBar, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -32,6 +32,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, with
 import { MOTION } from '@/lib/motion/springs';
 import { useReduceMotion } from '@/lib/motion/sheet';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // Format "Mer 8 à 19:00"
 function formatScheduled(iso?: string | null): string {
@@ -84,6 +85,9 @@ export default function ScheduledConfirmation() {
   const contentFade = useSharedValue(isRecapMode ? 1 : 0);
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: iconScale.value }] }));
   const contentStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
+  // Duo déplié : la page droite suit le même fondu (style distinct par vue).
+  const contentStyleRight = useAnimatedStyle(() => ({ opacity: contentFade.value }));
+  const isSplit = useSplitPane();
 
   // ── Fetch depuis API si mode recap OU params incomplets ──
   const fetchRequest = useCallback(async () => {
@@ -235,19 +239,17 @@ export default function ScheduledConfirmation() {
   // Le prestataire engagé, s'il est connu (lu une fois pour les rappels ci-dessous).
   const engaged = requestData?.provider;
 
-  return (
-    <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      <View style={st.center}>
-        {/* Calendar icon (animated in confirmation mode, static in recap) */}
+  // ── Les blocs du récap, assemblés selon la disposition ──
+  const iconBlock = (
         <Animated.View style={[st.iconWrap, iconStyle]}>
           <View style={[st.iconCircle, { backgroundColor: theme.surface }]}>
             <Feather name="calendar" size={48} color={theme.text} />
           </View>
         </Animated.View>
+  );
 
-        <Animated.View style={[st.content, contentStyle]}>
+  const summaryBlock = (
+    <>
           <Text style={[st.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>
             {isRecapMode ? t('ext.scheduled_my_request') : t('ext.scheduled_request')}
           </Text>
@@ -297,7 +299,11 @@ export default function ScheduledConfirmation() {
               </>
             ) : null}
           </View>
+    </>
+  );
 
+  const statusBlock = (
+    <>
           {isAccepted ? (
             <>
               <View style={[st.infoBadge, { backgroundColor: alpha(COLORS.greenBrand, 0.08), borderWidth: 1, borderColor: alpha(COLORS.greenBrand, 0.2) }]}>
@@ -310,7 +316,7 @@ export default function ScheduledConfirmation() {
               </View>
               {/* Le prestataire engagé : on peut lui écrire ou l'appeler avant le jour J. */}
               {engaged ? (
-                <View style={{ marginTop: 12 }}>
+                <View style={st.providerWrap}>
                   <ProviderRow
                     provider={engaged}
                     onOpenProfile={() => router.push(`/providers/${engaged.id}`)}
@@ -320,7 +326,8 @@ export default function ScheduledConfirmation() {
                 </View>
               ) : null}
               {requestData?.photos?.length ? (
-                <View style={{ marginTop: 8, marginHorizontal: -20 }}>
+                // La galerie va jusqu'aux bords : elle annule le retrait de sa page.
+                <View style={[st.galleryBleed, isSplit && st.galleryBleedPage]}>
                   <PhotoGallery photos={briefOf(requestData).photos} title={t('mission.your_photos')} />
                 </View>
               ) : null}
@@ -335,11 +342,11 @@ export default function ScheduledConfirmation() {
               </Text>
             </View>
           )}
-        </Animated.View>
-      </View>
+    </>
+  );
 
-      {/* Bottom CTAs */}
-      <View style={st.bottom}>
+  const ctaBlock = (
+      <View style={[st.bottom, isSplit && st.bottomPage]}>
         <PressScale accessibilityRole="button"
           style={[st.btn, { backgroundColor: theme.accent }]}
           onPress={() => {
@@ -384,6 +391,52 @@ export default function ScheduledConfirmation() {
           </PressScale>
         )}
       </View>
+  );
+
+  // Duo déplié : page gauche = la demande (icône, titre, récap) ; page droite =
+  // le prestataire, les photos, et les CTA épinglés en bas de la page.
+  if (isSplit) {
+    return (
+      <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <ScrollView contentContainerStyle={[st.body, st.page]} showsVerticalScrollIndicator={false}>
+              {iconBlock}
+              <Animated.View style={[st.content, contentStyle]}>{summaryBlock}</Animated.View>
+            </ScrollView>
+          }
+          right={
+            <View style={st.root}>
+              <ScrollView contentContainerStyle={[st.body, st.page]} showsVerticalScrollIndicator={false}>
+                <Animated.View style={[st.content, contentStyleRight]}>{statusBlock}</Animated.View>
+              </ScrollView>
+              {ctaBlock}
+            </View>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[st.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Le récap défile s'il dépasse (prestataire + photos) : sinon il passait
+          sous les CTA. Centré tant qu'il tient, comme avant. */}
+      <ScrollView style={st.root} contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
+        {/* Calendar icon (animated in confirmation mode, static in recap) */}
+        {iconBlock}
+
+        <Animated.View style={[st.content, contentStyle]}>
+          {summaryBlock}
+          {statusBlock}
+        </Animated.View>
+      </ScrollView>
+
+      {/* Bottom CTAs */}
+      {ctaBlock}
     </SafeAreaView>
   );
 }
@@ -391,6 +444,10 @@ export default function ScheduledConfirmation() {
 const st = StyleSheet.create({
   root:   { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  // Corps défilant : centré tant qu'il tient (flexGrow), défile au-delà.
+  body:   { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  // Page du Duo : 20 pt de chaque côté, sous la barre système + 12.
+  page:   { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },
 
   iconWrap:   { marginBottom: 16 },
   iconCircle: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
@@ -406,8 +463,12 @@ const st = StyleSheet.create({
 
   infoBadge:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, width: '100%' },
   infoText:   { fontSize: 12, lineHeight: 17, flex: 1 },
+  providerWrap: { marginTop: 12 },
+  galleryBleed: { marginTop: 8, marginHorizontal: -16 },
+  galleryBleedPage: { marginHorizontal: -20 },
 
   bottom:          { paddingHorizontal: 16, paddingBottom: 18, gap: 8 },
+  bottomPage:      { paddingHorizontal: 20 },
   btn:             { borderRadius: 100, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   btnText:         { fontSize: 15 },
   btnSecondary:    { borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1.5 },

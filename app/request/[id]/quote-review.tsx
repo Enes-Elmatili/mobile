@@ -28,7 +28,7 @@ import { useSocket } from "@/lib/SocketContext";
 import { cleanName } from "@/lib/displayName";
 import { translateRequestServiceRaw } from "@/lib/categoryLabel";
 import { useTranslation } from "react-i18next";
-import { SplitPane, useSplitPane } from "@/lib/layout";
+import { PanePlaceholder, SplitPane, useSplitPane } from "@/lib/layout";
 import {
   confirmPaymentWithRetry, isFolded, isQuoteReviewStatus, isSealed, quotePaymentSheetParams,
   quoteReviewState, splitAmount, timeLeftLabel as formatTimeLeft,
@@ -226,10 +226,26 @@ export default function QuoteReview() {
   };
 
   // ── Header partagé (loading / empty / contenu) ───────────────────────────
-  const Header = <QuoteHeader theme={theme} onBack={goBack} lineStyle={headerLineStyle} />;
+  // Déplié : en haut de la page gauche, titre à côté du retour (centré sur
+  // toute la largeur, « DEVIS » tombait sur le pli).
+  const Header = <QuoteHeader theme={theme} onBack={goBack} lineStyle={headerLineStyle} align={isSplit ? "start" : "center"} />;
+  // Haut de la page droite déplié : sous la barre système + 12.
+  const rightPageTop = { paddingTop: insets.top + 12 };
 
   // Loading — squelette plutôt que spinner : la page se dessine avant d'arriver.
   if (loading) {
+    if (isSplit) {
+      // Déplié : la silhouette des deux pages, aucun bloc à cheval sur le pli.
+      return (
+        <View style={[s.root, { backgroundColor: theme.bg }]}>
+          <StatusBar barStyle={theme.statusBar} />
+          <SplitPane
+            master={<View style={s.root}>{Header}<QuoteSkeleton theme={theme} part="context" /></View>}
+            detail={<View style={rightPageTop}><QuoteSkeleton theme={theme} part="quote" /></View>}
+          />
+        </View>
+      );
+    }
     return (
       <View style={[s.root, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
@@ -241,6 +257,18 @@ export default function QuoteReview() {
 
   // Empty
   if (!quote) {
+    if (isSplit) {
+      // Déplié : le message sur la page gauche, la droite au repos.
+      return (
+        <View style={[s.root, { backgroundColor: theme.bg }]}>
+          <StatusBar barStyle={theme.statusBar} />
+          <SplitPane
+            master={<View style={s.root}>{Header}<QuoteEmpty theme={theme} onBack={goBack} /></View>}
+            placeholder={<PanePlaceholder icon="clock" label={t('quote.pending_step_quote_progress')} />}
+          />
+        </View>
+      );
+    }
     return (
       <View style={[s.root, { backgroundColor: theme.bg }]}>
         <StatusBar barStyle={theme.statusBar} />
@@ -364,21 +392,24 @@ export default function QuoteReview() {
   return (
     <View style={[s.root, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.statusBar} />
-      {Header}
+      {isSplit ? null : Header}
 
       <SplitPane
         master={isSplit ? (
-          <Animated.ScrollView
-            contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}
-            showsVerticalScrollIndicator={false}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-          >
-            {contextBlock}
-            {providerBlock}
-            {photosBlock}
-            {notesBlock}
-          </Animated.ScrollView>
+          <View style={s.root}>
+            {Header}
+            <Animated.ScrollView
+              contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}
+              showsVerticalScrollIndicator={false}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+            >
+              {contextBlock}
+              {providerBlock}
+              {photosBlock}
+              {notesBlock}
+            </Animated.ScrollView>
+          </View>
         ) : (
           <Animated.ScrollView
             contentContainerStyle={[s.scroll, { paddingBottom: footerH + 24 }]}
@@ -398,7 +429,7 @@ export default function QuoteReview() {
         detail={isSplit ? (
           <View style={s.root}>
             <Animated.ScrollView
-              contentContainerStyle={[s.scroll, { paddingBottom: footerH + 24 }]}
+              contentContainerStyle={[s.scroll, rightPageTop, { paddingBottom: footerH + 24 }]}
               showsVerticalScrollIndicator={false}
             >
               {heroBlock}

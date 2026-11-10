@@ -3,11 +3,13 @@
 // enregistre. Montée seulement quand elle est ouverte (gorhom + Android).
 import React, { useCallback, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type KeyboardTypeOptions } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useSheetMotion } from '@/lib/motion/sheet';
+import { useSheetFrame } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { Cta } from '@/components/tracking';
 import { BarLock } from '@/stores/nav';
@@ -39,6 +41,9 @@ export function FieldSheet({ field, onClose, onSave }: Props) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const motion = useSheetMotion();
+  // Posée dans la scène de l'écran (pas un portail) : repère du conteneur.
+  // Sur le Duo déplié, le sheet tient sur une page ; sur un iPhone, rien ne change.
+  const frame = useSheetFrame({ modal: false });
   const ref = useRef<BottomSheet>(null);
   const [value, setValue] = useState(field?.value ?? '');
   const [saving, setSaving] = useState(false);
@@ -50,7 +55,7 @@ export function FieldSheet({ field, onClose, onSave }: Props) {
   }
   const close = useCallback(() => { ref.current?.close(); }, []);
   useAndroidBackClose(!!field, close);
-  const renderBackdrop = useCallback((p: BottomSheetBackdropProps) => <BottomSheetBackdrop {...p} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />, []);
+  const renderBackdrop = useCallback((p: BottomSheetBackdropProps) => <SheetBackdrop {...p} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />, []);
   if (!field) return null;
   const changed = value.trim() !== (field.value ?? '').trim();
   const save = async () => {
@@ -73,6 +78,7 @@ export function FieldSheet({ field, onClose, onSave }: Props) {
       android_keyboardInputMode="adjustResize"
       backgroundStyle={{ backgroundColor: theme.cardBg, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
       handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }}
+      style={frame}
     >
       <BottomSheetView style={[s.body, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
         <BarLock />

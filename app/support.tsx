@@ -25,6 +25,7 @@ import ProblemSelector, { type ProblemOption } from '@/components/support/Proble
 import ResolutionView from '@/components/support/ResolutionView';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -212,6 +213,7 @@ export default function SupportScreen() {
   // Le même écran sert aux deux rôles : GET /requests renvoie déjà les missions
   // du prestataire, seuls le catalogue de problèmes et l'empty state changent.
   const isProvider = !!user?.roles?.includes('PROVIDER');
+  const isSplit = useSplitPane();
 
   const [level, setLevel] = useState<Level>(1);
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -292,12 +294,8 @@ export default function SupportScreen() {
 
   const subtitle = useMemo(() => t(LEVEL_META[level].subtitleKey), [level, t]);
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header */}
-      <View style={s.header}>
+  const header = (
+      <View style={[s.header, isSplit && s.headerSplit]}>
         <PressScale
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
@@ -307,7 +305,7 @@ export default function SupportScreen() {
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
         </PressScale>
-        <View style={s.headerCenter}>
+        <View style={[s.headerCenter, isSplit && s.headerCenterSplit]}>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
             {t('ext.support_center')}
           </Text>
@@ -315,31 +313,24 @@ export default function SupportScreen() {
             {t('ext.support_title')}
           </Text>
         </View>
-        <View style={{ width: 38 }} />
+        {isSplit ? null : <View style={{ width: 38 }} />}
       </View>
-
-      <Stepper level={level} theme={theme} />
-
+  );
+  const subtitleText = (
       <Text style={[s.subtitle, { color: theme.textSub, fontFamily: FONTS.sans }]}>
         {subtitle}
       </Text>
-
-      <KeyboardAvoidingView style={s.scroll} behavior="padding">
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={s.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Contexte mission persistant à partir du level 2 */}
-        {level >= 2 && (
+  );
+  // Contexte mission persistant à partir du level 2
+  const missionContext = level >= 2 && (
           <MissionContextCard
             mission={selectedMission}
             onChange={handleBackToMissions}
             theme={theme}
           />
-        )}
-
+  );
+  const stepContent = (
+    <>
         {level === 1 && (
           <FadeSlide key="level1">
             {loadError && !loading && (
@@ -386,6 +377,65 @@ export default function SupportScreen() {
             />
           </FadeSlide>
         )}
+    </>
+  );
+
+  if (isSplit) {
+    // Duo déplié : à gauche où vous en êtes (étapes, consigne, mission
+    // choisie), à droite l'étape elle-même. Le contenu garde toute la hauteur
+    // de sa page — le clavier paysage en laisse peu.
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {header}
+              <ScrollView contentContainerStyle={s.pageLeft} showsVerticalScrollIndicator={false}>
+                <Stepper level={level} theme={theme} />
+                {subtitleText}
+                <View style={s.pagePad}>{missionContext}</View>
+              </ScrollView>
+            </>
+          }
+          right={
+            <KeyboardAvoidingView style={s.scroll} behavior="padding">
+              <ScrollView
+                style={s.scroll}
+                contentContainerStyle={[s.scrollContent, s.pageRight]}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {stepContent}
+              </ScrollView>
+            </KeyboardAvoidingView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Header */}
+      {header}
+
+      <Stepper level={level} theme={theme} />
+
+      {subtitleText}
+
+      <KeyboardAvoidingView style={s.scroll} behavior="padding">
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {missionContext}
+
+        {stepContent}
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -403,11 +453,18 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { alignItems: 'center', gap: 1 },
+  // Page gauche : marge haute de page, titre contre le retour (centré, il tombait sur la charnière).
+  headerSplit: { justifyContent: 'flex-start', gap: 12, paddingHorizontal: 20, paddingTop: 12 },
+  headerCenterSplit: { alignItems: 'flex-start', flexShrink: 1 },
   kicker: { fontSize: 9.5, letterSpacing: 1.6 },
   title: { fontSize: 20, letterSpacing: 1, lineHeight: 22 },
   subtitle: { fontSize: 13, textAlign: 'center', paddingHorizontal: 32, marginBottom: 18 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
+  // Duo déplié : marges de page (20), la droite s'aligne sur le haut de la gauche.
+  pageLeft: { paddingBottom: 32 },
+  pagePad: { paddingHorizontal: 20 },
+  pageRight: { paddingHorizontal: 20, paddingTop: 12 },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,

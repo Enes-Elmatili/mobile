@@ -9,7 +9,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, Platform, StatusBar, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useFeedbackPrefs } from '@/stores/feedbackPrefs';
@@ -17,6 +16,8 @@ import { feedback } from '@/lib/feedback/feedback';
 import { api } from '@/lib/api';
 import { devWarn, reportError } from '@/lib/logger';
 import { PressScale } from '@/components/ui/PressScale';
+import { SettingsHeader } from '@/components/settings/SettingsHeader';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 type Prefs = { message: boolean; money: boolean; account: boolean; news: boolean; quiet: { enabled: boolean; from: string; to: string } };
 const DEFAULTS: Prefs = { message: true, money: true, account: true, news: true, quiet: { enabled: false, from: '22:00', to: '07:00' } };
@@ -70,9 +71,9 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export default function NotificationsSettingsScreen() {
-  const router = useRouter();
   const { t } = useTranslation();
   const theme = useAppTheme();
+  const isSplit = useSplitPane();
   const sound = useFeedbackPrefs((s) => s.sound);
   const haptics = useFeedbackPrefs((s) => s.haptics);
   const animations = useFeedbackPrefs((s) => s.animations);
@@ -97,21 +98,8 @@ export default function NotificationsSettingsScreen() {
     }
   }, []);
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={s.header}>
-        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border  }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.back')}>
-          <Feather name="arrow-left" size={18} color={theme.text} />
-        </PressScale>
-        <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2} accessibilityRole="header">{t('notifications.prefs_title').toUpperCase()}</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={[s.lead, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('notifications.prefs_lead')}</Text>
-
-        {!prefs ? <ActivityIndicator color={theme.textMuted} style={{ marginVertical: 40 }} /> : (
+  const lead = <Text style={[s.lead, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('notifications.prefs_lead')}</Text>;
+  const serverGroups = !prefs ? <ActivityIndicator color={theme.textMuted} style={{ marginVertical: 40 }} /> : (
           <>
             <Group title={t('notifications.prefs_group_missions')}>
               <Row icon="map-pin" label={t('notifications.prefs_missions')} sublabel={t('notifications.prefs_missions_sub')} value locked />
@@ -135,19 +123,63 @@ export default function NotificationsSettingsScreen() {
               />
             </Group>
           </>
-        )}
-
+        );
+  const deviceGroup = (
         <Group title={t('feedback.settings.section')}>
           <Row icon="volume-2" label={t('feedback.settings.sound')} sublabel={t('feedback.settings.sound_sub')} value={sound} onToggle={(v) => { setPref('sound', v); feedback.haptic('selection'); }} />
           <Row icon="smartphone" label={t('feedback.settings.haptics')} sublabel={t('feedback.settings.haptics_sub')} value={haptics} onToggle={(v) => { setPref('haptics', v); if (v) feedback.haptic('selection'); }} />
           <Row icon="zap" label={t('feedback.settings.animations')} sublabel={t('feedback.settings.animations_sub')} value={animations} onToggle={(v) => { setPref('animations', v); feedback.haptic('selection'); }} last />
         </Group>
-
+  );
+  const systemLink = (
         <PressScale onPress={() => Linking.openSettings()} style={[s.sys, { borderColor: theme.border  }]} accessibilityRole="button" accessibilityLabel={t('ext.settings_notif_hint')}>
           <Feather name="settings" size={15} color={theme.textSub} />
           <Text style={[s.sysText, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('ext.settings_notif_hint')}</Text>
           <Feather name="chevron-right" size={15} color={theme.textMuted} />
         </PressScale>
+  );
+  const header = <SettingsHeader title={t('notifications.prefs_title')} style={s.header} />;
+
+  if (isSplit) {
+    // Duo déplié : à gauche ce qui reste sur l'appareil (son, haptique,
+    // animations, réglages système), à droite ce que FIXED vous envoie.
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {header}
+              <ScrollView contentContainerStyle={s.pageLeft} showsVerticalScrollIndicator={false}>
+                {lead}
+                {deviceGroup}
+                {systemLink}
+              </ScrollView>
+            </>
+          }
+          right={
+            <ScrollView contentContainerStyle={[s.scroll, s.pageTop]} showsVerticalScrollIndicator={false}>
+              {serverGroups}
+            </ScrollView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {header}
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {lead}
+
+        {serverGroups}
+
+        {deviceGroup}
+
+        {systemLink}
       </ScrollView>
     </SafeAreaView>
   );
@@ -155,10 +187,12 @@ export default function NotificationsSettingsScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 },
-  back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
+  // L'en-tête commun, à ses marges d'origine (un peu plus serré que les autres réglages).
+  header: { paddingTop: 6, paddingBottom: 4 },
   scroll: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 48 },
+  // Duo déplié : chaque page porte ses marges ; la droite s'aligne sur le haut de la gauche.
+  pageLeft: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 48 },
+  pageTop: { paddingTop: 12 },
   lead: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18.5, marginBottom: 10 },
   group: { fontFamily: FONTS.monoMedium, fontSize: 10.5, letterSpacing: 2, marginTop: 18, marginBottom: 8 },
   card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },

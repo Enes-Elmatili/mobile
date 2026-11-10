@@ -4,7 +4,7 @@
 // blocs visuels vivent dans components/dashboard/, le tri des demandes et les
 // libellés dans lib/dashboard/ (purs, testés).
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
-import { RefreshControl, StatusBar, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { runWhenIdle } from '@/lib/idle';
 import { usePressScale } from '@/lib/motion/press';
@@ -18,7 +18,8 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import { useSocket } from '../../lib/SocketContext';
 import { useCallParty } from '../../lib/webrtc/CallContext';
 import { api } from '../../lib/api';
-import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProviderDashboard from '@/components/provider/ProviderDashboard';
@@ -31,7 +32,7 @@ import InvoiceSheet from '@/components/sheets/InvoiceSheet';
 import { useInvoice } from '@/hooks/useInvoice';
 import { devError } from '@/lib/logger';
 import { cleanName } from '@/lib/displayName';
-import { useLayoutClass } from '@/lib/layout';
+import { SplitPane, useLayoutClass, useSheetFrame, useSplitPane } from '@/lib/layout';
 import {
   PREVIEW_COUNT, activeMissionOf, searchingMissionOf, quoteMissionOf,
   activityRequestsOf, upcomingRequestsOf, visibleActivity, withRequestStatus,
@@ -71,6 +72,8 @@ function ClientDashboard() {
   const callParty = useCallParty();
   const theme = useAppTheme();
   const { width: windowWidth, height: windowHeight } = useLayoutClass();
+  // Duo déplié (et tout écran regular) : deux pages de part et d'autre du pli.
+  const isSplit = useSplitPane();
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,6 +91,8 @@ function ClientDashboard() {
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const sheetMotion = useSheetMotion();
+  // Duo déplié : le détail se pose sur la page droite (celle du détail), jamais sur le pli.
+  const sheetFrame = useSheetFrame({ modal: false });
   // Sheet détail montée UNIQUEMENT quand ouverte : toujours montée avec
   // index={-1} + enableDynamicSizing, gorhom l'auto-ouvre sur Android et son
   // backdrop plein écran bloque tous les touchs. Le state contrôle le montage
@@ -261,7 +266,7 @@ function ClientDashboard() {
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.3} />
+      <SheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.3} />
     ), []
   );
 
@@ -311,19 +316,9 @@ function ClientDashboard() {
   const name = cleanName(data?.me?.name, { email: user?.email, fallback: '' });
   const hasIslandMission = !!(activeMission || searchingMission || quoteMission);
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Moment 17 : le « fixed. » s'étire avec le tirage ; le RefreshControl natif garde le déclenchement. */}
-      <BrandRefreshHeader style={brandRefresh.headerStyle} />
-      <Reanimated.ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
-        showsVerticalScrollIndicator={false}
-        onScroll={brandRefresh.onScroll}
-        scrollEventThrottle={16}
-      >
+  // ── Les blocs de l'accueil, assemblés selon la disposition ──
+  const headBlock = (
+    <>
         {/* ── Bannière d'erreur réseau + retry ── */}
         {loadError && <LoadErrorBanner onRetry={loadDashboard} theme={theme} />}
         {/* ══════════════════════════════════════════════════════════════
@@ -399,14 +394,26 @@ function ClientDashboard() {
         </View>
 
         </CascadeItem>
+    </>
+  );
+  const upcomingBlock = (
+    <>
         {/* ── À VENIR (demandes planifiées futures) ── */}
         <CascadeItem index={1} stepMs={50}>
           <UpcomingSection requests={upcomingRequests} theme={theme} />
         </CascadeItem>
+    </>
+  );
+  const servicesBlock = (
+    <>
         {/* ── POPULAR SERVICES (2x2 grid) ── */}
         <CascadeItem index={2} stepMs={50}>
           <ServicesGrid windowWidth={windowWidth} theme={theme} />
         </CascadeItem>
+    </>
+  );
+  const recentBlock = (
+    <>
         {/* ── ACTIVITÉ RÉCENTE ── */}
         <RecentActivity
           isEmpty={!data?.requests?.length}
@@ -419,8 +426,54 @@ function ClientDashboard() {
           onRequestPress={handleRequestPress}
           theme={theme}
         />
+    </>
+  );
+  // Écran large : commander à gauche du pli, suivre à droite.
+  const orderPage = <>{headBlock}{servicesBlock}</>;
+  const followPage = <>{upcomingBlock}{recentBlock}</>;
 
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Moment 17 : le « fixed. » s'étire avec le tirage ; le RefreshControl natif garde le déclenchement. */}
+      <BrandRefreshHeader style={brandRefresh.headerStyle} />
+      {isSplit ? (
+        // Duo déplié : page gauche = commander, page droite = suivre. SplitPane
+        // pose la séparation sur le pli — rien ne chevauche la charnière.
+        <SplitPane
+          ratio={0.5}
+          master={
+            <Reanimated.ScrollView
+              contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
+              showsVerticalScrollIndicator={false}
+              onScroll={brandRefresh.onScroll}
+              scrollEventThrottle={16}
+            >
+              {orderPage}
+            </Reanimated.ScrollView>
+          }
+          detail={
+            <ScrollView contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]} showsVerticalScrollIndicator={false}>
+              {followPage}
+            </ScrollView>
+          }
+        />
+      ) : (
+      <Reanimated.ScrollView
+        contentContainerStyle={[s.scroll, { paddingBottom: tabBarPadding }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />}
+        showsVerticalScrollIndicator={false}
+        onScroll={brandRefresh.onScroll}
+        scrollEventThrottle={16}
+      >
+        {headBlock}
+        {upcomingBlock}
+        {servicesBlock}
+        {recentBlock}
       </Reanimated.ScrollView>
+      )}
 
       {/* ── Bottom Sheet detail ── */}
       {detailSheetOpen && (
@@ -433,6 +486,7 @@ function ClientDashboard() {
         animationConfigs={sheetMotion.animationConfigs}
         overDragResistanceFactor={sheetMotion.overDragResistanceFactor}
         onAnimate={sheetMotion.onAnimate}
+        style={sheetFrame}
         backdropComponent={renderBackdrop}
         backgroundStyle={[s.sheetBg, { backgroundColor: theme.cardBg }]}
         handleIndicatorStyle={[s.sheetIndicator, { backgroundColor: theme.borderLight }]}

@@ -1,13 +1,15 @@
 // components/messages/ConversationThread.tsx — le fil d'une conversation.
 // Écran plein sur compact (route /messages/[userId]) ; volet droit de l'inbox
-// sur un écran déplié (maquette « Conversations et fil »).
+// sur un écran déplié (maquette « Conversations et fil »). Plein écran déplié
+// (lien direct, fin d'appel) : le contact sur la page gauche, le fil et la
+// saisie sur la droite — rien ne passe sur le pli.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar, NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { api } from '../../lib/api';
 import { devLog, devError, reportError } from '../../lib/logger';
@@ -27,6 +29,8 @@ import { useAppTheme, FONTS, COLORS } from '../../hooks/use-app-theme';
 import { contactNameCacheGet, contactNameCacheSet } from '@/lib/messages/contactNameCache';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import Avatar from '@/components/ui/Avatar';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // DTO backend: { id, senderId, recipientId, text, createdAt, readAt }
 // `status` est purement local : présent uniquement sur les messages optimistes
@@ -71,14 +75,19 @@ type Props = {
   inPane?: boolean;
   /** En volet : une croix referme le fil (suivi déplié → retour au fil de la mission). */
   onClose?: () => void;
+  /** Bords d'inset que le fil applique lui-même (défaut : tous). L'inbox, déjà
+   *  dans un SafeAreaView, passe [] : sinon l'inset bas compte deux fois et la saisie flotte. */
+  edges?: Edge[];
 };
 
-export function ConversationThread({ userId, name, requestId, inPane = false, onClose }: Props) {
+export function ConversationThread({ userId, name, requestId, inPane = false, onClose, edges }: Props) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const router = useRouter();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  // Plein écran sur un écran déplié : deux pages (le volet, lui, tient déjà dans une seule).
+  const spread = useSplitPane() && !inPane;
   const { socket, refreshUnreadMessages } = useSocket();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -438,8 +447,146 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Le fil et sa saisie (le même arbre partout ; seul l'écrin change).
+  const thread = (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + (spread ? 0 : headerHeight) : 0}
+    >
+      {loading ? (
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color={theme.accent} />
+        </View>
+      ) : loadError && messages.length === 0 ? (
+        <View style={s.emptyWrap}>
+          <Feather name="wifi-off" size={44} color={theme.textMuted} />
+          <Text style={[s.emptyText, { color: theme.textMuted }]}>
+            Impossible de charger la conversation.
+          </Text>
+          <PressScale
+            style={[s.retryBtn, { backgroundColor: theme.accent }]}
+            onPress={() => { setLoading(true); loadConversation(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.retry')}
+          >
+            <Feather name="refresh-cw" size={15} color={theme.accentText} />
+            <Text style={[s.retryBtnText, { color: theme.accentText }]}>{t('common.retry')}</Text>
+          </PressScale>
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={item => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={s.list}
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            isNearBottomRef.current =
+              contentOffset.y + layoutMeasurement.height >= contentSize.height - 120;
+          }}
+          scrollEventThrottle={100}
+          onContentSizeChange={() => {
+            if (isNearBottomRef.current) flatListRef.current?.scrollToEnd({ animated: false });
+          }}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          ListEmptyComponent={
+            <View style={s.emptyWrap}>
+              <Feather name="message-circle" size={44} color={theme.textMuted} />
+              <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('messages.start_conversation')}</Text>
+            </View>
+          }
+          ListFooterComponent={
+            isTyping ? (
+              <View style={[b.row, b.rowLeft]}>
+                <View style={[b.bubble, b.bubbleOther, { backgroundColor: theme.surface }]}>
+                  <Text style={[b.typingDots, { color: theme.textMuted }]}>•••</Text>
+                </View>
+              </View>
+            ) : undefined
+          }
+        />
+      )}
+
+      {/* Input bar — replaced by a locked banner when the conversation is
+          closed (no active Request between the two users). */}
+      {canChat === false ? (
+        <View style={[s.lockedBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
+          <Feather name="lock" size={16} color={theme.textMuted} />
+          <Text style={[s.lockedText, { color: theme.textMuted }]} numberOfLines={2}>
+            Conversation fermée — la demande associée est clôturée.
+          </Text>
+        </View>
+      ) : (
+        <View style={[s.inputBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
+          <TextInput
+            style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
+            value={inputText}
+            onChangeText={handleTextChange}
+            placeholder={t('messages.placeholder')}
+            placeholderTextColor={theme.textMuted}
+            multiline
+            maxLength={2000}
+            blurOnSubmit={false}
+            accessibilityLabel={t('messages.input_a11y')}
+          />
+          <PressScale
+            hitSlop={4}
+            style={[s.sendBtn, { backgroundColor: theme.accent }, !inputText.trim() && s.sendBtnDisabled]}
+            onPress={sendMessage}
+            disabled={!inputText.trim()}
+            accessibilityRole="button"
+            accessibilityLabel={t('messages.send_a11y')}
+            accessibilityState={{ disabled: !inputText.trim() }}
+          >
+            <Feather name="send" size={18} color={theme.accentText} />
+          </PressScale>
+        </View>
+      )}
+    </KeyboardAvoidingView>
+  );
+
+  // Déplié, plein écran : le contact à gauche (retour + titre, puis qui), le fil à droite.
+  if (spread) {
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={(
+            <View style={s.root}>
+              <View style={[s.header, s.headerPage, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+                <PressScale
+                  onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
+                  style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.back')}
+                >
+                  <Feather name="arrow-left" size={18} color={theme.textAlt} />
+                </PressScale>
+                <Text style={[s.pageTitle, { color: theme.textAlt }]} numberOfLines={1}>{t('messages.title')}</Text>
+              </View>
+              <View style={s.contact}>
+                <Avatar name={headerName} size={64} />
+                <Text style={[s.contactName, { color: theme.textAlt }]} numberOfLines={2}>{headerName}</Text>
+                {isTyping ? <Text style={[s.typingLabel, { color: theme.textMuted }]}>écrit…</Text> : null}
+                {requestId ? (
+                  <View style={[s.headerBadge, s.contactBadge, { backgroundColor: theme.surfaceAlt }]}>
+                    <Text style={[s.headerBadgeText, { color: theme.textMuted }]}>#{String(requestId).slice(-6).toUpperCase()}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          )}
+          right={thread}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]} edges={edges}>
       <StatusBar barStyle={theme.statusBar} />
 
       {/* Header */}
@@ -485,102 +632,7 @@ export function ConversationThread({ userId, name, requestId, inPane = false, on
         )}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + headerHeight : 0}
-      >
-        {loading ? (
-          <View style={s.centered}>
-            <ActivityIndicator size="large" color={theme.accent} />
-          </View>
-        ) : loadError && messages.length === 0 ? (
-          <View style={s.emptyWrap}>
-            <Feather name="wifi-off" size={44} color={theme.textMuted} />
-            <Text style={[s.emptyText, { color: theme.textMuted }]}>
-              Impossible de charger la conversation.
-            </Text>
-            <PressScale
-              style={[s.retryBtn, { backgroundColor: theme.accent }]}
-              onPress={() => { setLoading(true); loadConversation(); }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.retry')}
-            >
-              <Feather name="refresh-cw" size={15} color={theme.accentText} />
-              <Text style={[s.retryBtnText, { color: theme.accentText }]}>{t('common.retry')}</Text>
-            </PressScale>
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={item => item.id}
-            renderItem={renderMessage}
-            contentContainerStyle={s.list}
-            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              isNearBottomRef.current =
-                contentOffset.y + layoutMeasurement.height >= contentSize.height - 120;
-            }}
-            scrollEventThrottle={100}
-            onContentSizeChange={() => {
-              if (isNearBottomRef.current) flatListRef.current?.scrollToEnd({ animated: false });
-            }}
-            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-            ListEmptyComponent={
-              <View style={s.emptyWrap}>
-                <Feather name="message-circle" size={44} color={theme.textMuted} />
-                <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('messages.start_conversation')}</Text>
-              </View>
-            }
-            ListFooterComponent={
-              isTyping ? (
-                <View style={[b.row, b.rowLeft]}>
-                  <View style={[b.bubble, b.bubbleOther, { backgroundColor: theme.surface }]}>
-                    <Text style={[b.typingDots, { color: theme.textMuted }]}>•••</Text>
-                  </View>
-                </View>
-              ) : undefined
-            }
-          />
-        )}
-
-        {/* Input bar — replaced by a locked banner when the conversation is
-            closed (no active Request between the two users). */}
-        {canChat === false ? (
-          <View style={[s.lockedBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
-            <Feather name="lock" size={16} color={theme.textMuted} />
-            <Text style={[s.lockedText, { color: theme.textMuted }]} numberOfLines={2}>
-              Conversation fermée — la demande associée est clôturée.
-            </Text>
-          </View>
-        ) : (
-          <View style={[s.inputBar, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
-            <TextInput
-              style={[s.input, { backgroundColor: theme.surface, color: theme.textAlt }]}
-              value={inputText}
-              onChangeText={handleTextChange}
-              placeholder={t('messages.placeholder')}
-              placeholderTextColor={theme.textMuted}
-              multiline
-              maxLength={2000}
-              blurOnSubmit={false}
-              accessibilityLabel={t('messages.input_a11y')}
-            />
-            <PressScale
-              hitSlop={4}
-              style={[s.sendBtn, { backgroundColor: theme.accent }, !inputText.trim() && s.sendBtnDisabled]}
-              onPress={sendMessage}
-              disabled={!inputText.trim()}
-              accessibilityRole="button"
-              accessibilityLabel={t('messages.send_a11y')}
-              accessibilityState={{ disabled: !inputText.trim() }}
-            >
-              <Feather name="send" size={18} color={theme.accentText} />
-            </PressScale>
-          </View>
-        )}
-      </KeyboardAvoidingView>
+      {thread}
     </SafeAreaView>
   );
 }
@@ -599,6 +651,12 @@ const s = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
+  // Déplié : titre à gauche, à côté du retour ; le contact en dessous, dans la page.
+  headerPage: { justifyContent: 'flex-start', gap: 12, paddingHorizontal: 20 },
+  pageTitle: { flex: 1, fontSize: 22, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5 },
+  contact: { paddingHorizontal: 20, paddingTop: 24, alignItems: 'flex-start', gap: 6 },
+  contactName: { fontSize: 28, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5, marginTop: 10 },
+  contactBadge: { alignSelf: 'flex-start', marginTop: 6 },
   headerTitle: {
     textAlign: 'center',
     fontSize: 17, fontFamily: FONTS.bebas, includeFontPadding: false, letterSpacing: 0.5,

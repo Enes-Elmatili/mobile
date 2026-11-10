@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { FONTS, COLORS, alpha, type AppTheme } from "@/hooks/use-app-theme";
 import { RaisedButton } from "@/components/ui/RaisedButton";
 import { PressScale } from '@/components/ui/PressScale';
+import { useSheetFrame, debugSnapshot } from '@/lib/layout';
 import { MonoLabel } from "./primitives";
 
 export function RefuseQuoteSheet({
@@ -22,8 +23,11 @@ export function RefuseQuoteSheet({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
+  // Le Modal couvre la fenêtre : sur le Duo déplié, la feuille tient sur une
+  // page (ni sous le rail, ni à cheval sur le pli) ; sur un iPhone, pleine largeur.
+  const page = useSheetFrame({ modal: true });
   return (
-    <Modal
+    <Modal onShow={() => debugSnapshot('modal-refuse')}
       visible={visible}
       transparent
       animationType="slide"
@@ -45,6 +49,8 @@ export function RefuseQuoteSheet({
           s.sheet,
           {
             backgroundColor: theme.cardBg,
+            marginLeft: page.marginLeft,
+            marginRight: page.marginRight,
             paddingBottom: Math.max(bottomInset + 12, Platform.OS === "ios" ? 40 : 28),
           },
         ]}>

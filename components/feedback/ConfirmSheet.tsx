@@ -1,11 +1,12 @@
 import React, { useCallback, useRef } from 'react';
 import { Text, StyleSheet } from 'react-native';
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { useFeedbackStore } from '@/lib/feedback/store';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSheetFrame } from '@/lib/layout';
 import { useSheetMotion } from '@/lib/motion/sheet';
 import { PressScale } from '@/components/ui/PressScale';
 
@@ -17,6 +18,8 @@ export function ConfirmSheet() {
   const ref = useRef<BottomSheet>(null);
   const insets = useSafeAreaInsets();
   const motion = useSheetMotion();
+  // Montée à la racine (FeedbackHost) : repère fenêtre. Sur le Duo déplié, une page.
+  const frame = useSheetFrame({ modal: true });
 
   // resolve(false) if dismissed without an explicit choice.
   // Reads the live store: once settled, clear() nulls confirm, so a
@@ -29,7 +32,7 @@ export function ConfirmSheet() {
 
   const renderBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />
+      <SheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />
     ),
     [],
   );
@@ -53,8 +56,11 @@ export function ConfirmSheet() {
       animationConfigs={motion.animationConfigs}
       overDragResistanceFactor={motion.overDragResistanceFactor}
       onAnimate={motion.onAnimate}
+      style={frame}
     >
-      <BottomSheetView style={[s.body, { paddingBottom: insets.bottom + 16 }]}>
+      {/* Défilante : un long message défile au lieu d'être coupé par
+          maxDynamicContentSize (669 pt de haut sur le Duo déplié). */}
+      <BottomSheetScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 16 }]}>
         <Text style={[s.title, { color: theme.text }]}>{confirm.title}</Text>
         {!!confirm.message && <Text style={[s.message, { color: theme.textSub }]}>{confirm.message}</Text>}
         <PressScale accessibilityRole="button"
@@ -68,7 +74,7 @@ export function ConfirmSheet() {
         <PressScale accessibilityRole="button" style={s.cancelBtn} onPress={() => settle(false)}>
           <Text style={[s.cancelText, { color: theme.textMuted }]}>{confirm.cancelLabel}</Text>
         </PressScale>
-      </BottomSheetView>
+      </BottomSheetScrollView>
     </BottomSheet>
   );
 }

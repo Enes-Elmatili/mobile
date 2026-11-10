@@ -30,15 +30,18 @@ type Props = {
   /** La flèche de cap (en route vers la porte). */
   arrow: boolean;
   me: { name: string | null; avatarUrl: string | null };
+  /** Duo déplié, fiche ou mission dans la page droite : la carte s'arrête avant (0 = plein cadre).
+   *  La caméra cadre alors dans ce qui reste visible, sans rembourrage latéral. */
+  right?: number;
 };
 
-export function CockpitMap({ mapRef, isDark, onReady, legalBottom, legalLeft, stage, location, heading, routeCoords, routeColor, incomingRequests, doorCoord, meTone, arrow, me }: Props) {
+export function CockpitMap({ mapRef, isDark, onReady, legalBottom, legalLeft, stage, location, heading, routeCoords, routeColor, incomingRequests, doorCoord, meTone, arrow, me, right = 0 }: Props) {
   return (
     <MapView
       ref={mapRef}
       provider={MAP_PROVIDER}
       {...mapAppearance(isDark)}
-      style={StyleSheet.absoluteFill}
+      style={[StyleSheet.absoluteFill, right > 0 ? { right } : null]}
       showsUserLocation={false}
       showsMyLocationButton={false}
       showsCompass={false}

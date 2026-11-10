@@ -4,6 +4,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { useAppTheme, FONTS, alpha } from "@/hooks/use-app-theme";
+import { useAuthBook } from "./AuthCover";
 
 type Props = {
   /** Méta mono affichée à droite (déjà localisée si besoin). */
@@ -12,15 +13,20 @@ type Props = {
 
 export function AuthMasthead({ meta }: Props) {
   const theme = useAppTheme();
+  // Page droite du livre (Duo déplié) : le wordmark est déjà sur la couverture.
+  // On garde la hauteur — le bouton retour, posé en absolu, ne bouge pas.
+  const inBook = useAuthBook();
   return (
     <View style={[s.row, !meta && { justifyContent: "center" }]}>
       <Image
+        style={[s.logo, inBook && s.hidden]}
+        accessibilityElementsHidden={inBook}
+        importantForAccessibility={inBook ? "no-hide-descendants" : "auto"}
         source={
           theme.isDark
             ? require("@/assets/logo-variants/logo-transparent-white.png")
             : require("@/assets/logo-variants/logo-transparent-black.png")
         }
-        style={s.logo}
         resizeMode="contain"
         accessibilityLabel="FIXED"
       />
@@ -44,6 +50,7 @@ const s = StyleSheet.create({
     height: 22,
     width: 81,
   },
+  hidden: { opacity: 0 },
   meta: {
     fontFamily: FONTS.mono,
     fontSize: 10,

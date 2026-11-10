@@ -1,4 +1,6 @@
 // app/call/active.tsx — Full-screen VoIP call UI
+// Déplié (Duo) : qui (avatar, nom, état) sur la page gauche, les commandes sur
+// la droite. Route hors InsetScope : elle écarte elle-même le rail système.
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, Platform, StatusBar,
@@ -13,6 +15,7 @@ import { usePulse } from '@/lib/motion/useLoops';
 import { PressScale } from '@/components/ui/PressScale';
 import { cleanName } from '@/lib/displayName';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +53,7 @@ export default function ActiveCallScreen() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { t } = useTranslation();
+  const isSplit = useSplitPane();
   const {
     callState, callInfo, endReason, isMuted, callDuration,
     hangup, toggleMute, dismissEnded,
@@ -96,92 +100,116 @@ export default function ActiveCallScreen() {
     .join('')
     .toUpperCase();
 
+  const identity = (
+    <View style={cs.topSection}>
+      <View style={cs.avatarContainer}>
+        <Animated.View style={[cs.avatar, { backgroundColor: theme.surface, shadowOpacity: theme.shadowOpacity }, isRinging && ringing]}>
+          <Text style={[cs.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{initials}</Text>
+        </Animated.View>
+      </View>
+
+      <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }, isSplit && cs.namePage]} numberOfLines={isSplit ? 2 : undefined}>{cleanName(callInfo?.remoteName, { fallback: t('ext.call_unknown') })}</Text>
+      <Text style={[cs.status, { color: theme.heroSub, fontFamily: isConnected ? FONTS.mono : FONTS.sans }]}>
+        {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, endReason, t)}
+      </Text>
+
+      {callInfo?.requestId && (
+        <View style={[cs.requestBadge, { backgroundColor: theme.surface }]}>
+          <Text style={[cs.requestBadgeText, { fontFamily: FONTS.mono, color: theme.heroSub }]}>
+            {t('call.mission_n', { id: String(callInfo.requestId).slice(-6).toUpperCase() })}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const controls = !isEnded && (
+    <View style={cs.controls}>
+      {/* Mute */}
+      <PressScale
+        style={[cs.controlBtn, isMuted && [cs.controlBtnActive, { backgroundColor: theme.cardBg }]]}
+        onPress={toggleMute}
+        accessibilityRole="button"
+        accessibilityLabel={isMuted ? t('call.unmute_a11y') : t('call.mute_a11y')}
+        accessibilityState={{ selected: isMuted }}
+      >
+        <Feather
+          name={isMuted ? 'mic-off' : 'mic'}
+          size={26}
+          color={isMuted ? theme.heroBg : theme.heroText}
+        />
+        <Text style={[cs.controlLabel, { fontFamily: FONTS.sansMedium, color: theme.heroSub }, isMuted && { color: theme.heroBg }]}>
+          {isMuted ? t('ext.call_mute') : t('ext.call_mic')}
+        </Text>
+      </PressScale>
+
+      {/* Hangup */}
+      <PressScale
+        style={cs.hangupBtn}
+        onPress={hangup}
+        scale={0.94}
+        accessibilityRole="button"
+        accessibilityLabel={t('call.hangup_a11y')}
+      >
+        <Feather name="phone-off" size={32} color={theme.heroText} />
+      </PressScale>
+
+      {/* Note: bouton haut-parleur retiré — aucun routage audio natif
+          implémenté (toggleSpeaker était purement cosmétique). */}
+    </View>
+  );
+
+  const fallback = offerMessage && (
+    <View style={cs.fallback}>
+      <Text style={[cs.fallbackHint, { color: theme.heroSub, fontFamily: FONTS.sans }]} maxFontSizeMultiplier={1.3}>{t('call.fallback_hint')}</Text>
+      <PressScale onPress={sendMessage} style={[cs.fallbackBtn, { backgroundColor: theme.heroText }]} accessibilityRole="button">
+        <Feather name="message-circle" size={18} color={theme.heroBg as string} />
+        <Text style={[cs.fallbackBtnText, { color: theme.heroBg, fontFamily: FONTS.sansBold }]}>{t('call.send_message')}</Text>
+      </PressScale>
+      <PressScale onPress={dismissEnded} style={cs.fallbackClose} accessibilityRole="button">
+        <Text style={[cs.fallbackCloseText, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>{t('call.close')}</Text>
+      </PressScale>
+    </View>
+  );
+
+  const ended = isEnded && !offerMessage && (
+    <View style={cs.endedSection}>
+      <Feather
+        name={!endReason || endReason === 'hangup' ? 'check-circle' : endReason === 'timeout' ? 'phone-missed' : 'x-circle'}
+        size={48}
+        color={theme.heroSub}
+      />
+    </View>
+  );
+
+  // Déplié : deux pages. La route n'est pas sous InsetScope : le rail système
+  // (barre d'état, Dynamic Island) est écarté ici, sinon les commandes passent dessous.
+  if (isSplit) {
+    return (
+      <View style={[cs.rootPage, { backgroundColor: theme.heroBg, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20, paddingLeft: insets.left, paddingRight: insets.right }]}>
+        <StatusBar barStyle="light-content" />
+        <BookSpread
+          left={identity}
+          right={<View style={cs.actionsPage}>{controls}{fallback}{ended}</View>}
+        />
+      </View>
+    );
+  }
+
   // Call screen always uses dark background
   return (
     <View style={[cs.root, { backgroundColor: theme.heroBg, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
       <StatusBar barStyle="light-content" />
 
       {/* ── Top section: Avatar + Name + Status ── */}
-      <View style={cs.topSection}>
-        <View style={cs.avatarContainer}>
-          <Animated.View style={[cs.avatar, { backgroundColor: theme.surface, shadowOpacity: theme.shadowOpacity }, isRinging && ringing]}>
-            <Text style={[cs.avatarText, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{initials}</Text>
-          </Animated.View>
-        </View>
-
-        <Text style={[cs.name, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{cleanName(callInfo?.remoteName, { fallback: t('ext.call_unknown') })}</Text>
-        <Text style={[cs.status, { color: theme.heroSub, fontFamily: isConnected ? FONTS.mono : FONTS.sans }]}>
-          {isConnected ? formatDuration(callDuration) : getStatusLabel(callState, endReason, t)}
-        </Text>
-
-        {callInfo?.requestId && (
-          <View style={[cs.requestBadge, { backgroundColor: theme.surface }]}>
-            <Text style={[cs.requestBadgeText, { fontFamily: FONTS.mono, color: theme.heroSub }]}>
-              {t('call.mission_n', { id: String(callInfo.requestId).slice(-6).toUpperCase() })}
-            </Text>
-          </View>
-        )}
-      </View>
+      {identity}
 
       {/* ── Bottom section: Controls ── */}
-      {!isEnded && (
-        <View style={cs.controls}>
-          {/* Mute */}
-          <PressScale
-            style={[cs.controlBtn, isMuted && [cs.controlBtnActive, { backgroundColor: theme.cardBg }]]}
-            onPress={toggleMute}
-            accessibilityRole="button"
-            accessibilityLabel={isMuted ? t('call.unmute_a11y') : t('call.mute_a11y')}
-            accessibilityState={{ selected: isMuted }}
-          >
-            <Feather
-              name={isMuted ? 'mic-off' : 'mic'}
-              size={26}
-              color={isMuted ? theme.heroBg : theme.heroText}
-            />
-            <Text style={[cs.controlLabel, { fontFamily: FONTS.sansMedium, color: theme.heroSub }, isMuted && { color: theme.heroBg }]}>
-              {isMuted ? t('ext.call_mute') : t('ext.call_mic')}
-            </Text>
-          </PressScale>
+      {controls}
 
-          {/* Hangup */}
-          <PressScale
-            style={cs.hangupBtn}
-            onPress={hangup}
-            scale={0.94}
-            accessibilityRole="button"
-            accessibilityLabel={t('call.hangup_a11y')}
-          >
-            <Feather name="phone-off" size={32} color={theme.heroText} />
-          </PressScale>
+      {fallback}
 
-          {/* Note: bouton haut-parleur retiré — aucun routage audio natif
-              implémenté (toggleSpeaker était purement cosmétique). */}
-        </View>
-      )}
-
-      {offerMessage && (
-        <View style={cs.fallback}>
-          <Text style={[cs.fallbackHint, { color: theme.heroSub, fontFamily: FONTS.sans }]} maxFontSizeMultiplier={1.3}>{t('call.fallback_hint')}</Text>
-          <PressScale onPress={sendMessage} style={[cs.fallbackBtn, { backgroundColor: theme.heroText }]} accessibilityRole="button">
-            <Feather name="message-circle" size={18} color={theme.heroBg as string} />
-            <Text style={[cs.fallbackBtnText, { color: theme.heroBg, fontFamily: FONTS.sansBold }]}>{t('call.send_message')}</Text>
-          </PressScale>
-          <PressScale onPress={dismissEnded} style={cs.fallbackClose} accessibilityRole="button">
-            <Text style={[cs.fallbackCloseText, { color: theme.heroSub, fontFamily: FONTS.sansMedium }]}>{t('call.close')}</Text>
-          </PressScale>
-        </View>
-      )}
-
-      {isEnded && !offerMessage && (
-        <View style={cs.endedSection}>
-          <Feather
-            name={!endReason || endReason === 'hangup' ? 'check-circle' : endReason === 'timeout' ? 'phone-missed' : 'x-circle'}
-            size={48}
-            color={theme.heroSub}
-          />
-        </View>
-      )}
+      {ended}
     </View>
   );
 }
@@ -194,6 +222,11 @@ const cs = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+
+  // ── Déplié : chaque page, son contenu ; les commandes en bas de la page droite ────
+  rootPage: { flex: 1 },
+  actionsPage: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 20 },
+  namePage: { textAlign: 'center', paddingHorizontal: 20 },
 
   // ── Top ────
   topSection: {

@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { FONTS } from '@/hooks/use-app-theme';
 import { PressScale } from '@/components/ui/PressScale';
+import { useSheetFrame, debugSnapshot } from '@/lib/layout';
 import { dim } from './dialogStyles';
 import type { StepperTheme } from './useStepperTheme';
 
@@ -19,6 +20,9 @@ export function PromoSheet({
   theme: StepperTheme;
 }) {
   const { t } = useTranslation();
+  // Le Modal couvre la fenêtre : sur le Duo déplié, la carte se pose sur une
+  // page (20 pt de retrait dedans) ; sur un iPhone, les 20 pt d'origine.
+  const page = useSheetFrame({ modal: true });
   const [code, setCode] = useState('');
 
   // Reset le champ à chaque ouverture (détectée au rendu, pas dans un effet).
@@ -31,8 +35,8 @@ export function PromoSheet({
   const canApply = code.trim().length >= 3 && !applying;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <PressScale style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+    <Modal onShow={() => debugSnapshot('modal-promo')} visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      <PressScale style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingLeft: page.marginLeft + 20, paddingRight: page.marginRight + 20 }} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')}>
         <KeyboardAvoidingView behavior="padding">
         <PressScale onPress={() => {}} accessible={false}>
           <View style={[dim.sheet, { backgroundColor: theme.card, borderRadius: 24, paddingHorizontal: 24 }]}>

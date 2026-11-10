@@ -2,10 +2,8 @@
 // de passe, Apple, Google) et, pour un compte email, le changement de mot de
 // passe — trois champs, une feuille chacun.
 import React, { useCallback, useState } from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -14,11 +12,12 @@ import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
 import { CascadeItem } from '@/lib/motion/useCascade';
-import { PressScale } from '@/components/ui/PressScale';
+import { SettingsHeader } from '@/components/settings/SettingsHeader';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 export default function LoginSettings() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -50,24 +49,15 @@ export default function LoginSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- openStep lit steps (stables)
   }, [pwd, t]);
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={s.head}>
-        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
-          <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </PressScale>
-        <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('profile.login').toUpperCase()}</Text>
-        <View style={{ width: 40 }} />
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
+  const methodBlock = (
         <CascadeItem index={0}>
         <SectionHead title={t('account.login_method')} />
         <Group>
           <Row first icon={provider === 'apple' ? 'smartphone' : provider === 'google' ? 'globe' : 'mail'} title={provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : t('account.login_email')} sub={user?.email || ''} chevron={false} />
         </Group>
         </CascadeItem>
-        {isEmail ? (
+  );
+  const passwordBlock = isEmail ? (
           <CascadeItem index={1}>
             <SectionHead title={t('account.change_password')} />
             <Group>
@@ -76,8 +66,28 @@ export default function LoginSettings() {
           </CascadeItem>
         ) : (
           <Text style={[s.note, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{t('account.social_note', { provider: provider === 'apple' ? 'Apple' : 'Google' })}</Text>
-        )}
-      </ScrollView>
+        );
+  const header = <SettingsHeader title={t('profile.login')} />;
+  const scrollBottom = { paddingBottom: Math.max(insets.bottom, 12) + 24 };
+
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {isSplit ? (
+        // Duo déplié : à gauche comment vous entrez, à droite le mot de passe (ou pourquoi il n'y en a pas).
+        <BookSpread
+          left={<>{header}<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>{methodBlock}</ScrollView></>}
+          right={<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.pageTop, scrollBottom]}>{passwordBlock}</ScrollView>}
+        />
+      ) : (
+        <>
+          {header}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>
+            {methodBlock}
+            {passwordBlock}
+          </ScrollView>
+        </>
+      )}
       <FieldSheet field={field} onClose={() => setField(null)} onSave={save} />
     </SafeAreaView>
   );
@@ -85,8 +95,7 @@ export default function LoginSettings() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  head: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
+  // Page droite : même marge haute que la page gauche.
+  pageTop: { paddingTop: 12 },
   note: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, marginHorizontal: 20, marginTop: 18 },
 });

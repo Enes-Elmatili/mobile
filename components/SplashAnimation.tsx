@@ -11,9 +11,10 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Image, Pressable, StyleSheet, Appearance,
-  useWindowDimensions, AccessibilityInfo,
+  AccessibilityInfo,
   type ImageSourcePropType,
 } from 'react-native';
+import { useWindowSize } from '@/lib/layout/windowSize';
 import Animated, {
   Easing,
   interpolate,
@@ -72,7 +73,7 @@ function RiseSlice({ progress, x0, width, W, H, wordmark }: {
 export function SplashAnimation({ onDone }: { onDone: () => void }) {
   const theme = useAppTheme();
   const { t } = useTranslation();
-  const { width: SW, height: SH } = useWindowDimensions();
+  const { width: SW, height: SH } = useWindowSize();
 
   const W = Math.min(224, SW * 0.58);
   const H = W * ASPECT;

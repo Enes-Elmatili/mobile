@@ -22,6 +22,7 @@ import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
 import { useCallParty } from '@/lib/webrtc/CallContext';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 interface MissionData {
   id: number;
@@ -46,6 +47,7 @@ export default function EarlyScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { t } = useTranslation();
+  const isSplit = useSplitPane();
 
   const [mission, setMission] = useState<MissionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,29 +141,45 @@ export default function EarlyScreen() {
   }
 
   if (!mission) {
-    return (
-      <SafeAreaView style={[s.root, s.center, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
+    const unavailable = (
+      <>
         <Feather name="alert-circle" size={32} color={theme.textMuted} />
         <Text style={[s.errorTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]}>
           {t('missions.mission_unavailable')}
         </Text>
+      </>
+    );
+    const backAction = (
         <PressScale accessibilityRole="button"
           style={[s.errorBtn, { backgroundColor: theme.text }]}
           onPress={() => router.replace('/(tabs)/missions')}
         >
           <Text style={[s.errorBtnText, { color: theme.bg, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </PressScale>
+    );
+    // Duo déplié : le message centré tombait sur le pli — constat à gauche, retour à droite.
+    if (isSplit) {
+      return (
+        <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+          <StatusBar barStyle={theme.statusBar} />
+          <BookSpread
+            left={<View style={[s.center, s.pageX]}>{unavailable}</View>}
+            right={<View style={[s.center, s.pageX]}>{backAction}</View>}
+          />
+        </SafeAreaView>
+      );
+    }
+    return (
+      <SafeAreaView style={[s.root, s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        {unavailable}
+        {backAction}
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header */}
-      <View style={s.header}>
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  const backButton = (
         <PressScale
           style={[s.backBtn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           onPress={() => { goBack(router, '/(tabs)/missions'); }}
@@ -171,14 +189,15 @@ export default function EarlyScreen() {
         >
           <Feather name="arrow-left" size={18} color={theme.text} />
         </PressScale>
-        <View style={s.headerCenter}>
+  );
+  const titleBlock = (
+    <>
           <Text style={[s.kicker, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>{t('missions.mission').toUpperCase()}</Text>
           <Text style={[s.title, { color: theme.text, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('missions.tab_upcoming')}</Text>
-        </View>
-        <View style={{ width: 38 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+    </>
+  );
+  const heroBlock = (
+    <>
         {/* Hero countdown */}
         <View style={[s.heroCard, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <View style={[s.iconCircle, { backgroundColor: theme.surface }]}>
@@ -215,7 +234,10 @@ export default function EarlyScreen() {
             </Text>
           </View>
         </View>
-
+    </>
+  );
+  const detailsBlock = (
+    <>
         {/* Mission summary */}
         <View style={[s.section, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
           <Text style={[s.sectionLabel, { color: theme.textMuted, fontFamily: FONTS.monoMedium }]}>
@@ -278,7 +300,10 @@ export default function EarlyScreen() {
             </Text>
           </View>
         ) : null}
-
+    </>
+  );
+  const actionsBlock = (
+    <>
         {/* Actions */}
         <View style={s.actionsRow}>
           <PressScale accessibilityRole="button"
@@ -335,6 +360,53 @@ export default function EarlyScreen() {
             {t('ext.missions_refuse')}
           </Text>
         </PressScale>
+    </>
+  );
+
+  // Duo déplié : page gauche = en-tête (titre aligné à gauche, à côté du
+  // retour) et le compte à rebours ; page droite = détails, actions, refus.
+  if (isSplit) {
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <ScrollView contentContainerStyle={[s.scroll, s.page]} showsVerticalScrollIndicator={false}>
+              <View style={s.headerPage}>
+                {backButton}
+                <View style={s.headerStart}>{titleBlock}</View>
+              </View>
+              {heroBlock}
+            </ScrollView>
+          }
+          right={
+            <ScrollView contentContainerStyle={[s.scroll, s.page]} showsVerticalScrollIndicator={false}>
+              {detailsBlock}
+              {actionsBlock}
+            </ScrollView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Header */}
+      <View style={s.header}>
+        {backButton}
+        <View style={s.headerCenter}>
+          {titleBlock}
+        </View>
+        <View style={{ width: 38 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {heroBlock}
+        {detailsBlock}
+        {actionsBlock}
       </ScrollView>
     </SafeAreaView>
   );
@@ -375,10 +447,16 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { alignItems: 'center', gap: 1 },
+  // Duo déplié : l'en-tête en haut de la page gauche, titre à côté du retour.
+  headerPage: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 4 },
+  headerStart: { flex: 1, alignItems: 'flex-start', gap: 1 },
   kicker: { fontSize: 9.5, letterSpacing: 1.6 },
   title: { fontSize: 20, letterSpacing: 1, lineHeight: 22 },
 
   scroll: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 18, gap: 10 },
+  // Page du Duo : 20 pt de chaque côté, sous la barre système + 12.
+  page: { paddingHorizontal: 20, paddingTop: 12 },
+  pageX: { paddingHorizontal: 20 },
 
   heroCard: {
     borderRadius: 16, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1,

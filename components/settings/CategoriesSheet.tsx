@@ -2,12 +2,14 @@
 // chips à cocher dans une feuille ; au moins un, enregistré d'un coup.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useSheetMotion } from '@/lib/motion/sheet';
+import { useSheetFrame } from '@/lib/layout';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { api } from '@/lib/api';
 import { feedback } from '@/lib/feedback/feedback';
@@ -38,6 +40,9 @@ export function CategoriesSheet({ selectedIds, onClose, onSave }: { selectedIds:
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const motion = useSheetMotion();
+  // Posée dans la scène de l'écran (pas un portail) : repère du conteneur.
+  // Sur le Duo déplié, le sheet tient sur une page ; sur un iPhone, rien ne change.
+  const frame = useSheetFrame({ modal: false });
   const ref = useRef<BottomSheet>(null);
   const [cats, setCats] = useState<Cat[] | null>(null);
   const [ids, setIds] = useState<number[]>(selectedIds);
@@ -45,7 +50,7 @@ export function CategoriesSheet({ selectedIds, onClose, onSave }: { selectedIds:
   useEffect(() => { loadCategories().then(setCats).catch(() => { feedback.error('profile.categories_load_error'); setCats([]); }); }, []);
   const close = useCallback(() => ref.current?.close(), []);
   useAndroidBackClose(true, close);
-  const renderBackdrop = useCallback((p: BottomSheetBackdropProps) => <BottomSheetBackdrop {...p} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />, []);
+  const renderBackdrop = useCallback((p: BottomSheetBackdropProps) => <SheetBackdrop {...p} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />, []);
   const toggle = (id: number) => setIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const changed = ids.length !== selectedIds.length || ids.some((id) => !selectedIds.includes(id));
   const save = async () => {
@@ -54,7 +59,7 @@ export function CategoriesSheet({ selectedIds, onClose, onSave }: { selectedIds:
     try { await onSave(ids); feedback.haptic('success'); ref.current?.close(); } catch (e: any) { feedback.error(e?.message || 'profile.save_error'); } finally { setSaving(false); }
   };
   return (
-    <BottomSheet ref={ref} index={0} enableDynamicSizing enablePanDownToClose onClose={onClose} backdropComponent={renderBackdrop} animationConfigs={motion.animationConfigs} overDragResistanceFactor={motion.overDragResistanceFactor} backgroundStyle={{ backgroundColor: theme.cardBg, borderTopLeftRadius: 28, borderTopRightRadius: 28 }} handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }}>
+    <BottomSheet ref={ref} index={0} enableDynamicSizing enablePanDownToClose onClose={onClose} backdropComponent={renderBackdrop} animationConfigs={motion.animationConfigs} overDragResistanceFactor={motion.overDragResistanceFactor} backgroundStyle={{ backgroundColor: theme.cardBg, borderTopLeftRadius: 28, borderTopRightRadius: 28 }} handleIndicatorStyle={{ backgroundColor: theme.textDisabled, width: 36, height: 4 }} style={frame}>
       <BottomSheetView style={[s.body, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
         <BarLock />
         <Text style={[s.kicker, { color: theme.textSub }]} maxFontSizeMultiplier={1.2}>{t('profile.trades').toUpperCase()}</Text>

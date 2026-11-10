@@ -13,6 +13,7 @@ import { BrandRefreshHeader, useBrandRefresh } from '@/components/ui/BrandRefres
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
 import { useTranslation } from 'react-i18next';
+import { bookColumnsFor, foldLineFor, useHinge, useSceneFrame, useSplitPane } from '@/lib/layout';
 
 export default function ProvidersListScreen() {
   const { t } = useTranslation();
@@ -23,6 +24,12 @@ export default function ProvidersListScreen() {
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const brandRefresh = useBrandRefresh();
+  // Duo déplié : deux colonnes, la gouttière posée sur le pli (la liste
+  // occupe toute la scène, ses colonnes se calent sur le cadre de la scène).
+  const isSplit = useSplitPane();
+  const scene = useSceneFrame();
+  const hinge = useHinge();
+  const cols = bookColumnsFor(foldLineFor(hinge, scene), scene.width);
 
   const loadProviders = useCallback(async () => {
     try {
@@ -47,7 +54,7 @@ export default function ProvidersListScreen() {
     loadProviders();
   };
 
-  const renderProvider = ({ item }: any) => {
+  const renderProvider = ({ item, index }: any) => {
     // Sous-titre : catégorie · ville (jamais l'email — donnée privée)
     const subtitleParts: string[] = [];
     if (item.categories?.[0]?.name) subtitleParts.push(item.categories[0].name);
@@ -55,9 +62,9 @@ export default function ProvidersListScreen() {
     const subtitle = subtitleParts.join(' · ');
     const avgRating = Number(item.avgRating) || 0;
 
-    return (
+    const card = (
       <PressScale accessibilityRole="button"
-        style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}
+        style={[styles.card, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }, isSplit && styles.cardCell]}
         onPress={() => {
           router.push({
             pathname: '/providers/[id]',
@@ -85,6 +92,11 @@ export default function ProvidersListScreen() {
         <Feather name="chevron-right" size={24} color={theme.textMuted} />
       </PressScale>
     );
+    if (!isSplit) return card;
+    // Colonne gauche : s'arrête au pli ; colonne droite : reprend après lui.
+    return index % 2 === 0
+      ? <View style={[styles.cell, { width: cols.left }]}>{card}</View>
+      : <View style={[styles.cell, styles.cellRight, { marginLeft: cols.gutter }]}>{card}</View>;
   };
 
   if (loading) {
@@ -109,12 +121,12 @@ export default function ProvidersListScreen() {
         >
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </PressScale>
-        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>Prestataires</Text>
-        <View style={{ width: 36 }} />
+        <Text style={[styles.title, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }, isSplit && styles.titlePage]} numberOfLines={isSplit ? 1 : undefined}>Prestataires</Text>
+        {isSplit ? null : <View style={{ width: 36 }} />}
       </View>
 
       {loadError && providers.length === 0 ? (
-        <View style={styles.empty}>
+        <View style={[styles.empty, isSplit && { width: cols.left }]}>
           <Feather name="wifi-off" size={64} color={theme.textDisabled} />
           <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
             Impossible de charger les prestataires.
@@ -131,19 +143,29 @@ export default function ProvidersListScreen() {
         </View>
       ) : (
         <>
-        <BrandRefreshHeader style={brandRefresh.headerStyle} />
+        {isSplit ? (
+          // Le « fixed. » du tirage reste sur la page gauche, pas sur le pli.
+          <View pointerEvents="none" style={[styles.refreshPage, { width: cols.left }]}>
+            <BrandRefreshHeader style={brandRefresh.headerStyle} />
+          </View>
+        ) : (
+          <BrandRefreshHeader style={brandRefresh.headerStyle} />
+        )}
         <Animated.FlatList
+          // Changer numColumns exige un nouveau montage (pliage / dépliage).
+          key={isSplit ? 'book' : 'column'}
+          numColumns={isSplit ? 2 : 1}
           onScroll={brandRefresh.onScroll}
           scrollEventThrottle={16}
           data={providers}
           renderItem={renderProvider}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={isSplit ? styles.listBook : styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
+            <View style={[styles.empty, isSplit && { width: cols.left }]}>
               <Feather name="users" size={64} color={theme.textDisabled} />
               <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: FONTS.sans }]}>Aucun prestataire disponible</Text>
             </View>
@@ -166,11 +188,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   title: { fontSize: 20 },
+  // Duo déplié : titre calé à côté du retour, en haut de la page gauche.
+  titlePage: { flex: 1, marginLeft: 12 },
   backBtn: {
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   list: { padding: 16 },
+  // Duo déplié : pas de marge latérale, chaque cellule porte ses 20 pt de page.
+  listBook: { paddingTop: 16, paddingBottom: 16 },
+  cell: { paddingHorizontal: 20 },
+  cellRight: { flex: 1 },
+  cardCell: { flex: 1 },
+  refreshPage: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 2 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

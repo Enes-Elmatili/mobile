@@ -2,7 +2,7 @@
 // de l'accueil prestataire : elle monte, compte 60 s, se teinte à l'acceptation
 // puis se replie vers le bas pendant que l'accueil passe en mission.
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import Reanimated, { Easing, useSharedValue, useAnimatedStyle, withSpring, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useReduceMotion, dampingFor } from '@/lib/motion/sheet';
@@ -28,7 +28,8 @@ export function IncomingJobCard({
   leaving,
   bottom,
   insetBottom,
-  maxWidth,
+  page,
+  maxHeight,
 }: {
   request: IncomingRequest;
   onAccept: () => void;
@@ -39,8 +40,10 @@ export function IncomingJobCard({
   bottom: number;
   /** Inset bas du device, DANS la fiche : rien de la carte ne transparaît dessous. */
   insetBottom: number;
-  /** Largeur de lecture sur écran large ; toute la largeur sinon. */
-  maxWidth: number | null;
+  /** Duo déplié : la page où se pose la fiche (repère de l'accueil) — jamais à cheval sur le pli. Toute la largeur sinon. */
+  page: { left: number; width: number } | null;
+  /** Plafond de la fiche : au-delà, son contenu défile (le glissé reste atteignable, le titre visible). */
+  maxHeight: number;
 }) {
   const theme = useAppTheme();
   const reduced    = useReduceMotion();
@@ -56,6 +59,11 @@ export function IncomingJobCard({
   // L'haptique est partie sur la frame du glissé.
   const [accepted, setAccepted] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Le contenu ne défile que s'il dépasse le plafond : sinon le glissé n'a
+  // aucun geste vertical en concurrence (même rendu qu'avant).
+  const [scrollH, setScrollH] = useState(0);
+  const [contentH, setContentH] = useState(0);
+  const overflow = scrollH > 0 && contentH > scrollH + 1;
   const tint = useSharedValue(0);
   const accept = useCallback(() => {
     if (accepted) return;
@@ -101,7 +109,7 @@ export function IncomingJobCard({
   const sheetBg = theme.bg;
 
   return (
-    <Reanimated.View style={[jc.wrap, { bottom }, maxWidth != null && { maxWidth, alignSelf: 'center', left: undefined, right: undefined, width: '100%' }, cardStyle]}>
+    <Reanimated.View style={[jc.wrap, { bottom, maxHeight }, page ? { left: page.left, right: undefined, width: page.width } : null, cardStyle]}>
       {/* Gradient map → sheet */}
       <LinearGradient
         colors={['transparent', `${sheetBg}99`, sheetBg]}
@@ -114,15 +122,24 @@ export function IncomingJobCard({
         <Reanimated.View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(COLORS.greenBrand, theme.isDark ? 0.16 : 0.13) }, tintStyle]} pointerEvents="none" />
         <View style={[jc.handle, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)' }]} />
         {/* Fiche mission (planche 2A) : quoi, photos, faits, gain, glissé. */}
-        <IncomingMissionCard
-          brief={request.brief}
-          timeLeft={timeLeft}
-          total={TIMER_DURATION}
-          expired={expired}
-          accepted={accepted}
-          onAccept={accept}
-          onDecline={onDecline}
-        />
+        <ScrollView
+          style={jc.scroll}
+          scrollEnabled={overflow}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          onLayout={(e) => setScrollH(e.nativeEvent.layout.height)}
+          onContentSizeChange={(_w, h) => setContentH(h)}
+        >
+          <IncomingMissionCard
+            brief={request.brief}
+            timeLeft={timeLeft}
+            total={TIMER_DURATION}
+            expired={expired}
+            accepted={accepted}
+            onAccept={accept}
+            onDecline={onDecline}
+          />
+        </ScrollView>
       </View>
     </Reanimated.View>
   );
@@ -135,6 +152,8 @@ const jc = StyleSheet.create({
     elevation: 28,
   },
   topFade: { height: 56 },
-  sheet: { overflow: 'hidden' },
+  // La fiche cède sous le plafond : c'est le contenu qui défile, pas la fiche qui sort de l'écran.
+  sheet: { overflow: 'hidden', flexShrink: 1 },
+  scroll: { flexGrow: 0, flexShrink: 1 },
   handle: { width: 36, height: 3, borderRadius: 2, alignSelf: 'center', marginTop: 14 },
 });

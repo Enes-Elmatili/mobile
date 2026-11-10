@@ -1,15 +1,15 @@
 // app/settings/cgu.tsx — Conditions Générales d'Utilisation (v1.0 — 15 mars 2026)
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, StatusBar,
+  View, Text, StyleSheet, ScrollView, StatusBar, type LayoutChangeEvent, type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
-import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { LegalHeader, LegalIndex, useAnchors } from '@/components/settings/legal';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // ── Accordion Article ─────────────────────────────────────────────────────────
 
@@ -247,27 +247,36 @@ const ARTICLES_BY_LANG: Record<string, typeof ARTICLES_FR> = {
   nl: ARTICLES_NL,
 };
 
+// Duo déplié : l'article ouvert d'office — la page droite se lit d'un trait,
+// le sommaire de la page gauche y mène.
+function ArticleText({ n, title, body, onLayout }: { n: string; title: string; body: string; onLayout: (e: LayoutChangeEvent) => void }) {
+  const theme = useAppTheme();
+  const { t } = useTranslation();
+  return (
+    <View onLayout={onLayout} style={[s.article, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}>
+      <View style={s.articleHeader}>
+        <View style={s.articleLeft}>
+          <Text style={[s.articleNum, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{t('ext.cgu_art')} {n}</Text>
+          <Text style={[s.articleTitle, { color: theme.text, fontFamily: FONTS.sansMedium }]} accessibilityRole="header">{title}</Text>
+        </View>
+      </View>
+      <Text style={[s.articleBody, { color: theme.textSub, fontFamily: FONTS.sans }]}>{body}</Text>
+    </View>
+  );
+}
+
 export default function CGUScreen() {
-  const router = useRouter();
   const theme = useAppTheme();
   const { t, i18n } = useTranslation();
+  const isSplit = useSplitPane();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const { register, scrollTo } = useAnchors(scrollRef);
   const lang = (i18n.language || 'fr').slice(0, 2).toLowerCase();
   const articles = ARTICLES_BY_LANG[lang] || ARTICLES_FR;
   const showPrevailNote = lang !== 'fr';
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <PressScale style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
-          <Feather name="arrow-left" size={20} color={theme.textAlt} />
-        </PressScale>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('ext.cgu_title')}</Text>
-        <View style={{ width: 38 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-
+  const header = <LegalHeader title={t('ext.cgu_title')} />;
+  const intro = (
         <View style={[s.introCard, { backgroundColor: theme.heroBg }]}>
           <Text style={[s.introVersion, { color: theme.heroSubFaint, fontFamily: FONTS.mono }]}>{t('ext.cgu_version')}</Text>
           <Text style={[s.introTitle, { color: theme.heroText, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('ext.cgu_company')}</Text>
@@ -275,23 +284,65 @@ export default function CGUScreen() {
             {t('ext.cgu_intro')}
           </Text>
         </View>
-
-        {showPrevailNote && (
+  );
+  const prevailNote = showPrevailNote && (
           <View style={[s.prevailNote, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <Feather name="info" size={14} color={theme.textSub} />
             <Text style={[s.prevailNoteText, { color: theme.textSub, fontFamily: FONTS.sans }]}>
               {t('ext.cgu_prevail_note')}
             </Text>
           </View>
-        )}
+  );
+  const footer = (
+        <Text style={[s.footer, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>
+          {t('ext.cgu_footer')}
+        </Text>
+  );
+
+  if (isSplit) {
+    // Duo déplié : à gauche l'intro et le sommaire, à droite le texte en
+    // colonne de lecture (une page, ~370-455 pt par ligne).
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {header}
+              <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
+                {intro}
+                {prevailNote}
+                <LegalIndex items={articles.map((a) => ({ key: a.n, kicker: `${t('ext.cgu_art')} ${a.n}`, title: a.title }))} onSelect={scrollTo} />
+              </ScrollView>
+            </>
+          }
+          right={
+            <ScrollView ref={scrollRef} contentContainerStyle={[s.page, s.articleList]} showsVerticalScrollIndicator={false}>
+              {articles.map((a) => <ArticleText key={a.n} n={a.n} title={a.title} body={a.body} onLayout={register(a.n)} />)}
+              {footer}
+            </ScrollView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {header}
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {intro}
+
+        {prevailNote}
 
         <View style={s.articleList}>
           {articles.map(a => <Article key={a.n} n={a.n} title={a.title} body={a.body} />)}
         </View>
 
-        <Text style={[s.footer, { color: theme.textVeryMuted, fontFamily: FONTS.mono }]}>
-          {t('ext.cgu_footer')}
-        </Text>
+        {footer}
 
       </ScrollView>
     </SafeAreaView>
@@ -300,13 +351,9 @@ export default function CGUScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
-  },
-  backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17 },
   scroll: { padding: 16, paddingBottom: 48, gap: 4 },
+  // Duo déplié : marges de page (20 de côté, 12 en haut).
+  page: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 48, gap: 4 },
 
   introCard: { borderRadius: 24, padding: 20, gap: 8, marginBottom: 12 },
   prevailNote: {

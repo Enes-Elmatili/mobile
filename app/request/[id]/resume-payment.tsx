@@ -2,7 +2,7 @@
 // Reprendre le paiement d'une demande PENDING_PAYMENT existante
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar, Platform, ActivityIndicator,
+  View, Text, StyleSheet, StatusBar, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import { FONTS, COLORS, darkTokens } from '@/hooks/use-app-theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { devError } from '@/lib/logger';
 import { formatEUR } from '@/lib/format';
-import { useLayoutClass } from '@/lib/layout';
+import { BookSpread, useLayoutClass, useSplitPane } from '@/lib/layout';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
 
@@ -69,6 +69,7 @@ export default function ResumePayment() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const isSplit = useSplitPane();
 
   const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -234,13 +235,11 @@ export default function ResumePayment() {
   const serviceName = request?.serviceType || request?.category?.name || t('common.service');
   const price = request?.price ? formatEUR(parseFloat(String(request.price))) : null;
 
-  return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" />
-      <GridLines />
-
-      {/* Header */}
-      <View style={[s.header, Platform.OS === 'android' && { paddingTop: insets.top + 12 }]}>
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  // En-tête et pied posés sur les insets réels, toutes plateformes : un
+  // paddingTop fixe de 48 laissait le retour sous la Dynamic Island (59 pt),
+  // un pied à 28 pt passait sur l'indicateur d'accueil (34 pt).
+  const backButton = (
         <PressScale
           style={s.backBtn}
           onPress={() => { goBack(router, '/(tabs)/dashboard'); }}
@@ -250,16 +249,17 @@ export default function ResumePayment() {
         >
           <Feather name="arrow-left" size={18} color="rgba(255,255,255,0.85)" />
         </PressScale>
-        <Text style={s.headerTitle}>{t('ext.invoice_payment_label')}</Text>
-        <View style={{ width: 20 }} />
-      </View>
+  );
+  const headerTitle = <Text style={s.headerTitle}>{t('ext.invoice_payment_label')}</Text>;
 
-      {loading ? (
+  const spinner = (
         <View style={s.center}>
           <ActivityIndicator size="large" color={C.white} />
         </View>
-      ) : (
-        <View style={s.content}>
+  );
+
+  const summaryBlock = (
+    <>
           {/* Icon */}
           <View style={s.iconCircle}>
             <Feather name="credit-card" size={40} color={C.white} />
@@ -297,20 +297,20 @@ export default function ResumePayment() {
               </View>
             )}
           </View>
+    </>
+  );
 
-          {/* Info */}
+  const infoBlock = (
           <View style={s.infoCard}>
             <Feather name="shield" size={16} color={C.grey} style={{ marginTop: 1 }} />
             <Text style={s.infoText}>
               {t('ext.resume_secured')}
             </Text>
           </View>
-        </View>
-      )}
+  );
 
-      {/* Footer CTA */}
-      {!loading && (
-        <View style={[s.footer, Platform.OS === 'android' && { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
+  const footerBlock = (
+        <View style={[s.footer, isSplit && s.footerPage, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
           <PressScale accessibilityRole="button"
             style={[s.btnPrimary, (!paymentReady || paying) && s.btnDisabled]}
             onPress={handlePay}
@@ -333,7 +333,71 @@ export default function ResumePayment() {
             )}
           </PressScale>
         </View>
+  );
+
+  // Duo déplié : page gauche = en-tête (titre à côté du retour) et la demande ;
+  // page droite = la réassurance et le CTA épinglé en bas de la page.
+  if (isSplit) {
+    return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <GridLines />
+        <BookSpread
+          left={
+            <View style={s.page}>
+              <View style={[s.headerPage, { paddingTop: insets.top + 12 }]}>
+                {backButton}
+                {headerTitle}
+              </View>
+              {loading ? spinner : (
+                <ScrollView contentContainerStyle={[s.content, s.pageBody]} showsVerticalScrollIndicator={false}>
+                  {summaryBlock}
+                </ScrollView>
+              )}
+            </View>
+          }
+          right={
+            <View style={s.page}>
+              {loading ? null : (
+                <>
+                  <ScrollView contentContainerStyle={[s.content, s.pageBody, { paddingTop: insets.top + 12 }]} showsVerticalScrollIndicator={false}>
+                    {infoBlock}
+                  </ScrollView>
+                  {footerBlock}
+                </>
+              )}
+            </View>
+          }
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" />
+      <GridLines />
+
+      {/* Header */}
+      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+        {backButton}
+        {headerTitle}
+        <View style={{ width: 20 }} />
+      </View>
+
+      {loading ? spinner : (
+        // Défile si l'écran est court (grande police, petit iPhone) : la carte
+        // passait sinon sous le CTA.
+        <ScrollView style={s.fill} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+          {summaryBlock}
+
+          {/* Info */}
+          {infoBlock}
+        </ScrollView>
       )}
+
+      {/* Footer CTA */}
+      {!loading && footerBlock}
     </View>
   );
 }
@@ -341,11 +405,16 @@ export default function ResumePayment() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
 
+  fill: { flex: 1, zIndex: 2 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 48 : 28, paddingBottom: 10,
+    paddingHorizontal: 16, paddingBottom: 10,
     zIndex: 2,
   },
+  // Duo déplié : chaque page a 20 pt de marge, l'en-tête en haut de la gauche.
+  page: { flex: 1, zIndex: 2 },
+  headerPage: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingBottom: 10 },
+  pageBody: { paddingHorizontal: 20, paddingBottom: 16 },
   backBtn: {
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.14)',
@@ -355,9 +424,10 @@ const s = StyleSheet.create({
 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
+  // Contenu d'un ScrollView : centré tant qu'il tient (flexGrow), défile au-delà.
   content: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 18, gap: 12, zIndex: 2,
+    flexGrow: 1, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 18, gap: 12,
   },
 
   iconCircle: {
@@ -399,9 +469,9 @@ const s = StyleSheet.create({
 
   footer: {
     paddingHorizontal: 18,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
     zIndex: 2,
   },
+  footerPage: { paddingHorizontal: 20 },
   btnPrimary: {
     width: '100%', height: 55, backgroundColor: C.white, borderRadius: 100,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,

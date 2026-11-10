@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, FlatList, Platform, StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Circle } from 'react-native-maps';
 import { MapPin } from '@/components/map/MapPin';
 import { DropPin } from '@/components/map/pins';
@@ -18,6 +18,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { cleanName } from '@/lib/displayName';
 import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, PanePlaceholder, useSplitPane } from '@/lib/layout';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ function distanceLabel(m?: number) {
 
 // ── Provider Card (bottom list) ───────────────────────────────────────────────
 
-function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () => void }) {
+function ProviderCard({ provider, onPress, pagePad = false }: { provider: Provider; onPress: () => void; pagePad?: boolean }) {
   const theme = useAppTheme();
   const isOnline = provider.status === 'ONLINE' || provider.status === 'READY';
   const providerName = cleanName(provider.name, { fallback: 'Prestataire' });
@@ -55,7 +56,7 @@ function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () =
   const cat = provider.categories?.[0]?.name;
 
   return (
-    <PressScale accessibilityRole="button" style={[pc.card, { borderBottomColor: theme.border }]} onPress={onPress}>
+    <PressScale accessibilityRole="button" style={[pc.card, { borderBottomColor: theme.border }, pagePad && pc.cardPage]} onPress={onPress}>
       <View style={[pc.avatar, { backgroundColor: theme.accent }]}>
         <Text style={[pc.avatarText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{init}</Text>
         {isOnline && <View style={[pc.dot, { borderColor: theme.cardBg }]} />}
@@ -88,6 +89,8 @@ const pc = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
+  // Duo déplié : 20 pt de marge de page.
+  cardPage: { paddingHorizontal: 20 },
   avatar: {
     width: 42, height: 42, borderRadius: 21,
     alignItems: 'center', justifyContent: 'center',
@@ -113,6 +116,9 @@ export default function ExploreScreen() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const mapRef = useRef<MapView>(null);
+  // Duo déplié : la liste à gauche du pli, la carte pleine hauteur à droite.
+  const isSplit = useSplitPane();
+  const insets = useSafeAreaInsets();
 
   const [location, setLocation]   = useState<{ lat: number; lng: number } | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -174,41 +180,57 @@ export default function ExploreScreen() {
   const radiusM = RADII[radiusIdx].m;
 
   if (locError) {
-    return (
-      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.statusBar} />
+    const errBlock = (
+      <>
         <Feather name="map-pin" size={52} color={theme.textDisabled} />
         <Text style={[s.errTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.location_error')}</Text>
         <Text style={[s.errSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>{t('ext.explore_location_denied_sub')}</Text>
         <PressScale accessibilityRole="button" style={[s.backBtn, { backgroundColor: theme.accent }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }}>
           <Text style={[s.backBtnText, { color: theme.accentText, fontFamily: FONTS.sansMedium }]}>{t('common.back')}</Text>
         </PressScale>
+      </>
+    );
+    // Duo déplié : le message tient dans la page gauche, la page de la carte reste au repos.
+    if (isSplit) {
+      return (
+        <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+          <StatusBar barStyle={theme.statusBar} />
+          <BookSpread
+            left={<View style={s.center}>{errBlock}</View>}
+            right={<PanePlaceholder icon="map" label={t('explore.title')} />}
+          />
+        </SafeAreaView>
+      );
+    }
+    return (
+      <SafeAreaView style={[s.center, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        {errBlock}
       </SafeAreaView>
     );
   }
 
   const selectedProvider = providers.find(p => p.id === selected);
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* Header */}
-      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  const backBtn = (
         <PressScale style={[s.headerBack, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
           <Feather name="arrow-left" size={18} color={theme.textAlt} />
         </PressScale>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('explore.title')}</Text>
+  );
+  const title = (
+        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.bebas, includeFontPadding: false }, isSplit && s.headerTitlePage]} numberOfLines={isSplit ? 1 : undefined}>{t('explore.title')}</Text>
+  );
+  const count = (
         <View style={s.headerCount}>
           {!loading && (
             <Text style={[s.headerCountText, { color: theme.textMuted, fontFamily: FONTS.mono }]}>{providers.length} disponibles</Text>
           )}
         </View>
-      </View>
+  );
 
-      {/* Map */}
-      <View style={s.mapWrap}>
-        {location ? (
+  const map = (
+        location ? (
           <MapView
             ref={mapRef}
             style={StyleSheet.absoluteFill}
@@ -253,9 +275,11 @@ export default function ExploreScreen() {
           <View style={[s.mapLoading, { backgroundColor: theme.surface }]}>
             <ActivityIndicator size="large" color={theme.accent} />
           </View>
-        )}
+        )
+  );
 
-        {/* Radius filter overlay */}
+  const radiusBar = (
+        /* Radius filter overlay */
         <View style={[s.radiusBar, { backgroundColor: theme.isDark ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)' }]}>
           {RADII.map((r, i) => (
             <PressScale accessibilityRole="button"
@@ -269,12 +293,16 @@ export default function ExploreScreen() {
             </PressScale>
           ))}
         </View>
-      </View>
+  );
 
-      {/* Selected provider callout */}
-      {selectedProvider && (
+  const callout = selectedProvider ? (
+        /* Selected provider callout */
         <PressScale accessibilityRole="button"
-          style={[s.callout, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity }]}
+          style={[
+            s.callout, { backgroundColor: theme.heroBg, shadowOpacity: theme.shadowOpacity },
+            // Duo déplié : posée au pied de la carte, dans sa page (20 pt des bords).
+            isSplit && [s.calloutPage, { bottom: insets.bottom + 8 }],
+          ]}
           onPress={() => router.push(`/providers/${selectedProvider.id}` as any)}
         >
           <View style={[s.calloutAvatar, { backgroundColor: theme.surface }]}>
@@ -291,11 +319,12 @@ export default function ExploreScreen() {
             <Feather name="arrow-right" size={12} color="#0A0A0A" />
           </View>
         </PressScale>
-      )}
+  ) : null;
 
-      {/* Provider list bottom panel */}
+  const listPanel = (
+      /* Provider list bottom panel */
       <View style={[s.list, { backgroundColor: theme.cardBg }]}>
-        <View style={[s.listHeader, { borderBottomColor: theme.border }]}>
+        <View style={[s.listHeader, { borderBottomColor: theme.border }, isSplit && s.pageX]}>
           <Text style={[s.listTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>
             {loading ? 'Recherche...' : `${providers.length} prestataire${providers.length !== 1 ? 's' : ''}`}
           </Text>
@@ -308,9 +337,11 @@ export default function ExploreScreen() {
             <ProviderCard
               provider={item}
               onPress={() => router.push(`/providers/${item.id}` as any)}
+              pagePad={isSplit}
             />
           )}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={isSplit ? { paddingBottom: insets.bottom } : undefined}
           ListEmptyComponent={
             loading ? undefined : fetchError ? (
               <View style={s.empty}>
@@ -333,6 +364,58 @@ export default function ExploreScreen() {
           }
         />
       </View>
+  );
+
+  if (isSplit) {
+    // Duo déplié : page gauche = en-tête (titre à côté du retour) + liste ;
+    // page droite = la carte pleine hauteur, le filtre de rayon centré dans
+    // SA page et la fiche choisie posée à son pied. Rien sur le pli.
+    return (
+      <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <View style={s.root}>
+              <View style={[s.header, s.headerPage, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+                {backBtn}
+                {title}
+                {count}
+              </View>
+              {listPanel}
+            </View>
+          }
+          right={
+            <View style={s.mapPage}>
+              {map}
+              {radiusBar}
+              {callout}
+            </View>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Header */}
+      <View style={[s.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        {backBtn}
+        {title}
+        {count}
+      </View>
+
+      {/* Map */}
+      <View style={s.mapWrap}>
+        {map}
+        {radiusBar}
+      </View>
+
+      {callout}
+
+      {listPanel}
     </SafeAreaView>
   );
 }
@@ -356,10 +439,16 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontSize: 17 },
+  // Duo déplié : l'en-tête en haut de la page gauche, titre calé à côté du retour.
+  headerPage: { paddingHorizontal: 20, paddingTop: 12, gap: 12 },
+  headerTitlePage: { flex: 1 },
+  pageX: { paddingHorizontal: 20 },
   headerCount: { minWidth: 38, alignItems: 'flex-end' },
   headerCountText: { fontSize: 12 },
 
   mapWrap: { height: '40%', position: 'relative' },
+  // Duo déplié : la carte occupe toute la page droite.
+  mapPage: { flex: 1, position: 'relative', overflow: 'hidden' },
   mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   radiusBar: {
@@ -386,6 +475,7 @@ const s = StyleSheet.create({
       android: { elevation: 5 },
     }),
   },
+  calloutPage: { position: 'absolute', left: 8, right: 8 },
   calloutAvatar: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',

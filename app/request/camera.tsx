@@ -5,6 +5,11 @@
 // « Garder », puis la prise suivante. La file vient de lib/request/cameraSession
 // (pas d'URIs dans les params) ; le résultat y retourne.
 // Permission refusée : explication, Réglages, ou la galerie (expo-image-picker).
+//
+// Route plein écran HORS InsetScope : les insets gauche/droite (rail système du
+// Duo déplié) sont appliqués ici. Déplié, le cadre (4:3, plafonné) est centré
+// sur la page gauche et les commandes forment une colonne sur la page droite,
+// avant le rail — rien sur la charnière.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -23,9 +28,33 @@ import { feedback } from '@/lib/feedback/feedback';
 import { cameraSession } from '@/lib/request/cameraSession';
 import type { LocalShot, ShotQueueItem } from '@/lib/request/photos';
 import { PressScale } from '@/components/ui/PressScale';
+import { bookColumnsFor, foldLineFor, useHinge, useLayoutClass } from '@/lib/layout';
 
 const MAX_WIDTH = 1600;
 const JPEG_QUALITY = 0.75;
+// Retrait de chaque page déplié, et hauteur réservée sous le bouton fermer.
+const PAGE_PAD = 20;
+const TOP_BAND = 64;
+
+type Span = { x: number; width: number };
+type Rect = { left: number; top: number; width: number; height: number };
+
+/**
+ * Les deux pages du Duo déplié en repère fenêtre (la route ignore InsetScope)
+ * et le cadre à guides : 4:3, plafonné, centré sur la page gauche.
+ */
+function cameraBook(win: { width: number; height: number }, insets: { top: number; bottom: number; left: number; right: number }, line: { start: number; end: number } | null, usableWidth: number) {
+  const cols = bookColumnsFor(line, usableWidth);
+  const left: Span = { x: insets.left, width: cols.left };
+  const right: Span = { x: insets.left + cols.left + cols.gutter, width: Math.max(0, usableWidth - cols.left - cols.gutter) };
+  const band = Math.max(insets.top + TOP_BAND, insets.bottom + PAGE_PAD);
+  const availW = Math.max(0, left.width - PAGE_PAD * 2);
+  const availH = Math.max(0, win.height - band * 2);
+  const frameW = Math.min(availW, (availH * 4) / 3);
+  const frameH = (frameW * 3) / 4;
+  const frame: Rect = { left: left.x + (left.width - frameW) / 2, top: (win.height - frameH) / 2, width: frameW, height: frameH };
+  return { left, right, frame };
+}
 
 /** Réduit la photo pour l'envoi (≈ 300–500 Ko) et renvoie ses dimensions. */
 async function shrink(uri: string, width: number): Promise<{ uri: string; width: number; height: number }> {
@@ -50,6 +79,11 @@ export default function GuidedCamera() {
   const router = useRouter();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { width: winW, height: winH, isRegular } = useLayoutClass();
+  const hinge = useHinge();
+  // La scène utile s'arrête au rail, de chaque côté : le pli s'y mesure.
+  const usable = { x: insets.left, y: 0, width: Math.max(0, winW - insets.left - insets.right), height: winH };
+  const book = isRegular ? cameraBook({ width: winW, height: winH }, insets, foldLineFor(hinge, usable), usable.width) : null;
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   // Session lue une fois au montage (initialiseur paresseux, pas de ref lue au rendu).
@@ -117,15 +151,37 @@ export default function GuidedCamera() {
 
   // ── Permission refusée ────────────────────────────────────────────────
   if (permission && !permission.granted && !permission.canAskAgain) {
-    return (
-      <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
-        <PressScale onPress={close} hitSlop={8} style={[s.close, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+    const closeBtn = (
+        <PressScale onPress={close} hitSlop={8} style={[s.close, { top: insets.top + 12, left: book ? book.left.x + PAGE_PAD : 20 + insets.left }]} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
           <Feather name="x" size={20} color="#FFFFFF" />
         </PressScale>
-        <View style={s.denied}>
+    );
+    const deniedText = (
+      <>
           <Feather name="camera-off" size={28} color="rgba(255,255,255,0.7)" />
           <Text style={s.deniedTitle}>{t('camera.denied_title')}</Text>
           <Text style={s.deniedBody}>{t('camera.denied_body')}</Text>
+      </>
+    );
+    // Déplié : l'explication sur la page gauche, les issues sur la droite.
+    if (book) {
+      return (
+        <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
+          <View style={[s.deniedPage, { left: book.left.x, width: book.left.width }]}>{deniedText}</View>
+          <View style={[s.deniedPage, { left: book.right.x, width: book.right.width }]}>
+            <Btn label={t('camera.open_settings')} onPress={() => Linking.openSettings()} />
+            <Btn label={t('camera.pick_gallery')} onPress={pickFromLibrary} primary icon="image" />
+            {preview ? <Btn label={t('camera.keep')} onPress={keep} primary icon="check" /> : null}
+          </View>
+          {closeBtn}
+        </View>
+      );
+    }
+    return (
+      <View style={[s.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16, paddingLeft: insets.left, paddingRight: insets.right }]}>
+        {closeBtn}
+        <View style={s.denied}>
+          {deniedText}
           <View style={s.deniedBtns}>
             <Btn label={t('camera.open_settings')} onPress={() => Linking.openSettings()} />
             <Btn label={t('camera.pick_gallery')} onPress={pickFromLibrary} primary icon="image" />
@@ -136,6 +192,79 @@ export default function GuidedCamera() {
             <Btn label={t('camera.keep')} onPress={keep} primary icon="check" />
           </View>
         ) : null}
+      </View>
+    );
+  }
+
+  // ── Les blocs du viseur, posés selon la disposition ──
+  const stepsBar = (
+      <View style={book ? s.stepsPage : [s.steps, { top: insets.top + 12, left: 24 + insets.left, right: 24 + insets.right }]} accessibilityLabel={t('camera.shot_of', { n: index + 1, total: queue.length })}>
+        {queue.map((q, i) => <View key={`${q.key ?? 'free'}-${i}`} style={[s.step, i <= index && s.stepOn]} />)}
+      </View>
+  );
+  const closeButton = (
+      <PressScale onPress={close} style={[s.close, book ? { top: insets.top + 12, left: book.left.x + PAGE_PAD } : { top: insets.top + 28, left: 20 + insets.left }]} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
+        <Feather name="x" size={20} color="#FFFFFF" />
+      </PressScale>
+  );
+  const caption = (
+      <Animated.View style={[book ? s.captionPage : [s.caption, { top: insets.top + 84, left: 24 + insets.left, right: 24 + insets.right }], entrance.style]} key={`cap-${index}`}>
+        <Text style={s.captionTitle} maxFontSizeMultiplier={1.2}>{label}</Text>
+        <Text style={s.captionHint} numberOfLines={2} maxFontSizeMultiplier={1.3}>{hint}</Text>
+      </Animated.View>
+  );
+  const previewButtons = (
+          <View style={book ? s.previewColumn : s.previewBar}>
+            <Btn label={t('camera.retake')} onPress={() => setPreview(null)} icon="rotate-ccw" />
+            <Btn label={t('camera.keep')} onPress={keep} primary icon="check" />
+          </View>
+  );
+  const shutter = (
+            <PressScale onPress={shoot} disabled={busy || !permission?.granted} accessibilityRole="button" accessibilityLabel={label} style={[s.shutter, busy && { opacity: 0.5 }]}>
+              <View style={s.shutterInner} />
+            </PressScale>
+  );
+  const skipButton = !item.required ? (
+                <PressScale onPress={skip} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.skip')}>
+                  <Text style={s.skip}>{t('camera.skip')}</Text>
+                </PressScale>
+  ) : null;
+
+  // Duo déplié : le viseur reste plein écran (un fond peut traverser le pli),
+  // le cadre sur la page gauche, file + consigne + déclencheur en colonne sur
+  // la droite. L'aperçu se pose dans le cadre, là où visait la consigne.
+  if (book) {
+    return (
+      <View style={s.root}>
+        {preview ? null : permission?.granted ? (
+          <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} />
+        )}
+
+        {preview ? (
+          <Image source={{ uri: preview.uri }} style={[s.framePage, s.previewFrame, book.frame]} contentFit="cover" />
+        ) : (
+          <View style={[s.framePage, book.frame]} pointerEvents="none">
+            <View style={[s.guide, s.guideTop]} />
+            <View style={[s.guide, s.guideBottom]} />
+          </View>
+        )}
+
+        {closeButton}
+
+        <View style={[s.controlsPage, { left: book.right.x, width: book.right.width, top: insets.top + 12, bottom: insets.bottom + 16 }]}>
+          {stepsBar}
+          <View style={s.controlsCenter}>
+            {caption}
+            {preview ? previewButtons : (
+              <>
+                {shutter}
+                {skipButton}
+              </>
+            )}
+          </View>
+        </View>
       </View>
     );
   }
@@ -151,46 +280,28 @@ export default function GuidedCamera() {
       )}
 
       {/* File de prises */}
-      <View style={[s.steps, { top: insets.top + 12 }]} accessibilityLabel={t('camera.shot_of', { n: index + 1, total: queue.length })}>
-        {queue.map((q, i) => <View key={`${q.key ?? 'free'}-${i}`} style={[s.step, i <= index && s.stepOn]} />)}
-      </View>
-      <PressScale onPress={close} style={[s.close, { top: insets.top + 28 }]} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.close')}>
-        <Feather name="x" size={20} color="#FFFFFF" />
-      </PressScale>
+      {stepsBar}
+      {closeButton}
 
       {/* Consigne */}
-      <Animated.View style={[s.caption, { top: insets.top + 84 }, entrance.style]} key={`cap-${index}`}>
-        <Text style={s.captionTitle} maxFontSizeMultiplier={1.2}>{label}</Text>
-        <Text style={s.captionHint} numberOfLines={2} maxFontSizeMultiplier={1.3}>{hint}</Text>
-      </Animated.View>
+      {caption}
 
       {/* Cadre à guides */}
       {!preview ? (
-        <View style={[s.frame, { top: insets.top + 170, bottom: insets.bottom + 150 }]} pointerEvents="none">
+        <View style={[s.frame, { top: insets.top + 170, bottom: insets.bottom + 150, left: 40 + insets.left, right: 40 + insets.right }]} pointerEvents="none">
           <View style={[s.guide, s.guideTop]} />
           <View style={[s.guide, s.guideBottom]} />
         </View>
       ) : null}
 
       {/* Commandes */}
-      <View style={[s.controls, { paddingBottom: insets.bottom + 28 }]}>
-        {preview ? (
-          <View style={s.previewBar}>
-            <Btn label={t('camera.retake')} onPress={() => setPreview(null)} icon="rotate-ccw" />
-            <Btn label={t('camera.keep')} onPress={keep} primary icon="check" />
-          </View>
-        ) : (
+      <View style={[s.controls, { paddingBottom: insets.bottom + 28, paddingLeft: 24 + insets.left, paddingRight: 24 + insets.right }]}>
+        {preview ? previewButtons : (
           <View style={s.shootRow}>
             <View style={s.side} />
-            <PressScale onPress={shoot} disabled={busy || !permission?.granted} accessibilityRole="button" accessibilityLabel={label} style={[s.shutter, busy && { opacity: 0.5 }]}>
-              <View style={s.shutterInner} />
-            </PressScale>
+            {shutter}
             <View style={s.side}>
-              {!item.required ? (
-                <PressScale onPress={skip} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('camera.skip')}>
-                  <Text style={s.skip}>{t('camera.skip')}</Text>
-                </PressScale>
-              ) : null}
+              {skipButton}
             </View>
           </View>
         )}
@@ -209,6 +320,15 @@ const s = StyleSheet.create({
   captionTitle:  { fontFamily: FONTS.bebas, fontSize: 28, letterSpacing: 0.5, color: '#FFFFFF', includeFontPadding: false, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
   captionHint:   { fontFamily: FONTS.sans, fontSize: 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
   frame:         { position: 'absolute', left: 40, right: 40, borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 18 },
+  // Duo déplié : cadre posé par cameraBook (4:3, page gauche), commandes en colonne à droite.
+  framePage:     { position: 'absolute', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 18 },
+  previewFrame:  { overflow: 'hidden' },
+  stepsPage:     { flexDirection: 'row', gap: 6 },
+  captionPage:   { alignItems: 'center' },
+  controlsPage:  { position: 'absolute', paddingHorizontal: PAGE_PAD },
+  controlsCenter:{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 28 },
+  previewColumn: { alignItems: 'center', gap: 12 },
+  deniedPage:    { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: PAGE_PAD, gap: 12 },
   guide:         { position: 'absolute', left: -2, right: -2, height: 2, backgroundColor: COLORS.greenBrand, opacity: 0.9 },
   guideTop:      { top: -2 },
   guideBottom:   { bottom: -2 },

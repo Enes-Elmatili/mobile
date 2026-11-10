@@ -9,16 +9,20 @@ import { useTranslation } from "react-i18next";
 import { FONTS, type AppTheme } from "@/hooks/use-app-theme";
 import { PressScale } from '@/components/ui/PressScale';
 
-export function QuoteHeader({ theme, onBack, lineStyle }: {
+export function QuoteHeader({ theme, onBack, lineStyle, align = "center" }: {
   theme: AppTheme;
   onBack: () => void;
   /** Filet qui apparaît au défilement. */
   lineStyle: ReturnType<typeof useAnimatedStyle>;
+  /** `start` : titre aligné à gauche, à côté du retour (page gauche du Duo
+   *  déplié — centré, il tombait sur le pli). */
+  align?: "center" | "start";
 }) {
   const { t } = useTranslation();
+  const start = align === "start";
   return (
     <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.bg }}>
-      <View style={s.header}>
+      <View style={[s.header, start && s.headerStart]}>
         <PressScale
           style={[s.headerBack, { backgroundColor: theme.cardBg, borderColor: theme.borderLight }]}
           onPress={onBack}
@@ -29,7 +33,7 @@ export function QuoteHeader({ theme, onBack, lineStyle }: {
           <Feather name="arrow-left" size={18} color={theme.text} />
         </PressScale>
         <Text style={[s.headerTitle, { color: theme.text }]}>{t('quote.short_label').toUpperCase()}</Text>
-        <View style={{ width: 36 }} />
+        {start ? null : <View style={{ width: 36 }} />}
       </View>
       <Animated.View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }, lineStyle]} />
     </SafeAreaView>
@@ -61,6 +65,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
+  headerStart: { justifyContent: "flex-start", gap: 14 },
   headerBack: {
     width: 36, height: 36, borderRadius: 12,
     alignItems: "center", justifyContent: "center",

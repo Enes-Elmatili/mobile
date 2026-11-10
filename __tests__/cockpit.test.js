@@ -121,6 +121,13 @@ describe('géométrie par appareil (lib/cockpit/geometry.ts)', () => {
     expect(g.marginLeft).toBe(g.marginRight);
     expect(g.barTop).toBe(98);
   });
+  it('Duo déplié (scène 867, pli à 455,5) : les surfaces tiennent dans la page gauche, jamais sur le pli', () => {
+    const g = cockpitGeometry({ width: 867, height: 669, insets: { top: 0, bottom: 20, left: 0, right: 0 }, cls: 'regular', tabBarHeight: 20, page: { left: 0, width: 455.5 } });
+    expect(g.marginLeft).toBe(16);
+    expect(g.contentWidth).toBe(455.5 - 32);
+    expect(g.marginLeft + g.contentWidth).toBeLessThanOrEqual(455.5);
+    expect(g.marginLeft + g.contentWidth + g.marginRight).toBe(867);
+  });
   it('encoche latérale (insets gauche 24 / droite 0) : marges asymétriques', () => {
     const g = cockpitGeometry({ width: 540, height: 720, insets: { top: 0, bottom: 0, left: 24, right: 0 }, cls: 'compact', tabBarHeight: 86 });
     expect(g.marginLeft).toBe(24 + 16);

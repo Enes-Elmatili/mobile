@@ -41,7 +41,7 @@ import { DoneContent, EtaHero, MoneyLine, PhotoCard, PinCard, ProviderRow, Quote
 import { useMapCamera, type CameraMode } from '@/lib/mission/useMapCamera';
 import { usePresence } from '@/lib/motion/usePresence';
 import { PressScale } from '@/components/ui/PressScale';
-import { foldLayoutFor, useHinge, useLayoutClass } from '@/lib/layout';
+import { foldLayoutFor, foldLineFor, useHinge, useLayoutClass, useSceneFrame } from '@/lib/layout';
 import { useBreathe } from '@/lib/motion/useBreathe';
 import { ConversationThread } from '@/components/messages/ConversationThread';
 
@@ -140,12 +140,20 @@ export default function MissionView() {
   const sheetLevel: SheetLevel = done ? 'page' : 'half';
   // Écran déplié : la feuille devient le volet droit, la carte a sa colonne
   // et n'a plus rien à rembourrer (maquette « Le suivi qui se déplie »).
-  const { isRegular: isSplit, insets: layoutInsets, width: winW, height: winH } = useLayoutClass();
+  const { isRegular: isSplit, insets: layoutInsets } = useLayoutClass();
+  // Le cadre de l'écran (InsetScope : il s'arrête au rail) : le pli s'y mesure,
+  // pas dans la fenêtre — le rail décale tout de 84 pt quand il est à gauche.
+  const scene = useSceneFrame();
   // iOS 27.1 — entrouvert en « table » (pli horizontal) : la carte au-dessus
   // du pli, le fil et les actions en dessous, rien à cheval sur la pliure.
   const hinge = useHinge();
-  const fold = isSplit ? foldLayoutFor(hinge, { x: 0, y: 0, width: winW, height: winH }) : null;
+  const fold = isSplit ? foldLayoutFor(hinge, scene) : null;
   const tabletop = fold?.kind === 'tabletop' ? fold : null;
+  // Livre (pli vertical, à plat comme entrouvert) : la carte est la page gauche
+  // et s'arrête au bord du pli, la feuille reprend après lui. Une part fixe
+  // (0,42) posait le StageHeader, l'ETA et les CTA sous la charnière.
+  const line = isSplit && !tabletop ? foldLineFor(hinge, scene) : null;
+  const mapPaneW = line ? line.start : Math.round(scene.width * 0.42);
   const sheetVisibleH = isSplit ? 0 : sheetHeight;
   const mapOpacity = useSharedValue(1);
   useEffect(() => { mapOpacity.value = reduced ? withTiming(mapMode === 'gone' ? 0 : 1, { duration: 150 }) : withSpring(mapMode === 'gone' ? 0 : 1, MOTION.pane); }, [mapMode, reduced, mapOpacity]);
@@ -562,7 +570,7 @@ export default function MissionView() {
         <View style={[StyleSheet.absoluteFill, isSplit && (tabletop ? s.splitColumn : s.splitRow)]} pointerEvents="box-none">
           {/* Volet carte : tout l'écran sur compact, la colonne gauche une fois déplié.
               Même arbre dans les deux cas : ouvrir le téléphone ne recharge pas la carte. */}
-          <View style={isSplit ? (tabletop ? [s.mapPaneTop, { height: tabletop.start }] : s.mapPane) : StyleSheet.absoluteFill} pointerEvents="box-none">
+          <View style={isSplit ? (tabletop ? [s.mapPaneTop, { height: tabletop.start }] : [s.mapPane, { width: mapPaneW }]) : StyleSheet.absoluteFill} pointerEvents="box-none">
             {/* La carte, unique du premier au dernier stade. */}
             <Animated.View style={[StyleSheet.absoluteFill, mapStyle]} pointerEvents={done ? 'none' : 'auto'}>
               <MapView
@@ -630,7 +638,9 @@ export default function MissionView() {
           {isSplit && !done ? (
             tabletop
               ? <View style={{ height: tabletop.end - tabletop.start }} />
-              : <View style={[s.splitLine, { backgroundColor: theme.border }]} />
+              : line
+                ? <View style={{ width: line.end - line.start }} />
+                : <View style={[s.splitLine, { backgroundColor: theme.border }]} />
           ) : null}
 
           {/* La feuille, unique : son contenu change, on la tient au doigt.
@@ -663,13 +673,13 @@ export default function MissionView() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  // Déplié : la carte à gauche (0,42, comme SplitPane), le fil à droite.
+  // Déplié : la carte à gauche (jusqu'au pli, 0,42 sans pli connu), le fil à droite.
   splitRow: { flexDirection: 'row' },
   splitColumn: { flexDirection: 'column' },
-  mapPane: { flex: 0.42, overflow: 'hidden' },
+  mapPane: { overflow: 'hidden' },
   mapPaneTop: { overflow: 'hidden' },
   splitLine: { width: StyleSheet.hairlineWidth },
-  sheetPane: { flex: 0.58 },
+  sheetPane: { flex: 1 },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   notFound: { fontFamily: FONTS.sans, fontSize: 14 },

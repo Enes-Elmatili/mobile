@@ -1,7 +1,7 @@
 // app/settings/privacy.tsx — Confidentialité
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator, Platform, StatusBar,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, Platform, StatusBar, type LayoutChangeEvent, type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -12,15 +12,16 @@ import { feedback } from '@/lib/feedback/feedback';
 import { showSocketToast } from '@/lib/SocketContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
-import { goBack } from '@/lib/nav/back';
 import { PressScale } from '@/components/ui/PressScale';
+import { LegalHeader, LegalIndex, useAnchors } from '@/components/settings/legal';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, onLayout }: { title: string; children: React.ReactNode; onLayout?: (e: LayoutChangeEvent) => void }) {
   const theme = useAppTheme();
   return (
-    <View style={[s.section, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
+    <View onLayout={onLayout} style={[s.section, { backgroundColor: theme.cardBg, shadowOpacity: theme.shadowOpacity }]}>
       <Text style={[s.sectionTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{title}</Text>
       {children}
     </View>
@@ -35,6 +36,9 @@ export default function PrivacyScreen() {
   const { signOut } = useAuth();
   const theme = useAppTheme();
   const [deleting, setDeleting] = useState(false);
+  const isSplit = useSplitPane();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const { register, scrollTo } = useAnchors(scrollRef);
 
   const handleDeleteAccount = async () => {
     const ok = await feedback.confirm({
@@ -56,45 +60,37 @@ export default function PrivacyScreen() {
     }
   };
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={[s.header, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderLight }]}>
-        <PressScale style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => { goBack(router, '/(tabs)/dashboard'); }} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
-          <Feather name="arrow-left" size={20} color={theme.textAlt} />
-        </PressScale>
-        <Text style={[s.headerTitle, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>{t('profile.privacy')}</Text>
-        <View style={{ width: 38 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-
-        <Section title={t('ext.privacy_section_data')}>
+  // Sur le Duo déplié, chaque section s'enregistre comme ancre du sommaire.
+  const anchor = (key: string) => (isSplit ? register(key) : undefined);
+  const sections = (
+    <>
+        <Section title={t('ext.privacy_section_data')} onLayout={anchor('data')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_data_body')}
           </Text>
         </Section>
 
-        <Section title={t('ext.privacy_section_rights')}>
+        <Section title={t('ext.privacy_section_rights')} onLayout={anchor('rights')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_rights_body')}{' '}
             <Text style={[s.link, { color: theme.textAlt, fontFamily: FONTS.sansMedium }]}>hello@thefixed.app</Text>.
           </Text>
         </Section>
 
-        <Section title={t('ext.privacy_section_cookies')}>
+        <Section title={t('ext.privacy_section_cookies')} onLayout={anchor('cookies')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_cookies_body')}
           </Text>
         </Section>
 
-        <Section title={t('ext.privacy_section_retention')}>
+        <Section title={t('ext.privacy_section_retention')} onLayout={anchor('retention')}>
           <Text style={[s.body, { color: theme.textSub, fontFamily: FONTS.sans }]}>
             {t('ext.privacy_retention_body')}
           </Text>
         </Section>
-
-        {/* Danger zone */}
+    </>
+  );
+  const dangerZone = (
         <View style={[s.dangerZone, { backgroundColor: theme.cardBg, borderColor: theme.isDark ? 'rgba(220,38,38,0.3)' : 'rgba(220,38,38,0.2)', shadowOpacity: theme.shadowOpacity }]}>
           <Text style={[s.dangerTitle, { color: COLORS.danger, fontFamily: FONTS.sansMedium }]}>{t('ext.privacy_danger_zone')}</Text>
           <Text style={[s.dangerSub, { color: theme.textMuted, fontFamily: FONTS.sans }]}>
@@ -114,6 +110,52 @@ export default function PrivacyScreen() {
             }
           </PressScale>
         </View>
+  );
+  const header = <LegalHeader title={t('profile.privacy')} />;
+
+  if (isSplit) {
+    // Duo déplié : à gauche le sommaire et la suppression du compte (à part,
+    // hors du fil de lecture), à droite le texte en colonne de lecture.
+    const index = [
+      { key: 'data', title: t('ext.privacy_section_data') },
+      { key: 'rights', title: t('ext.privacy_section_rights') },
+      { key: 'cookies', title: t('ext.privacy_section_cookies') },
+      { key: 'retention', title: t('ext.privacy_section_retention') },
+    ];
+    return (
+      <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={
+            <>
+              {header}
+              <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
+                <LegalIndex items={index} onSelect={scrollTo} />
+                {dangerZone}
+              </ScrollView>
+            </>
+          }
+          right={
+            <ScrollView ref={scrollRef} contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
+              {sections}
+            </ScrollView>
+          }
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {header}
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {sections}
+
+        {/* Danger zone */}
+        {dangerZone}
 
       </ScrollView>
     </SafeAreaView>
@@ -122,17 +164,9 @@ export default function PrivacyScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 17 },
   scroll: { padding: 16, paddingBottom: 48, gap: 12 },
+  // Duo déplié : marges de page (20 de côté, 12 en haut).
+  page: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 48, gap: 12 },
 
   section: {
     borderRadius: 18, padding: 18, gap: 10,

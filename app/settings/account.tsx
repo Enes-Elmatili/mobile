@@ -2,26 +2,25 @@
 // Une ligne par champ (nom, téléphone, ville, bio et TVA pour le prestataire) ;
 // chaque ligne ouvre une feuille à un champ (components/settings/FieldSheet).
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { feedback } from '@/lib/feedback/feedback';
-import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
+import { useAppTheme } from '@/hooks/use-app-theme';
 import { Group, Row, SectionHead } from '@/components/settings/rows';
 import { FieldSheet, type FieldSpec } from '@/components/settings/FieldSheet';
 import { CascadeItem } from '@/lib/motion/useCascade';
-import { PressScale } from '@/components/ui/PressScale';
+import { SettingsHeader } from '@/components/settings/SettingsHeader';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 import { reportError } from '@/lib/logger';
 
 type Key = 'name' | 'phone' | 'city' | 'description' | 'vatNumber';
 
 export default function AccountSettings() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { user, refreshMe } = useAuth();
@@ -63,17 +62,7 @@ export default function AccountSettings() {
     } catch (e: any) { feedback.error(e?.message || t('profile.save_error')); throw e; }
   }, [refreshMe, t]);
 
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-      <View style={s.head}>
-        <PressScale onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile'); }} style={[s.back, { backgroundColor: theme.cardBg, borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel={t('common.back')} hitSlop={8}>
-          <Feather name="arrow-left" size={18} color={theme.text as string} />
-        </PressScale>
-        <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('profile.information').toUpperCase()}</Text>
-        <View style={{ width: 40 }} />
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) + 24 }}>
+  const identityBlock = (
         <CascadeItem index={0}>
         <SectionHead title={t('account.identity')} />
         <Group>
@@ -82,13 +71,36 @@ export default function AccountSettings() {
           ))}
         </Group>
         </CascadeItem>
+  );
+  const emailBlock = (
         <CascadeItem index={1}>
         <SectionHead title={t('account.email')} />
         <Group>
           <Row first icon="mail" title={u?.email || ''} sub={t('account.email_sub')} chevron={false} />
         </Group>
         </CascadeItem>
-      </ScrollView>
+  );
+  const header = <SettingsHeader title={t('profile.information')} />;
+  const scrollBottom = { paddingBottom: Math.max(insets.bottom, 12) + 24 };
+
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      {isSplit ? (
+        // Duo déplié : à gauche le compte (l'email, fixe), à droite les champs qu'on modifie.
+        <BookSpread
+          left={<>{header}<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>{emailBlock}</ScrollView></>}
+          right={<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.pageTop, scrollBottom]}>{identityBlock}</ScrollView>}
+        />
+      ) : (
+        <>
+          {header}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={scrollBottom}>
+            {identityBlock}
+            {emailBlock}
+          </ScrollView>
+        </>
+      )}
       <FieldSheet field={field} onClose={() => setField(null)} onSave={save} />
     </SafeAreaView>
   );
@@ -96,7 +108,6 @@ export default function AccountSettings() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  head: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: FONTS.bebas, fontSize: 30, letterSpacing: 0.5, includeFontPadding: false },
+  // Page droite : même marge haute que la page gauche.
+  pageTop: { paddingTop: 12 },
 });

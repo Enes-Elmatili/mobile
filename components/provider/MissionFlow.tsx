@@ -70,6 +70,8 @@ type Props = {
   onFacts: (f: MissionFacts) => void;
   /** La mission est finie (clôturée, annulée, retirée) : l'accueil reprend la main. */
   onExit: (reason: 'done' | 'gone') => void;
+  /** Duo déplié : la feuille devient la page droite, fixe, à côté de la carte (l'accueil la place). */
+  inPane?: boolean;
 };
 
 // ─── Envoi d'une photo de chantier (multipart + position, preuve) ────────────
@@ -90,7 +92,7 @@ async function uploadMissionPhoto(requestId: string, type: 'before' | 'after', i
   return data.photoUrl;
 }
 
-export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, gpsDenied, etaMin, onFacts, onExit }: Props) {
+export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, gpsDenied, etaMin, onFacts, onExit, inPane = false }: Props) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const theme = useAppTheme();
@@ -530,7 +532,8 @@ export function MissionFlow({ requestId: id, seed = null, topInset, myLocation, 
 
   return (
     <>
-      <StageSheet levels={levels} level={level} onHeightChange={setSheetHeight} footer={footer} keyboard={stage === 'code'} tone={stage === 'done' ? 'green' : 'default'} topInset={topInset}>
+      {/* En page : le haut du volet est libre (rangée du haut et étiquette restent sur la page gauche). */}
+      <StageSheet levels={levels} level={level} onHeightChange={setSheetHeight} footer={footer} keyboard={stage === 'code'} tone={stage === 'done' ? 'green' : 'default'} topInset={inPane ? undefined : topInset} inPane={inPane}>
         <View testID={`provider-mission-${stage}`}>{content}</View>
       </StageSheet>
       <PhotoViewer photos={gallery} index={viewer} onClose={() => setViewer(null)} />

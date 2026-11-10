@@ -28,9 +28,11 @@ type Args = {
   windowHeight: number;
   reduced: boolean;
   setEtaMin: Dispatch<SetStateAction<number | null>>;
+  /** Duo déplié : la fiche ou la mission occupent la page droite, à côté de la carte — rien ne la couvre en bas. */
+  sidePanel?: boolean;
 };
 
-export function useCockpitCamera({ mapRef, mapReady, stage, activeJob, currentMission, location, missionFacts, stripCover, mapPaddingTop, windowHeight, reduced, setEtaMin }: Args) {
+export function useCockpitCamera({ mapRef, mapReady, stage, activeJob, currentMission, location, missionFacts, stripCover, mapPaddingTop, windowHeight, reduced, setEtaMin, sidePanel = false }: Args) {
   // ─── La caméra : moi ; moi + la demande ; moi + la porte ─────────────────
   // Coordonnées lues hors mémo : chaque point ne dépend que d'elles, pas de tout l'objet.
   const jobLat = activeJob?.latitude, jobLng = activeJob?.longitude;
@@ -49,7 +51,7 @@ export function useCockpitCamera({ mapRef, mapReady, stage, activeJob, currentMi
   // MapView : Apple Maps ignore `mapPadding` pour cadrer, et un padding qui
   // saute fait sauter la carte. La journée en bas est toujours couverte ; la
   // fiche « elle est pour vous » ou la feuille de mission s'ajoutent en marge.
-  const extraCover = extraCoverOf(stage, windowHeight, stripCover, missionFacts ? missionFacts.sheetHeight : null);
+  const extraCover = sidePanel ? 0 : extraCoverOf(stage, windowHeight, stripCover, missionFacts ? missionFacts.sheetHeight : null);
   // En mission, la feuille décide : moi + la porte en route, la bande serrée sur place, rien pendant l'intervention.
   const missionCam = stage === 'busy' && missionFacts ? missionFacts.mapMode : null;
   const camMode = missionCam ?? cockpitCameraMode(stage);

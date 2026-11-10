@@ -13,7 +13,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Linking, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import BottomSheet, { type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import Reanimated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
@@ -68,6 +69,9 @@ export default function Missions() {
   const tabBarPadding = useTabBarPadding();
   const brandRefresh = useBrandRefresh();
   const isSplit = useSplitPane();
+  // Déplié, on attend la mesure du volet : montée à la largeur de la fenêtre,
+  // la semaine figerait un initialScrollIndex et un getItemLayout faux.
+  const weekWidth = listWidth ?? (isSplit ? null : width);
   const setToTake = useNavStore((st) => st.setToTake);
 
   // ─── Données ─────────────────────────────────────────────────────────────
@@ -287,7 +291,7 @@ export default function Missions() {
     if ((m.status || '').toUpperCase() === 'QUOTE_PENDING') router.push({ pathname: '/request/[id]/send-quote', params: { id: m.id } });
     else router.replace({ pathname: '/(tabs)/dashboard', params: { mission: m.id } });
   };
-  const renderBackdrop = useCallback((props: BottomSheetBackdropProps) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.35} />, []);
+  const renderBackdrop = useCallback((props: BottomSheetBackdropProps) => <SheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.35} />, []);
 
   const detail = !detailOpen ? null : loadingDetails && !selectedMission ? (
     <ActivityIndicator size="large" color={theme.accent as string} style={{ marginTop: 60 }} />
@@ -336,7 +340,9 @@ export default function Missions() {
               </View>
 
               {/* -- La semaine -- */}
-              <AgendaWeek weeks={weeks} selectedKey={selectedKey} onSelect={setSelectedKey} width={listWidth ?? width} dayLabel={dayLabel} initialIndex={WEEKS_BEFORE} jump={jump} onWeekChange={setWeekIndex} />
+              {weekWidth != null ? (
+                <AgendaWeek weeks={weeks} selectedKey={selectedKey} onSelect={setSelectedKey} width={weekWidth} dayLabel={dayLabel} initialIndex={WEEKS_BEFORE} jump={jump} onWeekChange={setWeekIndex} />
+              ) : null}
 
               {error ? (
                 <PressScale onPress={loadMissions} style={[s.error, { backgroundColor: theme.surface }]} accessibilityRole="button">
@@ -392,6 +398,7 @@ export default function Missions() {
         detail={isSplit && detailOpen ? detail : null}
         detailKey={selectedMission ? `m${selectedMission.id}` : selectedOpportunity ? `o${selectedOpportunity.id}` : null}
         placeholder={<PanePlaceholder icon="calendar" label={t('missions.select_hint')} />}
+        ratio={0.5}
       />
       {detailOpen && !isSplit ? (
         <BottomSheet ref={bottomSheetRef} index={0} enableDynamicSizing enablePanDownToClose onClose={() => setDetailOpen(false)} {...sheetMotion} backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: theme.cardBg }} handleIndicatorStyle={{ backgroundColor: theme.border }} maxDynamicContentSize={windowHeight * 0.85}>

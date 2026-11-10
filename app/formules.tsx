@@ -36,6 +36,7 @@ import { FONTS, GRAPHITE as G } from '@/hooks/use-app-theme';
 import { Skeleton as SkeletonBlock } from '@/components/ui/Skeleton';
 import { PressScale } from '@/components/ui/PressScale';
 import { goBack } from '@/lib/nav/back';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 import * as WebBrowser from 'expo-web-browser';
 import i18n from '@/lib/i18n';
 
@@ -288,6 +289,8 @@ export default function FormulesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [choosingTier, setChoosingTier] = useState<string | null>(null);
+  // Duo déplié : votre formule à gauche du pli, les paliers à droite.
+  const isSplit = useSplitPane();
 
   const load = useCallback(async () => {
     setLoading(true); setError(false);
@@ -355,13 +358,8 @@ export default function FormulesScreen() {
     .filter((x) => x.tier !== currentTierKey && x.monthlyPriceCents > 0)
     .sort((a, b) => a.order - b.order);
 
-  return (
-    <View style={s.root}>
-      <LinearGradient colors={G.gradBg} start={A180.start} end={A180.end} style={StyleSheet.absoluteFill} />
-      <SafeAreaView style={s.safe}>
-        <StatusBar barStyle="light-content" />
-
-        <View style={[s.header, { borderBottomColor: G.border }]}>
+  // ── Les blocs de l'écran, assemblés selon la disposition ──
+  const backBtn = (
           <PressScale
             style={[s.backBtn, { backgroundColor: G.scrim }]}
             onPress={() => { feedback.haptic('light'); goBack(router, '/(tabs)/dashboard'); }}
@@ -371,13 +369,12 @@ export default function FormulesScreen() {
           >
             <Feather name="arrow-left" size={20} color={G.textPrimary} />
           </PressScale>
+  );
+  const title = (
           <Text style={[s.headerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.title').toUpperCase()}</Text>
-          <View style={{ width: 38 }} />
-        </View>
+  );
 
-        {loading ? (
-          <Skeleton />
-        ) : error ? (
+  const errorBlock = (
           <View style={s.center}>
             <Feather name="wifi-off" size={36} color={G.textVeryMuted} />
             <Text style={[s.errorTitle, { color: G.textPrimary, fontFamily: FONTS.sansMedium }]}>{t('formules.load_error')}</Text>
@@ -388,34 +385,113 @@ export default function FormulesScreen() {
               </LinearGradient>
             </PressScale>
           </View>
-        ) : (
-          <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
-            {/* Bandeau d'accroche — uniquement quand les paliers payants sont actifs. */}
-            {subscriptionsEnabled && (
+  );
+
+  const bannerBlock = (
+            /* Bandeau d'accroche — uniquement quand les paliers payants sont actifs. */
+            subscriptionsEnabled && (
               <View style={s.banner}>
                 <Text style={[s.bannerTitle, { color: G.textPrimary, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.banner_title')}</Text>
                 <Text style={[s.bannerSub, { color: G.textMuted, fontFamily: FONTS.sans }]}>{t('formules.banner_sub')}</Text>
               </View>
-            )}
+            )
+  );
 
-            {/* Carte du palier actuel (toujours affichée). Les extras du palier gratuit
-                (perks + note) n'apparaissent qu'à l'état pur « gratuit, sans promo ». */}
-            <CurrentPlanCard tier={currentTier} promoActive={promoActive} showFreeExtras={!subscriptionsEnabled && !promoActive} />
+  /* Carte du palier actuel (toujours affichée). Les extras du palier gratuit
+     (perks + note) n'apparaissent qu'à l'état pur « gratuit, sans promo ». */
+  const currentBlock = <CurrentPlanCard tier={currentTier} promoActive={promoActive} showFreeExtras={!subscriptionsEnabled && !promoActive} />;
 
-            {/* Offre de lancement 0% — uniquement si un crédit promo est actif. */}
-            {promoActive && <PromoBanner remaining={promoRemaining} nominalPct={ratePct(currentTier.commissionRate)} />}
+  /* Offre de lancement 0% — uniquement si un crédit promo est actif. */
+  const promoBlock = promoActive && <PromoBanner remaining={promoRemaining} nominalPct={ratePct(currentTier.commissionRate)} />;
 
-            {/* Bloc tiers payants — code présent mais CONDITIONNEL au flag serveur. */}
-            {subscriptionsEnabled && paidTiers.length > 0 && (
+  const showUpgrade = subscriptionsEnabled && paidTiers.length > 0;
+  const showSoon = !subscriptionsEnabled && soonTiers.length > 0;
+  const upgradeBlock = (
+            /* Bloc tiers payants — code présent mais CONDITIONNEL au flag serveur. */
+            showUpgrade && (
               <>
                 <Text style={[s.upTitle, { color: G.textMuted, fontFamily: FONTS.bebas, includeFontPadding: false }]}>{t('formules.upgrade_title').toUpperCase()}</Text>
                 {paidTiers.map((tier) => (
                   <UpgradeCard key={tier.tier} tier={tier} onChoose={handleChoose} choosing={choosingTier === tier.tier} />
                 ))}
               </>
-            )}
+            )
+  );
+  const soonBlock = showSoon && <SoonTiers tiers={soonTiers} />;
 
-            {!subscriptionsEnabled && soonTiers.length > 0 && <SoonTiers tiers={soonTiers} />}
+  if (isSplit) {
+    // Duo déplié : page gauche = en-tête (titre à côté du retour), bandeau,
+    // palier actuel (+ promo) ; page droite = les paliers (montée en gamme ou
+    // « bientôt »). Sans paliers à montrer, la promo passe à droite.
+    const tiersRight = showUpgrade || showSoon;
+    return (
+      <View style={s.root}>
+        <LinearGradient colors={G.gradBg} start={A180.start} end={A180.end} style={StyleSheet.absoluteFill} />
+        <SafeAreaView style={s.safe}>
+          <StatusBar barStyle="light-content" />
+          <BookSpread
+            left={
+              <View style={s.safe}>
+                <View style={[s.header, s.headerPage, { borderBottomColor: G.border }]}>
+                  {backBtn}
+                  {title}
+                </View>
+                {loading ? (
+                  <Skeleton />
+                ) : error ? (
+                  errorBlock
+                ) : (
+                  <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
+                    {bannerBlock}
+                    {currentBlock}
+                    {tiersRight ? promoBlock : null}
+                  </ScrollView>
+                )}
+              </View>
+            }
+            right={
+              loading ? (
+                <Skeleton />
+              ) : error ? null : (
+                <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
+                  {tiersRight ? (
+                    <>
+                      {upgradeBlock}
+                      {soonBlock}
+                    </>
+                  ) : promoBlock}
+                </ScrollView>
+              )
+            }
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.root}>
+      <LinearGradient colors={G.gradBg} start={A180.start} end={A180.end} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={s.safe}>
+        <StatusBar barStyle="light-content" />
+
+        <View style={[s.header, { borderBottomColor: G.border }]}>
+          {backBtn}
+          {title}
+          <View style={{ width: 38 }} />
+        </View>
+
+        {loading ? (
+          <Skeleton />
+        ) : error ? (
+          errorBlock
+        ) : (
+          <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
+            {bannerBlock}
+            {currentBlock}
+            {promoBlock}
+            {upgradeBlock}
+            {soonBlock}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -434,6 +510,8 @@ const s = StyleSheet.create({
   },
   backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22, letterSpacing: 1.5 },
+  // Duo déplié : l'en-tête en haut de la page gauche, titre calé à côté du retour.
+  headerPage: { justifyContent: 'flex-start', gap: 12, paddingHorizontal: 20, paddingTop: 12 },
 
   scrollPad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
 

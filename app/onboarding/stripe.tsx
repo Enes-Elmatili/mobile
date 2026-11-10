@@ -16,6 +16,7 @@ import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { PROVIDER_FLOW } from "../../constants/onboardingFlows";
 import { FONTS, COLORS, darkTokens } from "@/hooks/use-app-theme";
 import { alpha } from "@/components/auth";
+import { BookSpread, useSplitPane } from "@/lib/layout";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -53,22 +54,23 @@ function StripeRedirectOverlay() {
     return () => cancelAnimation(spin);
   }, [spin]);
   const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 360}deg` }] }));
+  const book = useSplitPane();
 
-  return (
-    <View style={r.root}>
-      <StatusBar barStyle="light-content" />
-      <View style={r.center}>
-        <View style={r.ringWrap}>
-          <Animated.View style={[r.spinner, spinStyle]} />
-          <View style={r.ringInner}>
-            <Feather name="external-link" size={22} color={C.stripe} />
-          </View>
+  const hero = (
+    <View style={r.center}>
+      <View style={r.ringWrap}>
+        <Animated.View style={[r.spinner, spinStyle]} />
+        <View style={r.ringInner}>
+          <Feather name="external-link" size={22} color={C.stripe} />
         </View>
-        <Text style={r.kicker}>{t('onboarding.st_redirect_kicker')}</Text>
-        <Text style={r.title}>{t('onboarding.st_redirect_title')}</Text>
-        <Text style={r.sub}>{t('onboarding.st_redirect_sub')}</Text>
       </View>
-
+      <Text style={r.kicker}>{t('onboarding.st_redirect_kicker')}</Text>
+      <Text style={r.title}>{t('onboarding.st_redirect_title')}</Text>
+      <Text style={r.sub}>{t('onboarding.st_redirect_sub')}</Text>
+    </View>
+  );
+  const steps = (
+    <>
       <View style={r.stepsCard}>
         {REDIRECT_STEP_KEYS.map((key, i) => (
           <View key={key} style={[r.stepRow, i < REDIRECT_STEP_KEYS.length - 1 && r.stepRowBorder]}>
@@ -85,6 +87,25 @@ function StripeRedirectOverlay() {
         <Text style={r.secureStripe}>{t('onboarding.st_secure')}</Text>
         <Text style={r.secureMuted}>{t('onboarding.st_secure_domain')}</Text>
       </View>
+    </>
+  );
+
+  // Duo déplié : l'anneau et le message sur la page gauche, les étapes à venir
+  // sur la page droite — plus de carte de 900 pt, plus d'anneau sur le pli.
+  if (book) {
+    return (
+      <View style={r.root}>
+        <StatusBar barStyle="light-content" />
+        <BookSpread left={hero} right={<View style={r.bookRight}>{steps}</View>} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={r.root}>
+      <StatusBar barStyle="light-content" />
+      {hero}
+      {steps}
     </View>
   );
 }
@@ -343,6 +364,7 @@ const r = StyleSheet.create({
     marginTop: 14,
     maxWidth: 260,
   },
+  bookRight: { flex: 1, justifyContent: "center", paddingHorizontal: 8 },
   stepsCard: {
     backgroundColor: C.cardBg,
     borderWidth: 1,

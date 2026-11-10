@@ -8,7 +8,8 @@ import React, { useCallback } from 'react';
 import {
   View, Text, StyleSheet, Platform,
 } from 'react-native';
-import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { SheetBackdrop } from '@/components/ui/SheetBackdrop';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,7 +19,7 @@ import { useAppTheme, FONTS, COLORS } from '@/hooks/use-app-theme';
 import { useAndroidBackClose } from '@/hooks/use-android-back-close';
 import { feedback } from '@/lib/feedback/feedback';
 import { useSheetMotion } from '@/lib/motion/sheet';
-import { useLayoutClass } from '@/lib/layout';
+import { useLayoutClass, useSheetFrame } from '@/lib/layout';
 import { PressScale } from '@/components/ui/PressScale';
 
 export interface NotifData {
@@ -86,6 +87,9 @@ export default function NotificationDetailSheet({
   const theme = useAppTheme();
   const { height: windowHeight } = useLayoutClass();
   const sheetMotion = useSheetMotion();
+  // Posée dans la scène de l'écran (pas un portail) : repère du conteneur.
+  // Sur le Duo déplié, le sheet tient sur une page ; sur un iPhone, rien ne change.
+  const frame = useSheetFrame({ modal: false });
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -93,7 +97,7 @@ export default function NotificationDetailSheet({
 
   const renderBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.35} pressBehavior="close" />
+      <SheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.35} pressBehavior="close" />
     ), [],
   );
 
@@ -124,6 +128,7 @@ export default function NotificationDetailSheet({
       backgroundStyle={{ backgroundColor: theme.heroBg }}
       maxDynamicContentSize={windowHeight * 0.9}
       {...sheetMotion}
+      style={frame}
     >
       <BottomSheetScrollView showsVerticalScrollIndicator={false}>
         {/* ═══ HERO sombre (signature premium FIXED) ═══ */}

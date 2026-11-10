@@ -2,6 +2,8 @@
 // Terminé : le bilan d'abord (avant / après, durée, montant, reçu), la note
 // ensuite — on note ce qu'on vient de voir. Rendu dans la feuille du suivi
 // (missionview, stade « done ») et par la route rating (liens profonds).
+// Duo déplié : le bilan sur la page gauche, la note et son CTA sur la droite —
+// rien à cheval sur le pli, les étoiles visibles sans défiler.
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +28,7 @@ import Avatar from '@/components/ui/Avatar';
 import { PhotoViewer, photoUri } from '@/components/mission/photos';
 import { providerName } from './ProviderRow';
 import { PressScale } from '@/components/ui/PressScale';
+import { BookSpread, useSplitPane } from '@/lib/layout';
 
 // ─── Puces ───────────────────────────────────────────────────────────────────
 type Chip = { id: string; icon: React.ComponentProps<typeof Feather>['name']; label: string };
@@ -103,6 +106,7 @@ export function DoneContent({ request, topInset = 0 }: Props) {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const isSplit = useSplitPane();
   // Heure de repli si la fin de mission n'est pas encore datée : figée au
   // montage plutôt que relue (impure) à chaque rendu.
   const [mountedAt] = useState(() => Date.now());
@@ -150,11 +154,9 @@ export function DoneContent({ request, topInset = 0 }: Props) {
   const pool = rating >= 4 ? compliments(t) : negatives(t);
   const toggle = (cid: string) => setChips((cur) => (cur.includes(cid) ? cur.filter((c) => c !== cid) : [...cur, cid]));
 
-  return (
-    <View style={[s.root, { backgroundColor: theme.cardBg }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topInset + 16, paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <Reanimated.View style={entrance.style}>
+  // ── Les blocs du bilan, assemblés selon la disposition ──
+  const summaryBlock = (
+    <>
             <Text style={[s.kicker, { color: theme.textMuted }]}>{t('tracking.done_kicker', { time: formatClock(completedAt ?? mountedAt) })}</Text>
             <Text style={[s.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('tracking.done_title')}</Text>
             <Text style={[s.sub, { color: theme.textSub }]} maxFontSizeMultiplier={1.3}>{duration != null && duration > 0 ? t('tracking.done_sub', { name: firstName, n: duration }) : t('tracking.done_sub_no_duration', { name: firstName })}</Text>
@@ -162,13 +164,13 @@ export function DoneContent({ request, topInset = 0 }: Props) {
             {shots.length ? (
               <View style={s.compare}>
                 {work.beforePhotoUrl ? (
-                  <PressScale style={[s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.before')}>
+                  <PressScale style={[isSplit ? s.shotPage : s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.before')}>
                     <Image source={{ uri: photoUri(work.beforePhotoUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                     <Text style={[s.shotTag, { color: theme.text, backgroundColor: theme.cardBg }]}>{t('tracking.before')}</Text>
                   </PressScale>
                 ) : null}
                 {work.afterPhotoUrl ? (
-                  <PressScale style={[s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(work.beforePhotoUrl ? 1 : 0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.after')}>
+                  <PressScale style={[isSplit ? s.shotPage : s.shot, { backgroundColor: theme.surface }]} onPress={() => setViewer(work.beforePhotoUrl ? 1 : 0)} accessibilityRole="imagebutton" accessibilityLabel={t('tracking.after')}>
                     <Image source={{ uri: photoUri(work.afterPhotoUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                     <Text style={[s.shotTag, { color: theme.text, backgroundColor: theme.cardBg }]}>{t('tracking.after')}</Text>
                   </PressScale>
@@ -188,8 +190,12 @@ export function DoneContent({ request, topInset = 0 }: Props) {
                 <Text style={[s.factLabel, { color: theme.textMuted }]}>{t('tracking.fact_receipt_where').toUpperCase()}</Text>
               </PressScale>
             </View>
+    </>
+  );
 
-            <View style={s.rateHead}>
+  const rateBlock = (
+    <>
+            <View style={[s.rateHead, isSplit && s.flushTop]}>
               <Avatar name={name} size={40} avatarUrl={request.provider?.avatarUrl} />
               <Text style={[s.question, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{t('tracking.rate_question')}</Text>
             </View>
@@ -217,9 +223,10 @@ export function DoneContent({ request, topInset = 0 }: Props) {
                 ) : null}
               </>
             ) : null}
-          </Reanimated.View>
-        </ScrollView>
+    </>
+  );
 
+  const footerBlock = (
         <View style={[s.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderLight, paddingBottom: insets.bottom + 12 }]}>
           <PressScale
             style={[s.cta, { backgroundColor: rating === 0 || submitting ? theme.textDisabled : theme.accent }]}
@@ -232,6 +239,45 @@ export function DoneContent({ request, topInset = 0 }: Props) {
             <Text style={[s.laterText, { color: theme.textMuted }]}>{t('tracking.later')}</Text>
           </PressScale>
         </View>
+  );
+
+  if (isSplit) {
+    // Page gauche : ce qu'on vient de voir (photos plafonnées, durée, montant,
+    // reçu). Page droite : la note, le CTA épinglé en bas de SA page seulement.
+    const pageTop = topInset + 12;
+    return (
+      <View style={[s.root, { backgroundColor: theme.cardBg }]}>
+        <BookSpread
+          left={
+            <ScrollView contentContainerStyle={[s.scroll, { paddingTop: pageTop, paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
+              <Reanimated.View style={entrance.style}>{summaryBlock}</Reanimated.View>
+            </ScrollView>
+          }
+          right={
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.root}>
+              <ScrollView contentContainerStyle={[s.scroll, { paddingTop: pageTop, paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Reanimated.View style={entrance.fade}>{rateBlock}</Reanimated.View>
+              </ScrollView>
+              {footerBlock}
+            </KeyboardAvoidingView>
+          }
+        />
+        <PhotoViewer photos={gallery} index={viewer} onClose={() => setViewer(null)} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[s.root, { backgroundColor: theme.cardBg }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topInset + 16, paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Reanimated.View style={entrance.style}>
+            {summaryBlock}
+            {rateBlock}
+          </Reanimated.View>
+        </ScrollView>
+
+        {footerBlock}
       </KeyboardAvoidingView>
 
       <PhotoViewer photos={gallery} index={viewer} onClose={() => setViewer(null)} />
@@ -247,12 +293,15 @@ const s = StyleSheet.create({
   sub: { fontFamily: FONTS.sans, fontSize: 13.5, marginTop: 4 },
   compare: { flexDirection: 'row', gap: 8, marginTop: 16 },
   shot: { flex: 1, aspectRatio: 4 / 3, borderRadius: 14, overflow: 'hidden' },
+  // Page du Duo : hauteur plafonnée (en 4:3 une photo seule montait à ~310 pt).
+  shotPage: { flex: 1, height: 168, borderRadius: 14, overflow: 'hidden' },
   shotTag: { position: 'absolute', left: 8, bottom: 8, fontFamily: FONTS.monoMedium, fontSize: 9, letterSpacing: 1, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
   facts: { flexDirection: 'row', gap: 8, marginTop: 10 },
   fact: { flex: 1, padding: 10, borderRadius: 12 },
   factValue: { fontFamily: FONTS.bebas, fontSize: 20, includeFontPadding: false, fontVariant: ['tabular-nums'] },
   factLabel: { fontFamily: FONTS.sans, fontSize: 10, letterSpacing: 0.5, marginTop: 2 },
   rateHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 26 },
+  flushTop: { marginTop: 0 },
   question: { flex: 1, fontFamily: FONTS.bebas, fontSize: 22, includeFontPadding: false, letterSpacing: 0.3 },
   stars: { flexDirection: 'row', gap: 10, marginTop: 12 },
   ratingLabel: { fontFamily: FONTS.sansMedium, fontSize: 13, marginTop: 8 },

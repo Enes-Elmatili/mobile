@@ -494,11 +494,8 @@ export default function NewRequestStepper() {
     </>
   );
 
-  return (
-    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.statusBar} />
-
-      {/* ── En-tête : retour, titre, ligne de progression, puces (planche 1A) ── */}
+  // ── En-tête : retour, titre, ligne de progression, puces (planche 1A) ──
+  const header = (
       <View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
       <StepHeader
         step={step}
@@ -515,12 +512,28 @@ export default function NewRequestStepper() {
         <PreferredBanner theme={theme} name={preferred.name} onRemove={() => setPreferred(null)} />
       )}
       </View>
+  );
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={theme.statusBar} />
+
+      {/* Compact : l'en-tête au-dessus de tout. Déplié, il passerait à cheval
+          sur le pli (titre, ligne de progression, puces) : il vit en haut de
+          la page gauche, au-dessus de l'étape. */}
+      {isSplit ? null : header}
 
       {/* ── Contenu de l'étape, poussé latéralement à chaque changement ── */}
       {/* Déplié : le récapitulatif vit à droite pendant tout le tunnel, le
-          montant compte à chaque choix (urgent, créneau, promo). */}
+          montant compte à chaque choix (urgent, créneau, promo). Le pager
+          garde la même place dans l'arbre plié comme déplié : rien ne se démonte. */}
       <SplitPane
-        master={<StepPager page={step} direction={dir} render={renderStep} keepMounted style={s.flex} />}
+        master={
+          <View style={s.flex}>
+            {isSplit ? header : null}
+            <StepPager page={step} direction={dir} render={renderStep} keepMounted style={s.flex} />
+          </View>
+        }
         detail={isSplit ? (
           <ScrollView contentContainerStyle={s.recapPane} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <RecapBlock {...recapProps} />

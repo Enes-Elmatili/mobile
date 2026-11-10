@@ -8,9 +8,16 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { useAppTheme, FONTS } from '@/hooks/use-app-theme';
 import { useReduceMotion } from '@/lib/motion/sheet';
 
-type Props = { dimmed: boolean; label: string | null; /** Ratio de hauteur où poser l'étiquette (centre de la carte visible). */ labelTop: number };
+type Props = {
+  dimmed: boolean;
+  label: string | null;
+  /** Ratio de hauteur où poser l'étiquette (centre de la carte visible). */
+  labelTop: number;
+  /** Duo déplié : l'étiquette se centre dans la page gauche, pas sur le pli. */
+  band?: { left: number; width: number } | null;
+};
 
-function VeilBase({ dimmed, label, labelTop }: Props) {
+function VeilBase({ dimmed, label, labelTop, band = null }: Props) {
   const theme = useAppTheme();
   const reduced = useReduceMotion();
   const p = useSharedValue(dimmed ? 1 : 0);
@@ -21,7 +28,7 @@ function VeilBase({ dimmed, label, labelTop }: Props) {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.isDark ? '#000' : '#F4F4F2' }, veil]} />
       {label ? (
-        <Animated.View style={[s.tagWrap, { top: `${Math.round(labelTop * 100)}%` }, tag]}>
+        <Animated.View style={[s.tagWrap, { top: `${Math.round(labelTop * 100)}%` }, band ? { left: band.left, right: undefined, width: band.width } : null, tag]}>
           <Text style={[s.tag, { color: theme.text, backgroundColor: theme.isDark ? 'rgba(10,10,10,0.72)' : 'rgba(255,255,255,0.86)' }]} maxFontSizeMultiplier={1.2} accessibilityRole="text">{label.toUpperCase()}</Text>
         </Animated.View>
       ) : null}

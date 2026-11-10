@@ -20,7 +20,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authT, invertedGradient, standardGradient } from "./tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useLayoutClass, READING_MAX_WIDTH } from '@/lib/layout';
+import { useLayoutClass, BookSpread } from '@/lib/layout';
+import { AuthBookContext, AuthCover } from "./AuthCover";
 
 type Variant = "inverted" | "standard" | "flat";
 
@@ -61,6 +62,35 @@ export function AuthScreen({
     </SafeAreaView>
   );
 
+  // Duo déplié : un livre ouvert. Couverture fixe à gauche, la page de l'écran
+  // à droite — exactement la colonne de l'iPhone, qui tient dans une page (372
+  // à 456 pt). Plus de colonne centrée à cheval sur la charnière.
+  if (isRegular) {
+    const page = scrollable ? (
+      <KeyboardAvoidingView style={s.flex} behavior="padding">
+        <ScrollView
+          style={s.flex}
+          contentContainerStyle={s.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
+        >
+          {Inner}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    ) : Inner;
+    return (
+      <View style={[s.root, { backgroundColor: theme.bg }]}>
+        <StatusBar barStyle={theme.statusBar} />
+        <BookSpread
+          left={<SafeAreaView style={s.safe} edges={["top", "bottom"]}><AuthCover /></SafeAreaView>}
+          right={<AuthBookContext.Provider value>{page}</AuthBookContext.Provider>}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={s.root}>
       <StatusBar barStyle={statusBarStyle} />
@@ -80,7 +110,7 @@ export function AuthScreen({
         >
           <ScrollView
             style={s.flex}
-            contentContainerStyle={[s.scroll, isRegular && { maxWidth: READING_MAX_WIDTH, alignSelf: 'center', width: '100%' }]}
+            contentContainerStyle={s.scroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
